@@ -29,6 +29,7 @@ import { useEffect, useState } from "react";
 
 export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
   const [wartet, setWartet] = useState(bereit);
+  const [stockt, setStockt] = useState(false);
 
   useEffect(() => {
     // Gibt es nichts zu drucken, wird auch kein Druckfenster geöffnet.
@@ -38,11 +39,13 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
 
     let erledigt = false;
     let bremse: number | undefined;
+    let notausgang: number | undefined;
 
     const drucke = () => {
       if (erledigt) return;
       erledigt = true;
       window.clearTimeout(bremse);
+      window.clearTimeout(notausgang);
       setWartet(false);
       // Ein Herzschlag Abstand, damit der Hinweis verschwunden ist,
       // bevor sich das Druckfenster über die Seite legt.
@@ -80,8 +83,26 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
       window.addEventListener("load", nachDemLaden, { once: true });
     }
 
+    /*
+      Notausgang.
+
+      Auf das Laden zu warten ist richtig, aber es darf nicht das einzige
+      Signal bleiben: Faende das Laden nie ein Ende, wuerde hier ewig
+      gewartet und gar nichts passieren. Nach fuenf Sekunden wird deshalb
+      aufgegeben und die Entscheidung an den Menschen zurueckgegeben,
+      statt lautlos haengenzubleiben.
+    */
+    notausgang = window.setTimeout(() => {
+      if (erledigt) return;
+      erledigt = true;
+      window.clearTimeout(bremse);
+      setWartet(false);
+      setStockt(true);
+    }, 5000);
+
     return () => {
       window.clearTimeout(bremse);
+      window.clearTimeout(notausgang);
       window.removeEventListener("load", nachDemLaden);
     };
   }, [bereit]);
@@ -94,9 +115,11 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
       <span>
         {!bereit
           ? "Hier gibt es nichts zu drucken."
-          : wartet
-            ? "Das Druckfenster wird geöffnet..."
-            : "Das Druckfenster ist offen. Kommt nichts, hier nochmal klicken:"}
+          : stockt
+            ? "Die Seite lädt ungewöhnlich lange. Das Druckfenster jetzt von Hand öffnen:"
+            : wartet
+              ? "Das Druckfenster wird geöffnet..."
+              : "Das Druckfenster ist offen. Kommt nichts, hier nochmal klicken:"}
       </span>
       {bereit && !wartet && (
         <button
