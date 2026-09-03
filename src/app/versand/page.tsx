@@ -576,10 +576,18 @@ function Begleitschreiben({ sendung }: { sendung: Sendung }) {
         <p className="text-[9pt] text-leise">{UNTERSCHRIFT_ROLLE}</p>
       </div>
 
-      {/* Unter der unteren Goldlinie des Briefbogens. */}
+      {/*
+        Zwischen der unteren Goldlinie und dem Zierrahmen.
+
+        Am Bogen gemessen: Die Goldlinie endet bei 277,9 mm, der Rahmen
+        beginnt bei 286,3 mm. Dazwischen liegen 8,4 mm, und genau dort
+        hinein gehoeren die beiden Zeilen. Vorher standen sie bei 281 mm
+        und liefen mit der zweiten Zeile durch den Rahmen, sichtbar als
+        Strich quer durch die Telefonnummer.
+      */}
       <div
-        className="absolute text-center text-[8pt] leading-snug text-leise"
-        style={{ left: "19mm", right: "19mm", top: "281mm" }}
+        className="absolute text-center text-[8pt] text-leise"
+        style={{ left: "19mm", right: "19mm", top: "278.6mm", lineHeight: 1.25 }}
       >
         <div>{ABSENDERZEILE}</div>
         <div>{KONTAKTZEILE}</div>
@@ -645,7 +653,7 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
       */}
       <div
         className="absolute flex flex-col justify-between overflow-hidden text-center"
-        style={{ left: "22mm", right: "22mm", top: "193mm", height: "88mm" }}
+        style={{ left: "22mm", right: "22mm", top: "197mm", height: "84mm" }}
       >
         <div>
           <div className="text-[40pt] leading-none">GUTSCHEIN</div>

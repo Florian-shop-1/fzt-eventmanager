@@ -243,6 +243,17 @@ textarea:focus {
 @media print {
   .briefseiten {
     page: brief;
+    /*
+      Kein Aussenabstand.
+
+      Der Druckbereich steht im Programm zwischen anderen Abschnitten und
+      erbt von dort einen Abstand nach oben. Am Bildschirm faellt das
+      nicht auf, auf Papier schon: Der Bogen ist fast so hoch wie das
+      Blatt, und die zusaetzlichen sechs Millimeter schoben ihn ueber die
+      Kante. Der Drucker warf dann hinter jedem Anschreiben eine leere
+      zweite Seite aus.
+    */
+    margin: 0 !important;
   }
 
   /*
@@ -258,6 +269,7 @@ textarea:focus {
     aus jedem Blatt zwei.
   */
   .druckblatt {
+    margin: 0 !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
