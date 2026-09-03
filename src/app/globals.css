@@ -106,6 +106,36 @@ textarea:focus {
   im Hintergrund, schwarze Schrift auf Weiß und eine lesbare Größe.
 */
 @media print {
+  /*
+    Der Rahmen des Programms muss sich beim Drucken aufloesen.
+
+    Am Bildschirm spannt sich die Seite ueber die volle Fensterhoehe:
+    html traegt height:100%, body ist eine Flexspalte mit min-height:100%,
+    und main waechst mit flex-1 in den freien Platz. Das haelt die
+    Fusszeile unten, solange wenig Inhalt da ist.
+
+    Auf Papier ist genau das toedlich. Beim Drucken bedeutet height:100%
+    nicht "so hoch wie das Fenster", sondern "so hoch wie *eine* Seite".
+    Der Inhalt wird damit auf ein Blatt eingesperrt, und eine Flexspalte
+    laesst sich obendrein nicht sauber auf mehrere Blaetter aufteilen.
+    Chrome kam in dieser Lage zu gar keiner Seite: Die Druckvorschau
+    drehte sich endlos und meldete "0 Papierboegen".
+
+    Deshalb hier zurueck zu gewoehnlichem Fliesstext, der sich ueber so
+    viele Blaetter erstrecken darf, wie er braucht.
+  */
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  main {
+    flex: none !important;
+  }
+
   body {
     background: #ffffff;
     color: #000000;
