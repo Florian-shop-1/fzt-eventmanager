@@ -718,58 +718,76 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
       />
 
       {/*
-        Ein zusammenhängender Block statt gestapelter Positionen: Sonst
-        überlappen sich die Zeilen, sobald eine Widmung länger ist als
-        erwartet.
+        Oben: GUTSCHEIN, Betrag, Code, Einlösehinweis.
 
-        Verteilt wird wie in der Vorlage: oben Betrag und Code, in der
-        Mitte der Satz und die Grußworte, unten die Gültigkeit. Im
-        Originaldokument steht zwischen diesen Gruppen jeweils ein
-        großer Abstand, hier entsteht er dadurch, dass die drei Gruppen
-        den festen Platz unter sich aufteilen.
+        Der Bogen lässt zwischen dem Logo und dem Foto einen Streifen von
+        41,6 bis 105,7 mm frei, und genau dafür ist er gedacht. Vorher
+        stand hier nichts und der ganze Text drängte sich unter dem Foto.
+        Die Werte sind am Bogen gemessen, nicht geschätzt: Er wurde Zeile
+        für Zeile ausgewertet, um zu sehen, wo Logo, Foto und Rahmen
+        wirklich liegen.
       */}
       <div
-        className="absolute flex flex-col justify-between overflow-hidden text-center"
-        style={{ left: "22mm", right: "22mm", top: "197mm", height: "84mm" }}
+        className="absolute flex flex-col justify-center overflow-hidden text-center"
+        style={{ left: "22mm", right: "22mm", top: "41.6mm", height: "64.1mm" }}
       >
-        <div>
-          <div className="text-[40pt] leading-none">GUTSCHEIN</div>
-          {betrag && <div className="text-[14pt]" style={{ marginTop: "3mm" }}>{betrag}</div>}
-          <div className="text-[14pt]">
-            Code: <span className="font-mono tracking-[0.12em]">{code}</span>
+        <div className="text-[40pt] leading-none">GUTSCHEIN</div>
+        {betrag && (
+          <div className="text-[14pt]" style={{ marginTop: "5mm" }}>
+            {betrag}
           </div>
-          <div className="text-[12pt]" style={{ marginTop: "3.5mm" }}>
-            Einlösen auf www.florianzimmertheater.de
-          </div>
+        )}
+        <div className="text-[14pt]">
+          Code: <span className="font-mono tracking-[0.12em]">{code}</span>
         </div>
-
-        <div>
-          <div className="text-[14pt] leading-snug">
-            Ein Abend voller Magie,
-            <br />
-            den man nicht vergisst.
-          </div>
-
-          {(g.fuer || g.text || g.von) && (
-            <div
-              className="leading-snug"
-              style={{ marginTop: "4mm", fontSize: widmungsgroesse(g.text) }}
-            >
-              {g.fuer && <div>Für {g.fuer}</div>}
-              {g.text && <div>„{g.text}“</div>}
-              {g.von && <div>Von {g.von}</div>}
-            </div>
-          )}
-        </div>
-
-        <div className="text-[11pt]">
-          Gültig bis: {stand?.gueltigBis?.trim() || "Unbegrenzt"}
+        <div className="text-[12pt]" style={{ marginTop: "5mm" }}>
+          Einlösen auf www.florianzimmertheater.de
         </div>
       </div>
 
+      {/*
+        Unten: der Satz und die Grußworte, unter dem Foto.
+
+        Ein zusammenhängender Block statt gestapelter Positionen, sonst
+        überlappen sich die Zeilen, sobald eine Widmung länger ausfällt
+        als erwartet.
+      */}
       <div
-        className="absolute text-center text-[8pt] leading-snug text-leise"
-        style={{ left: "19mm", right: "19mm", top: "281mm" }}
+        className="absolute flex flex-col justify-center overflow-hidden text-center"
+        style={{ left: "22mm", right: "22mm", top: "196mm", height: "78mm" }}
+      >
+        <div className="text-[14pt] leading-snug">
+          Ein Abend voller Magie,
+          <br />
+          den man nicht vergisst.
+        </div>
+
+        {(g.fuer || g.text || g.von) && (
+          <div
+            className="leading-snug"
+            style={{ marginTop: "9mm", fontSize: widmungsgroesse(g.text) }}
+          >
+            {g.fuer && <div>Für {g.fuer}</div>}
+            {g.text && <div style={{ marginTop: "2mm" }}>„{g.text}“</div>}
+            {g.von && <div style={{ marginTop: "2mm" }}>Von {g.von}</div>}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="absolute text-center text-[11pt]"
+        style={{ left: "22mm", right: "22mm", top: "276mm" }}
+      >
+        Gültig bis: {stand?.gueltigBis?.trim() || "Unbegrenzt"}
+      </div>
+
+      {/*
+        Die Fußzeile endet bei 288,6 mm, der Zierrahmen beginnt bei
+        290,7 mm. Enger darf sie nicht rutschen.
+      */}
+      <div
+        className="absolute text-center text-[8pt] text-leise"
+        style={{ left: "19mm", right: "19mm", top: "281.5mm", lineHeight: 1.25 }}
       >
         <div>{ABSENDERZEILE}</div>
         <div>{KONTAKTZEILE}</div>
@@ -822,7 +840,10 @@ function gruesse(sendung: Sendung, stand: VersandStand | undefined) {
   return {
     fuer: nimm(stand?.widmungFuer, sendung.empfaenger),
     text: nimm(stand?.widmungText, sendung.widmung),
-    von: nimm(stand?.widmungVon, sendung.absender),
+    // Steht in der Tabelle kein Absender, kommt der Gutschein vom
+    // Kaeufer selbst. Genau so steht es auch in den bisherigen
+    // Dokumenten: "Von Astrid Klaiber".
+    von: nimm(stand?.widmungVon, sendung.absender || sendung.kundenname),
   };
 }
 
