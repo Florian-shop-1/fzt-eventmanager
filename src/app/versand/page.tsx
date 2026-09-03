@@ -16,7 +16,7 @@ import {
 } from "@/lib/db/buero";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { SofortDrucken } from "@/components/SofortDrucken";
-import { datumLang } from "@/lib/zeit";
+import { datumLang, zeitpunkt } from "@/lib/zeit";
 import { eur } from "@/lib/domain/pricing";
 import {
   ABSENDERZEILE,
@@ -52,10 +52,16 @@ export default async function VersandSeite({
     nur?: string;
     drucken?: string;
     sofort?: string;
+    zuletzt?: string;
+    aktion?: string;
   }>;
 }) {
-  const { zeige, nur, drucken, sofort } = await searchParams;
+  const { zeige, nur, drucken, sofort, zuletzt, aktion } = await searchParams;
   const alleZeigen = zeige === "alle";
+  const erledigteZeigen = zeige === "erledigt";
+  // Die aktuelle Ansicht wandert mit in die Aktion, damit man nach dem
+  // Abhaken dort weitermacht, wo man war.
+  const ansicht = erledigteZeigen ? "erledigt" : alleZeigen ? "alle" : "";
 
   /*
     Anschreiben und Gutschein werden getrennt gedruckt, nicht zusammen.
@@ -87,11 +93,25 @@ export default async function VersandSeite({
 
   const offen = sendungen.filter((s) => !istErledigt(s));
 
+  /*
+    Die abgehakten Sendungen bekommen eine eigene Ansicht.
+
+    Bisher waren sie nur ueber "Alle" erreichbar, zwischen allen anderen,
+    ohne dass irgendwo stand, wie viele es sind. Wer versehentlich
+    abgehakt hatte, konnte das weder sehen noch leicht rueckgaengig
+    machen.
+  */
+  const erledigte = sendungen.filter(istErledigt);
+
   // Eine einzelne Sendung: Das ist der Weg nach dem Eintragen des Codes.
   // Gedruckt wird dann genau dieser Umschlag, nicht der ganze Stapel.
   const einzeln = nur ? sendungen.filter((s) => s.bestellnummer === nur) : null;
 
-  const sichtbar = einzeln ?? (alleZeigen ? sendungen : offen);
+  // Die zuletzt angefasste Sendung, fuer die Rueckmeldung oben.
+  const geradeGeaendert = zuletzt ? sendungen.find((s) => s.bestellnummer === zuletzt) : undefined;
+
+  const sichtbar =
+    einzeln ?? (erledigteZeigen ? erledigte : alleZeigen ? sendungen : offen);
   const zuDrucken = (einzeln ?? offen).filter(gehtInDiePost);
   const klaerung = offen.filter((s) => brauchtKlaerung(s));
   // Ohne Gutscheincode kann kein Gutschein gedruckt werden. Ditix gibt ihn
@@ -131,6 +151,38 @@ export default async function VersandSeite({
           />
         )}
       </header>
+
+      {/*
+        Rückmeldung nach dem Abhaken.
+
+        Eine abgehakte Sendung verschwindet aus der offenen Liste. Ohne
+        diesen Kasten wäre sie danach ohne jede Spur weg, und niemand
+        wüsste, dass ein Klick genügt, um sie zurückzuholen.
+      */}
+      {zuletzt && geradeGeaendert && (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          <span>
+            <strong>{geradeGeaendert.kundenname || "Sendung"}</strong>{" "}
+            {aktion === "zurueck"
+              ? "steht wieder in der offenen Liste."
+              : "ist als verschickt abgehakt und aus der offenen Liste genommen."}
+          </span>
+          <form
+            action={versandAbhaken.bind(null, zuletzt, aktion !== "zurueck", ansicht)}
+            className="ml-auto"
+          >
+            <button
+              type="submit"
+              className="rounded-md border border-linie bg-flaeche px-3 py-1.5 font-medium"
+            >
+              Rückgängig
+            </button>
+          </form>
+        </div>
+      )}
 
       {fehler && (
         <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm print:hidden">
@@ -178,12 +230,26 @@ export default async function VersandSeite({
           Nur offene
         </Link>
         <Link
+          href="/versand?zeige=erledigt"
+          className={`rounded-md border px-3 py-1.5 ${erledigteZeigen ? "border-gold bg-gold-hell" : "border-linie"}`}
+        >
+          Abgehakt ({erledigte.length})
+        </Link>
+        <Link
           href="/versand?zeige=alle"
           className={`rounded-md border px-3 py-1.5 ${alleZeigen ? "border-gold bg-gold-hell" : "border-linie"}`}
         >
           Alle ({sendungen.length})
         </Link>
       </nav>
+
+      {erledigteZeigen && (
+        <p className="text-sm text-leise print:hidden">
+          Diese Sendungen sind als verschickt abgehakt und stehen deshalb nicht mehr in der
+          offenen Liste. War es ein Versehen, holt sie{" "}
+          <strong>doch nicht raus</strong> zurück.
+        </p>
+      )}
 
       {sichtbar.length === 0 ? (
         <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm print:hidden">
@@ -204,6 +270,7 @@ export default async function VersandSeite({
               sendung={s}
               stand={staende.get(s.bestellnummer)}
               erledigt={istErledigt(s)}
+              ansicht={ansicht}
             />
           ))}
         </div>
@@ -258,10 +325,12 @@ function Karte({
   sendung,
   stand,
   erledigt,
+  ansicht,
 }: {
   sendung: Sendung;
   stand: VersandStand | undefined;
   erledigt: boolean;
+  ansicht: string;
 }) {
   const problem = brauchtKlaerung(sendung);
   const post = gehtInDiePost(sendung);
@@ -315,7 +384,15 @@ function Karte({
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <form action={versandAbhaken.bind(null, sendung.bestellnummer, erledigt)}>
+          {erledigt && stand?.erledigtAm && (
+            <p className="text-right text-xs text-leise">
+              abgehakt von {stand.erledigtVon ?? "unbekannt"}
+              <br />
+              am {zeitpunkt(new Date(stand.erledigtAm))}
+            </p>
+          )}
+
+          <form action={versandAbhaken.bind(null, sendung.bestellnummer, erledigt, ansicht)}>
             <button
               type="submit"
               className="rounded-md border px-3 py-1.5 text-sm font-medium"

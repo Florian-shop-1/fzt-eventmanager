@@ -79,10 +79,22 @@ export async function versandStaende(): Promise<Map<string, VersandStand>> {
   );
 }
 
-/** Hakt eine Sendung als verschickt ab, oder nimmt das Häkchen zurück. */
+/**
+ * Hakt eine Sendung als verschickt ab, oder nimmt das Häkchen zurück.
+ *
+ * Nach dem Klick wird auf dieselbe Ansicht zurückgeführt, aber mit einem
+ * Vermerk, was gerade geschehen ist. Die Seite zeigt daraufhin eine
+ * Rückmeldung mit einem Weg zurück.
+ *
+ * Das ist kein Beiwerk. Eine abgehakte Sendung verschwindet aus der
+ * offenen Liste, und ohne Rückmeldung ist sie danach einfach weg: kein
+ * Hinweis, wohin, kein Hinweis, dass es rückgängig geht. Genau so sind
+ * an einem Abend fünf Sendungen unbemerkt aus der Liste gefallen.
+ */
 export async function versandAbhaken(
   bestellnummer: string,
   zurueck: boolean,
+  ansicht: string = "",
 ): Promise<void> {
   const name = await verlangeBuero();
 
@@ -99,7 +111,14 @@ export async function versandAbhaken(
          set erledigt_am = now(), erledigt_von = excluded.erledigt_von
     `;
   }
+
   revalidatePath("/versand");
+
+  const frage = new URLSearchParams();
+  if (ansicht) frage.set("zeige", ansicht);
+  frage.set("zuletzt", bestellnummer);
+  frage.set("aktion", zurueck ? "zurueck" : "ab");
+  redirect(`/versand?${frage.toString()}`);
 }
 
 /**
