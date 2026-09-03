@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import {
   brauchtKlaerung,
@@ -71,6 +72,7 @@ export default async function VersandSeite({
   // aufgehen. Die Reiter oben tun das nicht: Dort wird erst gewählt.
   const sofortDrucken = sofort === "1";
 
+
   let sendungen: Sendung[] = [];
   let fehler: string | null = null;
   try {
@@ -96,9 +98,22 @@ export default async function VersandSeite({
   // nicht über die Schnittstelle heraus, er muss von Hand herüber.
   const ohneCode = zuDrucken.filter((s) => !staende.get(s.bestellnummer)?.gutscheincode);
 
+  /*
+    Entsteht überhaupt ein Blatt?
+
+    Ein Druckauftrag ohne Inhalt ist der Fall, in dem die Druckvorschau
+    von Chrome ratlos stehen bleibt: ein Kreisel und "0 Papierbögen",
+    ohne Erklärung. Deshalb wird vorher gezählt, und wenn nichts
+    zusammenkommt, geht auch kein Druckfenster auf.
+
+    Gutscheine gibt es nur mit Code, denn ohne Code druckt der Bogen ein
+    leeres Feld statt einer Nummer.
+  */
+  const blaetter = druckeGutschein ? zuDrucken.length - ohneCode.length : zuDrucken.length;
+
   return (
     <div className="space-y-6">
-      {sofortDrucken && <SofortDrucken />}
+      {sofortDrucken && <SofortDrucken bereit={blaetter > 0} />}
 
       <header className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
@@ -200,10 +215,10 @@ export default async function VersandSeite({
       */}
       <div className="briefseiten hidden print:block">
         {zuDrucken.map((s) => (
-          <div key={s.bestellnummer}>
+          <Fragment key={s.bestellnummer}>
             {druckeAnschreiben && <Begleitschreiben sendung={s} />}
             {druckeGutschein && <Gutschein sendung={s} stand={staende.get(s.bestellnummer)} />}
-          </div>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -503,13 +518,8 @@ function Begleitschreiben({ sendung }: { sendung: Sendung }) {
 
   return (
     <div
-      className="relative"
-      style={{
-        width: "210mm",
-        height: "297mm",
-        pageBreakAfter: "always",
-        breakAfter: "page",
-      }}
+      className="druckblatt relative overflow-hidden"
+      style={{ width: "210mm", height: "296.9mm" }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -611,13 +621,8 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
 
   return (
     <div
-      className="relative"
-      style={{
-        width: "210mm",
-        height: "297mm",
-        pageBreakAfter: "always",
-        breakAfter: "page",
-      }}
+      className="druckblatt relative overflow-hidden"
+      style={{ width: "210mm", height: "296.9mm" }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

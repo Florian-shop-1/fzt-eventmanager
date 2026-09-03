@@ -214,6 +214,39 @@ textarea:focus {
   .briefseiten {
     page: brief;
   }
+
+  /*
+    Jeder Bogen ist ein Blatt.
+
+    Der Umbruch steht bewusst *vor* dem Bogen und nicht dahinter. Ein
+    Umbruch hinter dem letzten Blatt schiebt eine leere Seite nach, und
+    bei goldschimmerndem Papier ist ein Leerblatt kein Schoenheitsfehler,
+    sondern teuer.
+
+    Die Hoehe der Boegen liegt knapp unter A4. Genau 297mm rechnet der
+    Browser in Bildpunkte um, und schon ein einziger Punkt zu viel macht
+    aus jedem Blatt zwei.
+  */
+  .druckblatt {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .druckblatt + .druckblatt {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /*
+    Der Gutscheinbogen und der Briefbogen sind Bilder. Ohne diese Zeile
+    laesst der Browser sie beim Drucken weg, und es kaeme nur der Text
+    auf ein weisses Blatt.
+  */
+  .druckblatt,
+  .druckblatt * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
 @page parkschild {
