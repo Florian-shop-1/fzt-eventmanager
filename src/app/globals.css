@@ -1,26 +1,271 @@
 @import "tailwindcss";
 
+/*
+  Internes Arbeitsprogramm des Florian Zimmer Theaters.
+  Bewusst helle, ruhige Oberflaeche: hier wird stundenlang gearbeitet,
+  das Gold der Marke dient nur als Akzent.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --hintergrund: #f7f6f3;
+  --flaeche: #ffffff;
+  --text: #1c1b19;
+  --text-leise: #6b6862;
+  --linie: #e3e0d8;
+
+  --gold: #c9a84c;
+  --gold-dunkel: #9b7f2f;
+  --gold-hell: #f5efdc;
+
+  --warnung: #b45309;
+  --warnung-hell: #fef3e2;
+  --blocker: #b3261e;
+  --blocker-hell: #fdeceb;
+  --info: #3f5b8b;
+  --info-hell: #eef2f9;
+  --gut: #2f6b46;
+  --gut-hell: #eaf4ee;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-hintergrund: var(--hintergrund);
+  --color-flaeche: var(--flaeche);
+  --color-text: var(--text);
+  --color-leise: var(--text-leise);
+  --color-linie: var(--linie);
+  --color-gold: var(--gold);
+  --color-gold-dunkel: var(--gold-dunkel);
+  --color-gold-hell: var(--gold-hell);
+  --color-warnung: var(--warnung);
+  --color-warnung-hell: var(--warnung-hell);
+  --color-blocker: var(--blocker);
+  --color-blocker-hell: var(--blocker-hell);
+  --color-info: var(--info);
+  --color-info-hell: var(--info-hell);
+  --color-gut: var(--gut);
+  --color-gut-hell: var(--gut-hell);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--hintergrund);
+  color: var(--text);
+}
+
+/*
+  Tabellen brauchen Luft zwischen den Spalten.
+
+  Ohne sie kleben Zahl und Text aneinander, und in der Kopfzeile lesen
+  sich zwei Spalten als ein Wort: Aus "Gäste" und "Platz" wurde auf
+  schmalen Bildschirmen "GÄSTEPLATZ". Deshalb hier einmal zentral statt
+  in jeder einzelnen Tabelle.
+*/
+th,
+td {
+  padding-right: 1.25rem;
+  vertical-align: top;
+}
+
+th:last-child,
+td:last-child {
+  padding-right: 0;
+}
+
+/* Zahlenspalten stehen rechts und brauchen den Abstand links. */
+th[align="right"],
+.text-right {
+  vertical-align: top;
+}
+
+/* Formularfelder einheitlich, ohne jedes Feld einzeln zu bestylen. */
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="date"],
+select,
+textarea {
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: -1px;
+}
+
+/*
+  Druckansicht, vor allem für das Funktionsheet.
+  Osman hängt es in der Küche aus, deshalb: keine Navigation, keine Farben
+  im Hintergrund, schwarze Schrift auf Weiß und eine lesbare Größe.
+*/
+@media print {
+  body {
+    background: #ffffff;
+    color: #000000;
+    font-size: 11pt;
+  }
+
+  header nav,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main {
+    max-width: none;
+    padding: 0;
+  }
+
+  article {
+    border: 0;
+    padding: 0;
+  }
+
+  /* Warnungen bleiben erkennbar, auch ohne Farbdruck. */
+  [style*="--warnung"] {
+    border-width: 2px;
+  }
+
+  table {
+    page-break-inside: avoid;
+  }
+
+  section {
+    page-break-inside: avoid;
+  }
+
+  /* Bei langen Tabellen die Kopfzeile auf jeder Seite wiederholen. */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /*
+    Der Sitzplan lebt von gefuellten und leeren Punkten. Browser lassen
+    Hintergruende beim Drucken normalerweise weg, dann waeren alle Plaetze
+    gleich und der Ausdruck waere wertlos. Deshalb hier ausdruecklich
+    farbecht drucken.
+  */
+  .druckt-farbe,
+  .druckt-farbe * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /*
+    Was nur zum Klicken da ist, gehoert nicht aufs Papier.
+
+    Ausnahme: Knoepfe mit der Klasse "druckt-mit". Das sind Kaestchen, die
+    am Bildschirm angeklickt und auf Papier angekreuzt werden, etwa in der
+    Einlassliste. Sie muessen in beiden Welten funktionieren.
+  */
+  button:not(.druckt-mit),
+  input,
+  select,
+  textarea,
+  details > summary {
+    display: none !important;
+  }
+
+  button.druckt-mit {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+/*
+  Die Reservierungsschilder fuer die Parkplaetze quer drucken. Sie liegen
+  auf dem Parkplatz oder hinter der Scheibe, da ist Querformat lesbarer,
+  und der Name passt groesser drauf.
+*/
+/*
+  Brief und Gutschein fuellen das Blatt vollstaendig.
+
+  Die Vorlagen sind exakt A4 und bringen ihren eigenen Rand mit, den
+  Zierrahmen. Ein zusaetzlicher Druckrand wuerde sie verkleinern, und dann
+  saesse die Anschrift nicht mehr im Fenster des Umschlags.
+*/
+@page brief {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  .briefseiten {
+    page: brief;
+  }
+}
+
+@page parkschild {
+  size: A4 landscape;
+  /*
+    Ohne Rand: Die Vorlage bringt ihren eigenen Zierrahmen mit und ist
+    genau im Seitenverhaeltnis von A4 quer angelegt. Ein zusaetzlicher
+    Druckrand wuerde sie stauchen.
+  */
+  margin: 0;
+}
+
+@media print {
+  .parkschilder {
+    page: parkschild;
+  }
+}
+
+/*
+  Das Angebot auf Papier.
+
+  Am Bildschirm beginnt es mit einer dunklen Bühne. Gedruckt wäre das eine
+  vollflächig schwarze erste Seite: viel Toner, wenig Nutzen. Im Ausdruck
+  wird daraus deshalb ein heller Briefkopf mit demselben Logo, und der
+  dunkle Zusageblock am Ende wird zu einem schlichten Kasten.
+
+  Gebraucht wird das, weil Angebote als PDF an Kunden gehen und in die
+  Buchhaltung wandern.
+*/
+@media print {
+  .angebot-druck header {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding-top: 0 !important;
+    padding-bottom: 1.5rem !important;
+  }
+
+  .angebot-druck header .bild-hintergrund {
+    display: none !important;
+  }
+
+  .angebot-druck header p {
+    color: #444444 !important;
+  }
+
+  .angebot-druck .zusage-block {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #999999;
+  }
+
+  .angebot-druck .zusage-block p {
+    color: #444444 !important;
+  }
 }

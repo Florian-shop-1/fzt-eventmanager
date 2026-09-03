@@ -1,0 +1,40 @@
+BILDER FÜR DAS ANGEBOT
+======================
+
+Das Angebot ist bebildert. Verwendet werden zurzeit Fotos, die schon in
+diesem Ordner lagen, von eurer Website:
+
+   Titelbild oben        hero-theater_2.jpeg      Fassade bei Nacht
+   17:20 Empfang         magic-dinner-neu2.webp   Gäste am Tisch, lachend
+   17:50 Menü            classic.webp             angerichteter Hauptgang
+   20:00 Show            loge.jpg                 Bühne mit rotem Vorhang
+   22:30 Foyerbar        foyerbar.jpg             FEHLT NOCH
+   Abschnitt "Euer Platz" magicuisine-hero.jpg    Restaurant mit Tischen
+
+Zwei Hinweise dazu:
+
+   loge.jpg heißt zwar so, zeigt aber die Bühne und nicht eine Loge.
+   Deshalb steht sie beim Abschnitt "Die Show".
+
+   Ein Foto von der Foyerbar gibt es noch nicht. Diese Stelle bleibt
+   dunkel, bis eines da ist. Kaputt sieht nichts aus, es fehlt nur.
+
+
+WIE DU EIN BILD AUSTAUSCHST
+---------------------------
+
+Leg eine Datei mit demselben Namen in diesen Ordner, fertig. Willst du
+zum Beispiel ein besseres Menüfoto, ersetze classic.webp.
+
+Für die fehlende Foyerbar reicht eine Datei namens foyerbar.jpg.
+
+Format: Querformat, mindestens 1600 Pixel breit, JPG oder WEBP.
+Bei Hochformat wird oben und unten beschnitten.
+
+
+WENN DU EINE ANDERE ZUORDNUNG WILLST
+------------------------------------
+
+Sag einfach, welches Foto an welche Stelle soll. Auch ganz neue Fotos
+sind kein Problem: Schick mir mehr Auswahl als nötig, dann suche ich aus
+und schneide passend zu.

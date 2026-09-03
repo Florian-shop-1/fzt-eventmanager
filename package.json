@@ -3,24 +3,40 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "cross-env NODE_OPTIONS=--use-system-ca next dev",
+    "build": "cross-env NODE_OPTIONS=--use-system-ca next build",
+    "start": "cross-env NODE_OPTIONS=--use-system-ca next start",
+    "lint": "eslint",
+    "migrate": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/migrate.ts",
+    "test:sitzplan": "tsx scripts/test-sitzplaner.ts",
+    "test:angebot": "tsx scripts/test-angebot.ts",
+    "test:datenbank": "tsx scripts/test-datenbank.ts",
+    "test": "npm run test:sitzplan && npm run test:angebot && npm run test:datenbank",
+    "db:status": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/db-status.ts",
+    "lexoffice:test": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/lexoffice-test.ts",
+    "test:menueliste": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-menueliste.ts",
+    "zugang": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/ersten-zugang.ts",
+    "demo:angebot": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts",
+    "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^17.4.2",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }
