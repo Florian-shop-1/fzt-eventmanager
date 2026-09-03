@@ -408,7 +408,7 @@ function Karte({
         </div>
       </div>
 
-      {post && <Codeschritte sendung={sendung} code={stand?.gutscheincode ?? null} />}
+      {post && <Codeschritte sendung={sendung} stand={stand} code={stand?.gutscheincode ?? null} />}
     </article>
   );
 }
@@ -425,7 +425,18 @@ function Karte({
  * unter vielen: Wer die Seite zum ersten Mal sieht, soll ohne Erklärung
  * wissen, was zu tun ist.
  */
-function Codeschritte({ sendung, code }: { sendung: Sendung; code: string | null }) {
+function Codeschritte({
+  sendung,
+  stand,
+  code,
+}: {
+  sendung: Sendung;
+  stand: VersandStand | undefined;
+  code: string | null;
+}) {
+  const wertCent = gutscheinCent(sendung, stand);
+  const mitZauberstab = Number.isFinite(wertCent) && wertCent >= ZAUBERSTAB_AB_CENT;
+
   if (code) {
     return (
       <div
@@ -478,8 +489,24 @@ function Codeschritte({ sendung, code }: { sendung: Sendung; code: string | null
           <li className="flex items-center gap-3">
             <Schrittzahl n={6} gut />
             <span>
-              Beides in den Fensterumschlag, das Anschreiben mit der Anschrift nach vorn. Danach
-              oben rechts <strong>als verschickt abhaken</strong>.
+              Beides in den Fensterumschlag, das Anschreiben mit der Anschrift nach vorn.
+              {mitZauberstab ? (
+                <>
+                  {" "}
+                  <strong
+                    className="rounded px-1.5 py-0.5"
+                    style={{ background: "var(--gold-hell)", color: "var(--gold-dunkel)" }}
+                  >
+                    Zauberstab nicht vergessen
+                  </strong>{" "}
+                  <span className="text-leise">
+                    (Gutschein über {eur(wertCent)}, ab 100 € liegt einer bei)
+                  </span>
+                </>
+              ) : (
+                <span className="text-leise"> Kein Zauberstab, der Gutschein liegt unter 100 €.</span>
+              )}{" "}
+              Danach oben rechts <strong>als verschickt abhaken</strong>.
             </span>
           </li>
         </ol>
@@ -701,7 +728,7 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
   if (!code) return null;
 
   const g = gruesse(sendung, stand);
-  const cent = stand?.betragCent ?? Math.round(Number(sendung.betrag.replace(",", ".")) * 100);
+  const cent = gutscheinCent(sendung, stand);
   const betrag = Number.isFinite(cent) && cent > 0 ? gutscheinbetrag(cent) : null;
 
   return (
@@ -794,6 +821,24 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
       </div>
     </div>
   );
+}
+
+/**
+ * Ab welchem Wert ein Zauberstab beiliegt.
+ *
+ * Steht hier als Zahl und nicht im Text, damit sich die Schwelle an
+ * einer Stelle aendern laesst, wenn ihr sie einmal anhebt.
+ */
+const ZAUBERSTAB_AB_CENT = 100_00;
+
+/**
+ * Der Wert des Gutscheins in Cent.
+ *
+ * Im Programm eingetragene Betraege haben Vorrang vor dem, was in der
+ * Tabelle steht: Wer hier etwas korrigiert hat, hatte einen Grund.
+ */
+function gutscheinCent(sendung: Sendung, stand: VersandStand | undefined): number {
+  return stand?.betragCent ?? Math.round(Number(sendung.betrag.replace(",", ".")) * 100);
 }
 
 /**
