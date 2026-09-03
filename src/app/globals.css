@@ -132,10 +132,6 @@ textarea:focus {
     overflow: visible !important;
   }
 
-  main {
-    flex: none !important;
-  }
-
   body {
     background: #ffffff;
     color: #000000;
@@ -148,9 +144,22 @@ textarea:focus {
     display: none !important;
   }
 
+  /*
+    Der Hauptbereich gibt seinen Innenabstand ab.
+
+    Das "!important" ist kein Uebermut, sondern noetig. Der Abstand kommt
+    aus den Klassen px-6 und py-8 am selben Element, und eine Klasse
+    gewinnt gegen einen blossen Elementnamen. Ohne das Ausrufezeichen
+    blieben oben und unten je acht Millimeter stehen. Ein Bogen ist fast
+    so hoch wie das Blatt, also schoben ihn diese Millimeter ueber die
+    Kante, und der Drucker warf hinter jedem Blatt ein zweites, fast
+    leeres aus.
+  */
   main {
-    max-width: none;
-    padding: 0;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex: none !important;
   }
 
   article {
