@@ -3,7 +3,7 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { termineDesTages, findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { holeSaalplan, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
-import { empfehlung, type Bereich, type Empfehlung, type Reihe } from "@/lib/seating/upgrade";
+import { empfehlung, type Bereich, type Empfehlung } from "@/lib/seating/upgrade";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
@@ -12,9 +12,14 @@ import { datumLang } from "@/lib/zeit";
 export const metadata = { title: "Upgrades | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
-/** Buchstaben für die Bereiche: A, B, C ... */
+/** Buchstaben für die Umzüge: A, B, C ... */
 function buchstabe(i: number): string {
   return String.fromCharCode(65 + i);
+}
+
+/** "Platz 7 bis 8" oder "Platz 7". */
+function plaetze(b: Bereich): string {
+  return b.von === b.bis ? `Platz ${b.von}` : `Platz ${b.von} bis ${b.bis}`;
 }
 
 /**
@@ -25,11 +30,12 @@ function buchstabe(i: number): string {
  * spricht die Gäste der letzten Reihe beim Einlass an, verschenkt ein
  * Upgrade und schickt sie nach vorn.
  *
+ * Gruppen bleiben dabei immer zusammen. Wer zu viert kommt, sitzt auch
+ * vorne zu viert nebeneinander.
+ *
  * Diese Seite ist dafür da, ausgedruckt zu werden. Der Mitarbeiter hat
  * sie am Einlass in der Hand, zeigt den Gästen ihren neuen Platz und
- * streicht ihn durch, sobald er vergeben ist. Deshalb steht neben jedem
- * Bereich ein Kästchen, und deshalb ist der Saalplan groß genug, um ihn
- * jemandem hinzuhalten.
+ * hakt ihn ab, sobald sie sitzen.
  */
 export default async function UpgradeSeite({
   searchParams,
@@ -92,11 +98,11 @@ export default async function UpgradeSeite({
           <h1 className="text-2xl font-semibold tracking-tight">Upgrades</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
             Die hinteren Reihen nach vorne holen, damit der Saal von der Bühne aus voll wirkt.
-            Ausdrucken, am Einlass die Gäste ansprechen und jeden vergebenen Bereich durchstreichen.
+            Gruppen bleiben zusammen. Ausdrucken, am Einlass ansprechen, abhaken.
           </p>
         </div>
-        {rat && rat.umzusetzen.length > 0 && (
-          <DruckKnopf text="Plan drucken" hinweis="mit Empfehlung zum Abhaken" />
+        {rat && rat.umzuege.length > 0 && (
+          <DruckKnopf text="Plan drucken" hinweis="mit Liste zum Abhaken" />
         )}
       </header>
 
@@ -159,15 +165,15 @@ export default async function UpgradeSeite({
             reihenRaeumen={reihenRaeumen}
             moeglich={rat.reihen.length}
           />
+          <Umzugsliste rat={rat} />
           <Saalzeichnung plan={plan} rat={rat} />
-          <Ansageliste rat={rat} />
         </>
       )}
     </div>
   );
 }
 
-/** Die Zahlen des Abends in einem Satz, plus das Nötigste als Kacheln. */
+/** Die Lage des Abends in Zahlen. */
 function Lage({
   plan,
   rat,
@@ -179,47 +185,65 @@ function Lage({
 }) {
   const quote = Math.round((plan.verkauft / Math.max(1, plan.sitze.length)) * 100);
   const quellen = rat.quellreihen.map((r) => `${r.sektor}, Reihe ${r.nummer}`).join(" und ");
+  const hintenGesamt = rat.gruppen.reduce((n, g) => n + g.sitze.length, 0);
 
   return (
     <section className="space-y-3">
-      <div className="hidden text-sm print:block">
-        {plan.verkauft} von {plan.sitze.length} Plätzen verkauft ({quote} Prozent).
-      </div>
+      <p className="hidden text-sm print:block">
+        {plan.verkauft} von {plan.sitze.length} Plätzen verkauft ({quote} Prozent). Umzusetzen:{" "}
+        {rat.gaeste} Gäste in {rat.umzuege.length}{" "}
+        {rat.umzuege.length === 1 ? "Gruppe" : "Gruppen"} aus {quellen || "keiner Reihe"}.
+      </p>
 
       <div className="flex flex-wrap gap-4 print:hidden">
-        <Kachel zahl={plan.verkauft} was="verkauft" hinweis={`von ${plan.sitze.length} (${quote} %)`} />
         <Kachel
-          zahl={rat.umzusetzen.length}
-          was="umzusetzen"
-          hinweis={quellen || "nichts zu räumen"}
-          betont={rat.umzusetzen.length > 0}
+          zahl={plan.verkauft}
+          was="verkauft"
+          hinweis={`von ${plan.sitze.length} (${quote} %)`}
         />
         <Kachel
-          zahl={rat.ziele.reduce((n, b) => n + b.sitze.length, 0)}
-          was="Plätze vorne"
-          hinweis={`in ${rat.ziele.length} ${rat.ziele.length === 1 ? "Bereich" : "Bereichen"}`}
+          zahl={hintenGesamt}
+          was="sitzen hinten"
+          hinweis={quellen || "nichts zu räumen"}
+          betont={hintenGesamt > 0}
+        />
+        <Kachel
+          zahl={rat.umzuege.length}
+          was={rat.umzuege.length === 1 ? "Gruppe umsetzen" : "Gruppen umsetzen"}
+          hinweis={`${rat.gaeste} Gäste`}
         />
       </div>
 
-      {rat.umzusetzen.length === 0 && (
+      {rat.gruppen.length === 0 && (
         <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
           In den hinteren Reihen sitzt niemand. Hier ist nichts zu tun.
         </p>
       )}
 
-      {rat.fehlend > 0 && (
-        <p
+      {rat.bleiben.length > 0 && (
+        <div
           className="rounded-lg border px-4 py-3 text-sm"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
-          <strong>{rat.fehlend} Gäste passen nicht mehr nach vorne.</strong> Der Saal ist vorne zu
-          voll. Setz so viele um, wie die Liste hergibt, der Rest bleibt sitzen.
-        </p>
+          <strong>
+            {rat.bleiben.length}{" "}
+            {rat.bleiben.length === 1 ? "Gruppe bleibt" : "Gruppen bleiben"} sitzen.
+          </strong>{" "}
+          Vorne ist kein Block am Stück frei, der groß genug wäre. Auseinandergezogen wird
+          niemand.
+          <ul className="mt-2 space-y-1">
+            {rat.bleiben.map((g) => (
+              <li key={`${g.reihe.nummer}-${g.von}`}>
+                Reihe {g.reihe.nummer}, {plaetze(g)} — {g.sitze.length}{" "}
+                {g.sitze.length === 1 ? "Gast" : "Gäste"}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      <p className="hidden text-sm print:block">
-        Umzusetzen: {rat.umzusetzen.length} Gäste aus {quellen || "keiner Reihe"} —{" "}
-        {vorstellung.uhrzeit} Uhr.
+      <p className="hidden text-xs text-leise print:block">
+        {vorstellung.name}, Stand des Verkaufs beim Ausdruck.
       </p>
     </section>
   );
@@ -289,20 +313,94 @@ function Reihenwahl({
 }
 
 /**
+ * Wer wohin kommt.
+ *
+ * Eine Zeile je Gruppe, mit dem alten Platz links und dem neuen rechts.
+ * Der alte Platz steht bewusst zuerst: Danach sucht der Mitarbeiter,
+ * wenn jemand am Einlass seine Karte hinhält.
+ */
+function Umzugsliste({ rat }: { rat: Empfehlung }) {
+  if (rat.umzuege.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold tracking-tight">
+        {rat.umzuege.length} {rat.umzuege.length === 1 ? "Gruppe" : "Gruppen"}, {rat.gaeste} Gäste
+      </h2>
+
+      <ul className="space-y-2">
+        {rat.umzuege.map((u, i) => (
+          <li
+            key={`${u.gruppe.reihe.nummer}-${u.gruppe.von}`}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-linie bg-flaeche px-3 py-2"
+          >
+            <span
+              className="druckt-farbe flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+              style={{ background: "var(--gold)", color: "#fff" }}
+            >
+              {buchstabe(i)}
+            </span>
+
+            <span className="text-sm">
+              <span className="text-leise">sitzt in</span>{" "}
+              <strong>
+                Reihe {u.gruppe.reihe.nummer}, {plaetze(u.gruppe)}
+              </strong>
+            </span>
+
+            <span aria-hidden="true" className="text-leise">
+              →
+            </span>
+
+            <span className="text-sm">
+              <span className="text-leise">neu:</span>{" "}
+              <strong>
+                Reihe {u.ziel.reihe.nummer}, {plaetze(u.ziel)}
+              </strong>{" "}
+              <span className="text-leise">({u.ziel.reihe.sektor})</span>
+            </span>
+
+            <span className="ml-auto flex items-center gap-3">
+              <span className="text-sm text-leise">
+                {u.gruppe.sitze.length} {u.gruppe.sitze.length === 1 ? "Gast" : "Gäste"}
+              </span>
+              {/* Zum Abhaken mit dem Stift. */}
+              <span className="h-6 w-6 shrink-0 rounded border border-text" aria-hidden="true" />
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="max-w-prose text-xs text-leise">
+        Die Liste steht von vorne nach hinten. Jede Gruppe zieht am Stück um, niemand wird
+        getrennt. Kommt jemand nicht, bleibt sein Block einfach frei.
+      </p>
+    </section>
+  );
+}
+
+/**
  * Der Saal als Zeichnung.
  *
  * Gezeichnet wird aus den Koordinaten, die Ditix zu jedem Platz
  * mitliefert, nicht aus einem Bild. So stimmt der Plan auch dann, wenn
  * im Ticketshop etwas umgebaut wird.
  *
+ * Alter und neuer Platz einer Gruppe tragen denselben Buchstaben. Damit
+ * lässt sich auf dem Papier mit dem Finger nachfahren, wer wohin geht.
+ *
  * Die Farben müssen auch auf Papier durchkommen, deshalb trägt die
  * Zeichnung die Klasse "druckt-farbe": Browser lassen Flächen beim
  * Drucken sonst weg, und dann sähen alle Plätze gleich aus.
  */
 function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
-  const nummer = new Map<number, number>();
-  rat.ziele.forEach((b, i) => b.sitze.forEach((s) => nummer.set(s.id, i)));
-  const quellen = new Set(rat.quellreihen.flatMap((r) => r.sitze.map((s) => s.id)));
+  const ziel = new Map<number, number>();
+  const quelle = new Map<number, number>();
+  rat.umzuege.forEach((u, i) => {
+    u.ziel.sitze.forEach((s) => ziel.set(s.id, i));
+    u.gruppe.sitze.forEach((s) => quelle.set(s.id, i));
+  });
+  const bleibt = new Set(rat.bleiben.flatMap((g) => g.sitze.map((s) => s.id)));
 
   const xs = plan.sitze.map((s) => s.x);
   const ys = plan.sitze.map((s) => s.y);
@@ -311,8 +409,6 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
   const oben = Math.min(...ys);
   const unten = Math.max(...ys);
 
-  // Sitzkantenlänge aus dem Abstand der Plätze, damit die Zeichnung bei
-  // jedem Saalplan stimmt und nicht nur bei diesem einen.
   const kante = 22;
   const rand = 34;
   const breite = rechts - links + kante + rand * 2;
@@ -353,7 +449,6 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
 
         {rat.reihen.map((reihe) => (
           <g key={`${reihe.sektor}-${reihe.nummer}`}>
-            {/* Reihenbeschriftung links neben der Reihe. */}
             <text
               x={links - kante}
               y={reihe.y + 3.5}
@@ -368,8 +463,9 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
                 key={s.id}
                 sitz={s}
                 kante={kante}
-                bereich={nummer.get(s.id)}
-                quelle={quellen.has(s.id)}
+                ziel={ziel.get(s.id)}
+                quelle={quelle.get(s.id)}
+                bleibt={bleibt.has(s.id)}
               />
             ))}
           </g>
@@ -377,10 +473,19 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
       </svg>
 
       <figcaption className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs">
-        <Zeichen farbe="var(--text)" text="verkauft" />
+        <Zeichen farbe="var(--gold)" text="hierhin, neuer Platz" />
+        <Zeichen
+          farbe="var(--gold-hell)"
+          rahmen="var(--gold-dunkel)"
+          text="sitzt hier, wird angesprochen"
+        />
+        <Zeichen farbe="var(--text)" text="verkauft, bleibt sitzen" />
+        <Zeichen
+          farbe="var(--warnung-hell)"
+          rahmen="var(--warnung)"
+          text="bleibt hinten, kein Block frei"
+        />
         <Zeichen farbe="var(--flaeche)" rahmen="var(--linie)" text="frei" />
-        <Zeichen farbe="var(--gold)" text="hierhin umsetzen" />
-        <Zeichen farbe="var(--warnung-hell)" rahmen="var(--warnung)" text="ansprechen, sitzt hinten" />
         <Zeichen farbe="var(--linie)" text="gesperrt" />
       </figcaption>
     </figure>
@@ -391,26 +496,35 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
 function Platz({
   sitz,
   kante,
-  bereich,
+  ziel,
   quelle,
+  bleibt,
 }: {
   sitz: Sitz;
   kante: number;
-  bereich: number | undefined;
-  quelle: boolean;
+  ziel: number | undefined;
+  quelle: number | undefined;
+  bleibt: boolean;
 }) {
   let fuellung = "var(--flaeche)";
   let rahmen = "var(--linie)";
   let schrift = "var(--text-leise)";
+  let beschriftung = sitz.name;
 
   if (sitz.status === "gesperrt") {
     fuellung = "var(--linie)";
     rahmen = "var(--linie)";
-  } else if (bereich !== undefined) {
+  } else if (ziel !== undefined) {
     fuellung = "var(--gold)";
     rahmen = "var(--gold-dunkel)";
     schrift = "#ffffff";
-  } else if (quelle && sitz.status === "verkauft") {
+    beschriftung = buchstabe(ziel);
+  } else if (quelle !== undefined) {
+    fuellung = "var(--gold-hell)";
+    rahmen = "var(--gold-dunkel)";
+    schrift = "var(--gold-dunkel)";
+    beschriftung = buchstabe(quelle);
+  } else if (bleibt) {
     fuellung = "var(--warnung-hell)";
     rahmen = "var(--warnung)";
     schrift = "var(--text)";
@@ -430,16 +544,10 @@ function Platz({
         rx={3.5}
         fill={fuellung}
         stroke={rahmen}
-        strokeWidth={1}
+        strokeWidth={ziel !== undefined || quelle !== undefined ? 1.6 : 1}
       />
-      <text
-        x={sitz.x}
-        y={sitz.y + 3.2}
-        textAnchor="middle"
-        fontSize={9}
-        fill={schrift}
-      >
-        {bereich !== undefined ? buchstabe(bereich) : sitz.name}
+      <text x={sitz.x} y={sitz.y + 3.2} textAnchor="middle" fontSize={9} fill={schrift}>
+        {beschriftung}
       </text>
     </g>
   );
@@ -456,62 +564,3 @@ function Zeichen({ farbe, rahmen, text }: { farbe: string; rahmen?: string; text
     </span>
   );
 }
-
-/**
- * Was am Einlass gesagt wird.
- *
- * Eine Zeile je Bereich, von vorne nach hinten. Das Kästchen links wird
- * mit dem Stift durchgestrichen, sobald der Bereich vergeben ist. Die
- * Zeile ist bewusst so formuliert, wie man sie vorliest.
- */
-function Ansageliste({ rat }: { rat: Empfehlung }) {
-  if (rat.ziele.length === 0) return null;
-
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold tracking-tight">
-        Der Reihe nach vergeben, {rat.umzusetzen.length} Gäste
-      </h2>
-
-      <ul className="space-y-2">
-        {rat.ziele.map((b, i) => (
-          <li
-            key={`${b.reihe.sektor}-${b.reihe.nummer}-${b.von}`}
-            className="flex items-center gap-3 rounded-lg border border-linie bg-flaeche px-3 py-2"
-          >
-            <span
-              className="druckt-farbe flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
-              style={{ background: "var(--gold)", color: "#fff" }}
-            >
-              {buchstabe(i)}
-            </span>
-            <span className="flex-1 text-sm">
-              <strong>
-                Reihe {b.reihe.nummer}, {ansage(b)}
-              </strong>
-              <span className="text-leise">
-                {" "}
-                — {b.sitze.length} {b.sitze.length === 1 ? "Platz" : "Plätze"} ({b.reihe.sektor})
-              </span>
-            </span>
-            {/* Zum Abhaken mit dem Stift. */}
-            <span className="h-6 w-6 shrink-0 rounded border border-text" aria-hidden="true" />
-          </li>
-        ))}
-      </ul>
-
-      <p className="max-w-prose text-xs text-leise">
-        Die Bereiche stehen von vorne nach hinten. Kommt eine Gruppe, die nicht genau passt, nimm
-        den nächsten Bereich und trag den Rest im nächsten ein. Was vergeben ist, wird
-        durchgestrichen.
-      </p>
-    </section>
-  );
-}
-
-/** "Platz 7 bis 8" oder "Platz 7". */
-function ansage(b: Bereich): string {
-  return b.von === b.bis ? `Platz ${b.von}` : `Platz ${b.von} bis ${b.bis}`;
-}
-
-export type { Reihe };
