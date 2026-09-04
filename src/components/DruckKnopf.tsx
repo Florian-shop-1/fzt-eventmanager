@@ -9,6 +9,8 @@
  * Er verschwindet im Ausdruck selbst, sonst stünde er auf dem Papier.
  */
 
+import { useState } from "react";
+
 export function DruckKnopf({
   text = "Drucken",
   hinweis,
@@ -17,18 +19,51 @@ export function DruckKnopf({
   /** Kleine Zeile daneben, etwa "am besten Hochformat". */
   hinweis?: string;
 }) {
+  const [geklickt, setGeklickt] = useState(false);
+
   return (
-    <div className="flex items-center gap-3 print:hidden">
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="inline-flex items-center gap-2 rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-      >
-        <Drucker />
-        {text}
-      </button>
-      {hinweis && <span className="text-xs text-leise">{hinweis}</span>}
+    <div className="print:hidden">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setGeklickt(true);
+            window.print();
+          }}
+          className="inline-flex items-center gap-2 rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+        >
+          <Drucker />
+          {text}
+        </button>
+        {hinweis && <span className="text-xs text-leise">{hinweis}</span>}
+      </div>
+
+      {geklickt && <Vorschauhinweis />}
     </div>
+  );
+}
+
+/**
+ * Was tun, wenn die Druckvorschau nicht kommt?
+ *
+ * Der häufigste Grund liegt nicht an der Seite, sondern am Drucker: Ist
+ * er über das Netzwerk eingebunden und gerade nicht erreichbar, etwa in
+ * einem anderen WLAN, fragt der Browser ihn nach seinen Fähigkeiten und
+ * wartet auf eine Antwort, die nicht kommt. Sichtbar wird das als
+ * "Vorschau wird geladen", endlos.
+ *
+ * Der Ausweg ist immer derselbe und dauert zwei Klicks, deshalb steht er
+ * hier. Er erscheint erst nach dem Klick auf Drucken: Wer keine Probleme
+ * hat, soll ihn nicht lesen müssen.
+ */
+export function Vorschauhinweis() {
+  return (
+    <p className="mt-2 max-w-prose text-xs text-leise">
+      Bleibt die Vorschau bei <em>„Vorschau wird geladen“</em> stehen, liegt es fast immer am
+      Drucker, nicht an dieser Seite. Stell im Druckfenster oben bei <strong>Ziel</strong> auf{" "}
+      <strong>„Als PDF speichern“</strong>. Dann kommt die Vorschau sofort, und aus dem PDF lässt
+      sich anschließend in Ruhe drucken.
+    </p>
   );
 }
 

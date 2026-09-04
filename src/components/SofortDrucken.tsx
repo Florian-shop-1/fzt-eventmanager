@@ -26,6 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { Vorschauhinweis } from "./DruckKnopf";
 
 export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
   const [wartet, setWartet] = useState(bereit);
@@ -108,28 +109,29 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
   }, [bereit]);
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-gold bg-gold-hell px-4 py-3 text-sm print:hidden"
-      role="status"
-    >
-      <span>
-        {!bereit
-          ? "Hier gibt es nichts zu drucken."
-          : stockt
-            ? "Die Seite lädt ungewöhnlich lange. Das Druckfenster jetzt von Hand öffnen:"
-            : wartet
-              ? "Das Druckfenster wird geöffnet..."
-              : "Das Druckfenster ist offen. Kommt nichts, hier nochmal klicken:"}
-      </span>
-      {bereit && !wartet && (
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-md border border-gold bg-white px-3 py-1.5 font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-        >
-          Druckfenster öffnen
-        </button>
-      )}
+    <div className="rounded-lg border border-gold bg-gold-hell px-4 py-3 text-sm print:hidden">
+      <div className="flex flex-wrap items-center gap-3" role="status">
+        <span>
+          {!bereit
+            ? "Hier gibt es nichts zu drucken."
+            : stockt
+              ? "Die Seite lädt ungewöhnlich lange. Das Druckfenster jetzt von Hand öffnen:"
+              : wartet
+                ? "Das Druckfenster wird geöffnet..."
+                : "Das Druckfenster ist offen. Kommt nichts, hier nochmal klicken:"}
+        </span>
+        {bereit && !wartet && (
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-md border border-gold bg-white px-3 py-1.5 font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+          >
+            Druckfenster öffnen
+          </button>
+        )}
+      </div>
+
+      {bereit && !wartet && <Vorschauhinweis />}
     </div>
   );
 }
