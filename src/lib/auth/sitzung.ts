@@ -22,8 +22,10 @@ const GUELTIG_TAGE = 30;
  *  team   Buero und Vertrieb: Vorgaenge, Angebote, Preise, Planung.
  *  gastro Kueche und Sitzplan. Sieht keine Preise und keine Ticketzahlen.
  *  foyer  Foyerdienst: Stehtische, Baendchen, Einlass. Sieht keine Preise.
+ *  showteam  Abenddienst im Saal: Front of House und Technik. Saalplan,
+ *            Einlass und die Upgrades. Sieht keine Preise.
  */
-export type Rolle = "chef" | "team" | "gastro" | "foyer";
+export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam";
 
 export interface AngemeldeterBenutzer {
   id: string;
@@ -172,6 +174,20 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/sitzplan") ||
       pfad.startsWith("/shortcuts") ||
       pfad.startsWith("/parkplaetze") ||
+      pfad.startsWith("/konto")
+    );
+  }
+  if (rolle === "showteam") {
+    // Das Showteam arbeitet am Abend im Saal. Es braucht den Saalplan,
+    // die Upgrades und den Einlass, dazu den Blick auf die kommenden
+    // Abende fuer die eigene Planung. Kueche, Angebote, Versand und
+    // Kundendaten gehen es nichts an.
+    return (
+      pfad === "/" ||
+      pfad.startsWith("/upgrades") ||
+      pfad.startsWith("/sitzplan") ||
+      pfad.startsWith("/einlassliste") ||
+      pfad.startsWith("/belegung") ||
       pfad.startsWith("/konto")
     );
   }

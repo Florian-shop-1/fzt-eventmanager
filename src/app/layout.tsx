@@ -29,18 +29,19 @@ export const metadata: Metadata = {
  * Kundendaten und keine Zahlungen.
  */
 const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
-  { href: "/", label: "Übersicht", rollen: ["chef", "team", "gastro"] },
+  { href: "/", label: "Übersicht", rollen: ["chef", "team", "gastro", "showteam"] },
   { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
   { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
   { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
   { href: "/versand", label: "Versand", rollen: ["chef", "team"] },
-  { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
+  { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+  { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
   { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
-  { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
+  { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
   { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
   { href: "/kueche", label: "Küche", rollen: ["chef", "team", "gastro"] },
-  { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
+  { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro", "showteam"] },
   { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
   { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
 ];
