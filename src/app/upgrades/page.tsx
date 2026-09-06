@@ -96,9 +96,9 @@ export default async function UpgradeSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Upgrades</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Wer ausserhalb des gestrichelten Kastens sitzt, kommt hinein. Dort kann gespielt
-            werden, dort wirkt der Saal voll. Gruppen bleiben zusammen. Ausdrucken, am Einlass
-            ansprechen, abhaken.
+            Wer hinter dem gestrichelten Kasten sitzt, kommt hinein, die letzte Reihe zuerst.
+            Dort kann gespielt werden, dort wirkt der Saal voll. Gruppen bleiben zusammen, und
+            niemand wird nach hinten gesetzt. Ausdrucken, am Einlass ansprechen, abhaken.
           </p>
         </div>
         {rat && rat.umzuege.length > 0 && (
@@ -196,7 +196,7 @@ function Lage({
         />
         <Kachel
           zahl={hintenGesamt}
-          was="sitzen ausserhalb"
+          was="sitzen dahinter"
           hinweis={quellen || "alle sitzen gut"}
           betont={hintenGesamt > 0}
         />
@@ -209,7 +209,7 @@ function Lage({
 
       {rat.gruppen.length === 0 && (
         <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
-          Alle sitzen bereits in der spielbaren Zone. Hier ist nichts zu tun.
+          Hinter der spielbaren Zone sitzt niemand. Hier ist nichts zu tun.
         </p>
       )}
 

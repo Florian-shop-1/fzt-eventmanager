@@ -11,9 +11,15 @@
  * ihnen ein Upgrade. Dieses Modul rechnet aus, wohin.
  *
  * DIE ZONE ist der Bereich, in dem gespielt werden kann: die vorderen
- * Reihen, ohne die äusseren Plätze. Wer darin sitzt, bleibt. Wer
- * ausserhalb sitzt, kommt hinein, solange Platz ist. Nicht nur die
- * letzte Reihe: auch Reihe 7 und 8 liegen ausserhalb.
+ * Reihen, ohne die äusseren Plätze. Wer in einer dieser Reihen sitzt,
+ * bleibt, auch wenn sein Platz weit aussen liegt: Er sitzt gut genug,
+ * und ihn umzusetzen naehme jemandem den Platz weg, der ihn nötiger
+ * braucht.
+ *
+ * Umgesetzt wird, wer HINTER der Zone sitzt, und zwar die letzte Reihe
+ * zuerst, dann die vorletzte, dann die drittletzte. Niemand wird dabei
+ * nach hinten gesetzt: Eine Reihe weiter hinten ist ein Downgrade, auch
+ * wenn der Platz mittiger liegt.
  *
  * EINE GRUPPE wird nie auseinandergezogen. Wer zu viert kommt, sitzt
  * auch vorne zu viert nebeneinander. Lieber bleibt eine Gruppe sitzen,
@@ -244,7 +250,7 @@ function zuBereich(reihe: Reihe, sitze: Sitz[]): Bereich {
  * Alles, was nebeneinander verkauft ist und ausserhalb der Zone sitzt,
  * gilt als eine Gruppe. Ein Gang oder ein freier Platz dazwischen trennt.
  */
-function gruppenDerReihe(reihe: Reihe, zone: Spielzone): Bereich[] {
+function gruppenDerReihe(reihe: Reihe): Bereich[] {
   const abstand = sitzabstand(reihe);
   const raus: Bereich[] = [];
   let lauf: Sitz[] = [];
@@ -255,8 +261,7 @@ function gruppenDerReihe(reihe: Reihe, zone: Spielzone): Bereich[] {
   };
 
   reihe.sitze.forEach((s, i) => {
-    // Wer schon in der Zone sitzt, bleibt sitzen.
-    if (!umsetzbar(s) || zone.sitze.has(s.id)) {
+    if (!umsetzbar(s)) {
       abschliessen();
       return;
     }
@@ -278,21 +283,27 @@ export function empfehlung(plan: Saalplan): Empfehlung {
   const parkett = reihen.filter((r) => !NICHT_ZIEL.test(r.sektor));
   const zone = spielzone(parkett);
 
-  const gruppen = parkett.flatMap((r) => gruppenDerReihe(r, zone));
+  /*
+    Quelle sind nur die Reihen hinter der Zone.
+
+    Wer in einer Zonenreihe sitzt, sitzt gut, auch wenn sein Platz weit
+    aussen liegt. Ihn umzusetzen waere kein Gewinn, sondern nur Unruhe
+    beim Einlass, und es nimmt jemandem den Platz weg, der ihn noetiger
+    braucht.
+  */
+  const hinterDerZone = parkett.filter((r) => !zone.reihen.includes(r));
+  const gruppen = hinterDerZone.flatMap(gruppenDerReihe);
 
   /*
-    Von vorne nach hinten abarbeiten, und bei gleicher Reihe die
-    grösseren Gruppen zuerst.
+    Die letzte Reihe zuerst, dann die vorletzte, dann die drittletzte.
 
-    Das klingt verkehrt herum, ist aber richtig: Seit niemand nach hinten
-    gesetzt werden darf, hat eine Gruppe aus Reihe 1 nur ihre eigene
-    Reihe zur Auswahl, eine aus Reihe 9 dagegen alle sechs. Wer zuerst
-    drankommt, sollte der mit den wenigsten Möglichkeiten sein, sonst
-    nimmt ihm ein anderer den einzigen Platz weg, den er hätte haben
-    können. Grosse zuerst aus demselben Grund.
+    Wer am weitesten hinten sitzt, hat das Upgrade am nötigsten. Reicht
+    der Platz in der Zone nicht für alle, sollen die davon haben, die
+    sonst am schlechtesten sitzen. Innerhalb einer Reihe die grösseren
+    Gruppen zuerst, denn für sie gibt es die wenigsten Blöcke am Stück.
   */
   const reihenfolge = [...gruppen].sort((a, b) => {
-    const dy = a.reihe.y - b.reihe.y;
+    const dy = b.reihe.y - a.reihe.y;
     return dy !== 0 ? dy : b.sitze.length - a.sitze.length;
   });
 
@@ -403,10 +414,13 @@ function bestenBlockSuchen(
       /*
         Anschluss über den Mittelgang hinweg.
 
-        Zählt weniger als ein echter Nachbar, aber es zählt. Von der
-        Bühne aus wirkt ein Publikum, das links und rechts am Gang sitzt,
-        geschlossen. Ohne diesen Punkt wandern die Gäste vom Gang weg
-        nach aussen, weil dort der einzige echte Nachbar sitzt.
+        Zählt genauso viel wie ein echter Nachbar. Von der Bühne aus
+        wirkt ein Publikum, das links und rechts am Gang sitzt,
+        geschlossen: Der Gang ist keine Lücke, er ist ein Weg.
+
+        Zählte er weniger, wanderten die Gäste vom Gang weg nach aussen,
+        weil dort der einzige lückenlose Nachbar sitzt. Genau das war der
+        Fehler, der im Saalplan aufgefallen ist.
       */
       let ueberGang = 0;
       if (links && !linksDran && istBelegt(links)) ueberGang++;
@@ -466,12 +480,12 @@ function bestenBlockSuchen(
 
       const punkte =
         anschluss * 5 +
-        ueberGang * 2.5 +
+        ueberGang * 5 +
         senkrecht * 4 +
         mittig * 4 +
         luecke * 4 -
         uebersprungen * 6 +
-        vorne * 2 -
+        vorne * 6 -
         luecken * 2.5;
 
       if (punkte > bestePunkte) {
