@@ -238,6 +238,9 @@ export async function leadSpeichern(schluessel: string, formData: FormData): Pro
            geaendert_von = excluded.geaendert_von
   `;
   revalidatePath("/leads");
+  // Störungsmeldungen liegen in derselben Tabelle und teilen sich diesen
+  // Stand, also muss ihre Seite ebenfalls neu gerechnet werden.
+  revalidatePath("/stoerungen");
 }
 
 /**

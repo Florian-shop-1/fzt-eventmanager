@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { holeLeads, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
+import { holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
 import { leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
 
@@ -31,7 +31,9 @@ export default async function LeadsSeite({
   let leads: Lead[] = [];
   let fehler: string | null = null;
   try {
-    leads = await holeLeads();
+    // Störungsmeldungen laufen über denselben Weg herein, gehören aber
+    // nicht in den Vertrieb. Sie haben eine eigene Seite.
+    leads = (await holeLeads()).filter((l) => !istStoerung(l));
   } catch (e) {
     fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }

@@ -6,31 +6,38 @@
  * Also holt das Showteam die hinteren Gäste nach vorn und schenkt ihnen
  * ein Upgrade.
  *
- * Die wichtigste Regel steht über allem: Eine Gruppe wird nie
- * auseinandergezogen. Wer zu viert kommt, sitzt auch vorne zu viert
- * nebeneinander. Lieber bleibt eine Gruppe hinten sitzen, als dass sie
- * geteilt wird.
+ * Zwei Regeln stehen über allem.
+ *
+ * ERSTENS wird eine Gruppe nie auseinandergezogen. Wer zu viert kommt,
+ * sitzt auch vorne zu viert nebeneinander. Lieber bleibt eine Gruppe
+ * hinten sitzen, als dass sie geteilt wird.
+ *
+ * ZWEITENS wird nur in die spielbare Zone gesetzt. Das ist keine Frage
+ * der Optik, sondern der Show: Es gibt Nummern, bei denen etwas ins
+ * Publikum geworfen wird, und wer weit aussen oder weit hinten sitzt,
+ * ist dabei nicht erreichbar. Ein Saal, der voll aussieht, aber nicht
+ * bespielbar ist, hilft niemandem.
  *
  * Wer gehört zusammen?
  *
  * Ditix verrät es nicht. Das Feld für die Bestellzugehörigkeit kommt
  * leer zurück, an zwölf geprüften Vorstellungen mit echten Verkäufen
- * ausnahmslos, und die Rohdaten aus dem Shop führen nur Stückzahlen, keine
- * Platznummern. Also wird abgeleitet: Nebeneinanderliegende verkaufte
- * Plätze in derselben Reihe sind eine Gruppe.
+ * ausnahmslos, und die Rohdaten aus dem Shop führen nur Stückzahlen,
+ * keine Platznummern. Also wird abgeleitet: Nebeneinanderliegende
+ * verkaufte Plätze in derselben Reihe sind eine Gruppe.
  *
  * Diese Annahme kann zu grosszügig sein, wenn zwei Paare zufällig
  * nebeneinander sitzen. Dann wird ein Viererblock gesucht, wo zwei Paare
  * gereicht hätten. Das kostet Platz, trennt aber niemanden. Der Fehler
  * geht damit immer in die ungefährliche Richtung.
  *
- * Wohin die Gruppe kommt, entscheidet der volle Eindruck:
+ * Wohin die Gruppe innerhalb der Zone kommt, entscheidet der volle
+ * Eindruck:
  *
  *  - Der Block schliesst an schon Besetztes an, statt eine neue Insel zu
  *    bilden.
  *  - Er liegt weit vorne.
- *  - Er liegt mittig in seiner Reihe. Dass aussen zwei Plätze frei
- *    bleiben, fällt niemandem auf.
+ *  - Er liegt mittig in seiner Reihe.
  *  - Er lässt keine einzelne Lücke daneben stehen. Ein einzelner freier
  *    Stuhl mitten im Block sticht mehr ins Auge als eine leere Reihe.
  *
@@ -50,6 +57,20 @@ const NICHT_ZIEL = /vip|empore/i;
  * gedacht.
  */
 const ROLLSTUHL = /rollstuhl|rolli/i;
+
+/**
+ * Die spielbare Zone in Zahlen.
+ *
+ * REIHEN_TIEF  Wie viele Reihen von der Bühne aus dazugehören.
+ * AUSSEN_FREI  Wie viele Plätze an jedem Ende einer Reihe wegfallen.
+ *              Dass die aussen frei bleiben, fällt niemandem auf.
+ *
+ * Die Werte sind am Saal abgenommen: sechs Reihen tief, je zwei Plätze
+ * aussen. Bei sechzehn Plätzen je Reihe bleiben damit die Plätze 3 bis
+ * 14. Wer die Zone ändern will, ändert diese beiden Zahlen.
+ */
+const REIHEN_TIEF = 6;
+const AUSSEN_FREI = 2;
 
 export interface Reihe {
   /** "Kat. 1", "Golden Seats" und so weiter. */
@@ -76,18 +97,35 @@ export interface Umzug {
   ziel: Bereich;
 }
 
+/** Der Bereich, in den umgesetzt werden darf. */
+export interface Spielzone {
+  reihen: Reihe[];
+  /** Kennungen aller Plätze innerhalb der Zone. */
+  sitze: Set<number>;
+  /** Umriss für die Zeichnung. */
+  links: number;
+  rechts: number;
+  oben: number;
+  unten: number;
+  reihenTief: number;
+  aussenFrei: number;
+}
+
 export interface Empfehlung {
   reihen: Reihe[];
+  zone: Spielzone;
   /** Die Reihen, die geräumt werden sollen, von hinten gezählt. */
   quellreihen: Reihe[];
   /** Alle Gruppen in den zu räumenden Reihen. */
   gruppen: Bereich[];
   /** Wer wohin kommt, in der Reihenfolge der Ansage. */
   umzuege: Umzug[];
-  /** Gruppen, für die vorne kein Block am Stück frei war. */
+  /** Gruppen, für die in der Zone kein Block am Stück frei war. */
   bleiben: Bereich[];
   /** Wie viele Gäste insgesamt umgesetzt werden. */
   gaeste: number;
+  /** Freie Plätze in der Zone, nach dem Umsetzen. */
+  freiInZone: number;
 }
 
 /** Kennung einer Reihe, aus Sektor und Nummer. */
@@ -125,6 +163,45 @@ export function reihenBilden(plan: Saalplan): Reihe[] {
 }
 
 /**
+ * Bestimmt die spielbare Zone.
+ *
+ * Die vorderen Reihen, und in ihnen alles ausser den äusseren Plätzen.
+ * Rollstuhlplätze gehören nie dazu, auch wenn sie geometrisch drin
+ * lägen.
+ */
+export function spielzone(parkett: Reihe[]): Spielzone {
+  const reihen = parkett.slice(0, REIHEN_TIEF);
+  const sitze = new Set<number>();
+  let links = Infinity;
+  let rechts = -Infinity;
+  let oben = Infinity;
+  let unten = -Infinity;
+
+  for (const r of reihen) {
+    const innen = r.sitze.slice(AUSSEN_FREI, Math.max(AUSSEN_FREI, r.sitze.length - AUSSEN_FREI));
+    for (const s of innen) {
+      if (ROLLSTUHL.test(s.sektor) || ROLLSTUHL.test(s.kategorie)) continue;
+      sitze.add(s.id);
+      links = Math.min(links, s.x);
+      rechts = Math.max(rechts, s.x);
+      oben = Math.min(oben, s.y);
+      unten = Math.max(unten, s.y);
+    }
+  }
+
+  return {
+    reihen,
+    sitze,
+    links: Number.isFinite(links) ? links : 0,
+    rechts: Number.isFinite(rechts) ? rechts : 0,
+    oben: Number.isFinite(oben) ? oben : 0,
+    unten: Number.isFinite(unten) ? unten : 0,
+    reihenTief: REIHEN_TIEF,
+    aussenFrei: AUSSEN_FREI,
+  };
+}
+
+/**
  * Der übliche Abstand zweier Nachbarplätze in einer Reihe.
  *
  * Gebraucht, um den Mittelgang zu erkennen: Dort ist der Abstand
@@ -146,8 +223,9 @@ function nebeneinander(a: Sitz, b: Sitz, abstand: number): boolean {
   return Math.abs(b.x - a.x) <= abstand * 1.4;
 }
 
-/** Kommt dieser Platz überhaupt als Ziel in Frage? */
-function alsZielMoeglich(s: Sitz): boolean {
+/** Kommt dieser Platz als Ziel in Frage? */
+function alsZielMoeglich(s: Sitz, zone: Spielzone): boolean {
+  if (!zone.sitze.has(s.id)) return false;
   if (NICHT_ZIEL.test(s.sektor) || NICHT_ZIEL.test(s.kategorie)) return false;
   if (ROLLSTUHL.test(s.sektor) || ROLLSTUHL.test(s.kategorie)) return false;
   return s.status === "frei";
@@ -210,6 +288,7 @@ export function empfehlung(plan: Saalplan, reihenRaeumen = 1): Empfehlung {
   // Die Empore zählt nicht mit. Sie wird an schwachen Abenden ohnehin
   // geschlossen, und niemand sitzt dort.
   const parkett = reihen.filter((r) => !NICHT_ZIEL.test(r.sektor));
+  const zone = spielzone(parkett);
 
   // Von hinten so viele Reihen nehmen, wie geräumt werden sollen, aber
   // nur solche, in denen überhaupt jemand sitzt. Eine leere letzte Reihe
@@ -220,9 +299,9 @@ export function empfehlung(plan: Saalplan, reihenRaeumen = 1): Empfehlung {
 
   const gruppen = quellreihen.flatMap(gruppenDerReihe);
 
-  // Ziel ist alles, was vor der vordersten geräumten Reihe liegt.
+  // Ziel ist die Zone, soweit sie vor den geräumten Reihen liegt.
   const grenze = quellreihen.reduce((y, r) => Math.min(y, r.y), Infinity);
-  const zielreihen = parkett.filter(
+  const zielreihen = zone.reihen.filter(
     (r) => r.y < grenze && !quellen.has(schluessel(r.sektor, r.nummer)),
   );
 
@@ -235,7 +314,7 @@ export function empfehlung(plan: Saalplan, reihenRaeumen = 1): Empfehlung {
   const bleiben: Bereich[] = [];
 
   for (const gruppe of reihenfolge) {
-    const ziel = bestenBlockSuchen(zielreihen, gruppe.sitze.length, belegt);
+    const ziel = bestenBlockSuchen(zielreihen, gruppe.sitze.length, belegt, zone, zone.reihen);
     if (!ziel) {
       bleiben.push(gruppe);
       continue;
@@ -251,13 +330,22 @@ export function empfehlung(plan: Saalplan, reihenRaeumen = 1): Empfehlung {
     return dy !== 0 ? dy : a.ziel.sitze[0].x - b.ziel.sitze[0].x;
   });
 
+  let freiInZone = 0;
+  for (const r of zone.reihen) {
+    for (const s of r.sitze) {
+      if (alsZielMoeglich(s, zone) && !belegt.has(s.id)) freiInZone++;
+    }
+  }
+
   return {
     reihen,
+    zone,
     quellreihen,
     gruppen,
     umzuege,
     bleiben,
     gaeste: umzuege.reduce((n, u) => n + u.gruppe.sitze.length, 0),
+    freiInZone,
   };
 }
 
@@ -272,20 +360,37 @@ function bestenBlockSuchen(
   zielreihen: Reihe[],
   groesse: number,
   belegt: Set<number>,
+  zone: Spielzone,
+  alleZonenreihen: Reihe[],
 ): Bereich | null {
   let bester: Bereich | null = null;
   let bestePunkte = -Infinity;
 
+  const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+  const reiheBelegt = (r: Reihe | undefined) =>
+    Boolean(r) && r!.sitze.some((s) => zone.sitze.has(s.id) && istBelegt(s));
+
+  // Bis wohin reicht der besetzte Bereich nach hinten? Eine Reihe dahinter
+  // anzufangen, waehrend davor noch Platz ist, reisst den Block
+  // auseinander.
+  let letzteBelegte = -1;
+  alleZonenreihen.forEach((r, i) => {
+    if (reiheBelegt(r)) letzteBelegte = i;
+  });
+
   zielreihen.forEach((reihe, reihenIndex) => {
     const abstand = sitzabstand(reihe);
-    const frei = (s: Sitz) => alsZielMoeglich(s) && !belegt.has(s.id);
+    const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
     const besetzt = (s: Sitz | undefined) =>
       Boolean(s) && (s!.status === "verkauft" || belegt.has(s!.id));
 
-    for (let start = 0; start + groesse <= reihe.sitze.length; start++) {
-      const fenster = reihe.sitze.slice(start, start + groesse);
+    // Nur die Plätze innerhalb der Zone kommen in Frage. Die äusseren
+    // fallen damit von vornherein weg, auch als Nachbarn eines Fensters.
+    const innen = reihe.sitze.filter((s) => zone.sitze.has(s.id));
 
-      // Alle Plätze frei und lückenlos nebeneinander, kein Gang dazwischen.
+    for (let start = 0; start + groesse <= innen.length; start++) {
+      const fenster = innen.slice(start, start + groesse);
+
       if (!fenster.every(frei)) continue;
       let zusammenhaengend = true;
       for (let i = 1; i < fenster.length; i++) {
@@ -293,12 +398,15 @@ function bestenBlockSuchen(
       }
       if (!zusammenhaengend) continue;
 
-      const links = reihe.sitze[start - 1];
-      const rechts = reihe.sitze[start + groesse];
+      // Nachbarn dürfen auch ausserhalb der Zone liegen: Ob dort jemand
+      // sitzt, entscheidet mit darüber, ob ein Block geschlossen wirkt.
+      const iErster = reihe.sitze.indexOf(fenster[0]);
+      const iLetzter = reihe.sitze.indexOf(fenster[fenster.length - 1]);
+      const links = reihe.sitze[iErster - 1];
+      const rechts = reihe.sitze[iLetzter + 1];
       const linksDran = links && nebeneinander(links, fenster[0], abstand);
       const rechtsDran = rechts && nebeneinander(fenster[fenster.length - 1], rechts, abstand);
 
-      // Anschluss an schon Besetztes.
       let anschluss = 0;
       if (linksDran && besetzt(links)) anschluss++;
       if (rechtsDran && besetzt(rechts)) anschluss++;
@@ -306,27 +414,66 @@ function bestenBlockSuchen(
       // Weiter vorne ist besser.
       const vorne = zielreihen.length > 1 ? 1 - reihenIndex / (zielreihen.length - 1) : 1;
 
-      // Mittig in der eigenen Reihe ist besser.
-      const ersterX = reihe.sitze[0].x;
-      const letzterX = reihe.sitze[reihe.sitze.length - 1].x;
-      const breite = Math.abs(letzterX - ersterX) || 1;
+      // Mittig in der Zone ist besser.
+      const breite = Math.abs(zone.rechts - zone.links) || 1;
       const mitteBlock = (fenster[0].x + fenster[fenster.length - 1].x) / 2;
       const mittig =
-        1 - Math.min(1, (Math.abs(mitteBlock - (ersterX + letzterX) / 2) * 2) / breite);
+        1 - Math.min(1, (Math.abs(mitteBlock - (zone.links + zone.rechts) / 2) * 2) / breite);
 
       // Bleibt daneben genau ein freier Stuhl zwischen zwei Besetzten
       // stehen, ist das der hässlichste Fall im ganzen Saal.
       let luecken = 0;
       if (linksDran && !besetzt(links)) {
-        const davor = reihe.sitze[start - 2];
+        const davor = reihe.sitze[iErster - 2];
         if (!davor || !nebeneinander(davor, links, abstand) || besetzt(davor)) luecken++;
       }
       if (rechtsDran && !besetzt(rechts)) {
-        const danach = reihe.sitze[start + groesse + 1];
+        const danach = reihe.sitze[iLetzter + 2];
         if (!danach || !nebeneinander(rechts, danach, abstand) || besetzt(danach)) luecken++;
       }
 
-      const punkte = anschluss * 5 + vorne * 3 + mittig * 2 - luecken * 2.5;
+      /*
+        Senkrechter Anschluss: Sitzt in der Reihe davor oder dahinter
+        jemand auf denselben Plaetzen, waechst ein Block in die Tiefe
+        statt nur in die Breite. Das ist der staerkste Hebel dafuer, dass
+        das Publikum als geschlossene Masse dasitzt.
+      */
+      const zonenIndex = alleZonenreihen.indexOf(reihe);
+      const davor = alleZonenreihen[zonenIndex - 1];
+      const dahinter = alleZonenreihen[zonenIndex + 1];
+      let senkrechteNachbarn = 0;
+      for (const f of fenster) {
+        for (const nachbarreihe of [davor, dahinter]) {
+          if (!nachbarreihe) continue;
+          const gegenueber = nachbarreihe.sitze.find(
+            (q) => Math.abs(q.x - f.x) <= abstand * 0.6,
+          );
+          if (gegenueber && istBelegt(gegenueber)) senkrechteNachbarn++;
+        }
+      }
+      const senkrecht = senkrechteNachbarn / (fenster.length * 2);
+
+      /*
+        Keine Reihe auslassen.
+
+        Eine leere Reihe mitten im Block faellt von der Buehne aus mehr
+        auf als eine leere Reihe dahinter. Deshalb zwei Regeln: Eine
+        Luecke zu schliessen bringt Punkte, und eine Reihe hinter dem
+        besetzten Bereich anzufangen, waehrend davor noch Platz ist,
+        kostet welche.
+      */
+      const reiheLeer = !reiheBelegt(reihe);
+      const luecke = reiheLeer && zonenIndex < letzteBelegte ? 1 : 0;
+      const uebersprungen = reiheLeer && zonenIndex > letzteBelegte + 1 ? 1 : 0;
+
+      const punkte =
+        anschluss * 5 +
+        senkrecht * 4 +
+        luecke * 4 -
+        uebersprungen * 6 +
+        vorne * 2 +
+        mittig * 2 -
+        luecken * 2.5;
 
       if (punkte > bestePunkte) {
         bestePunkte = punkte;

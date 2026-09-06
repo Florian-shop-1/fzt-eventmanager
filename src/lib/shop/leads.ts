@@ -38,6 +38,31 @@ export const LEAD_STATUS = [
 
 export type LeadStatus = (typeof LEAD_STATUS)[number] | string;
 
+/**
+ * Störungsmeldungen aus dem Shop.
+ *
+ * Seit dem Vorfall vom 4. September hat der Shop einen Notausgang: Laesst
+ * sich der Saalplan nicht laden, kann der Besucher statt in der Sackgasse
+ * zu stehen einen Rueckruf anfordern. Diese Meldungen gehen ueber
+ * denselben Webhook wie die Anfragen und landen deshalb in derselben
+ * Tabelle, erkennbar am Anfragetyp.
+ *
+ * Sie gehoeren aber nicht in den Vertrieb: Da will jemand ein Ticket
+ * kaufen und konnte nicht. Deshalb werden sie hier getrennt.
+ */
+const STOERUNG = /st(ö|oe)rung/i;
+
+/** Ist das eine Stoerungsmeldung und keine Verkaufsanfrage? */
+export function istStoerung(l: Lead): boolean {
+  return STOERUNG.test(l.anfragetyp);
+}
+
+/**
+ * Stationen einer Stoerungsmeldung. Kurz gehalten: Es geht nur darum,
+ * ob jemand zurueckgerufen hat.
+ */
+export const STOERUNG_STATUS = ["Neu", "Zurückgerufen", "Erledigt"] as const;
+
 /** Wie eine Anfrage einzuordnen ist: offen, gewonnen oder erledigt. */
 export function lageDesLeads(status: string): "offen" | "gewonnen" | "erledigt" {
   if (/gewonnen/i.test(status)) return "gewonnen";

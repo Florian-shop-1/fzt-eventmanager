@@ -447,6 +447,24 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
           BÜHNE
         </text>
 
+        {/*
+          Die spielbare Zone. Sie steht auf dem Blatt, damit am Einlass
+          niemand auf die Idee kommt, jemanden aussen oder weiter hinten
+          hinzusetzen: Dort ist er bei den Nummern nicht erreichbar, bei
+          denen etwas ins Publikum geht.
+        */}
+        <rect
+          x={rat.zone.links - kante / 2 - 5}
+          y={rat.zone.oben - kante / 2 - 5}
+          width={rat.zone.rechts - rat.zone.links + kante + 10}
+          height={rat.zone.unten - rat.zone.oben + kante + 10}
+          rx={6}
+          fill="none"
+          stroke="var(--gold-dunkel)"
+          strokeWidth={1.6}
+          strokeDasharray="7 4"
+        />
+
         {rat.reihen.map((reihe) => (
           <g key={`${reihe.sektor}-${reihe.nummer}`}>
             <text
@@ -487,6 +505,13 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
         />
         <Zeichen farbe="var(--flaeche)" rahmen="var(--linie)" text="frei" />
         <Zeichen farbe="var(--linie)" text="gesperrt" />
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block h-3.5 w-3.5 rounded-sm border-2 border-dashed"
+            style={{ borderColor: "var(--gold-dunkel)" }}
+          />
+          spielbare Zone, nur hierhin umsetzen
+        </span>
       </figcaption>
     </figure>
   );
