@@ -40,10 +40,9 @@ function plaetze(b: Bereich): string {
 export default async function UpgradeSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string; show?: string; reihen?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; show?: string }>;
 }) {
-  const { abend, monat, show, reihen } = await searchParams;
-  const reihenRaeumen = reihen === "2" ? 2 : reihen === "3" ? 3 : 1;
+  const { abend, monat, show } = await searchParams;
 
   const termine = await alleShowtage();
   const { gewaehlt, monat: aufgeschlagenerMonat, heute } = await waehleAbend(termine, {
@@ -80,7 +79,7 @@ export default async function UpgradeSeite({
     }
   }
 
-  const rat = plan ? empfehlung(plan, reihenRaeumen) : null;
+  const rat = plan ? empfehlung(plan) : null;
 
   return (
     <div className="space-y-6">
@@ -97,8 +96,9 @@ export default async function UpgradeSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Upgrades</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Die hinteren Reihen nach vorne holen, damit der Saal von der Bühne aus voll wirkt.
-            Gruppen bleiben zusammen. Ausdrucken, am Einlass ansprechen, abhaken.
+            Wer ausserhalb des gestrichelten Kastens sitzt, kommt hinein. Dort kann gespielt
+            werden, dort wirkt der Saal voll. Gruppen bleiben zusammen. Ausdrucken, am Einlass
+            ansprechen, abhaken.
           </p>
         </div>
         {rat && rat.umzuege.length > 0 && (
@@ -128,7 +128,7 @@ export default async function UpgradeSeite({
           {shows.map((s) => (
             <Link
               key={s.ditixEventId}
-              href={`/upgrades?abend=${gewaehlt}&monat=${aufgeschlagenerMonat ?? ""}&show=${s.ditixEventId}&reihen=${reihenRaeumen}`}
+              href={`/upgrades?abend=${gewaehlt}&monat=${aufgeschlagenerMonat ?? ""}&show=${s.ditixEventId}`}
               className={`rounded-md border px-3 py-1.5 ${
                 s.ditixEventId === vorstellung.ditixEventId
                   ? "border-gold bg-gold-hell"
@@ -158,13 +158,6 @@ export default async function UpgradeSeite({
       {plan && rat && vorstellung && (
         <>
           <Lage plan={plan} rat={rat} vorstellung={vorstellung} />
-          <Reihenwahl
-            gewaehlt={gewaehlt}
-            monat={aufgeschlagenerMonat ?? gewaehlt.slice(0, 7)}
-            show={vorstellung.ditixEventId}
-            reihenRaeumen={reihenRaeumen}
-            moeglich={rat.reihen.length}
-          />
           <Umzugsliste rat={rat} />
           <Saalzeichnung plan={plan} rat={rat} />
         </>
@@ -184,8 +177,8 @@ function Lage({
   vorstellung: Vorstellungstermin;
 }) {
   const quote = Math.round((plan.verkauft / Math.max(1, plan.sitze.length)) * 100);
-  const quellen = rat.quellreihen.map((r) => `${r.sektor}, Reihe ${r.nummer}`).join(" und ");
   const hintenGesamt = rat.gruppen.reduce((n, g) => n + g.sitze.length, 0);
+  const quellen = [...new Set(rat.gruppen.map((g) => `Reihe ${g.reihe.nummer}`))].join(", ");
 
   return (
     <section className="space-y-3">
@@ -203,8 +196,8 @@ function Lage({
         />
         <Kachel
           zahl={hintenGesamt}
-          was="sitzen hinten"
-          hinweis={quellen || "nichts zu räumen"}
+          was="sitzen ausserhalb"
+          hinweis={quellen || "alle sitzen gut"}
           betont={hintenGesamt > 0}
         />
         <Kachel
@@ -216,7 +209,7 @@ function Lage({
 
       {rat.gruppen.length === 0 && (
         <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
-          In den hinteren Reihen sitzt niemand. Hier ist nichts zu tun.
+          Alle sitzen bereits in der spielbaren Zone. Hier ist nichts zu tun.
         </p>
       )}
 
@@ -271,43 +264,6 @@ function Kachel({
       <div className="text-2xl font-semibold tabular-nums">{zahl}</div>
       <div className="text-sm">{was}</div>
       <div className="text-xs text-leise">{hinweis}</div>
-    </div>
-  );
-}
-
-/** Wie viele Reihen von hinten geräumt werden sollen. */
-function Reihenwahl({
-  gewaehlt,
-  monat,
-  show,
-  reihenRaeumen,
-  moeglich,
-}: {
-  gewaehlt: string;
-  monat: string;
-  show: string;
-  reihenRaeumen: number;
-  moeglich: number;
-}) {
-  const stufen = [1, 2, 3].filter((n) => n < moeglich);
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 text-sm print:hidden">
-      <span className="text-leise">Von hinten räumen:</span>
-      {stufen.map((n) => (
-        <Link
-          key={n}
-          href={`/upgrades?abend=${gewaehlt}&monat=${monat}&show=${show}&reihen=${n}`}
-          className={`rounded-md border px-3 py-1.5 ${
-            n === reihenRaeumen ? "border-gold bg-gold-hell" : "border-linie"
-          }`}
-        >
-          {n === 1 ? "letzte Reihe" : `${n} Reihen`}
-        </Link>
-      ))}
-      <span className="text-xs text-leise">
-        Reicht das Futter aus der letzten Reihe nicht, nimm die vorletzte dazu.
-      </span>
     </div>
   );
 }
