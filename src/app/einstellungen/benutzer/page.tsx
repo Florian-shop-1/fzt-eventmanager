@@ -39,7 +39,15 @@ export default async function BenutzerSeite() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
+          <a
+            href="/einstellungen/mail"
+            className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+          >
+            Mailversand
+          </a>
+        </div>
         <p className="mt-1 text-sm text-leise">
           Wer darf ins Programm, und was darf er sehen. Es werden keine Einladungsmails
           verschickt: Du bekommst ein Startpasswort angezeigt und gibst es selbst weiter.
