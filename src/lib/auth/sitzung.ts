@@ -174,7 +174,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/sitzplan") ||
       pfad.startsWith("/shortcuts") ||
       pfad.startsWith("/parkplaetze") ||
-      pfad.startsWith("/konto")
+      pfad.startsWith("/konto") ||
+      pfad.startsWith("/geheimhaltung")
     );
   }
   if (rolle === "showteam") {
@@ -188,7 +189,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/sitzplan") ||
       pfad.startsWith("/einlassliste") ||
       pfad.startsWith("/belegung") ||
-      pfad.startsWith("/konto")
+      pfad.startsWith("/konto") ||
+      pfad.startsWith("/geheimhaltung")
     );
   }
   if (rolle === "gastro") {
@@ -205,7 +207,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       // Menüs an den kommenden Abenden zu erwarten sind. Preise stehen dort
       // ohnehin keine.
       pfad.startsWith("/belegung") ||
-      pfad.startsWith("/konto")
+      pfad.startsWith("/konto") ||
+      pfad.startsWith("/geheimhaltung")
     );
   }
   if (pfad.startsWith("/einstellungen")) return darfBenutzerVerwalten(rolle);
