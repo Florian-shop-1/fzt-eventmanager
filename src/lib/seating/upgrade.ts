@@ -451,15 +451,41 @@ function bestenBlockSuchen(
       /*
         Mittig im Saal ist besser, und zwar deutlich.
 
-        Gemessen wird der Abstand des Blockmittelpunkts von der Saalmitte,
-        also vom Mittelgang. Das ist der Punkt, an dem sich das Publikum
-        sammeln soll.
+        Gemessen wird nicht der Block für sich, sondern die Reihe, wie sie
+        nach dem Setzen dasteht: der Schwerpunkt aller besetzten Plätze
+        dieser Reihe. Das ist der Unterschied zwischen "der Block liegt
+        mittig" und "die Reihe sieht mittig aus", und nur das zweite ist
+        das Ziel.
+
+        Ein Beispiel aus einem echten Abend. Sechs Plätze in derselben
+        Reihe, einmal so und einmal so:
+
+            ..DDEEFF....     Schwerpunkt links vom Gang
+            .DDEEFF.....     Schwerpunkt auf dem Gang
+
+        Für den Block allein gerechnet sind beide gleich gut. Von der
+        Bühne aus ist es das zweite, das voll aussieht.
       */
       const halbeBreite = Math.max(1, (zone.rechts - zone.links) / 2);
-      const mitteBlock = (fenster[0].x + fenster[fenster.length - 1].x) / 2;
-      const mittig = 1 - Math.min(1, Math.abs(mitteBlock - zone.mitte) / halbeBreite);
+      let summeX = 0;
+      let anzahl = 0;
+      for (const q of innen) {
+        if (istBelegt(q) || fenster.includes(q)) {
+          summeX += q.x;
+          anzahl++;
+        }
+      }
+      const schwerpunkt = anzahl > 0 ? summeX / anzahl : zone.mitte;
+      const mittig = 1 - Math.min(1, Math.abs(schwerpunkt - zone.mitte) / halbeBreite);
 
-      // Keine Reihe auslassen.
+      /*
+        Keine Reihe auslassen, und das wiegt schwerer als alles andere.
+
+        Eine leere Reihe mitten im besetzten Bereich ist von der Bühne aus
+        ein Streifen quer durch das Publikum. Ein voll besetzter erster
+        Rang hilft nichts, wenn dahinter eine Reihe klafft. Deshalb hat
+        das Schliessen einer solchen Lücke Vorrang vor der Nähe zur Bühne.
+      */
       const reiheLeer = !reiheBelegt(reihe);
       const luecke = reiheLeer && reihenIndex < letzteBelegte ? 1 : 0;
       const uebersprungen = reiheLeer && reihenIndex > letzteBelegte + 1 ? 1 : 0;
@@ -483,8 +509,8 @@ function bestenBlockSuchen(
         ueberGang * 5 +
         senkrecht * 4 +
         mittig * 4 +
-        luecke * 4 -
-        uebersprungen * 6 +
+        luecke * 14 -
+        uebersprungen * 10 +
         vorne * 6 -
         luecken * 2.5;
 
