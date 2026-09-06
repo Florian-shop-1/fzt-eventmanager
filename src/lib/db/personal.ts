@@ -8,9 +8,12 @@
  * Person eine eigene Word-Datei auf SharePoint.
  */
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { db } from "./client";
 import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
+import { ganzerText } from "@/lib/personal/geheimhaltung";
 
 export interface Vereinbarung {
   id: string;
@@ -24,6 +27,13 @@ export interface Vereinbarung {
   unterschriebenAm: string | null;
   unterschriebenVon: string | null;
   notiz: string | null;
+  /** "papier" oder "online". Leer, solange nichts unterschrieben ist. */
+  art: string | null;
+  /** Das gezeichnete Namenszeichen, nur beim Online-Weg. */
+  bild: string | null;
+  ip: string | null;
+  geraet: string | null;
+  textstand: string | null;
 }
 
 function zuVereinbarung(z: Record<string, unknown>): Vereinbarung {
@@ -41,6 +51,11 @@ function zuVereinbarung(z: Record<string, unknown>): Vereinbarung {
       : null,
     unterschriebenVon: (z.unterschrieben_von as string) ?? null,
     notiz: (z.notiz as string) ?? null,
+    art: (z.unterschrift_art as string) ?? null,
+    bild: (z.unterschrift_bild as string) ?? null,
+    ip: (z.unterschrift_ip as string) ?? null,
+    geraet: (z.unterschrift_geraet as string) ?? null,
+    textstand: (z.unterschrift_textstand as string) ?? null,
   };
 }
 
@@ -119,15 +134,73 @@ export async function unterschriftAbhaken(id: string, zurueck: boolean): Promise
 
   if (zurueck) {
     await db()`
-      update geheimhaltung set unterschrieben_am = null, unterschrieben_von = null
+      update geheimhaltung
+         set unterschrieben_am = null, unterschrieben_von = null, unterschrift_art = null
        where id = ${id}
     `;
   } else {
     await db()`
       update geheimhaltung
-         set unterschrieben_am = now(), unterschrieben_von = ${benutzer.name}
+         set unterschrieben_am = now(),
+             unterschrieben_von = ${benutzer.name},
+             unterschrift_art = 'papier'
        where id = ${id}
     `;
+  }
+
+  revalidatePath("/geheimhaltung");
+}
+
+/**
+ * Unterschreibt online.
+ *
+ * Ein Häkchen wäre zu wenig. Wer hier unterschreibt, zeichnet seinen
+ * Namenszug, und festgehalten wird ausserdem, wann, von welcher Adresse,
+ * mit welchem Gerät und welche Fassung des Vertragstextes dabei auf dem
+ * Schirm stand.
+ *
+ * Der letzte Punkt wird gern vergessen und ist der wichtigste: Ohne ihn
+ * liesse sich nach einer Textänderung nicht mehr belegen, wozu jemand
+ * sein Zeichen gesetzt hat. Gespeichert wird ein Fingerabdruck des
+ * Textes, nicht der Text selbst.
+ *
+ * Unterschreiben darf jeder nur für sich. Deshalb wird die eigene Zeile
+ * über die Anmeldung gesucht und nicht über eine mitgeschickte Kennung.
+ */
+export async function onlineUnterschreiben(formData: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) throw new Error("Nicht angemeldet.");
+
+  const bild = String(formData.get("unterschrift") ?? "");
+  if (!bild.startsWith("data:image/png;base64,")) {
+    throw new Error("Es wurde nichts unterschrieben. Zeichne deinen Namenszug in das Feld.");
+  }
+  // Ein leeres Feld ergibt ein winziges Bild. Alles unter etwa einem
+  // Kilobyte ist kein Namenszug, sondern ein Versehen.
+  if (bild.length < 1200) {
+    throw new Error("Das Feld ist noch leer. Zeichne deinen Namenszug hinein.");
+  }
+
+  const kopf = await headers();
+  const ip = (kopf.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unbekannt";
+  const geraet = (kopf.get("user-agent") ?? "unbekannt").slice(0, 300);
+  const textstand = createHash("sha256").update(ganzerText()).digest("hex").slice(0, 16);
+
+  const geaendert = (await db()`
+    update geheimhaltung
+       set unterschrieben_am = now(),
+           unterschrieben_von = ${benutzer.name},
+           unterschrift_art = 'online',
+           unterschrift_bild = ${bild},
+           unterschrift_ip = ${ip},
+           unterschrift_geraet = ${geraet},
+           unterschrift_textstand = ${textstand}
+     where benutzer_id = ${benutzer.id}
+     returning id
+  `) as Array<{ id: string }>;
+
+  if (geaendert.length === 0) {
+    throw new Error("Trag zuerst deine Angaben ein und sichere sie.");
   }
 
   revalidatePath("/geheimhaltung");

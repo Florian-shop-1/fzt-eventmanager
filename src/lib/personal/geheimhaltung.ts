@@ -103,3 +103,28 @@ export function vollstaendig(p: Partial<Vertragspartner>): boolean {
 export function anschrift(p: Vertragspartner): string {
   return `${p.strasse}, ${p.plz} ${p.ort}`;
 }
+
+/**
+ * Der gesamte Vertragstext als eine Zeichenkette.
+ *
+ * Gebraucht, um einen Fingerabdruck zu bilden. Wer online unterschreibt,
+ * unterschreibt eine bestimmte Fassung, und die muss sich später
+ * nachweisen lassen. Ohne das liesse sich nach einer Textaenderung nicht
+ * mehr sagen, wozu jemand eigentlich sein Zeichen gesetzt hat.
+ */
+export function ganzerText(): string {
+  const teile: string[] = ["Geheimhaltungsvereinbarung / Vertragsstrafe", ...PRAEAMBEL];
+  for (const a of ABSCHNITTE) {
+    teile.push(a.nummer + " " + a.titel);
+    teile.push(...a.absaetze);
+    if (a.aufzaehlung) teile.push(...a.aufzaehlung);
+    if (a.danach) teile.push(...a.danach);
+  }
+  return teile.join(TRENNER);
+}
+
+/** Zeilenumbruch, hier als Konstante, damit er keinen Rückstrich braucht. */
+const TRENNER = String.fromCharCode(10);
+
+/** Datum der Vorlage, aus der dieser Text stammt. */
+export const TEXTSTAND_DATUM = "24.05.2026";
