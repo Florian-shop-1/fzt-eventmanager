@@ -64,11 +64,15 @@ const ROLLSTUHL = /rollstuhl|rolli/i;
  * REIHEN_TIEF  Wie viele Reihen von der Bühne aus dazugehören.
  * AUSSEN_FREI  Wie viele Plätze an jedem Ende einer Reihe wegfallen.
  *
- * Am Saal abgenommen: sechs Reihen tief, je zwei Plätze aussen. Bei
+ * Am Saal abgenommen: sieben Reihen tief, je zwei Plätze aussen. Bei
  * sechzehn Plätzen je Reihe bleiben die Plätze 3 bis 14. Wer die Zone
  * ändern will, ändert diese beiden Zahlen.
+ *
+ * Angefangen hatte es mit sechs Reihen. Die siebte kam dazu, weil zu
+ * viele Gruppen sitzen blieben: Sie passten nicht mehr am Stück in die
+ * Zone, und eine geteilte Gruppe kommt nicht in Frage.
  */
-const REIHEN_TIEF = 6;
+const REIHEN_TIEF = 7;
 const AUSSEN_FREI = 2;
 
 export interface Reihe {
