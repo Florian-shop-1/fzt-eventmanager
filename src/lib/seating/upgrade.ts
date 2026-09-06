@@ -281,16 +281,18 @@ export function empfehlung(plan: Saalplan): Empfehlung {
   const gruppen = parkett.flatMap((r) => gruppenDerReihe(r, zone));
 
   /*
-    Von hinten nach vorne abarbeiten, und bei gleicher Reihe die grösseren
-    Gruppen zuerst.
+    Von vorne nach hinten abarbeiten, und bei gleicher Reihe die
+    grösseren Gruppen zuerst.
 
-    Von hinten, weil die hinteren Gäste am weitesten von der Bühne weg
-    sitzen: Reicht der Platz nicht für alle, sollen die davon haben, die
-    es am nötigsten haben. Grosse zuerst, weil es für sie die wenigsten
-    Blöcke am Stück gibt.
+    Das klingt verkehrt herum, ist aber richtig: Seit niemand nach hinten
+    gesetzt werden darf, hat eine Gruppe aus Reihe 1 nur ihre eigene
+    Reihe zur Auswahl, eine aus Reihe 9 dagegen alle sechs. Wer zuerst
+    drankommt, sollte der mit den wenigsten Möglichkeiten sein, sonst
+    nimmt ihm ein anderer den einzigen Platz weg, den er hätte haben
+    können. Grosse zuerst aus demselben Grund.
   */
   const reihenfolge = [...gruppen].sort((a, b) => {
-    const dy = b.reihe.y - a.reihe.y;
+    const dy = a.reihe.y - b.reihe.y;
     return dy !== 0 ? dy : b.sitze.length - a.sitze.length;
   });
 
@@ -299,7 +301,7 @@ export function empfehlung(plan: Saalplan): Empfehlung {
   const bleiben: Bereich[] = [];
 
   for (const gruppe of reihenfolge) {
-    const ziel = bestenBlockSuchen(zone, gruppe.sitze.length, belegt);
+    const ziel = bestenBlockSuchen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y);
     if (!ziel) {
       bleiben.push(gruppe);
       continue;
@@ -343,6 +345,7 @@ function bestenBlockSuchen(
   zone: Spielzone,
   groesse: number,
   belegt: Set<number>,
+  hoechstensBis: number,
 ): Bereich | null {
   let bester: Bereich | null = null;
   let bestePunkte = -Infinity;
@@ -360,6 +363,17 @@ function bestenBlockSuchen(
   });
 
   zone.reihen.forEach((reihe, reihenIndex) => {
+    /*
+      Niemals nach hinten setzen.
+
+      Eine Reihe weiter hinten ist ein Downgrade, auch wenn der Platz
+      mittiger liegt. Wer vorne aussen sitzt, kann deshalb nur innerhalb
+      seiner eigenen Reihe nach innen rutschen oder bleibt, wo er ist.
+      Ein halber Millimeter Spielraum, weil die Reihen ihre Lage aus dem
+      Mittelwert ihrer Sitze beziehen.
+    */
+    if (reihe.y > hoechstensBis + 0.5) return;
+
     const abstand = sitzabstand(reihe);
     const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
     const innen = reihe.sitze.filter((s) => zone.sitze.has(s.id));
