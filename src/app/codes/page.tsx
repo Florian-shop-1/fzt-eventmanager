@@ -2,12 +2,13 @@ import {
   aktionAnlegen,
   codesEinfuegen,
   codesVerschicken,
-  hinweisSpeichern,
+  mailtexteSpeichern,
   holeAktionen,
   letzteVergaben,
   type Aktion,
 } from "@/lib/db/codes";
 import { Absendeknopf } from "@/components/Absendeknopf";
+import { Codetexte } from "@/components/Codetexte";
 import { zeitpunkt } from "@/lib/zeit";
 
 export const metadata = { title: "Codes | FZT Eventmanager" };
@@ -70,8 +71,8 @@ export default async function CodesSeite({
       )}
       {gespeichert && (
         <Kasten farbe="gut">
-          <strong>Gespeichert.</strong> Der Hinweis steht ab jetzt in jeder Mail unter den Codes
-          dieses Vorrats.
+          <strong>Gespeichert.</strong> So steht es ab jetzt in jeder Mail, in der ein Code aus
+          diesem Vorrat steckt.
         </Kasten>
       )}
       {(fehler || meldung) && (
@@ -128,6 +129,15 @@ export default async function CodesSeite({
               type="text"
               name="beschreibung"
               placeholder="Eine Freikarte für eine Vorstellung deiner Wahl"
+              className="mt-1 w-full rounded-md border border-linie px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="text-leise">Überschrift über den Codes in der Mail</span>
+            <input
+              type="text"
+              name="kundenname"
+              placeholder="Freikarte"
               className="mt-1 w-full rounded-md border border-linie px-3 py-2"
             />
           </label>
@@ -205,32 +215,49 @@ function Vorrat({ aktion }: { aktion: Aktion }) {
 
       {aktion.hinweis && (
         <p className="mt-3 rounded-md bg-gold-hell/40 px-3 py-2 text-sm">
-          <span className="text-leise">Steht in der Mail unter den Codes: </span>
+          <span className="text-leise">In der Mail: </span>
+          <strong>{aktion.kundenname ?? aktion.name}</strong>
+          <span className="text-leise"> · </span>
           {aktion.hinweis}
         </p>
       )}
 
       <details className="mt-3">
-        <summary className="cursor-pointer text-sm text-leise">
-          {aktion.hinweis ? "Hinweis ändern" : "Hinweis für die Mail hinterlegen"}
-        </summary>
-        <form action={hinweisSpeichern.bind(null, aktion.id)} className="mt-2">
-          <textarea
-            name="hinweis"
-            rows={3}
-            defaultValue={aktion.hinweis ?? ""}
-            placeholder="Zum Beispiel: Der Code zieht immer das teuerste Ticket im Warenkorb ab."
-            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
-          />
-          <p className="mt-1 text-xs text-leise">
-            Geht mit jeder Mail hinaus, in der ein Code aus diesem Vorrat steckt. Leer lassen
-            heisst: kein Hinweis.
-          </p>
+        <summary className="cursor-pointer text-sm text-leise">Text für die Mail</summary>
+        <form action={mailtexteSpeichern.bind(null, aktion.id)} className="mt-2 space-y-2">
+          <label className="block text-sm">
+            <span className="text-leise">Überschrift über den Codes</span>
+            <input
+              type="text"
+              name="kundenname"
+              defaultValue={aktion.kundenname ?? ""}
+              placeholder={aktion.name}
+              className="mt-1 w-full rounded-md border border-linie px-3 py-2 text-sm"
+            />
+            <span className="mt-1 block text-xs text-leise">
+              So heisst der Vorrat beim Kunden. Leer lassen: Es steht der Name von hier oben in
+              der Mail.
+            </span>
+          </label>
+          <label className="block text-sm">
+            <span className="text-leise">Hinweis unter den Codes</span>
+            <textarea
+              name="hinweis"
+              rows={3}
+              defaultValue={aktion.hinweis ?? ""}
+              placeholder="Zum Beispiel: Der Code zieht immer das teuerste Ticket im Warenkorb ab."
+              className="mt-1 w-full rounded-md border border-linie px-3 py-2 text-sm"
+            />
+            <span className="mt-1 block text-xs text-leise">
+              Geht mit jeder Mail hinaus, in der ein Code aus diesem Vorrat steckt. Schreib ihn
+              weder in Du- noch in Sie-Form, er steht auch in Partnermails.
+            </span>
+          </label>
           <button
             type="submit"
-            className="mt-2 rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
           >
-            Hinweis speichern
+            Speichern
           </button>
         </form>
       </details>
@@ -268,12 +295,6 @@ function Verschicken({ aktionen }: { aktionen: Aktion[] }) {
       </p>
     );
   }
-
-  const einleitung = [
-    "Hallo,",
-    "",
-    "wir haben ein kleines Geschenk für dich. Hier ist dein Code:",
-  ].join("\n");
 
   return (
     <section className="rounded-lg border border-gold bg-gold-hell/40 p-5">
@@ -338,28 +359,7 @@ function Verschicken({ aktionen }: { aktionen: Aktion[] }) {
           </div>
         </fieldset>
 
-        <label className="block text-sm">
-          <span className="text-leise">Betreff</span>
-          <input
-            type="text"
-            name="betreff"
-            defaultValue="Ein Geschenk vom Florian Zimmer Theater"
-            className="mt-1 w-full rounded-md border border-linie px-3 py-2"
-          />
-        </label>
-
-        <label className="block text-sm">
-          <span className="text-leise">Einleitung</span>
-          <textarea
-            name="einleitung"
-            rows={5}
-            defaultValue={einleitung}
-            className="mt-1 w-full rounded-md border border-linie px-3 py-2"
-          />
-          <span className="mt-1 block text-xs text-leise">
-            Die Codes werden darunter angehängt, nach Aktion sortiert.
-          </span>
-        </label>
+        <Codetexte />
 
         <Absendeknopf text="Codes verschicken" laeuftText="Wird verschickt..." />
       </form>

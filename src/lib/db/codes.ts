@@ -19,6 +19,8 @@ export interface Aktion {
   id: string;
   name: string;
   beschreibung: string | null;
+  /** Überschrift über den Codes in der Mail. Leer: der interne Name. */
+  kundenname: string | null;
   /** Steht in der Mail unter den Codes dieses Vorrats. */
   hinweis: string | null;
   gueltigBis: string | null;
@@ -51,7 +53,7 @@ async function verlangeBuero(): Promise<{ name: string }> {
 export async function holeAktionen(): Promise<Aktion[]> {
   await verlangeBuero();
   const zeilen = (await db()`
-    select a.id, a.name, a.beschreibung, a.hinweis, a.gueltig_bis, a.aktiv,
+    select a.id, a.name, a.beschreibung, a.kundenname, a.hinweis, a.gueltig_bis, a.aktiv,
            count(c.id)::int as gesamt,
            count(c.id) filter (where c.vergeben_am is null)::int as frei
       from code_aktion a
@@ -64,6 +66,7 @@ export async function holeAktionen(): Promise<Aktion[]> {
     id: String(z.id),
     name: String(z.name),
     beschreibung: (z.beschreibung as string) ?? null,
+    kundenname: (z.kundenname as string) ?? null,
     hinweis: (z.hinweis as string) ?? null,
     gueltigBis: (z.gueltig_bis as string) ?? null,
     aktiv: z.aktiv === true,
@@ -107,8 +110,9 @@ export async function aktionAnlegen(formData: FormData): Promise<void> {
   if (!name) throw new Error("Die Aktion braucht einen Namen.");
 
   await db()`
-    insert into code_aktion (name, beschreibung, hinweis, gueltig_bis)
+    insert into code_aktion (name, beschreibung, kundenname, hinweis, gueltig_bis)
     values (${name}, ${text(formData, "beschreibung") || null},
+            ${text(formData, "kundenname") || null},
             ${text(formData, "hinweis") || null},
             ${text(formData, "gueltigBis") || null})
   `;
@@ -116,16 +120,19 @@ export async function aktionAnlegen(formData: FormData): Promise<void> {
 }
 
 /**
- * Ändert den Einlösehinweis eines Vorrats.
+ * Ändert, was von einem Vorrat beim Kunden ankommt: die Überschrift über
+ * den Codes und den Einlösehinweis darunter.
  *
  * Damit niemand auf mich warten muss, wenn Ditix sich anders verhält als
- * bisher. Der Hinweis geht mit jeder Mail hinaus, ein falscher steht
+ * bisher. Beides geht mit jeder Mail hinaus, ein falscher Satz steht
  * schnell hundertmal beim Kunden.
  */
-export async function hinweisSpeichern(aktionId: string, formData: FormData): Promise<void> {
+export async function mailtexteSpeichern(aktionId: string, formData: FormData): Promise<void> {
   await verlangeBuero();
   await db()`
-    update code_aktion set hinweis = ${text(formData, "hinweis") || null}
+    update code_aktion
+       set kundenname = ${text(formData, "kundenname") || null},
+           hinweis = ${text(formData, "hinweis") || null}
      where id = ${aktionId}::uuid
   `;
   revalidatePath("/codes");
@@ -185,6 +192,7 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
   const anlass = text(formData, "anlass");
   const betreff = text(formData, "betreff");
   const einleitung = text(formData, "einleitung");
+  const schluss = text(formData, "schluss");
 
   // Je Aktion die gewünschte Anzahl, aus Feldern namens "anzahl:<id>".
   const wuensche: Array<{ aktionId: string; anzahl: number }> = [];
@@ -224,13 +232,16 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
             for update skip locked
          )
         returning code,
-                  (select name from code_aktion where id = ${w.aktionId}::uuid) as aktion,
+                  (select name from code_aktion where id = ${w.aktionId}::uuid) as intern,
+                  (select coalesce(kundenname, name) from code_aktion
+                    where id = ${w.aktionId}::uuid) as aktion,
                   (select hinweis from code_aktion where id = ${w.aktionId}::uuid) as hinweis
-      `) as Array<{ code: string; aktion: string; hinweis: string | null }>;
+      `) as Array<{ code: string; intern: string; aktion: string; hinweis: string | null }>;
 
       if (zeilen.length < w.anzahl) {
+        // Hier der interne Name: Die Meldung liest das Büro, nicht der Kunde.
         throw new Error(
-          `Im Vorrat "${zeilen[0]?.aktion ?? "der gewählten Aktion"}" liegen nicht genug freie Codes.`,
+          `Im Vorrat "${zeilen[0]?.intern ?? "der gewählten Aktion"}" liegen nicht genug freie Codes.`,
         );
       }
       vergeben.push({
@@ -256,7 +267,7 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
     await mailVerschicken({
       an: email,
       betreff: betreff || "Ein Geschenk vom Florian Zimmer Theater",
-      text: [einleitung, "", ...zeilenText].join(UMBRUCH).trim(),
+      text: [einleitung, "", ...zeilenText, schluss].join(UMBRUCH).trim(),
     });
   } catch (f) {
     // Die schon reservierten Codes wieder freigeben, sonst sind sie
