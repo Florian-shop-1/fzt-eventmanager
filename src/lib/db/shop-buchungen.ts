@@ -26,6 +26,8 @@ export interface BuchungsPosten {
 
 export interface ShopBuchung {
   id: string;
+  /** Schluessel fuer den Upgrade-Link in der Mail. Siehe Migration 027. */
+  zugangToken: string;
   cartId: string | null;
   ditixEventId: string;
   datum: string;
@@ -157,6 +159,7 @@ async function bestaetigeOffene(zeilen: Record<string, unknown>[]): Promise<void
 function baueBuchung(z: Record<string, unknown>, posten: Record<string, unknown>[]): ShopBuchung {
   return {
     id: String(z.id),
+    zugangToken: String(z.zugang_token ?? ""),
     cartId: (z.cart_id as string) ?? null,
     ditixEventId: String(z.ditix_event_id),
     datum: String(z.datum).slice(0, 10),
@@ -205,5 +208,30 @@ export async function buchungenFuerTag(datum: string): Promise<ShopBuchung[]> {
   } catch (e) {
     console.warn("[shop-buchungen] konnten nicht geladen werden:", e);
     return [];
+  }
+}
+
+/**
+ * Eine Buchung ueber den Zugangsschluessel aus dem Upgrade-Link.
+ *
+ * Bewusst OHNE Zahlungspruefung: Diese Abfrage bedient eine Seite, die ein
+ * Gast aufruft, und darf deshalb nicht bei jedem Aufruf den Shop befragen.
+ * Der Schluessel wird ohnehin nur mit der Mail verschickt, und die geht nur an
+ * bestaetigte Buchungen.
+ */
+export async function buchungPerToken(token: string): Promise<ShopBuchung | null> {
+  if (!/^[0-9a-f]{32}$/.test(token)) return null;
+  try {
+    const zeilen = (await db()`
+      select * from shop_buchung where zugang_token = ${token} limit 1
+    `) as Record<string, unknown>[];
+    if (zeilen.length === 0) return null;
+    const posten = (await db()`
+      select * from shop_buchung_posten where buchung_id = ${String(zeilen[0].id)}
+    `) as Record<string, unknown>[];
+    return baueBuchung(zeilen[0], posten);
+  } catch (e) {
+    console.warn("[shop-buchungen] Token-Abfrage fehlgeschlagen:", e);
+    return null;
   }
 }
