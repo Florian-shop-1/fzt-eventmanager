@@ -3,7 +3,7 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { planeAbend } from "@/lib/seating/abend";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
-import { shopHinweiseFuerTag } from "@/lib/db/shop-hinweise";
+import { buchungenFuerTag } from "@/lib/db/shop-buchungen";
 import { artikel } from "@/lib/domain/artikel";
 import { eur } from "@/lib/domain/pricing";
 import { vorOrtKassiert } from "@/lib/db/aktionen";
@@ -69,7 +69,7 @@ export default async function FunktionsheetSeite({
   const [blatt, { kopf, varianten }, shopHinweise] = await Promise.all([
     holeKuechenblatt(gewaehlt),
     planeAbend(gewaehlt),
-    tagesDatum ? shopHinweiseFuerTag(tagesDatum) : Promise.resolve([]),
+    tagesDatum ? buchungenFuerTag(tagesDatum) : Promise.resolve([]),
   ]);
   if (!blatt || !kopf) return null;
 
@@ -214,7 +214,7 @@ export default async function FunktionsheetSeite({
           )}
         </section>
 
-        {(blatt.unvertraeglichkeiten.length > 0 || shopHinweise.length > 0) && (
+        {(blatt.unvertraeglichkeiten.length > 0 || shopHinweise.some((h) => h.hinweis.trim())) && (
           <section className="mb-8">
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-leise">
               {nummer()} Unverträglichkeiten und Sonderwünsche
@@ -237,7 +237,7 @@ export default async function FunktionsheetSeite({
                   Kasse gespeichert, also bevor bezahlt ist -- wer wegen des
                   Preises abbricht, darf hier nicht auftauchen. */}
               {shopHinweise
-                .filter((h) => h.bestaetigt)
+                .filter((h) => h.bestaetigt && h.hinweis.trim())
                 .map((h) => (
                   <li
                     key={h.id}
@@ -262,12 +262,12 @@ export default async function FunktionsheetSeite({
 
             {/* Offene Warenkoerbe getrennt und deutlich abgesetzt: Das Team kann
                 nachfassen, die Kueche kocht aber nicht danach. */}
-            {shopHinweise.some((h) => !h.bestaetigt) && (
+            {shopHinweise.some((h) => !h.bestaetigt && h.hinweis.trim()) && (
               <p className="mt-3 text-xs text-leise">
-                Außerdem {shopHinweise.filter((h) => !h.bestaetigt).length} Hinweis(e) aus
+                Außerdem {shopHinweise.filter((h) => !h.bestaetigt && h.hinweis.trim()).length} Hinweis(e) aus
                 Warenkörben, die bis jetzt nicht bezahlt wurden. Nicht einplanen. Nachfassen:{" "}
                 {shopHinweise
-                  .filter((h) => !h.bestaetigt)
+                  .filter((h) => !h.bestaetigt && h.hinweis.trim())
                   .map((h) => [h.telefon, h.email].filter(Boolean).join(" "))
                   .filter(Boolean)
                   .join(", ") || "kein Kontakt hinterlegt"}
