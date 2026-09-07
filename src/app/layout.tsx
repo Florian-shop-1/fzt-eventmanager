@@ -36,9 +36,6 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
   { href: "/versand", label: "Versand", rollen: ["chef", "team"] },
   { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
-  // Freiticket-Kontingente von Partnerhotels und die monatliche Abrechnung.
-  // Nur "chef": Hier stehen Konditionen, das ist kaufmaennisch.
-  { href: "/partner", label: "Partner", rollen: ["chef"] },
   { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
   { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
