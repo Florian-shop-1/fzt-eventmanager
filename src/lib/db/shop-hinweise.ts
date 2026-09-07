@@ -17,6 +17,10 @@ export interface ShopHinweis {
   telefon: string;
   hinweis: string;
   plaetze: number | null;
+  /** true, sobald der Shop bestaetigt hat, dass dieser Warenkorb bezahlt wurde. */
+  bestaetigt: boolean;
+  /** Bestellnummer bei Ditix, sobald bekannt. */
+  accessCode: string | null;
   eingegangenAm: Date;
 }
 
@@ -73,13 +77,71 @@ export async function shopHinweiseFuerTag(datum: string): Promise<ShopHinweis[]>
   }
 }
 
+const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+
+/**
+ * Fragt beim Shop nach, ob ein Warenkorb wirklich bezahlt wurde.
+ *
+ * checkout/status nimmt die Warenkorb-Kennung und liefert den Zahlungsstand
+ * plus "lastAccessCode" -- die Bestellnummer, unter der die fertige Bestellung
+ * bei Ditix laeuft. Das ist die Bruecke zwischen unserer cart_id und der
+ * echten Bestellung; die beiden IDs sind sonst nicht ineinander umrechenbar.
+ */
+async function pruefeBezahlt(cartId: string): Promise<{ bezahlt: boolean; accessCode: string | null }> {
+  try {
+    const res = await fetch(`${SHOP_BASIS}/api/ditix/checkout/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cartId }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return { bezahlt: false, accessCode: null };
+    const daten = (await res.json()) as { status?: string; lastAccessCode?: string };
+    const code = daten.lastAccessCode ?? null;
+    return { bezahlt: daten.status === "SUCCESS" || Boolean(code), accessCode: code };
+  } catch {
+    return { bezahlt: false, accessCode: null };
+  }
+}
+
 async function ladeHinweise(datum: string): Promise<ShopHinweis[]> {
   const zeilen = (await db()`
-    select id, ditix_event_id, uhrzeit, show, email, telefon, hinweis, plaetze, eingegangen_am
+    select id, ditix_event_id, uhrzeit, show, email, telefon, hinweis, plaetze,
+           bestaetigt, access_code, cart_id, eingegangen_am
       from shop_hinweis
      where datum = ${datum}
      order by eingegangen_am desc
   `) as Record<string, unknown>[];
+
+  // Noch offene Hinweise beim Shop nachfragen. Bewusst hier und nicht in einem
+  // Hintergrunddienst: Das Funktionsheet wird am Spieltag geoeffnet, bis dahin
+  // ist der Zahlungsstand endgueltig. Einmal bestaetigt, wird nie wieder
+  // gefragt. Damit braucht es keinen Zeitplan und nichts, was ausfallen kann.
+  const offen = zeilen.filter((z) => !z.bestaetigt && z.cart_id);
+  if (offen.length > 0) {
+    const ergebnisse = await Promise.all(
+      offen.map(async (z) => ({ z, ...(await pruefeBezahlt(String(z.cart_id))) })),
+    );
+    for (const { z, bezahlt, accessCode } of ergebnisse) {
+      if (bezahlt) {
+        z.bestaetigt = true;
+        z.access_code = accessCode;
+      }
+      try {
+        await db()`
+          update shop_hinweis
+             set bestaetigt = ${bezahlt}, access_code = ${accessCode},
+                 zuletzt_geprueft = now()
+           where id = ${String(z.id)}
+        `;
+      } catch (e) {
+        // Das Merken ist nur eine Abkuerzung fuers naechste Mal. Schlaegt es
+        // fehl, wird beim naechsten Oeffnen halt erneut gefragt.
+        console.warn("[shop-hinweise] Status konnte nicht gemerkt werden:", e);
+      }
+    }
+  }
 
   return zeilen.map((z) => ({
     id: String(z.id),
@@ -90,6 +152,8 @@ async function ladeHinweise(datum: string): Promise<ShopHinweis[]> {
     telefon: String(z.telefon ?? ""),
     hinweis: String(z.hinweis ?? ""),
     plaetze: z.plaetze === null || z.plaetze === undefined ? null : Number(z.plaetze),
+    bestaetigt: Boolean(z.bestaetigt),
+    accessCode: (z.access_code as string) ?? null,
     eingegangenAm: new Date(z.eingegangen_am as string),
   }));
 }

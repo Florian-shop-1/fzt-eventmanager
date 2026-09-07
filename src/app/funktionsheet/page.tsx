@@ -233,27 +233,46 @@ export default async function FunktionsheetSeite({
                   nur in einer Google-Tabelle bei Make und kamen in der Kueche
                   nie an. Bewusst in derselben Liste wie die Firmengruppen: Die
                   Kueche soll an EINER Stelle sehen, worauf sie achten muss. */}
-              {shopHinweise.map((h) => (
-                <li
-                  key={h.id}
-                  className="border-l-4 pl-3 py-1"
-                  style={{ borderColor: "var(--warnung)" }}
-                >
-                  <strong>
-                    Shop-Buchung
-                    {h.uhrzeit ? ` ${h.uhrzeit}` : ""}
-                    {h.plaetze ? `, ${h.plaetze} ${h.plaetze === 1 ? "Platz" : "Plätze"}` : ""}
-                  </strong>
-                  : {h.hinweis}
-                  {(h.email || h.telefon) && (
-                    <span className="text-leise">
-                      {" "}
-                      ({[h.telefon, h.email].filter(Boolean).join(" · ")})
-                    </span>
-                  )}
-                </li>
-              ))}
+              {/* NUR bezahlte Buchungen. Der Hinweis wird beim Uebergang zur
+                  Kasse gespeichert, also bevor bezahlt ist -- wer wegen des
+                  Preises abbricht, darf hier nicht auftauchen. */}
+              {shopHinweise
+                .filter((h) => h.bestaetigt)
+                .map((h) => (
+                  <li
+                    key={h.id}
+                    className="border-l-4 pl-3 py-1"
+                    style={{ borderColor: "var(--warnung)" }}
+                  >
+                    <strong>
+                      Shop-Buchung
+                      {h.uhrzeit ? ` ${h.uhrzeit}` : ""}
+                      {h.plaetze ? `, ${h.plaetze} ${h.plaetze === 1 ? "Platz" : "Plätze"}` : ""}
+                    </strong>
+                    : {h.hinweis}
+                    {(h.email || h.telefon) && (
+                      <span className="text-leise">
+                        {" "}
+                        ({[h.telefon, h.email].filter(Boolean).join(" · ")})
+                      </span>
+                    )}
+                  </li>
+                ))}
             </ul>
+
+            {/* Offene Warenkoerbe getrennt und deutlich abgesetzt: Das Team kann
+                nachfassen, die Kueche kocht aber nicht danach. */}
+            {shopHinweise.some((h) => !h.bestaetigt) && (
+              <p className="mt-3 text-xs text-leise">
+                Außerdem {shopHinweise.filter((h) => !h.bestaetigt).length} Hinweis(e) aus
+                Warenkörben, die bis jetzt nicht bezahlt wurden. Nicht einplanen. Nachfassen:{" "}
+                {shopHinweise
+                  .filter((h) => !h.bestaetigt)
+                  .map((h) => [h.telefon, h.email].filter(Boolean).join(" "))
+                  .filter(Boolean)
+                  .join(", ") || "kein Kontakt hinterlegt"}
+              </p>
+            )}
           </section>
         )}
 

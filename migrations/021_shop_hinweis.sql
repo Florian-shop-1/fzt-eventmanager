@@ -27,8 +27,21 @@ create table if not exists shop_hinweis (
   -- Der Freitext des Gastes aus dem Menü-Schritt.
   hinweis         text        not null,
   plaetze         int,
-  -- Warenkorb-Kennung des Shops, für den Abgleich mit der Bestellung.
+  -- Warenkorb-Kennung des Shops. Über sie fragen wir beim Shop nach, ob
+  -- wirklich bezahlt wurde (/api/ditix/checkout/status).
   cart_id         text,
+  -- Der Hinweis wird beim Übergang zur Kasse gespeichert, also BEVOR bezahlt
+  -- ist. Sonst wäre er nach dem Sprung zu Ditix für immer weg. Wer abbricht,
+  -- weil ihm der Preis zu hoch ist, darf aber nicht in der Küchenliste stehen:
+  -- Eine Liste voller Phantom-Allergien verliert ihre Glaubwürdigkeit, und
+  -- eine Küche, die der Liste nicht mehr traut, ist gefährlicher als gar keine.
+  -- Deshalb zählt für die Küche nur, was hier auf true steht.
+  bestaetigt      boolean     not null default false,
+  -- Bestellnummer bei Ditix, kommt aus checkout/status als "lastAccessCode".
+  -- Die fertige Bestellung läuft dort unter dieser Kennung, NICHT unter der
+  -- cart_id -- das sind zwei getrennte IDs.
+  access_code     text,
+  zuletzt_geprueft timestamptz,
   eingegangen_am  timestamptz not null default now()
 );
 
