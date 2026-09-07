@@ -2,6 +2,7 @@ import {
   aktionAnlegen,
   codesEinfuegen,
   codesVerschicken,
+  hinweisSpeichern,
   holeAktionen,
   letzteVergaben,
   type Aktion,
@@ -34,9 +35,10 @@ export default async function CodesSeite({
     fehler?: string;
     eingefuegt?: string;
     meldung?: string;
+    gespeichert?: string;
   }>;
 }) {
-  const { verschickt, fehler, eingefuegt, meldung } = await searchParams;
+  const { verschickt, fehler, eingefuegt, meldung, gespeichert } = await searchParams;
 
   const aktionen = await holeAktionen();
   const vergaben = await letzteVergaben();
@@ -64,6 +66,12 @@ export default async function CodesSeite({
         <Kasten farbe="gut">
           <strong>{eingefuegt} Codes gelesen.</strong> Schon vorhandene wurden übergangen, in den
           Zahlen unten siehst du, was tatsächlich dazugekommen ist.
+        </Kasten>
+      )}
+      {gespeichert && (
+        <Kasten farbe="gut">
+          <strong>Gespeichert.</strong> Der Hinweis steht ab jetzt in jeder Mail unter den Codes
+          dieses Vorrats.
         </Kasten>
       )}
       {(fehler || meldung) && (
@@ -120,6 +128,15 @@ export default async function CodesSeite({
               type="text"
               name="beschreibung"
               placeholder="Eine Freikarte für eine Vorstellung deiner Wahl"
+              className="mt-1 w-full rounded-md border border-linie px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="text-leise">Hinweis, der in der Mail unter den Codes steht</span>
+            <input
+              type="text"
+              name="hinweis"
+              placeholder="Der Code zieht immer das teuerste Ticket im Warenkorb ab."
               className="mt-1 w-full rounded-md border border-linie px-3 py-2"
             />
           </label>
@@ -185,6 +202,38 @@ function Vorrat({ aktion }: { aktion: Aktion }) {
           Aufgebraucht. Leg in Ditix neue Codes an und füg sie hier ein.
         </p>
       )}
+
+      {aktion.hinweis && (
+        <p className="mt-3 rounded-md bg-gold-hell/40 px-3 py-2 text-sm">
+          <span className="text-leise">Steht in der Mail unter den Codes: </span>
+          {aktion.hinweis}
+        </p>
+      )}
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-sm text-leise">
+          {aktion.hinweis ? "Hinweis ändern" : "Hinweis für die Mail hinterlegen"}
+        </summary>
+        <form action={hinweisSpeichern.bind(null, aktion.id)} className="mt-2">
+          <textarea
+            name="hinweis"
+            rows={3}
+            defaultValue={aktion.hinweis ?? ""}
+            placeholder="Zum Beispiel: Der Code zieht immer das teuerste Ticket im Warenkorb ab."
+            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-leise">
+            Geht mit jeder Mail hinaus, in der ein Code aus diesem Vorrat steckt. Leer lassen
+            heisst: kein Hinweis.
+          </p>
+          <button
+            type="submit"
+            className="mt-2 rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+          >
+            Hinweis speichern
+          </button>
+        </form>
+      </details>
 
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-leise">Codes einfügen</summary>

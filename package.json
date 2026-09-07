@@ -17,7 +17,8 @@
     "test:menueliste": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-menueliste.ts",
     "zugang": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/ersten-zugang.ts",
     "demo:angebot": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts",
-    "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg"
+    "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg",
+    "codes:einlesen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/codes-einlesen.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

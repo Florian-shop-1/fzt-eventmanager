@@ -19,6 +19,8 @@ export interface Aktion {
   id: string;
   name: string;
   beschreibung: string | null;
+  /** Steht in der Mail unter den Codes dieses Vorrats. */
+  hinweis: string | null;
   gueltigBis: string | null;
   aktiv: boolean;
   /** Wie viele Codes insgesamt im Vorrat liegen. */
@@ -49,7 +51,7 @@ async function verlangeBuero(): Promise<{ name: string }> {
 export async function holeAktionen(): Promise<Aktion[]> {
   await verlangeBuero();
   const zeilen = (await db()`
-    select a.id, a.name, a.beschreibung, a.gueltig_bis, a.aktiv,
+    select a.id, a.name, a.beschreibung, a.hinweis, a.gueltig_bis, a.aktiv,
            count(c.id)::int as gesamt,
            count(c.id) filter (where c.vergeben_am is null)::int as frei
       from code_aktion a
@@ -62,6 +64,7 @@ export async function holeAktionen(): Promise<Aktion[]> {
     id: String(z.id),
     name: String(z.name),
     beschreibung: (z.beschreibung as string) ?? null,
+    hinweis: (z.hinweis as string) ?? null,
     gueltigBis: (z.gueltig_bis as string) ?? null,
     aktiv: z.aktiv === true,
     gesamt: Number(z.gesamt),
@@ -104,11 +107,29 @@ export async function aktionAnlegen(formData: FormData): Promise<void> {
   if (!name) throw new Error("Die Aktion braucht einen Namen.");
 
   await db()`
-    insert into code_aktion (name, beschreibung, gueltig_bis)
+    insert into code_aktion (name, beschreibung, hinweis, gueltig_bis)
     values (${name}, ${text(formData, "beschreibung") || null},
+            ${text(formData, "hinweis") || null},
             ${text(formData, "gueltigBis") || null})
   `;
   revalidatePath("/codes");
+}
+
+/**
+ * Ändert den Einlösehinweis eines Vorrats.
+ *
+ * Damit niemand auf mich warten muss, wenn Ditix sich anders verhält als
+ * bisher. Der Hinweis geht mit jeder Mail hinaus, ein falscher steht
+ * schnell hundertmal beim Kunden.
+ */
+export async function hinweisSpeichern(aktionId: string, formData: FormData): Promise<void> {
+  await verlangeBuero();
+  await db()`
+    update code_aktion set hinweis = ${text(formData, "hinweis") || null}
+     where id = ${aktionId}::uuid
+  `;
+  revalidatePath("/codes");
+  redirect("/codes?gespeichert=1");
 }
 
 /**
@@ -181,7 +202,7 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
   if (!email) redirect(fehler("Ohne Mailadresse geht nichts hinaus."));
   if (wuensche.length === 0) redirect(fehler("Es wurde keine Aktion ausgewählt."));
 
-  const vergeben: Array<{ aktion: string; codes: string[] }> = [];
+  const vergeben: Array<{ aktion: string; hinweis: string | null; codes: string[] }> = [];
 
   try {
     for (const w of wuensche) {
@@ -202,20 +223,33 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
             limit ${w.anzahl}
             for update skip locked
          )
-        returning code, (select name from code_aktion where id = ${w.aktionId}::uuid) as aktion
-      `) as Array<{ code: string; aktion: string }>;
+        returning code,
+                  (select name from code_aktion where id = ${w.aktionId}::uuid) as aktion,
+                  (select hinweis from code_aktion where id = ${w.aktionId}::uuid) as hinweis
+      `) as Array<{ code: string; aktion: string; hinweis: string | null }>;
 
       if (zeilen.length < w.anzahl) {
         throw new Error(
           `Im Vorrat "${zeilen[0]?.aktion ?? "der gewählten Aktion"}" liegen nicht genug freie Codes.`,
         );
       }
-      vergeben.push({ aktion: zeilen[0].aktion, codes: zeilen.map((z) => z.code) });
+      vergeben.push({
+        aktion: zeilen[0].aktion,
+        hinweis: zeilen[0].hinweis,
+        codes: zeilen.map((z) => z.code),
+      });
     }
 
+    /*
+      Je Vorrat: Überschrift, die Codes, darunter sein Einlösehinweis.
+      Der Hinweis gehört unter die Codes und nicht in die Einleitung,
+      weil er für jeden Vorrat ein anderer ist und weil ihn dort niemand
+      vergessen kann.
+    */
     const zeilenText = vergeben.flatMap((v) => [
       v.aktion + ":",
       ...v.codes.map((c) => "   " + c),
+      ...(v.hinweis ? ["", v.hinweis] : []),
       "",
     ]);
 
