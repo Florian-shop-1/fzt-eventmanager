@@ -10,6 +10,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { mailVerschicken } from "./versand";
 
@@ -21,22 +22,39 @@ export async function testmailSchicken(): Promise<void> {
     throw new Error("Nur Büro und Inhaber dürfen den Mailversand prüfen.");
   }
 
-  await mailVerschicken({
-    an: benutzer.email,
-    betreff: "Testmail aus dem FZT Eventmanager",
-    text: [
-      `Hallo ${benutzer.name},`,
-      "",
-      "diese Mail kommt aus dem Eventmanager. Wenn sie angekommen ist,",
-      "steht der Versand: Angebote und Anschreiben können ab jetzt direkt",
-      "aus dem Programm heraus verschickt werden.",
-      "",
-      "Sie sollte ausserdem im Postfach unter Gesendete Elemente stehen.",
-      "Falls nicht, sag Bescheid, dann sehe ich mir das an.",
-      "",
-      "Florian Zimmer Theater GmbH, Eventmanager",
-    ].join("\n"),
-  });
+  /*
+    Der Fehler wird hier abgefangen und als Meldung weitergereicht, statt
+    ihn fliegen zu lassen. Eine geworfene Ausnahme in einer Serveraktion
+    endet beim Benutzer als nichtssagende Fehlerseite; wer wissen will,
+    warum eine Mail nicht rausging, hat davon nichts.
+
+    Umgeleitet wird ausserhalb des try, denn redirect arbeitet selbst mit
+    einer Ausnahme und würde sonst im catch landen.
+  */
+  let ziel = "/einstellungen/mail?probe=gut";
+
+  try {
+    await mailVerschicken({
+      an: benutzer.email,
+      betreff: "Testmail aus dem FZT Eventmanager",
+      text: [
+        `Hallo ${benutzer.name},`,
+        "",
+        "diese Mail kommt aus dem Eventmanager. Wenn sie angekommen ist,",
+        "steht der Versand: Angebote und Anschreiben können ab jetzt direkt",
+        "aus dem Programm heraus verschickt werden.",
+        "",
+        "Sie sollte ausserdem im Postfach unter Gesendete Elemente stehen.",
+        "Falls nicht, sag Bescheid, dann sehe ich mir das an.",
+        "",
+        "Florian Zimmer Theater GmbH, Eventmanager",
+      ].join("\n"),
+    });
+  } catch (f) {
+    const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
+    ziel = `/einstellungen/mail?probe=fehler&meldung=${encodeURIComponent(meldung.slice(0, 400))}`;
+  }
 
   revalidatePath("/einstellungen/mail");
+  redirect(ziel);
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { versandPruefen } from "@/lib/mail/versand";
 import { testmailSchicken } from "@/lib/mail/aktionen";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { Probeknopf } from "@/components/Probeknopf";
 
 export const metadata = { title: "Mailversand | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,12 @@ export const dynamic = "force-dynamic";
  * an einer Zustimmung in Entra. Diese Seite beantwortet die Frage, ohne
  * dass jemand in Logdateien schauen muss.
  */
-export default async function MailSeite() {
+export default async function MailSeite({
+  searchParams,
+}: {
+  searchParams: Promise<{ probe?: string; meldung?: string }>;
+}) {
+  const { probe, meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
   const stand = await versandPruefen();
   const absender = process.env.MAIL_ABSENDER ?? "(nicht gesetzt)";
@@ -64,14 +70,29 @@ export default async function MailSeite() {
           ausserhalb und beantwortet die Frage, ob der Weg steht.
         </p>
         <form action={testmailSchicken} className="mt-3">
-          <button
-            type="submit"
-            disabled={!stand.gut}
-            className="rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Testmail schicken
-          </button>
+          <Probeknopf bereit={stand.gut} />
         </form>
+
+        {probe === "gut" && (
+          <p
+            className="mt-3 rounded-md border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+          >
+            <strong>Die Testmail ist raus.</strong> Sie sollte gleich bei{" "}
+            {benutzer?.email ?? "dir"} ankommen und im Postfach unter Gesendete Elemente stehen.
+            Kommt nichts an, sieh im Spam nach.
+          </p>
+        )}
+
+        {probe === "fehler" && (
+          <p
+            className="mt-3 rounded-md border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+          >
+            <strong>Die Mail ging nicht raus.</strong>
+            <span className="mt-1 block text-leise">{meldung ?? "Unbekannter Fehler"}</span>
+          </p>
+        )}
       </section>
 
       <section className="rounded-lg border border-linie bg-flaeche p-5 text-sm">
