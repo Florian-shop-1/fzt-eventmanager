@@ -211,6 +211,14 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/geheimhaltung")
     );
   }
+  /*
+    Der Mailversand ist eine Ausnahme unter den Einstellungen.
+
+    Wer Angebote verschickt, muss sehen können, ob der Versand steht,
+    und im Zweifel selbst eine Testmail schicken. Sonst fragt er jedes
+    Mal nach. Zugänge anlegen bleibt dagegen beim Inhaber.
+  */
+  if (pfad.startsWith("/einstellungen/mail")) return rolle === "chef" || rolle === "team";
   if (pfad.startsWith("/einstellungen")) return darfBenutzerVerwalten(rolle);
   return true;
 }

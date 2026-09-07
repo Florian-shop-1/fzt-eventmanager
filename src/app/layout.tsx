@@ -48,6 +48,7 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro", "showteam"] },
   { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
   { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+  { href: "/einstellungen/mail", label: "Mailversand", rollen: ["chef", "team"] },
   { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
 ];
 

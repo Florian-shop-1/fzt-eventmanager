@@ -10,13 +10,15 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { mailVerschicken } from "./versand";
 
 export async function testmailSchicken(): Promise<void> {
   const benutzer = await angemeldeterBenutzer();
-  if (!benutzer || !darfBenutzerVerwalten(benutzer.rolle)) {
-    throw new Error("Nur der Inhaber darf den Mailversand prüfen.");
+  // Wer Angebote verschickt, darf auch prüfen, ob der Versand steht.
+  // Die Mail geht ohnehin nur an die eigene Adresse.
+  if (!benutzer || (benutzer.rolle !== "chef" && benutzer.rolle !== "team")) {
+    throw new Error("Nur Büro und Inhaber dürfen den Mailversand prüfen.");
   }
 
   await mailVerschicken({
