@@ -32,8 +32,15 @@ const MENUEVARIANTEN: Array<{ wert: MenueVariante; label: string }> = [
 
 export const dynamic = "force-dynamic";
 
-export default async function VorgangSeite({ params }: { params: Promise<{ id: string }> }) {
+export default async function VorgangSeite({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ mail?: string; an?: string; meldung?: string }>;
+}) {
   const { id } = await params;
+  const { mail, an, meldung } = await searchParams;
   const vorgang = await holeVorgang(id);
   if (!vorgang) notFound();
 
@@ -72,6 +79,29 @@ export default async function VorgangSeite({ params }: { params: Promise<{ id: s
           Zurück zur Übersicht
         </Link>
       </header>
+
+      {/*
+        Rückmeldung nach dem Mailversand. Ohne sie sieht die Seite nach
+        dem Abschicken aus wie vorher, und niemand weiss, ob das Angebot
+        beim Kunden ist.
+      */}
+      {mail === "weg" && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          <strong>Das Angebot ist raus.</strong> Verschickt an {an ?? "den Kunden"}, von
+          tickets@florianzimmer.com. Es steht dort unter Gesendete Elemente und ist hier als
+          versendet vermerkt.
+        </div>
+      )}
+
+      {mail === "fehler" && (
+        <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">
+          <strong style={{ color: "var(--blocker)" }}>Das Angebot ging nicht raus.</strong>
+          <div className="mt-1 text-leise">{meldung ?? "Unbekannter Fehler"}</div>
+        </div>
+      )}
 
       <StatusLeiste vorgangId={vorgang.id} aktuell={vorgang.status} />
 

@@ -11,7 +11,9 @@
  */
 
 import { useState, useTransition } from "react";
+import { useFormStatus } from "react-dom";
 import { angebotErzeugen, angebotLoeschen, angebotVersendet } from "@/lib/angebot/speichern";
+import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
@@ -152,22 +154,26 @@ function AngebotKarte({
   const link = `${appUrl}/ihr-angebot/${angebot.trackingToken}`;
   const summe = angebotssumme(angebot.positionen);
 
+  // Geduzt, wie im Angebot selbst. Zwei verschiedene Anreden in Mail und
+  // Angebot fielen sofort auf.
   const mailtext = [
-    `Sehr geehrte${ansprechpartner?.startsWith("Herr") ? "r" : ""} ${ansprechpartner ?? "Damen und Herren"},`,
+    ansprechpartner ? `Hallo ${ansprechpartner},` : "Hallo,",
     "",
-    "vielen Dank für Ihr Interesse an einem Abend im Florian Zimmer Theater.",
+    "vielen Dank für euer Interesse an einem Abend im Florian Zimmer Theater.",
     "",
-    "Ihr persönliches Angebot finden Sie hier:",
+    "Euer persönliches Angebot findet ihr hier:",
     link,
     "",
-    "Dort können Sie es in Ruhe ansehen und mit einem Klick zusagen.",
+    "Dort könnt ihr es in Ruhe ansehen und mit einem Klick zusagen.",
     `Das Angebot gilt bis zum ${new Date(angebot.gueltigBis).toLocaleDateString("de-DE")}.`,
     "",
-    "Bei Fragen sind wir gerne für Sie da.",
+    "Bei Fragen sind wir gerne für euch da.",
     "",
     "Herzliche Grüße",
     "Florian Zimmer Theater",
-  ].join("\n");
+  ].join(UMBRUCH);
+
+  const betreff = `Euer Angebot ${angebot.nummer} für den Abend im Florian Zimmer Theater`;
 
   async function kopiere(was: "link" | "mail") {
     try {
@@ -213,6 +219,57 @@ function AngebotKarte({
         <div className="mb-1 text-xs text-leise">Persönlicher Link für den Kunden</div>
         <div className="break-all font-mono text-xs">{link}</div>
       </div>
+
+      {/*
+        Verschicken aus dem Programm heraus, ueber das Postfach
+        tickets@florianzimmer.com. Der Text steht offen da und laesst sich
+        vor dem Abschicken aendern: Kein Angebot ist wie das andere, und
+        wer eben telefoniert hat, will darauf Bezug nehmen.
+      */}
+      <details className="mb-3 rounded border border-gold bg-gold-hell/40 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-gold-dunkel">
+          Angebot per Mail verschicken
+        </summary>
+
+        <form action={angebotPerMail.bind(null, angebot.id, vorgangId)} className="mt-3 space-y-2">
+          <label className="block text-xs">
+            <span className="text-leise">An</span>
+            <input
+              type="email"
+              name="an"
+              defaultValue={kundeEmail}
+              className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 text-sm"
+            />
+          </label>
+
+          <label className="block text-xs">
+            <span className="text-leise">Betreff</span>
+            <input
+              type="text"
+              name="betreff"
+              defaultValue={betreff}
+              className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 text-sm"
+            />
+          </label>
+
+          <label className="block text-xs">
+            <span className="text-leise">Text</span>
+            <textarea
+              name="text"
+              rows={12}
+              defaultValue={mailtext}
+              className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 font-sans text-sm"
+            />
+          </label>
+
+          <Sendeknopf />
+          <p className="text-xs text-leise">
+            Geht von tickets@florianzimmer.com hinaus und steht danach dort unter Gesendete
+            Elemente. Antworten landen im normalen Posteingang. Das Angebot wird gleichzeitig als
+            versendet vermerkt.
+          </p>
+        </form>
+      </details>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -363,5 +420,36 @@ function Getraenkewahl({
         <p className="text-xs text-leise">Keine Pauschale, Getränke werden einzeln abgerechnet.</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Der Umbruch als Konstante.
+ *
+ * Steht hier, damit im Mailtext oben kein Rueckstrich noetig ist. Der
+ * ist auf dem Weg durch Werkzeuge schon zweimal verlorengegangen und hat
+ * einmal ein Null-Byte in der Datei hinterlassen.
+ */
+const UMBRUCH = String.fromCharCode(10);
+
+/**
+ * Der Knopf zum Abschicken.
+ *
+ * Zwischen Klick und Antwort vergehen ein bis zwei Sekunden, in denen
+ * der Server mit Microsoft spricht. Ohne Rueckmeldung sieht die Seite in
+ * dieser Zeit aus, als sei nichts passiert, und man klickt noch einmal.
+ * Bei einer Mail an einen Kunden waere das eine zweite Mail.
+ */
+function Sendeknopf() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? "Wird verschickt..." : "Jetzt verschicken"}
+    </button>
   );
 }
