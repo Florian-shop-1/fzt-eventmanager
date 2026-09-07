@@ -22,8 +22,14 @@ import type { NextRequest } from "next/server";
  * "/ihr-angebot" ist die Seite, die der Kunde über seinen persönlichen Link
  * aufruft. Sie ist absichtlich offen: Der lange Zufallsschlüssel im Link ist
  * der Nachweis. Ohne ihn führt der Aufruf ins Leere.
+ *
+ * "/api/shop" ist die Schnittstelle, über die der Ticketshop Unverträglich-
+ * keiten hierher meldet. Dort meldet sich kein Mensch an, sondern ein Server.
+ * Ohne diese Ausnahme liefe der Aufruf auf die Anmeldeseite und die Küche
+ * bekäme die Allergie nie zu sehen. Die Route prüft stattdessen einen
+ * gemeinsamen Schlüssel im Kopf und lehnt ohne ihn grundsätzlich ab.
  */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot"];
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/api/shop"];
 
 /**
  * Der zuletzt angesehene Abend.

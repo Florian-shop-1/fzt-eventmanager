@@ -3,6 +3,7 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { planeAbend } from "@/lib/seating/abend";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
+import { shopHinweiseFuerTag } from "@/lib/db/shop-hinweise";
 import { artikel } from "@/lib/domain/artikel";
 import { eur } from "@/lib/domain/pricing";
 import { vorOrtKassiert } from "@/lib/db/aktionen";
@@ -60,9 +61,15 @@ export default async function FunktionsheetSeite({
     );
   }
 
-  const [blatt, { kopf, varianten }] = await Promise.all([
+  // Unvertraeglichkeiten aus dem oeffentlichen Ticketshop. Sie haengen am
+  // DATUM, nicht am einzelnen Termin: Ein Spieltag kann zwei Vorstellungen
+  // haben, die Kueche kocht aber fuer den ganzen Tag.
+  const tagesDatum = termine.find((t) => t.ditixEventId === gewaehlt)?.datum ?? "";
+
+  const [blatt, { kopf, varianten }, shopHinweise] = await Promise.all([
     holeKuechenblatt(gewaehlt),
     planeAbend(gewaehlt),
+    tagesDatum ? shopHinweiseFuerTag(tagesDatum) : Promise.resolve([]),
   ]);
   if (!blatt || !kopf) return null;
 
@@ -207,7 +214,7 @@ export default async function FunktionsheetSeite({
           )}
         </section>
 
-        {blatt.unvertraeglichkeiten.length > 0 && (
+        {(blatt.unvertraeglichkeiten.length > 0 || shopHinweise.length > 0) && (
           <section className="mb-8">
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-leise">
               {nummer()} Unverträglichkeiten und Sonderwünsche
@@ -220,6 +227,30 @@ export default async function FunktionsheetSeite({
                   style={{ borderColor: "var(--warnung)" }}
                 >
                   <strong>{u.gruppe}</strong>: {u.text}
+                </li>
+              ))}
+              {/* Aus dem oeffentlichen Ticketshop. Frueher landeten diese Notizen
+                  nur in einer Google-Tabelle bei Make und kamen in der Kueche
+                  nie an. Bewusst in derselben Liste wie die Firmengruppen: Die
+                  Kueche soll an EINER Stelle sehen, worauf sie achten muss. */}
+              {shopHinweise.map((h) => (
+                <li
+                  key={h.id}
+                  className="border-l-4 pl-3 py-1"
+                  style={{ borderColor: "var(--warnung)" }}
+                >
+                  <strong>
+                    Shop-Buchung
+                    {h.uhrzeit ? ` ${h.uhrzeit}` : ""}
+                    {h.plaetze ? `, ${h.plaetze} ${h.plaetze === 1 ? "Platz" : "Plätze"}` : ""}
+                  </strong>
+                  : {h.hinweis}
+                  {(h.email || h.telefon) && (
+                    <span className="text-leise">
+                      {" "}
+                      ({[h.telefon, h.email].filter(Boolean).join(" · ")})
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
