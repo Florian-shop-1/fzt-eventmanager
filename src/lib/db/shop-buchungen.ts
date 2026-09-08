@@ -212,6 +212,17 @@ export async function buchungenFuerTag(datum: string): Promise<ShopBuchung[]> {
 }
 
 /**
+ * Haelt fest, dass die Vorfreude-Mail raus ist.
+ *
+ * Wird erst NACH dem erfolgreichen Versand gerufen, nie vorher. Andersherum
+ * waere es sicherer gegen Dubletten, aber ein Gast, der nichts bekommen hat und
+ * bei uns als angeschrieben gilt, faellt nie wieder auf.
+ */
+export async function merkeMailGesendet(id: string): Promise<void> {
+  await db()`update shop_buchung set mail_gesendet_am = now() where id = ${id}`;
+}
+
+/**
  * Eine Buchung ueber den Zugangsschluessel aus dem Upgrade-Link.
  *
  * Bewusst OHNE Zahlungspruefung: Diese Abfrage bedient eine Seite, die ein

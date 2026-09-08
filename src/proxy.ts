@@ -28,8 +28,12 @@ import type { NextRequest } from "next/server";
  * Ohne diese Ausnahme liefe der Aufruf auf die Anmeldeseite und die Küche
  * bekäme die Allergie nie zu sehen. Die Route prüft stattdessen einen
  * gemeinsamen Schlüssel im Kopf und lehnt ohne ihn grundsätzlich ab.
+ *
+ * "/api/vorfreude" ruft die Uhr bei Vercel einmal täglich auf, um die Mails
+ * eine Woche vor der Show zu verschicken. Auch dort meldet sich kein Mensch an.
+ * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt.
  */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/api/shop"];
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/api/shop", "/api/vorfreude"];
 
 /**
  * Der zuletzt angesehene Abend.

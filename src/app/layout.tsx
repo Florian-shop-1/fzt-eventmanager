@@ -36,6 +36,7 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
   { href: "/versand", label: "Versand", rollen: ["chef", "team"] },
   { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
+  { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
   { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
   { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
