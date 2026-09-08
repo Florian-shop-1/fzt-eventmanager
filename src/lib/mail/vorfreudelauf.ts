@@ -63,6 +63,10 @@ export function zieldatum(heute: Date = new Date()): string {
 }
 
 function grundZumUeberspringen(b: ShopBuchung, abgemeldet: Set<string>): string | null {
+  // Notbremse gegen einen Fehler, den es schon einmal gab: Ein Datum, das aus
+  // der Datenbank falsch ankommt, stand als "Am Invalid Date" mitten im Text.
+  // Lieber gar keine Mail als eine, in der der Termin unleserlich ist.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.datum)) return "Datum unlesbar";
   if (!b.bestaetigt) return "nicht bezahlt";
   if (!b.email || !b.email.includes("@")) return "keine Adresse";
   if (b.mailGesendetAm) return "schon geschrieben";

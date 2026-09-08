@@ -156,13 +156,35 @@ async function bestaetigeOffene(zeilen: Record<string, unknown>[]): Promise<void
   }
 }
 
+/**
+ * Der Showtag als JJJJ-MM-TT.
+ *
+ * Klingt trivial, war es nicht. Der Treiber gibt eine date-Spalte als
+ * JavaScript-Datum zurueck, und zwar als Mitternacht in der Zeitzone des
+ * Servers: Aus dem 18.09. wird 2026-09-17T22:00:00Z. Wer davon die ersten
+ * zehn Zeichen nimmt, bekommt "Wed Sep 17" -- und daraus wird spaeter
+ * "Invalid Date" in der Mail und auf der Upgrade-Seite.
+ *
+ * Deshalb fragen die Abfragen zusaetzlich datum::text ab. Postgres schreibt
+ * dort genau den Kalendertag, ohne Uhrzeit und ohne Zeitzone. Der Rueckfall
+ * auf das rohe Feld bleibt fuer den Fall, dass eine Abfrage die Spalte
+ * einmal nicht mitliest.
+ */
+function kalendertag(z: Record<string, unknown>): string {
+  const text = z.datum_text;
+  if (typeof text === "string" && /^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const roh = z.datum;
+  if (roh instanceof Date) return roh.toLocaleDateString("en-CA");
+  return String(roh ?? "").slice(0, 10);
+}
+
 function baueBuchung(z: Record<string, unknown>, posten: Record<string, unknown>[]): ShopBuchung {
   return {
     id: String(z.id),
     zugangToken: String(z.zugang_token ?? ""),
     cartId: (z.cart_id as string) ?? null,
     ditixEventId: String(z.ditix_event_id),
-    datum: String(z.datum).slice(0, 10),
+    datum: kalendertag(z),
     uhrzeit: (z.uhrzeit as string) ?? null,
     show: String(z.show ?? ""),
     email: String(z.email ?? ""),
@@ -196,7 +218,8 @@ function baueBuchung(z: Record<string, unknown>, posten: Record<string, unknown>
 export async function buchungenFuerTag(datum: string): Promise<ShopBuchung[]> {
   try {
     const zeilen = (await db()`
-      select * from shop_buchung where datum = ${datum} order by eingegangen_am desc
+      select *, datum::text as datum_text
+        from shop_buchung where datum = ${datum} order by eingegangen_am desc
     `) as Record<string, unknown>[];
     if (zeilen.length === 0) return [];
     await bestaetigeOffene(zeilen);
@@ -234,7 +257,8 @@ export async function buchungPerToken(token: string): Promise<ShopBuchung | null
   if (!/^[0-9a-f]{32}$/.test(token)) return null;
   try {
     const zeilen = (await db()`
-      select * from shop_buchung where zugang_token = ${token} limit 1
+      select *, datum::text as datum_text
+        from shop_buchung where zugang_token = ${token} limit 1
     `) as Record<string, unknown>[];
     if (zeilen.length === 0) return null;
     const posten = (await db()`
