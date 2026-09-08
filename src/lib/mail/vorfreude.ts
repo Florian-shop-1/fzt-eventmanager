@@ -73,7 +73,8 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
   const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
 
   const wann = stunde(buchung.uhrzeit);
-  const termin = wann ? `${tagLang(buchung.datum)} um ${wann}` : tagLang(buchung.datum);
+  // Mit Komma vor der Uhrzeit: "Samstag, 28. November, um 20 Uhr".
+  const termin = wann ? `${tagLang(buchung.datum)}, um ${wann}` : tagLang(buchung.datum);
 
   const menueFehlt = !hatGruppe(buchung, "menue");
   const vipFehlt = !hatGruppe(buchung, "vip");
@@ -82,8 +83,8 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
   const absaetze: string[] = [
     "Hallo,",
     "",
-    `in einer Woche ist es so weit: Am ${termin} sitzt du bei mir im Theater.`,
-    "Ich freue mich darauf.",
+    `in einer Woche ist es so weit: Am ${termin}`,
+    "sitzt du bei mir im Theater. Ich freue mich darauf.",
   ];
 
   if (menueFehlt) {
@@ -118,10 +119,16 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
     angeboten.push("Abend drumherum");
     absaetze.push(
       "",
-      menueFehlt ? "Und wenn du magst:" : "Eines möchte ich dir noch anbieten:",
-      "Für die Pause reservieren wir dir einen eigenen Stehtisch im Foyer, mit",
-      "allem, was dazugehört. Oder du nimmst das Armband für die Getränke und",
-      "musst dich den ganzen Abend an keiner Bar anstellen.",
+      menueFehlt
+        ? "Und wenn du magst: Für die Pause reservieren wir dir einen eigenen"
+        : "Eines möchte ich dir noch anbieten: Für die Pause reservieren wir dir",
+      menueFehlt
+        ? "Stehtisch im Foyer, mit allem, was dazugehört. Oder du nimmst das"
+        : "einen eigenen Stehtisch im Foyer, mit allem, was dazugehört. Oder du",
+      menueFehlt
+        ? "Armband für die Getränke und musst dich den ganzen Abend an keiner"
+        : "nimmst das Armband für die Getränke und musst dich den ganzen Abend",
+      menueFehlt ? "Bar anstellen." : "an keiner Bar anstellen.",
     );
   }
 

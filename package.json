@@ -15,6 +15,7 @@
     "db:status": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/db-status.ts",
     "lexoffice:test": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/lexoffice-test.ts",
     "test:menueliste": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-menueliste.ts",
+    "test:vorfreude": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-vorfreude.ts",
     "zugang": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/ersten-zugang.ts",
     "demo:angebot": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts",
     "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg",
