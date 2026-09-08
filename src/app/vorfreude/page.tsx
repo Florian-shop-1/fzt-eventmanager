@@ -1,5 +1,6 @@
 import { buchungenFuerTag, type ShopBuchung } from "@/lib/db/shop-buchungen";
 import { alleWidersprueche } from "@/lib/db/werbewiderspruch";
+import { verfuegbareGruppen, type Leistungsgruppe } from "@/lib/shop/zusatzleistungen";
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { zieldatum, VORLAUF_TAGE } from "@/lib/mail/vorfreudelauf";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -15,11 +16,11 @@ export const metadata = { title: "Vorfreude-Mail | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 /**
- * Die Vorfreude-Mail, eine Woche vor der Show.
+ * Die Vorfreude-Mail, wenige Tage vor der Show.
  *
  * Diese Seite ist die Kontrolle über einen Ablauf, der sonst von selbst läuft:
- * Jeden Morgen um zehn schaut die Uhr bei Vercel nach, welche Shows in einer
- * Woche stattfinden, und schreibt den Gästen, die dafür bezahlt haben.
+ * Jeden Morgen um zehn schaut die Uhr bei Vercel nach, welche Shows anstehen,
+ * und schreibt den Gästen, die dafür bezahlt haben.
  *
  * Was hier zu sehen ist:
  *  - wer heute an der Reihe wäre und wer nicht, jeweils mit Grund
@@ -32,7 +33,7 @@ export const dynamic = "force-dynamic";
  * was tatsächlich rausging.
  */
 
-/** Der Tag, um den es geht: aus der Adresse oder der von heute an in einer Woche. */
+/** Der Tag, um den es geht: aus der Adresse oder der, der heute an der Reihe ist. */
 function gewaehlterTag(tag: string | undefined): string {
   return tag && /^\d{4}-\d{2}-\d{2}$/.test(tag) ? tag : zieldatum();
 }
@@ -59,6 +60,16 @@ export default async function VorfreudeSeite({
 
   const buchungen = await buchungenFuerTag(datum);
   const widersprueche = await alleWidersprueche();
+
+  // Genau wie im täglichen Lauf: einmal je Termin fragen, was es an diesem
+  // Abend gibt. Sonst stünde hier "nur Erinnerung", während die echte Mail
+  // ein Menü anbietet, oder umgekehrt.
+  const gruppen = new Map<string, Set<Leistungsgruppe>>();
+  for (const id of new Set(buchungen.map((b) => b.ditixEventId))) {
+    gruppen.set(id, await verfuegbareGruppen(id));
+  }
+  const mailZu = (b: (typeof buchungen)[number]) =>
+    baueVorfreudemail(b, gruppen.get(b.ditixEventId) ?? new Set());
   const abgemeldet = new Set(widersprueche.map((w) => w.email));
 
   const offen = buchungen.filter((b) => status(b, abgemeldet).ton === "offen");
@@ -72,8 +83,10 @@ export default async function VorfreudeSeite({
         <h1 className="text-2xl font-semibold tracking-tight">Vorfreude-Mail</h1>
         <p className="mt-1 max-w-prose text-sm text-leise">
           {VORLAUF_TAGE} Tage vor der Show bekommen Gäste, die bezahlt haben, eine persönliche
-          Erinnerung mit dem Angebot, was zum selben Abend noch dazugehören kann. Das läuft jeden
-          Morgen von selbst. Hier siehst du, was passiert, und kannst nachhelfen.
+          Erinnerung mit dem Angebot, was zum selben Abend noch dazugehören kann. Angeboten wird
+          nur, was es an diesem Abend wirklich gibt: An einem Abend ohne Magicuisine steht kein
+          Menü in der Mail. Das läuft jeden Morgen von selbst. Hier siehst du, was passiert, und
+          kannst nachhelfen.
         </p>
       </header>
 
@@ -126,7 +139,7 @@ export default async function VorfreudeSeite({
               <tbody>
                 {buchungen.map((b) => {
                   const s = status(b, abgemeldet);
-                  const mail = baueVorfreudemail(b);
+                  const mail = mailZu(b);
                   return (
                     <tr key={b.id} className="border-b border-linie last:border-0 align-top">
                       <td className="px-4 py-2">

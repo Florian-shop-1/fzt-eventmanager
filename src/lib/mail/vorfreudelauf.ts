@@ -1,9 +1,12 @@
 /**
  * Der tägliche Lauf für die Vorfreude-Mail.
  *
- * Einmal am Tag wird gefragt: Welche Shows sind in genau einer Woche, und wer
+ * Einmal am Tag wird gefragt: Welche Shows sind in VORLAUF_TAGE Tagen, und wer
  * hat dafür bezahlt, aber noch keine Mail bekommen? Diese Menschen bekommen
  * sie, alle anderen nicht.
+ *
+ * Angeboten wird nur, was es an diesem Abend wirklich gibt: Nicht überall
+ * kocht die Magicuisine. Siehe verfuegbareGruppen.
  *
  * Vier Bedingungen, jede davon aus einem eigenen Grund:
  *
@@ -26,10 +29,12 @@ import { buchungenFuerTag, merkeMailGesendet, type ShopBuchung } from "@/lib/db/
 import { widersprochene, adresse } from "@/lib/db/werbewiderspruch";
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 import { isoDatum } from "@/lib/zeit";
+import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 
-/** Wie viele Tage vor der Show geschrieben wird. */
-export const VORLAUF_TAGE = 7;
+// Weitergereicht, damit Aufrufer nicht wissen muessen, wo die Zahl steht.
+export { VORLAUF_TAGE };
 
 export interface LaufErgebnis {
   /** Der Showtag, um den es ging. */
@@ -45,10 +50,10 @@ export interface LaufErgebnis {
 }
 
 /**
- * Der Showtag, der in genau einer Woche ist, nach hiesiger Zeit.
+ * Der Showtag, der jetzt an der Reihe ist, nach hiesiger Zeit.
  *
- * Erst das heutige Datum in Ulm bestimmen, dann sieben Tage im Kalender
- * weiterzählen. Sieben mal 24 Stunden zu addieren wäre falsch: In den beiden
+ * Erst das heutige Datum in Ulm bestimmen, dann im Kalender weiterzählen.
+ * Ein Vielfaches von 24 Stunden zu addieren wäre falsch: In den beiden
  * Nächten der Zeitumstellung hat der Tag 23 oder 25 Stunden.
  */
 export function zieldatum(heute: Date = new Date()): string {
@@ -89,6 +94,14 @@ export async function vorfreudeVerschicken(
 
   const abgemeldet = await widersprochene(buchungen.map((b) => b.email));
 
+  // Einmal je Termin fragen, nicht je Gast: An einem Abend gibt es fuer alle
+  // dasselbe. Bei zwei Vorstellungen am selben Tag koennen sich die Angebote
+  // unterscheiden, deshalb nach Ditix-Termin und nicht nach Datum.
+  const gruppenJeTermin = new Map<string, Awaited<ReturnType<typeof verfuegbareGruppen>>>();
+  for (const id of new Set(buchungen.map((b) => b.ditixEventId))) {
+    gruppenJeTermin.set(id, await verfuegbareGruppen(id));
+  }
+
   for (const b of buchungen) {
     const grund = grundZumUeberspringen(b, abgemeldet);
     if (grund) {
@@ -101,7 +114,7 @@ export async function vorfreudeVerschicken(
       continue;
     }
 
-    const mail = baueVorfreudemail(b);
+    const mail = baueVorfreudemail(b, gruppenJeTermin.get(b.ditixEventId) ?? new Set());
     try {
       await mailVerschicken({
         an: b.email,
@@ -123,7 +136,7 @@ export async function vorfreudeVerschicken(
   return ergebnis;
 }
 
-/** Der Lauf, wie ihn die Uhr auslöst: der Tag in einer Woche. */
+/** Der Lauf, wie ihn die Uhr auslöst: der Tag, der jetzt an der Reihe ist. */
 export async function taeglicherLauf(): Promise<LaufErgebnis> {
   return vorfreudeVerschicken(zieldatum());
 }

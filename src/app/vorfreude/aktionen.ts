@@ -17,6 +17,7 @@ import { widerspruchEintragen, widerspruchLoeschen } from "@/lib/db/werbewidersp
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { vorfreudeVerschicken } from "@/lib/mail/vorfreudelauf";
+import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 
 /** Nur Büro und Inhaber. Hier gehen Mails an Gäste raus. */
 async function berechtigt() {
@@ -66,7 +67,7 @@ export async function probemailSchicken(formular: FormData): Promise<void> {
   try {
     const buchung = (await buchungenFuerTag(datum)).find((b) => b.id === buchungId);
     if (!buchung) throw new Error("Diese Buchung gibt es nicht mehr.");
-    const mail = baueVorfreudemail(buchung);
+    const mail = baueVorfreudemail(buchung, await verfuegbareGruppen(buchung.ditixEventId));
     await mailVerschicken({
       an: benutzer.email,
       betreff: `[Probe] ${mail.betreff}`,

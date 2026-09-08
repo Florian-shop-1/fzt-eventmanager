@@ -25,6 +25,8 @@
 
 import type { ShopBuchung } from "@/lib/db/shop-buchungen";
 import { MENUE_BEGINNT, isstVorDerShow } from "@/lib/ditix/spielplan";
+import type { Leistungsgruppe } from "@/lib/shop/zusatzleistungen";
+import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 
 const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 
@@ -48,6 +50,28 @@ function tagLang(iso: string): string {
   });
 }
 
+/** Der Wochentag allein: "Samstag". Fuer den Gruss am Ende. */
+function wochentag(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE", {
+    weekday: "long",
+    timeZone: "Europe/Berlin",
+  });
+}
+
+/**
+ * Die Vorlaufzeit ausgeschrieben: "fuenf Tagen".
+ *
+ * Als Wort, nicht als Ziffer. "In 5 Tagen" liest sich wie ein Serienbrief,
+ * "in fuenf Tagen" wie ein Satz, den ein Mensch geschrieben hat.
+ */
+function vorlaufWort(): string {
+  const worte: Record<number, string> = {
+    1: "einem Tag", 2: "zwei Tagen", 3: "drei Tagen", 4: "vier Tagen",
+    5: "fünf Tagen", 6: "sechs Tagen", 7: "einer Woche",
+  };
+  return worte[VORLAUF_TAGE] ?? `${VORLAUF_TAGE} Tagen`;
+}
+
 /** "20 Uhr" statt "20:00 Uhr". In einem Satz liest sich das besser. */
 function stunde(uhrzeit: string | null): string {
   if (!uhrzeit) return "";
@@ -68,7 +92,16 @@ function hatGruppe(buchung: ShopBuchung, gruppe: string): boolean {
  * unser bester Gast und soll nicht ausgerechnet der sein, von dem wir uns eine
  * Woche vorher nicht melden.
  */
-export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
+export function baueVorfreudemail(
+  buchung: ShopBuchung,
+  /**
+   * Was es an diesem Abend ueberhaupt gibt. Ohne diese Angabe wird nichts
+   * angeboten -- siehe zusatzleistungen.ts. Nicht an jedem Abend kocht die
+   * Magicuisine; bei Schnupper-Magic oder dem RegioTV-Jahresrueckblick ein
+   * Menue anzupreisen, das es nicht gibt, waere schlimmer als gar keine Mail.
+   */
+  verfuegbar: Set<Leistungsgruppe> = new Set(),
+): Vorfreudemail {
   const link = `${SHOP}/upgrade/${buchung.zugangToken}`;
   const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
 
@@ -76,14 +109,14 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
   // Mit Komma vor der Uhrzeit: "Samstag, 28. November, um 20 Uhr".
   const termin = wann ? `${tagLang(buchung.datum)}, um ${wann}` : tagLang(buchung.datum);
 
-  const menueFehlt = !hatGruppe(buchung, "menue");
-  const vipFehlt = !hatGruppe(buchung, "vip");
+  const menueFehlt = verfuegbar.has("menue") && !hatGruppe(buchung, "menue");
+  const vipFehlt = verfuegbar.has("vip") && !hatGruppe(buchung, "vip");
   const angeboten: string[] = [];
 
   const absaetze: string[] = [
     "Hallo,",
     "",
-    `in einer Woche ist es so weit: Am ${termin}`,
+    `in ${vorlaufWort()} ist es so weit: Am ${termin}`,
     "sitzt du bei mir im Magietheater. Ich freue mich darauf.",
   ];
 
@@ -146,7 +179,7 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
     "Dort siehst du auch, was du schon gebucht hast. Deine Karten bleiben",
     "davon unberührt, es kommt nur dazu, was du dort auswählst.",
     "",
-    "Bis nächste Woche,",
+    `Bis ${wochentag(buchung.datum)},`,
     "Florian Zimmer",
     "",
     "",
@@ -160,7 +193,7 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
   );
 
   return {
-    betreff: "Noch eine Woche, dann sehen wir uns",
+    betreff: `In ${vorlaufWort()} sehen wir uns`,
     text: z(...absaetze),
     angeboten,
   };
