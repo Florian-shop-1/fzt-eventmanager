@@ -100,7 +100,7 @@ console.log("Nachmittagsvorstellung");
     "um 15 Uhr wird nach der Show gegessen",
   );
   pruefe(
-    abends.text.includes("dich in den Saal setzen"),
+    abends.text.includes("Danach musst du nur aufstehen"),
     "um 20 Uhr wird vor der Show gegessen",
   );
 }

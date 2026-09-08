@@ -84,7 +84,7 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
     "Hallo,",
     "",
     `in einer Woche ist es so weit: Am ${termin}`,
-    "sitzt du bei mir im Theater. Ich freue mich darauf.",
+    "sitzt du bei mir im Magietheater. Ich freue mich darauf.",
   ];
 
   if (menueFehlt) {
@@ -97,21 +97,23 @@ export function baueVorfreudemail(buchung: ShopBuchung): Vorfreudemail {
     absaetze.push(
       "",
       "Eines möchte ich dir vorher noch ans Herz legen, weil viele es erst",
-      "hinterher erfahren: Bei uns im Haus kocht Osman Kavak vom Restaurant",
-      `zur Forelle. Vier Gänge, ab ${menueStunde}, in Ruhe und ohne Zeitdruck.`,
+      "hinterher erfahren: Bei uns im Haus kocht Osman Kavak (Magicuisine,",
+      `Zur Forelle). Vier Gänge Fine Dine, ab ${menueStunde}, in Ruhe und ohne`,
       ...(davor
         ? [
-            "Danach musst du nur aufstehen und dich in den Saal setzen: kein",
-            "Restaurantwechsel, kein zweites Mal Parkplatz suchen.",
+            "Zeitdruck. Danach musst du nur aufstehen und dich in den Saal",
+            "setzen: kein Restaurantwechsel, kein zweites Mal Parkplatz suchen.",
           ]
         : [
-            "Nach der Show bleibst du einfach da, statt noch einmal loszuziehen",
-            "und dir irgendwo einen Tisch zu suchen.",
+            "Zeitdruck. Nach der Show bleibst du einfach da, statt noch einmal",
+            "loszuziehen und dir irgendwo einen Tisch zu suchen.",
           ]),
+      "Es ist super entspannt und der Welcome Drink ist im Menüpreis",
+      "enthalten.",
       "",
-      "Buchen kann man dieses Menü ausschließlich als Showgast. Es gibt es",
-      "nirgendwo sonst, auch nicht als Restaurantbesuch. Dein Ticket ist die",
-      "einzige Eintrittskarte dazu.",
+      "Buchen kann man diese wundervollen Menüs ausschließlich als Showgast.",
+      "Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch. Dein",
+      "Ticket ist die einzige Eintrittskarte dazu.",
     );
   }
 
