@@ -27,6 +27,7 @@
 
 import type { ShopBuchung } from "@/lib/db/shop-buchungen";
 import type { Leistungsgruppe } from "@/lib/shop/zusatzleistungen";
+import { MENUE_BEGINNT } from "@/lib/ditix/spielplan";
 import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 
 const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
@@ -185,10 +186,19 @@ export function baueVorfreudemail(
   // Was fehlt und an diesem Abend auch wirklich zu haben ist. Steuert, ob der
   // Hinweis auf die Extras und der Knopf ueberhaupt erscheinen.
   const angeboten: string[] = [];
-  if (verfuegbar.has("menue") && !hatGruppe(buchung, "menue")) angeboten.push("Menü");
+  const menueOffen = verfuegbar.has("menue") && !hatGruppe(buchung, "menue");
+  if (menueOffen) angeboten.push("Menü");
   if (verfuegbar.has("vip") && !hatGruppe(buchung, "vip")) angeboten.push("Abend drumherum");
   if (verfuegbar.has("bundle") && !hatGruppe(buchung, "bundle")) angeboten.push("Mitbringsel");
   const etwasOffen = angeboten.length > 0;
+
+  /*
+    Bei der Nachmittagsvorstellung wird nach der Show aufgetischt, nicht davor.
+    Das Menue beginnt immer um 18 Uhr. Wer dem Gast die falsche Reihenfolge
+    schreibt, verliert ihn an genau der Stelle, an der er sich den Abend
+    vorstellen soll.
+  */
+  const isstDavor = !buchung.uhrzeit || buchung.uhrzeit >= MENUE_BEGINNT;
 
   const betreff = vn
     ? `In ${VORLAUF_TAGE} Tagen ist es so weit, ${vn} ✨`
@@ -209,6 +219,44 @@ export function baueVorfreudemail(
       "Vielleicht möchtest du die Vorfreude noch ein bisschen steigern?",
       "Auf deiner persönlichen Seite siehst du, was du bereits gebucht hast",
       "und welche besonderen Extras du deinem Besuch noch hinzufügen kannst.",
+    );
+
+    /*
+      Das eigentliche Verkaufsargument der Mail.
+
+      Steht nur da, wenn es an diesem Abend ein Menue gibt UND der Gast noch
+      keins hat. Wer sein Menue gebucht hat, liest hier nichts davon; das
+      waere ein Fehler, der die ganze Mail beschaedigt.
+
+      Warum es diesen Absatz ueberhaupt braucht: "besondere Extras" verkauft
+      nichts. Der Koch, die vier Gaenge und der Satz, dass es das nirgends
+      sonst gibt, verkaufen. Die Formulierung stammt von Florian selbst.
+    */
+    if (menueOffen) {
+      textZeilen.push(
+        "",
+        "Eines möchte ich dir dabei besonders ans Herz legen, weil viele es",
+        "erst hinterher erfahren: Bei uns im Haus kocht Osman Kavak",
+        `(Magicuisine, Zur Forelle). Vier Gänge Fine Dine, ab ${stunde(MENUE_BEGINNT)}, in Ruhe`,
+        ...(isstDavor
+          ? [
+              "und ohne Zeitdruck. Danach musst du nur aufstehen und dich in den",
+              "Saal setzen: kein Restaurantwechsel, kein zweites Mal Parkplatz",
+              "suchen.",
+            ]
+          : [
+              "und ohne Zeitdruck. Nach der Show bleibst du einfach da, statt",
+              "noch einmal loszuziehen und dir irgendwo einen Tisch zu suchen.",
+            ]),
+        "Es ist super entspannt und der Welcome Drink ist im Menüpreis",
+        "enthalten.",
+        "",
+        "Buchen kann man diese wundervollen Menüs ausschließlich als Showgast.",
+        "Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch.",
+      );
+    }
+
+    textZeilen.push(
       "",
       link,
       "",
@@ -246,10 +294,64 @@ export function baueVorfreudemail(
   return {
     betreff,
     text: z(...textZeilen),
-    html: baueHtml({ anrede, vorlauf: vorlaufWort(), termin, wochentag, link, abmelden, etwasOffen }),
+    html: baueHtml({
+      anrede,
+      vorlauf: vorlaufWort(),
+      termin,
+      wochentag,
+      link,
+      abmelden,
+      etwasOffen,
+      menueOffen,
+      isstDavor,
+    }),
     angeboten,
     vorname: vn,
   };
+}
+
+/**
+ * Der Menü-Block im HTML-Teil.
+ *
+ * Das eigentliche Verkaufsargument der Mail, und deshalb bekommt es ein Bild:
+ * Der Gast hat vor Wochen gebucht und weiss laengst nicht mehr, was auf dem
+ * Teller liegt. Dasselbe Foto steht auf der Upgrade-Seite und im
+ * Buchungsablauf, er erkennt es also wieder.
+ *
+ * Bilder sind in Mailprogrammen oft erst nach einem Klick sichtbar. Deshalb
+ * traegt das Bild einen aussagekraeftigen Alternativtext, und der Absatz
+ * darunter funktioniert vollstaendig ohne es.
+ */
+function menueBlock(isstDavor: boolean): string {
+  const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
+  const serif = "'Playfair Display', Georgia, 'Times New Roman', serif";
+  const nachher = isstDavor
+    ? "Danach musst du nur aufstehen und dich in den Saal setzen: kein Restaurantwechsel, kein zweites Mal Parkplatz suchen."
+    : "Nach der Show bleibst du einfach da, statt noch einmal loszuziehen und dir irgendwo einen Tisch zu suchen.";
+
+  return `
+    <tr><td class="polster" style="padding:6px 40px 4px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="background-color:#191919;border-left:3px solid ${GOLD};border-radius:0 8px 8px 0;">
+        <tr><td style="padding:0;">
+          <img src="${SHOP}/images/classic.webp" width="517" alt="Geschmortes Ochsenbäckchen aus dem Magic-Menü von Osman Kavak"
+               style="width:100%;max-width:517px;height:auto;display:block;border-radius:0 8px 0 0;" />
+        </td></tr>
+        <tr><td style="padding:18px 20px 20px;">
+          <div style="font-family:${sans};font-size:10px;letter-spacing:0.26em;text-transform:uppercase;color:${GOLD};">Nur für Showgäste</div>
+          <div style="margin-top:8px;font-family:${serif};font-size:20px;line-height:1.3;color:${WEISS};">Vier Gänge, bevor es losgeht</div>
+          <p style="margin:10px 0 0;font-family:${sans};font-size:14.5px;line-height:1.6;color:#C4C4C4;">
+            Bei uns im Haus kocht <strong style="color:${WEISS};font-weight:600;">Osman Kavak</strong> (Magicuisine, Zur Forelle).
+            Vier Gänge Fine Dine, ab ${MENUE_BEGINNT.slice(0, 2)} Uhr, in Ruhe und ohne Zeitdruck. ${nachher}
+            Es ist super entspannt und der Welcome Drink ist im Menüpreis enthalten.
+          </p>
+          <p style="margin:12px 0 0;font-family:${sans};font-size:14.5px;line-height:1.6;color:#C4C4C4;">
+            Buchen kann man diese wundervollen Menüs <strong style="color:${WEISS};font-weight:600;">ausschließlich als Showgast</strong>.
+            Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>`;
 }
 
 /**
@@ -274,6 +376,10 @@ function baueHtml(d: {
   link: string;
   abmelden: string;
   etwasOffen: boolean;
+  /** Gibt es an diesem Abend ein Menü, das der Gast noch nicht hat? */
+  menueOffen: boolean;
+  /** Wird vor der Show gegessen (Abendvorstellung) oder danach? */
+  isstDavor: boolean;
 }): string {
   const serif = "'Playfair Display', Georgia, 'Times New Roman', serif";
   const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -369,6 +475,8 @@ function baueHtml(d: {
           : absatz("Was du gebucht hast, siehst du jederzeit auf deiner persönlichen Seite.")
       }
     </td></tr>
+
+    ${d.menueOffen ? menueBlock(d.isstDavor) : ""}
 
     <!-- Knopf -->
     <tr><td align="center" class="polster" style="padding:8px 40px 0;">${knopf}</td></tr>
