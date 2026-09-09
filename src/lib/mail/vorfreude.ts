@@ -330,14 +330,14 @@ function menueBlock(isstDavor: boolean): string {
     : "Nach der Show bleibst du einfach da, statt noch einmal loszuziehen und dir irgendwo einen Tisch zu suchen.";
 
   return `
-    <tr><td class="polster" style="padding:6px 40px 4px;">
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:6px 40px 4px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
              style="background-color:#191919;border-left:3px solid ${GOLD};border-radius:0 8px 8px 0;">
         <tr><td style="padding:0;">
           <img src="${SHOP}/images/classic.webp" width="517" alt="Geschmortes Ochsenbäckchen aus dem Magic-Menü von Osman Kavak"
                style="width:100%;max-width:517px;height:auto;display:block;border-radius:0 8px 0 0;" />
         </td></tr>
-        <tr><td style="padding:18px 20px 20px;">
+        <tr><td bgcolor="#191919" style="background-color:#191919;padding:18px 20px 20px;">
           <div style="font-family:${sans};font-size:10px;letter-spacing:0.26em;text-transform:uppercase;color:${GOLD};">Nur für Showgäste</div>
           <div style="margin-top:8px;font-family:${serif};font-size:20px;line-height:1.3;color:${WEISS};">Vier Gänge, bevor es losgeht</div>
           <p style="margin:10px 0 0;font-family:${sans};font-size:14.5px;line-height:1.6;color:#C4C4C4;">
@@ -419,12 +419,14 @@ function baueHtml(d: {
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
+<meta name="supported-color-schemes" content="dark" />
 <title>In ${VORLAUF_TAGE} Tagen sehen wir uns</title>
 <style type="text/css">
   /* Outlook auf Windows ersetzt sonst jede Schrift durch Times New Roman. */
   body, table, td, p, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
   img { -ms-interpolation-mode:bicubic; border:0; outline:none; text-decoration:none; display:block; }
   a { color:${GOLD_HELL}; }
+  :root { color-scheme: dark; supported-color-schemes: dark; }
   @media only screen and (max-width:480px) {
     .rahmen { width:100% !important; }
     .polster { padding-left:22px !important; padding-right:22px !important; }
@@ -439,33 +441,44 @@ function baueHtml(d: {
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Dein magischer Abend am ${h(d.termin)}.&#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279;</div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};">
-<tr><td align="center" style="padding:28px 12px 40px;">
+<tr><td align="center" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};padding:28px 12px 40px;">
 
-  <table role="presentation" class="rahmen" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:${FLAECHE};border:1px solid rgba(201,168,76,0.22);border-radius:10px;">
+  <!--
+    Die Hintergrundfarbe steht absichtlich mehrfach da: als bgcolor-Attribut
+    UND als Stil, an der Tabelle UND an jeder einzelnen Zelle darin.
+
+    Grund ist das Weiterleiten. Wer diese Mail weiterleitet, dessen Programm
+    baut das HTML neu auf. Outlook wirft dabei regelmaessig den aeusseren
+    Rahmen samt Hintergrund weg. Steht die Farbe nur einmal ganz aussen, kommt
+    beim naechsten Empfaenger heller Text auf weissem Grund an, also eine
+    unlesbare Mail. Traegt dagegen jede Zelle ihre eigene Farbe, ueberlebt das
+    Dunkle den Umbau.
+  -->
+  <table role="presentation" class="rahmen" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${FLAECHE}" style="width:600px;max-width:600px;background-color:${FLAECHE};border:1px solid rgba(201,168,76,0.22);border-radius:10px;">
 
     <!-- Kopf: Logo mit der Unterzeile -->
-    <tr><td align="center" style="padding:38px 24px 24px;">
+    <tr><td align="center" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:38px 24px 24px;">
       <img class="logo" src="${SHOP}/images/logo.png" width="180" alt="Florian Zimmer Theater"
            style="width:180px;max-width:70%;height:auto;margin:0 auto;" />
       <div style="margin-top:12px;font-family:${sans};font-size:10px;letter-spacing:0.34em;text-transform:uppercase;color:${GOLD};">Home of Magic</div>
     </td></tr>
 
     <!-- Goldene Trennlinie -->
-    <tr><td align="center" style="padding:0 24px;">
+    <tr><td align="center" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:0 24px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
         <td height="1" width="56" bgcolor="${GOLD}" style="background-color:${GOLD};font-size:0;line-height:0;">&nbsp;</td>
       </tr></table>
     </td></tr>
 
     <!-- Ueberschrift -->
-    <tr><td align="center" class="polster" style="padding:26px 40px 4px;">
+    <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 4px;">
       <h1 class="ueberschrift" style="margin:0;font-family:${serif};font-size:31px;line-height:1.22;font-weight:400;color:${WEISS};">
         In ${h(d.vorlauf)}<br />ist es so weit
       </h1>
     </td></tr>
 
     <!-- Text -->
-    <tr><td class="polster" style="padding:26px 40px 0;">
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
       ${absatz(h(d.anrede), "color:" + WEISS + ";font-size:17px;")}
       ${absatz(`in <strong style="color:${WEISS};font-weight:600;">${h(d.vorlauf)}</strong> ist es so weit: Am <strong style="color:${WEISS};font-weight:600;">${h(d.termin)}</strong> beginnt dein magischer Abend bei uns im Theater.`)}
       ${
@@ -479,10 +492,10 @@ function baueHtml(d: {
     ${d.menueOffen ? menueBlock(d.isstDavor) : ""}
 
     <!-- Knopf -->
-    <tr><td align="center" class="polster" style="padding:8px 40px 0;">${knopf}</td></tr>
+    <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:8px 40px 0;">${knopf}</td></tr>
 
     <!-- Nachsatz und Gruss -->
-    <tr><td class="polster" style="padding:0 40px 8px;">
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:0 40px 8px;">
       ${d.etwasOffen ? absatz("Deine bestehenden Tickets bleiben natürlich unverändert. Es kommt nur das hinzu, was du selbst auswählst.", "font-size:15px;color:#B4B4B4;") : ""}
       ${absatz("Ich freue mich auf dich!")}
       <p style="margin:0 0 4px;font-family:${sans};font-size:16px;line-height:1.6;color:#D8D8D8;">Bis ${h(d.wochentag)}</p>
@@ -490,12 +503,12 @@ function baueHtml(d: {
     </td></tr>
 
     <!-- Fuss -->
-    <tr><td style="padding:0 40px;">
+    <tr><td bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:0 40px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td height="1" bgcolor="rgba(255,255,255,0.10)" style="background-color:#262626;font-size:0;line-height:0;">&nbsp;</td>
       </tr></table>
     </td></tr>
-    <tr><td class="polster" style="padding:20px 40px 34px;">
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:20px 40px 34px;">
       <p style="margin:0 0 14px;font-family:${sans};font-size:12px;line-height:1.6;color:${LEISE};">
         Du erhältst diese E-Mail, weil du Tickets bei uns gekauft hast. Wenn du keine Hinweise
         dieser Art mehr erhalten möchtest, kannst du dich hier
