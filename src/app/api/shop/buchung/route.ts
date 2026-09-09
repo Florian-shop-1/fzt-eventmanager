@@ -75,6 +75,10 @@ export async function POST(request: Request) {
       datum,
       uhrzeit: text(daten.uhrzeit) || null,
       show: text(daten.show).slice(0, 200),
+      // Heute schickt der Shop keinen Namen mit, ditix nimmt ihn im Checkout
+      // auf. Das Feld wird trotzdem gelesen, damit die persoenliche Anrede
+      // sofort greift, sobald er auf irgendeinem Weg ankommt.
+      name: text(daten.name).slice(0, 200),
       email: text(daten.email).slice(0, 200),
       telefon: text(daten.telefon).slice(0, 60),
       plaetze: zahl(daten.plaetze),

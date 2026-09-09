@@ -124,6 +124,7 @@ export async function vorfreudeVerschicken(
         an: b.email,
         betreff: mail.betreff,
         text: mail.text,
+        html: mail.html,
         antwortAn: "tickets@florianzimmer.com",
       });
       // Erst nach dem Versand markieren, siehe merkeMailGesendet.

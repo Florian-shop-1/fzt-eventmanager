@@ -33,6 +33,8 @@ export interface ShopBuchung {
   datum: string;
   uhrzeit: string | null;
   show: string;
+  /** Name des Kaeufers, fuer die persoenliche Anrede. Siehe Migration 029. */
+  name: string;
   email: string;
   telefon: string;
   plaetze: number | null;
@@ -51,6 +53,7 @@ export interface NeueBuchung {
   datum: string; // JJJJ-MM-TT
   uhrzeit?: string | null;
   show?: string;
+  name?: string;
   email?: string;
   telefon?: string;
   plaetze?: number | null;
@@ -70,15 +73,19 @@ export interface NeueBuchung {
 export async function speichereBuchung(neu: NeueBuchung): Promise<void> {
   const zeilen = (await db()`
     insert into shop_buchung
-      (cart_id, ditix_event_id, datum, uhrzeit, show, email, telefon, plaetze,
+      (cart_id, ditix_event_id, datum, uhrzeit, show, name, email, telefon, plaetze,
        gesamt_cent, hinweis)
     values
       (${neu.cartId ?? null}, ${neu.ditixEventId}, ${neu.datum}, ${neu.uhrzeit ?? null},
-       ${neu.show ?? ""}, ${neu.email ?? ""}, ${neu.telefon ?? ""}, ${neu.plaetze ?? null},
-       ${neu.gesamtCent ?? null}, ${neu.hinweis ?? ""})
+       ${neu.show ?? ""}, ${neu.name ?? ""}, ${neu.email ?? ""}, ${neu.telefon ?? ""},
+       ${neu.plaetze ?? null}, ${neu.gesamtCent ?? null}, ${neu.hinweis ?? ""})
     on conflict (cart_id) do update set
       uhrzeit     = excluded.uhrzeit,
       show        = excluded.show,
+      -- Einen einmal bekannten Namen nicht durch einen leeren ueberschreiben:
+      -- Der Shop schickt bei jedem Anlauf mit, was er hat, und das ist heute
+      -- nichts. Ein spaeter nachgetragener Name soll dadurch nicht verschwinden.
+      name        = case when excluded.name <> '' then excluded.name else shop_buchung.name end,
       email       = excluded.email,
       telefon     = excluded.telefon,
       plaetze     = excluded.plaetze,
@@ -187,6 +194,7 @@ function baueBuchung(z: Record<string, unknown>, posten: Record<string, unknown>
     datum: kalendertag(z),
     uhrzeit: (z.uhrzeit as string) ?? null,
     show: String(z.show ?? ""),
+    name: String(z.name ?? ""),
     email: String(z.email ?? ""),
     telefon: String(z.telefon ?? ""),
     plaetze: z.plaetze === null || z.plaetze === undefined ? null : Number(z.plaetze),

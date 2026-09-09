@@ -71,6 +71,7 @@ export async function GET(request: Request) {
       an,
       betreff: mail.betreff,
       text: mail.text,
+      html: mail.html,
       antwortAn: "tickets@florianzimmer.com",
     });
   } catch (f) {
