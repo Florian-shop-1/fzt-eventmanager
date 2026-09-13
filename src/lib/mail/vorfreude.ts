@@ -130,6 +130,21 @@ function vorlaufWort(): string {
   return worte[VORLAUF_TAGE] ?? `${VORLAUF_TAGE} Tagen`;
 }
 
+/**
+ * Tage, an denen die Menues nur auf Anfrage vergeben werden.
+ *
+ * Dieselbe Liste steht im Shop zweimal: MENUES_NUR_AUF_ANFRAGE in
+ * BookingModal.tsx (Buchungsablauf) und in src/app/upgrade/[token]/page.tsx
+ * (Upgrade-Seite). Hier steht sie ein drittes Mal, damit die Mail an diesen
+ * Tagen nicht ausgerechnet den Absatz ueber Osman Kavak samt Foto verschickt,
+ * fuer einen Abend, an dem die Menues vergeben sind.
+ *
+ * Wer eine Liste aendert, aendert alle drei.
+ *
+ * NACH DEM 28.11.2026 ERSATZLOS ENTFERNEN.
+ */
+export const MENUES_NUR_AUF_ANFRAGE = ["2026-11-28"];
+
 function hatGruppe(buchung: ShopBuchung, gruppe: string): boolean {
   return buchung.posten.some((p) => p.gruppe === gruppe && p.anzahl > 0);
 }
@@ -186,7 +201,10 @@ export function baueVorfreudemail(
   // Was fehlt und an diesem Abend auch wirklich zu haben ist. Steuert, ob der
   // Hinweis auf die Extras und der Knopf ueberhaupt erscheinen.
   const angeboten: string[] = [];
-  const menueOffen = verfuegbar.has("menue") && !hatGruppe(buchung, "menue");
+  const menueOffen =
+    verfuegbar.has("menue") &&
+    !hatGruppe(buchung, "menue") &&
+    !MENUES_NUR_AUF_ANFRAGE.includes(buchung.datum);
   if (menueOffen) angeboten.push("Menü");
   if (verfuegbar.has("vip") && !hatGruppe(buchung, "vip")) angeboten.push("Abend drumherum");
   if (verfuegbar.has("bundle") && !hatGruppe(buchung, "bundle")) angeboten.push("Mitbringsel");

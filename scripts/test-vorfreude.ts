@@ -44,7 +44,9 @@ function buchung(uhrzeit: string, ...teile: BuchungsPosten[]): ShopBuchung {
     zugangToken: "0".repeat(32),
     cartId: "test",
     ditixEventId: "ev",
-    datum: "2026-11-28",
+    // Ein normaler Samstag. NICHT der 28.11.: An dem Tag sind die Menues nur
+    // auf Anfrage, und jede Pruefung rund ums Menue schluege dann fehl.
+    datum: "2026-11-21",
     uhrzeit,
     show: "Testshow",
     email: "gast@example.com",
@@ -164,6 +166,17 @@ console.log("Abend ohne Magicuisine");
   pruefe(m.angeboten.includes("Abend drumherum"), "der Rest zählt trotzdem");
 }
 
+console.log("Menues nur auf Anfrage (28.11.2026)");
+{
+  const m = baueVorfreudemail({ ...NUR_TICKET, datum: "2026-11-28" }, ALLES_DA);
+  pruefe(!m.angeboten.includes("Menü"), "am 28.11. wird kein Menü angeboten");
+  pruefe(!m.text.includes("Osman Kavak"), "und der Absatz über den Koch fehlt");
+  pruefe(!m.html.includes("Nur für Showgäste"), "auch im HTML kein Menü-Block");
+  pruefe(m.angeboten.includes("Abend drumherum"), "der Rest wird trotzdem angeboten");
+  const tagDanach = baueVorfreudemail({ ...NUR_TICKET, datum: "2026-11-29" }, ALLES_DA);
+  pruefe(tagDanach.text.includes("Osman Kavak"), "am Tag danach wieder ganz normal");
+}
+
 console.log("Shop antwortet nicht");
 {
   // verfuegbareGruppen liefert dann eine leere Menge. Die Mail darf nichts
@@ -190,8 +203,8 @@ console.log("Pflichtangaben in jeder Mail");
 console.log("Termin steht dynamisch drin");
 {
   const a = baueVorfreudemail(NUR_TICKET, ALLES_DA);
-  pruefe(a.text.includes("Samstag, 28. November, um 20 Uhr"), "Wochentag, Datum und Zeit im Text");
-  pruefe(a.html.includes("Samstag, 28. November, um 20 Uhr"), "dasselbe im HTML");
+  pruefe(a.text.includes("Samstag, 21. November, um 20 Uhr"), "Wochentag, Datum und Zeit im Text");
+  pruefe(a.html.includes("Samstag, 21. November, um 20 Uhr"), "dasselbe im HTML");
   pruefe(a.text.includes("Bis Samstag"), "der Gruss nennt den Wochentag");
   const b = baueVorfreudemail({ ...NUR_TICKET, datum: "2026-12-03", uhrzeit: "20:00" }, ALLES_DA);
   pruefe(b.text.includes("Donnerstag, 3. Dezember, um 20 Uhr"), "anderer Termin, anderer Text");
