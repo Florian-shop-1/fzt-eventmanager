@@ -15,6 +15,7 @@ const ROLLE_KURZ: Record<string, string> = {
   gastro: "Gastronomie",
   foyer: "Foyer",
   showteam: "Showteam",
+  kiosk: "Food-Kiosk",
 };
 
 interface Zeile {

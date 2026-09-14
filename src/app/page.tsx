@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { LOGEN, EVENTGALERIE_TISCHE, FOYER_STEHTISCHE, kapazitaet } from "@/lib/domain/venue";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 
-export default function Startseite() {
+export default async function Startseite() {
+  // Der Food-Kiosk hat genau eine Seite. Nach dem Anmelden direkt dorthin.
+  if ((await angemeldeterBenutzer())?.rolle === "kiosk") redirect("/kiosk");
+
   return (
     <div className="space-y-10">
       <header>

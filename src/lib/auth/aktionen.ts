@@ -134,7 +134,7 @@ export async function benutzerAnlegen(
   const rolle = text(formData, "rolle") as Rolle;
 
   if (!name || !email) return { fehler: "Name und E-Mail werden gebraucht." };
-  if (!["chef", "team", "gastro", "foyer"].includes(rolle))
+  if (!["chef", "team", "gastro", "foyer", "kiosk"].includes(rolle))
     return { fehler: "Unbekannte Rolle." };
 
   const vorhanden = (await db()`
@@ -186,4 +186,27 @@ export async function benutzerUmschalten(benutzerId: string): Promise<void> {
 
   await db()`update benutzer set aktiv = not aktiv where id = ${benutzerId}`;
   revalidatePath("/einstellungen/benutzer");
+}
+
+/**
+ * Ändert den eigenen Namen.
+ *
+ * Für Zugänge, die mit einem vorläufigen Namen angelegt wurden, etwa ein
+ * externer Partner, dessen vollständigen Namen man beim Anlegen nicht kennt.
+ * Der Name erscheint oben in der Leiste und bei jeder Änderung, die jemand
+ * vornimmt.
+ */
+export async function nameAendern(
+  _vorher: PasswortErgebnis,
+  formData: FormData,
+): Promise<PasswortErgebnis> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) return { fehler: "Nicht angemeldet." };
+
+  const name = text(formData, "name").replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 80) return { fehler: "Bitte einen Namen mit 2 bis 80 Zeichen eingeben." };
+
+  await db()`update benutzer set name = ${name} where id = ${benutzer.id}`;
+  revalidatePath("/", "layout");
+  return { erfolg: "Name gespeichert." };
 }

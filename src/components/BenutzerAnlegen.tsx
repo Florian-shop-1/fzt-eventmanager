@@ -63,6 +63,7 @@ export function BenutzerAnlegen() {
             <option value="team">Team, sieht alles außer Zugängen</option>
             <option value="gastro">Gastronomie, Küche und Sitzplan, ohne Preise</option>
             <option value="foyer">Foyer, Stehtische und Bändchen, ohne Preise</option>
+            <option value="kiosk">Food-Kiosk, nur Stehtische je Abend, keine Gäste- oder Kundendaten</option>
             <option value="chef">Geschäftsführung, darf auch Zugänge verwalten</option>
           </select>
         </label>

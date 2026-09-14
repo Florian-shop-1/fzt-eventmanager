@@ -24,8 +24,9 @@ const GUELTIG_TAGE = 30;
  *  foyer  Foyerdienst: Stehtische, Baendchen, Einlass. Sieht keine Preise.
  *  showteam  Abenddienst im Saal: Front of House und Technik. Saalplan,
  *            Einlass und die Upgrades. Sieht keine Preise.
+ *  kiosk  Externer Food-Kiosk. Sieht nur die Stehtische je Abend, sonst nichts.
  */
-export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam";
+export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam" | "kiosk";
 
 export interface AngemeldeterBenutzer {
   id: string;
@@ -171,6 +172,11 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Freigabe pro Person (Sarah ist Foyer und braucht ihn trotzdem). Die
   // Seite prüft die Freigabe selbst, hier wird nur nicht vorher umgeleitet.
   if (pfad.startsWith("/whatsapp")) return true;
+  if (rolle === "kiosk") {
+    // Ein externer Partner, kein Mitarbeiter: nur die Stehtische, keine
+    // Gästezahlen, keine Namen. "/" leitet ihn auf /kiosk weiter.
+    return pfad === "/" || pfad.startsWith("/kiosk") || pfad.startsWith("/konto");
+  }
   if (rolle === "foyer") {
     // Das Foyer braucht sein eigenes Blatt, den Einlass und den Sitzplan
     // zum Nachschauen, wohin jemand gehoert. Sonst nichts.

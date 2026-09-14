@@ -1,5 +1,6 @@
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { PasswortFormular } from "@/components/PasswortFormular";
+import { NameFormular } from "@/components/NameFormular";
 
 export const metadata = { title: "Mein Zugang | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -8,6 +9,9 @@ const ROLLE_TEXT: Record<string, string> = {
   chef: "Geschäftsführung, darf alles, auch Zugänge verwalten",
   team: "Team, darf alles außer Zugänge verwalten",
   gastro: "Gastronomie, sieht Funktionsheet und Küchenblatt",
+  foyer: "Foyer, sieht Stehtische, Bändchen und Einlass",
+  showteam: "Showteam, sieht Saalplan, Einlass und Upgrades",
+  kiosk: "Food-Kiosk, sieht die Stehtische je Abend",
 };
 
 export default async function KontoSeite() {
@@ -35,6 +39,11 @@ export default async function KontoSeite() {
             <dd className="text-right">{ROLLE_TEXT[benutzer.rolle] ?? benutzer.rolle}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="mb-3 text-sm font-semibold">Name</h2>
+        <NameFormular name={benutzer.name} />
       </section>
 
       <section className="rounded-lg border border-linie bg-flaeche p-5">
