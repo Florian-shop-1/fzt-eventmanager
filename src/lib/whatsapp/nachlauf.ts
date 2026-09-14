@@ -1,5 +1,5 @@
 /**
- * Was nach einer neuen WhatsApp passiert: Mail an tickets@ und, wenn
+ * Was nach einer neuen WhatsApp passiert: Mail an alle mit Freigabe und, wenn
  * eingeschaltet, eine automatische Antwort an den Kunden.
  *
  * Läuft, nachdem Meta seine Antwort schon hat (after() im Webhook). Meta
@@ -17,15 +17,12 @@ import {
   automatikSpeichern,
   mailFaellig,
   mailVermerkZuruecknehmen,
+  meldeempfaenger,
   type NeuerEingang,
 } from "@/lib/db/whatsapp";
 import { textSchicken } from "@/lib/whatsapp/senden";
 
 const NL = String.fromCharCode(10);
-
-function meldeadresse(): string {
-  return process.env.WHATSAPP_MELDUNG_AN ?? "tickets@florianzimmer.com";
-}
 
 function appUrl(): string {
   return process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
@@ -42,14 +39,17 @@ export async function nachEingang(neue: NeuerEingang[]): Promise<void> {
   }
 }
 
-/** Die Mail an tickets@. Eigene Funktion, damit der Testknopf dieselbe verschickt. */
-export async function meldungSchicken(waId: string, name: string, texte: string[]): Promise<string> {
-  const an = meldeadresse();
+/**
+ * Die Mail an alle mit Freigabe. Eigene Funktion, damit der Testknopf
+ * dieselbe verschickt. Liefert die Namen, an die sie ging.
+ */
+export async function meldungSchicken(waId: string, name: string, texte: string[]): Promise<string[]> {
+  const empfaenger = await meldeempfaenger();
+  if (empfaenger.length === 0) {
+    throw new Error("Niemand hat die WhatsApp-Freigabe mit einer Mailadresse. Siehe Zugänge.");
+  }
   await mailVerschicken({
-    an,
-    // Absender ist ebenfalls tickets@. Mit Kopie unter Gesendet käme die
-    // Meldung nicht im Posteingang an, siehe mail/versand.ts.
-    imGesendetenAblegen: false,
+    an: empfaenger.map((e) => e.email),
     betreff: `WhatsApp von ${name}`,
     text: [
       `${name} (+${waId}) hat per WhatsApp geschrieben:`,
@@ -62,7 +62,7 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
       "Weitere Nachrichten in dieser Unterhaltung lösen keine neue Mail aus, bis jemand sie im Eventmanager geöffnet hat.",
     ].join(NL),
   });
-  return an;
+  return empfaenger.map((e) => e.name);
 }
 
 async function melden(waId: string, nachrichten: NeuerEingang[]): Promise<void> {
@@ -77,7 +77,7 @@ async function melden(waId: string, nachrichten: NeuerEingang[]): Promise<void> 
       throw fehler;
     }
   } catch (fehler) {
-    console.error("WhatsApp-Meldung an tickets@ fehlgeschlagen:", fehler instanceof Error ? fehler.message : fehler);
+    console.error("WhatsApp-Meldung per Mail fehlgeschlagen:", fehler instanceof Error ? fehler.message : fehler);
   }
 }
 

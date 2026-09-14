@@ -62,8 +62,7 @@ export default async function WhatsAppEinrichten({
       {getestet && (
         <Kasten farbe="gut">
           <strong>Microsoft hat die Testmeldung angenommen</strong>, an {getestet}. Sie sollte in
-          ein bis zwei Minuten im Posteingang liegen, Betreff „WhatsApp von Testkunde“. Schau
-          auch im Junk-Ordner nach.
+          ein bis zwei Minuten bei jedem im Posteingang liegen, Betreff „WhatsApp von Testkunde“.
         </Kasten>
       )}
       {fehler && (
@@ -93,8 +92,8 @@ export default async function WhatsAppEinrichten({
           <a href="/einstellungen/benutzer" className="underline">
             Zugänge
           </a>
-          . Neue Unterhaltungen werden zusätzlich an{" "}
-          {process.env.WHATSAPP_MELDUNG_AN ?? "tickets@florianzimmer.com"} gemeldet.
+          . Wer den Posteingang sehen darf, bekommt bei jeder neuen Unterhaltung auch eine Mail an
+          seine Adresse aus den Zugängen.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <form action={verbindungTesten}>
@@ -105,7 +104,7 @@ export default async function WhatsAppEinrichten({
             />
           </form>
           <form action={meldungTesten}>
-            <Absendeknopf text="Testmeldung an tickets@ schicken" laeuftText="Wird verschickt..." />
+            <Absendeknopf text="Testmeldung per Mail schicken" laeuftText="Wird verschickt..." />
           </form>
         </div>
       </section>

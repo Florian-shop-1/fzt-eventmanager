@@ -15,7 +15,7 @@
  * Warum Nachfragen und keine Push-Nachrichten: Push braucht einen Dienst im
  * Hintergrund, auf dem iPhone sogar eine installierte App, und bringt für
  * drei Leute am Schreibtisch nichts, was das hier nicht auch kann. Aufs
- * Handy kommt jede neue Unterhaltung als Mail an tickets@ (whatsapp/nachlauf.ts).
+ * Handy kommt jede neue Unterhaltung als Mail an alle mit Freigabe (whatsapp/nachlauf.ts).
  *
  * Neben dem grünen Zähler für Ungelesenes steht ein gelbes Ausrufezeichen,
  * sobald eine Nachricht unbeantwortet auf das Ende der 24 Stunden zuläuft

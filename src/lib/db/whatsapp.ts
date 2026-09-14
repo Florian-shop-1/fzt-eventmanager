@@ -284,7 +284,7 @@ export async function ausgangSpeichern(
 }
 
 /**
- * Soll für diese Unterhaltung eine Mail an tickets@ hinaus?
+ * Soll für diese Unterhaltung eine Mail hinaus?
  *
  * Ja, wenn seit dem letzten Öffnen noch keine gegangen ist. Prüfen und
  * Vermerken in einem Befehl: Kommen zwei Nachrichten im selben Augenblick,
@@ -323,6 +323,28 @@ export async function holeEinstellung(): Promise<WaEinstellung> {
     geaendertAm: z?.geaendert_am ? new Date(z.geaendert_am as string).toISOString() : new Date().toISOString(),
     geaendertVon: (z?.geaendert_von as string) ?? null,
   };
+}
+
+/**
+ * Wer bei einer neuen WhatsApp eine Mail bekommt: alle mit Freigabe.
+ *
+ * Erst ging die Meldung an tickets@. Absender ist aber ebenfalls tickets@,
+ * und Mails an sich selbst hat Exchange nicht in den Posteingang gelegt,
+ * weder mit noch ohne Kopie unter Gesendet (14.09.2026). Jetzt geht sie an
+ * die persönlichen Adressen, und die sind auch eher auf dem Handy.
+ *
+ * Wer die Freigabe bekommt oder verliert, bekommt die Mails damit
+ * automatisch oder eben nicht mehr. Die Absenderadresse selbst bleibt
+ * draussen, sonst stünde dasselbe Problem wieder da.
+ */
+export async function meldeempfaenger(): Promise<Array<{ name: string; email: string }>> {
+  const absender = (process.env.MAIL_ABSENDER ?? "").trim().toLowerCase();
+  const zeilen = (await db()`
+    select name, email from benutzer
+     where whatsapp and aktiv and coalesce(email, '') <> ''
+     order by name
+  `) as Array<{ name: string; email: string }>;
+  return zeilen.filter((z) => z.email.trim().toLowerCase() !== absender);
 }
 
 /** Pause zwischen zwei automatischen Antworten an denselben Kunden. */

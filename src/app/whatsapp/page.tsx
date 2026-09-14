@@ -62,7 +62,7 @@ export default async function WhatsAppSeite({
           <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
             Alles, was an 0731 7906110 geschrieben wird. Wer eine Unterhaltung öffnet, nimmt sie
-            für alle aus „neu“. Bei jeder neuen Unterhaltung geht zusätzlich eine Mail an tickets@.
+            für alle aus „neu“. Bei jeder neuen Unterhaltung bekommt ihr zusätzlich eine Mail.
           </p>
         </div>
         <BenachrichtigungErlauben />

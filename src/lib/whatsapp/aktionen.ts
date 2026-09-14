@@ -112,8 +112,8 @@ export async function autoantwortSpeichern(formData: FormData): Promise<void> {
 }
 
 /**
- * Schickt eine Beispielmeldung an tickets@, genau so, wie sie bei einer
- * echten WhatsApp aussähe. Damit lässt sich der Weg prüfen, bevor der erste
+ * Schickt eine Beispielmeldung an alle mit Freigabe, genau so, wie sie bei
+ * einer echten WhatsApp aussähe. Damit lässt sich der Weg prüfen, bevor der erste
  * Kunde schreibt. Der Link führt ins Leere, die Nummer gibt es nicht.
  */
 export async function meldungTesten(): Promise<void> {
@@ -124,9 +124,9 @@ export async function meldungTesten(): Promise<void> {
 
   let ziel: string;
   try {
-    const an = await meldungSchicken("4900000000", "Testkunde (nur ein Test)", [
+    const an = (await meldungSchicken("4900000000", "Testkunde (nur ein Test)", [
       `Das ist eine Testmeldung, ausgelöst von ${benutzer.name} unter Einstellungen, WhatsApp.`,
-    ]);
+    ])).join(", ");
     // Ins Protokoll, damit sich bei Vercel nachsehen lässt, ob Microsoft die
     // Mail angenommen hat, wenn sie im Postfach nicht auftaucht.
     console.info(`WhatsApp-Testmeldung von Microsoft angenommen, an ${an}, ausgelöst von ${benutzer.name}`);
