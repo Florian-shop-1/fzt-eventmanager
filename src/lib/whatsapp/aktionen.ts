@@ -9,7 +9,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
-import { alsErledigtMarkieren, ausgangSpeichern, FENSTER_STUNDEN, verlangeWhatsApp } from "@/lib/db/whatsapp";
+import {
+  alsErledigtMarkieren,
+  ausgangSpeichern,
+  FENSTER_STUNDEN,
+  mailantwortSpeichern,
+  verlangeWhatsApp,
+  webanfrageKontakt,
+} from "@/lib/db/whatsapp";
+import { mailVerschicken } from "@/lib/mail/versand";
 import {
   kontoAngeschlossen,
   kontoAnschliessen,
@@ -56,6 +64,40 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
     await ausgangSpeichern(waId, metaId, inhalt, benutzer.name);
   } catch (e) {
     fehler = e instanceof WhatsAppFehler ? e.message : "Die Nachricht ging nicht hinaus.";
+  }
+
+  revalidatePath("/whatsapp");
+  redirect(ziel(waId, fehler));
+}
+
+/**
+ * Antwortet auf eine Anfrage aus dem Kontaktfenster per Mail.
+ *
+ * Geht von tickets@ hinaus, wie Angebote und Codes, und landet dort unter
+ * Gesendet. Antwortet der Kunde, kommt das in tickets@ an, nicht hier: Ein
+ * Mailpostfach mitzulesen wäre eine eigene Baustelle.
+ */
+export async function perMailAntworten(waId: string, formData: FormData): Promise<void> {
+  const benutzer = await verlangeWhatsApp();
+  const inhalt = String(formData.get("text") ?? "").trim().slice(0, 5000);
+  if (!istKennung(waId)) redirect("/whatsapp");
+  if (!inhalt) redirect(ziel(waId));
+
+  const kontakt = await webanfrageKontakt(waId);
+  if (!kontakt?.email) {
+    redirect(ziel(waId, "Für diese Anfrage ist keine Mailadresse hinterlegt. Bitte anrufen."));
+  }
+
+  let fehler: string | undefined;
+  try {
+    await mailVerschicken({
+      an: kontakt.email,
+      betreff: "Deine Anfrage beim Florian Zimmer Theater",
+      text: inhalt,
+    });
+    await mailantwortSpeichern(waId, inhalt, benutzer.name);
+  } catch (e) {
+    fehler = e instanceof Error ? `Die Mail ging nicht hinaus: ${e.message}` : "Die Mail ging nicht hinaus.";
   }
 
   revalidatePath("/whatsapp");

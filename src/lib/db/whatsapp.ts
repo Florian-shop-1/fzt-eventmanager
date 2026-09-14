@@ -31,6 +31,13 @@ export interface Unterhaltung {
   /** Minuten bis zum Ende der 24 Stunden, negativ danach. */
   restMinuten: number | null;
   erledigtVon: string | null;
+  /** whatsapp oder webseite, siehe migrations/032_kontakt_webseite.sql. */
+  kanal: "whatsapp" | "webseite";
+  /** Nur bei Anfragen von der Webseite. */
+  email: string | null;
+  telefon: string | null;
+  rueckweg: "anruf" | "mail" | null;
+  seite: string | null;
 }
 
 export interface Nachricht {
@@ -151,6 +158,7 @@ export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
   const zeilen = (await db()`
     select u.wa_id, u.profilname, u.letzte_nachricht_am, u.letzte_eingang_am, u.gelesen_am,
            n.text as letzter_text, n.richtung as letzte_richtung, u.erledigt_von,
+           u.kanal, u.email, u.telefon, u.rueckweg, u.seite,
            (exists (
               select 1 from wa_nachricht a
                where a.wa_id = u.wa_id and a.richtung = 'aus'
@@ -186,6 +194,11 @@ export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
       dringlichkeit: eile.stufe,
       restMinuten: eile.restMinuten,
       erledigtVon: z.anderweitig === true ? ((z.erledigt_von as string) ?? null) : null,
+      kanal: z.kanal === "webseite" ? "webseite" : "whatsapp",
+      email: (z.email as string) ?? null,
+      telefon: (z.telefon as string) ?? null,
+      rueckweg: z.rueckweg === "anruf" || z.rueckweg === "mail" ? z.rueckweg : null,
+      seite: (z.seite as string) ?? null,
     };
   });
 }
@@ -420,4 +433,74 @@ export async function alsErledigtMarkieren(waId: string, von: string): Promise<v
            gelesen_am = greatest(gelesen_am, now()), gelesen_von = ${von}
      where wa_id = ${waId}
   `;
+}
+
+export interface NeueWebanfrage {
+  name: string;
+  nachricht: string;
+  email: string | null;
+  telefon: string | null;
+  rueckweg: "anruf" | "mail";
+  seite: string | null;
+}
+
+/**
+ * Legt eine Anfrage aus dem Kontaktformular als eigene Unterhaltung an.
+ *
+ * Jede Anfrage bekommt eine neue Kennung, auch wenn dieselbe Person zweimal
+ * schreibt: Ohne Anmeldung lässt sich nicht sicher sagen, dass es dieselbe
+ * ist, und zwei getrennte Einträge sind harmloser als zwei fremde Leute in
+ * einem Verlauf.
+ */
+export async function webanfrageSpeichern(a: NeueWebanfrage): Promise<NeuerEingang> {
+  const kennung = "web-" + (await import("node:crypto")).randomBytes(12).toString("hex");
+  const sql = db();
+  await sql`
+    insert into wa_unterhaltung
+      (wa_id, profilname, kanal, email, telefon, rueckweg, seite, letzte_nachricht_am, letzte_eingang_am)
+    values
+      (${kennung}, ${a.name}, 'webseite', ${a.email}, ${a.telefon}, ${a.rueckweg}, ${a.seite}, now(), now())
+  `;
+  await sql`
+    insert into wa_nachricht (wa_id, richtung, herkunft, typ, text, zeitpunkt)
+    values (${kennung}, 'ein', 'kunde', 'text', ${a.nachricht}, now())
+  `;
+  return { waId: kennung, name: a.name, typ: "text", text: a.nachricht };
+}
+
+/**
+ * Wie viele Anfragen in der letzten Stunde mit dieser Adresse oder Nummer.
+ * Gegen Formular-Spam: Ein Mensch schickt selten mehr als zwei.
+ */
+export async function webanfragenLetzteStunde(email: string | null, telefon: string | null): Promise<number> {
+  const [z] = (await db()`
+    select count(*)::int as anzahl from wa_unterhaltung
+     where kanal = 'webseite' and angelegt_am > now() - interval '1 hour'
+       and ((${email}::text is not null and lower(email) = lower(${email}::text))
+            or (${telefon}::text is not null and telefon = ${telefon}::text))
+  `) as Array<{ anzahl: number }>;
+  return Number(z?.anzahl ?? 0);
+}
+
+/** Legt eine per Mail geschickte Antwort im Verlauf ab. */
+export async function mailantwortSpeichern(waId: string, inhalt: string, von: string): Promise<void> {
+  const sql = db();
+  await sql`
+    update wa_unterhaltung
+       set letzte_nachricht_am = now(),
+           gelesen_am = greatest(gelesen_am, now()), gelesen_von = ${von}
+     where wa_id = ${waId}
+  `;
+  await sql`
+    insert into wa_nachricht (wa_id, richtung, herkunft, typ, text, zeitpunkt, status, gesendet_von)
+    values (${waId}, 'aus', 'eventmanager', 'mail', ${inhalt}, now(), 'sent', ${von})
+  `;
+}
+
+/** Kontaktdaten einer Webanfrage, für die Mail-Antwort. */
+export async function webanfrageKontakt(waId: string): Promise<{ name: string | null; email: string | null } | null> {
+  const [z] = (await db()`
+    select profilname, email from wa_unterhaltung where wa_id = ${waId} and kanal = 'webseite'
+  `) as Array<{ profilname: string | null; email: string | null }>;
+  return z ? { name: z.profilname, email: z.email } : null;
 }

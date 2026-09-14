@@ -21,7 +21,8 @@ import {
   type NeuerEingang,
 } from "@/lib/db/whatsapp";
 import { textSchicken } from "@/lib/whatsapp/senden";
-import { kennungLesbar } from "@/lib/whatsapp/kennung";
+import { istWebseite, kennungLesbar } from "@/lib/whatsapp/kennung";
+import { db } from "@/lib/db/client";
 
 const NL = String.fromCharCode(10);
 
@@ -49,13 +50,31 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
   if (empfaenger.length === 0) {
     throw new Error("Niemand hat die WhatsApp-Freigabe mit einer Mailadresse. Siehe Zugänge.");
   }
+  const web = istWebseite(waId);
+  let kontakt: string[] = [];
+  if (web) {
+    const [u] = (await db()`
+      select email, telefon, rueckweg, seite from wa_unterhaltung where wa_id = ${waId}
+    `) as Array<{ email: string | null; telefon: string | null; rueckweg: string | null; seite: string | null }>;
+    kontakt = [
+      "",
+      u?.rueckweg === "anruf" ? "Wünscht sich einen Rückruf." : "Wünscht sich eine Antwort per Mail.",
+      ...(u?.telefon ? [`Telefon: ${u.telefon}`] : []),
+      ...(u?.email ? [`E-Mail: ${u.email}`] : []),
+      ...(u?.seite ? [`Geschrieben auf: shop.florianzimmertheater.de${u.seite}`] : []),
+    ];
+  }
+
   await mailVerschicken({
     an: empfaenger.map((e) => e.email),
-    betreff: `WhatsApp von ${name}`,
+    betreff: web ? `Anfrage über die Webseite von ${name}` : `WhatsApp von ${name}`,
     text: [
-      `${name} (${kennungLesbar(waId)}) hat per WhatsApp geschrieben:`,
+      web
+        ? `${name} hat über das Kontaktfenster im Shop geschrieben:`
+        : `${name} (${kennungLesbar(waId)}) hat per WhatsApp geschrieben:`,
       "",
       texte.map((t) => `„${t}“`).join(NL + NL),
+      ...kontakt,
       "",
       "Antworten im Eventmanager:",
       `${appUrl()}/whatsapp?mit=${encodeURIComponent(waId)}`,
@@ -83,6 +102,9 @@ async function melden(waId: string, nachrichten: NeuerEingang[]): Promise<void> 
 }
 
 async function automatischAntworten(waId: string): Promise<void> {
+  // Das Kontaktfenster bestätigt dem Besucher selbst, und per WhatsApp lässt
+  // sich eine Webanfrage ohnehin nicht beantworten.
+  if (istWebseite(waId)) return;
   try {
     const text = await autoantwortFaellig(waId);
     if (!text) return;
