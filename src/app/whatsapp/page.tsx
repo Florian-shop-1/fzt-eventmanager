@@ -13,6 +13,7 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { BenachrichtigungErlauben } from "@/components/BenachrichtigungErlauben";
 import { vorZeit } from "@/components/Status";
 import { uhrzeit, datumMitWochentag, isoDatum } from "@/lib/zeit";
+import { istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export default async function WhatsAppSeite({
   }
 
   const { mit, fehler } = await searchParams;
-  const gewaehlt = mit && /^\d{6,20}$/.test(mit) ? mit : null;
+  const gewaehlt = istKennung(mit) ? mit : null;
 
   if (gewaehlt) await alsGelesenMarkieren(gewaehlt, benutzer.name);
 
@@ -98,7 +99,7 @@ export default async function WhatsAppSeite({
 }
 
 function name(u: Pick<Unterhaltung, "profilname" | "waId">): string {
-  return u.profilname ?? `+${u.waId}`;
+  return u.profilname ?? kennungLesbar(u.waId);
 }
 
 /** "noch 3 Std." oder "seit 2 Std. vorbei". */
@@ -256,14 +257,23 @@ function Verlauf({
             Alle
           </Link>
           <span className="font-semibold">{name(unterhaltung)}</span>
-          <a
-            href={`https://wa.me/${unterhaltung.waId}`}
-            className="ml-2 text-sm text-leise hover:underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            +{unterhaltung.waId}
-          </a>
+          {istNummer(unterhaltung.waId) ? (
+            <a
+              href={`https://wa.me/${unterhaltung.waId}`}
+              className="ml-2 text-sm text-leise hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {kennungLesbar(unterhaltung.waId)}
+            </a>
+          ) : (
+            <span
+              className="ml-2 text-sm text-leise"
+              title="Der Kunde zeigt in WhatsApp einen Benutzernamen statt seiner Nummer. Antworten geht trotzdem."
+            >
+              Nummer verborgen
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Eile u={unterhaltung} />

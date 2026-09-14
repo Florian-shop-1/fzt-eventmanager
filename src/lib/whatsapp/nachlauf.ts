@@ -21,6 +21,7 @@ import {
   type NeuerEingang,
 } from "@/lib/db/whatsapp";
 import { textSchicken } from "@/lib/whatsapp/senden";
+import { kennungLesbar } from "@/lib/whatsapp/kennung";
 
 const NL = String.fromCharCode(10);
 
@@ -52,12 +53,12 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
     an: empfaenger.map((e) => e.email),
     betreff: `WhatsApp von ${name}`,
     text: [
-      `${name} (+${waId}) hat per WhatsApp geschrieben:`,
+      `${name} (${kennungLesbar(waId)}) hat per WhatsApp geschrieben:`,
       "",
       texte.map((t) => `„${t}“`).join(NL + NL),
       "",
       "Antworten im Eventmanager:",
-      `${appUrl()}/whatsapp?mit=${waId}`,
+      `${appUrl()}/whatsapp?mit=${encodeURIComponent(waId)}`,
       "",
       "Weitere Nachrichten in dieser Unterhaltung lösen keine neue Mail aus, bis jemand sie im Eventmanager geöffnet hat.",
     ].join(NL),

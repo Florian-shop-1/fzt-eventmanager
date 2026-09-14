@@ -24,6 +24,8 @@
  * Päckchen immer wieder schickt.
  */
 
+import { istKennung } from "./kennung";
+
 export type Ereignis =
   | {
       art: "nachricht";
@@ -67,6 +69,18 @@ function zeit(w: unknown): Date {
 /** Nur Ziffern: So steht die Nummer in wa_id, egal wie sie gemeldet wurde. */
 function nummer(w: unknown): string {
   return text(w).replace(/\D/g, "");
+}
+
+/**
+ * Die Kennung des Kunden: seine Nummer, oder, wenn er sie hinter einem
+ * Benutzernamen verbirgt, die Kennung, die Meta nur für uns vergibt.
+ * Siehe kennung.ts.
+ */
+function kunde(telefon: unknown, nutzerId: unknown): string {
+  const n = nummer(telefon);
+  if (n) return n;
+  const k = text(nutzerId).trim();
+  return istKennung(k) ? k : "";
 }
 
 /**
@@ -128,19 +142,23 @@ export function ereignisseLesen(paeckchen: unknown): Ereignis[] {
         const namen = new Map<string, string>();
         for (const k of liste(wert.contacts)) {
           const kontakt = objekt(k);
-          const name = text(objekt(kontakt.profile).name);
-          if (name) namen.set(nummer(kontakt.wa_id), name);
+          const name = text(objekt(kontakt.profile).name) || text(kontakt.username);
+          if (!name) continue;
+          // Unter beiden Schlüsseln merken: Die Nachricht nennt die Nummer
+          // oder nur die Nutzerkennung, je nachdem, was Meta hat.
+          if (nummer(kontakt.wa_id)) namen.set(nummer(kontakt.wa_id), name);
+          if (text(kontakt.user_id)) namen.set(text(kontakt.user_id), name);
         }
 
         for (const m of liste(wert.messages)) {
           const n = objekt(m);
-          const waId = nummer(n.from);
+          const waId = kunde(n.from, n.from_user_id);
           const metaId = text(n.id);
           if (!waId || !metaId) continue;
           ereignisse.push({
             art: "nachricht",
             waId,
-            profilname: namen.get(waId) ?? null,
+            profilname: namen.get(waId) ?? namen.get(text(n.from_user_id)) ?? null,
             metaId,
             zeitpunkt: zeit(n.timestamp),
             ...lesbarerText(n),
@@ -158,7 +176,7 @@ export function ereignisseLesen(paeckchen: unknown): Ereignis[] {
             .join(": ");
           ereignisse.push({
             art: "status",
-            waId: nummer(st.recipient_id) || null,
+            waId: kunde(st.recipient_id, st.recipient_user_id) || null,
             metaId,
             status: text(st.status),
             fehler: fehler || null,
@@ -170,7 +188,7 @@ export function ereignisseLesen(paeckchen: unknown): Ereignis[] {
         for (const m of liste(wert.message_echoes)) {
           const n = objekt(m);
           // Beim Echo ist der Kunde der Empfänger, nicht der Absender.
-          const waId = nummer(n.to);
+          const waId = kunde(n.to, n.to_user_id);
           const metaId = text(n.id);
           if (!waId || !metaId) continue;
           ereignisse.push({

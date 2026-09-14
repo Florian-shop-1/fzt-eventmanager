@@ -12,6 +12,7 @@ import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung"
 import { alsErledigtMarkieren, ausgangSpeichern, FENSTER_STUNDEN, verlangeWhatsApp } from "@/lib/db/whatsapp";
 import { textSchicken, verbindungPruefen, WhatsAppFehler } from "@/lib/whatsapp/senden";
 import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
+import { istKennung } from "@/lib/whatsapp/kennung";
 
 const ziel = (waId: string, fehler?: string) =>
   `/whatsapp?mit=${encodeURIComponent(waId)}${fehler ? `&fehler=${encodeURIComponent(fehler.slice(0, 300))}` : ""}`;
@@ -20,7 +21,7 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
   const benutzer = await verlangeWhatsApp();
   const inhalt = String(formData.get("text") ?? "").trim();
 
-  if (!/^\d{6,20}$/.test(waId)) redirect("/whatsapp");
+  if (!istKennung(waId)) redirect("/whatsapp");
   if (!inhalt) redirect(ziel(waId));
 
   /*
@@ -61,7 +62,7 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
  */
 export async function anderweitigErledigt(waId: string): Promise<void> {
   const benutzer = await verlangeWhatsApp();
-  if (!/^\d{6,20}$/.test(waId)) redirect("/whatsapp");
+  if (!istKennung(waId)) redirect("/whatsapp");
   await alsErledigtMarkieren(waId, benutzer.name);
   revalidatePath("/whatsapp");
   redirect(`/whatsapp?mit=${waId}`);

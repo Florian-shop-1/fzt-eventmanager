@@ -8,6 +8,7 @@
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, type AngemeldeterBenutzer } from "@/lib/auth/sitzung";
 import type { Ereignis } from "@/lib/whatsapp/eingang";
+import { kennungLesbar } from "@/lib/whatsapp/kennung";
 
 import { dringlichkeit, type Dringlichkeit } from "@/lib/whatsapp/eile";
 import {
@@ -96,7 +97,7 @@ export async function ereignisseSpeichern(ereignisse: Ereignis[]): Promise<Neuer
         returning id
       `) as unknown[];
       if (eingefuegt.length > 0) {
-        neu.push({ waId: e.waId, name: e.profilname ?? `+${e.waId}`, typ: e.typ, text: e.text });
+        neu.push({ waId: e.waId, name: e.profilname ?? kennungLesbar(e.waId), typ: e.typ, text: e.text });
       }
     }
 
@@ -233,7 +234,7 @@ export interface Stand {
 /** Für den Zähler in der Navigation und die Einblendung unten rechts. */
 export async function ungelesenStand(): Promise<Stand> {
   const zeilen = (await db()`
-    select u.wa_id, coalesce(u.profilname, '+' || u.wa_id) as name, n.text, n.zeitpunkt,
+    select u.wa_id, u.profilname, n.text, n.zeitpunkt,
            count(*) over () as anzahl
       from wa_unterhaltung u
       join lateral (
@@ -255,7 +256,7 @@ export async function ungelesenStand(): Promise<Stand> {
     dringend,
     neueste: {
       waId: String(z.wa_id),
-      name: String(z.name),
+      name: (z.profilname as string) ?? kennungLesbar(String(z.wa_id)),
       text: String(z.text ?? ""),
       zeitpunkt: new Date(z.zeitpunkt as string).toISOString(),
     },

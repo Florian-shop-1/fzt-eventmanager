@@ -174,4 +174,47 @@ fall("Eile: wartet, knapp, abgelaufen, erledigt", () => {
   assert.equal(dringlichkeit(vor(24 + 24 * 7 + 1), false, jetzt).stufe, "keine");
 });
 
+fall("Kunde mit verborgener Nummer: Kennung statt Telefonnummer", () => {
+  // Aufbau nach der Dokumentation von Meta zu "business-scoped user IDs".
+  const e = ereignisseLesen(
+    paeckchen("messages", {
+      contacts: [{ profile: { name: "Anna" }, username: "anna.ulm", user_id: "DE.13491208655302741918" }],
+      messages: [
+        { from_user_id: "DE.13491208655302741918", id: "wamid.bsuid", timestamp: "1757840000", type: "text", text: { body: "Hallo" } },
+      ],
+      statuses: [{ id: "wamid.x", status: "read", recipient_user_id: "DE.13491208655302741918" }],
+    }),
+  );
+  assert.equal(e.length, 2, "die Nachricht darf nicht verschwinden");
+  const n = e[0];
+  assert.equal(n.art, "nachricht");
+  if (n.art !== "nachricht") return;
+  assert.equal(n.waId, "DE.13491208655302741918");
+  assert.equal(n.profilname, "Anna");
+  assert.equal(e[1].waId, "DE.13491208655302741918");
+
+  // Hat der Kunde nur einen Benutzernamen und keinen Profilnamen, steht der Benutzername da.
+  const nurName = ereignisseLesen(
+    paeckchen("messages", {
+      contacts: [{ username: "anna.ulm", user_id: "DE.1" }],
+      messages: [{ from_user_id: "DE.1", id: "w", timestamp: "1", type: "text", text: { body: "x" } }],
+    }),
+  );
+  assert.equal(nurName[0].art === "nachricht" && nurName[0].profilname, "anna.ulm");
+
+  // Nummer und Kennung zugleich: die Nummer gewinnt, damit alte Verläufe weiterlaufen.
+  const beides = ereignisseLesen(
+    paeckchen("messages", {
+      messages: [{ from: KUNDE, from_user_id: "DE.1", id: "w2", timestamp: "1", type: "text", text: { body: "x" } }],
+    }),
+  );
+  assert.equal(beides[0].waId, KUNDE);
+
+  // Unsinn als Kennung wird nicht übernommen.
+  assert.deepEqual(
+    ereignisseLesen(paeckchen("messages", { messages: [{ from_user_id: "<script>", id: "w3", timestamp: "1", type: "text" }] })),
+    [],
+  );
+});
+
 console.log(`${faelle} Fälle bestanden.`);

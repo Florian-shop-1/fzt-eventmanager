@@ -18,6 +18,8 @@
  * und keinen Chat.
  */
 
+import { istNummer } from "./kennung";
+
 /**
  * Die Version der Schnittstelle. Meta hält eine Version rund zwei Jahre am
  * Leben und kündigt das Ende vorher an. Beim Wechsel genügt es, die Zahl
@@ -111,7 +113,9 @@ export async function textSchicken(an: string, inhalt: string): Promise<string> 
   const daten = await graph("POST", `/${telefonId}/messages`, {
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: an,
+    // Eine Nummer geht in "to", eine Nutzerkennung bei verborgener Nummer
+    // in "recipient". Siehe kennung.ts.
+    ...(istNummer(an) ? { to: an } : { recipient: an }),
     type: "text",
     text: { body: inhalt, preview_url: true },
   });
