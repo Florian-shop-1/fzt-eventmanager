@@ -7,7 +7,7 @@ import {
   type Nachricht,
   type Unterhaltung,
 } from "@/lib/db/whatsapp";
-import { antworten } from "@/lib/whatsapp/aktionen";
+import { anderweitigErledigt, antworten } from "@/lib/whatsapp/aktionen";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { BenachrichtigungErlauben } from "@/components/BenachrichtigungErlauben";
@@ -62,21 +62,23 @@ export default async function WhatsAppSeite({
           <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
             Alles, was an 0731 7906110 geschrieben wird. Wer eine Unterhaltung öffnet, nimmt sie
-            für alle aus „neu“. Was in der Business App beantwortet wird, steht hier ebenfalls.
+            für alle aus „neu“. Bei jeder neuen Unterhaltung geht zusätzlich eine Mail an tickets@.
           </p>
         </div>
         <BenachrichtigungErlauben />
       </header>
 
-      {!eingerichtet.schluessel && (
+      {!(eingerichtet.telefonId && eingerichtet.zugangstoken) && (
         <div
           className="rounded-lg border px-4 py-3 text-sm"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
-          <strong>Noch nicht verbunden.</strong> Sobald die Nummer bei 360dialog angebunden und
-          der Schlüssel bei Vercel eingetragen ist, laufen die Nachrichten hier ein.
+          <strong>Noch nicht verbunden.</strong> Sobald die Nummer bei Meta angemeldet ist und die
+          Schlüssel bei Vercel stehen, laufen die Nachrichten hier ein.
         </div>
       )}
+
+      <Warnung unterhaltungen={unterhaltungen} />
 
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
         <Liste unterhaltungen={unterhaltungen} gewaehlt={gewaehlt} versteckt={Boolean(aktuell)} />
@@ -97,6 +99,85 @@ export default async function WhatsAppSeite({
 
 function name(u: Pick<Unterhaltung, "profilname" | "waId">): string {
   return u.profilname ?? `+${u.waId}`;
+}
+
+/** "noch 3 Std." oder "seit 2 Std. vorbei". */
+function restzeit(minuten: number): string {
+  const betrag = Math.abs(minuten);
+  const menge = betrag >= 90 ? `${Math.round(betrag / 60)} Std.` : `${Math.max(1, betrag)} Min.`;
+  return minuten > 0 ? `noch ${menge}` : `seit ${menge} vorbei`;
+}
+
+/**
+ * Das Kennzeichen für die Eile, in Liste und Kopf des Verlaufs.
+ * Wartend nur als leiser Text, knapp gelb, abgelaufen rot.
+ */
+function Eile({ u }: { u: Unterhaltung }) {
+  if (u.dringlichkeit === "keine" || u.restMinuten === null) return null;
+  if (u.dringlichkeit === "wartet") {
+    return <span className="shrink-0 text-xs text-leise">{restzeit(u.restMinuten)}</span>;
+  }
+  const knapp = u.dringlichkeit === "knapp";
+  return (
+    <span
+      className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
+      style={{
+        background: knapp ? "var(--warnung-hell)" : "var(--blocker-hell)",
+        color: knapp ? "var(--warnung)" : "var(--blocker)",
+      }}
+      title={knapp ? "Unbeantwortet, das 24-Stunden-Fenster schliesst bald" : "Unbeantwortet, die 24 Stunden sind vorbei"}
+    >
+      {knapp ? restzeit(u.restMinuten) : "unbeantwortet"}
+    </span>
+  );
+}
+
+/**
+ * Oben auf der Seite, sobald eine Nachricht knapp wird oder schon drüber ist.
+ *
+ * Kosten entstehen durch Nichtantworten keine. Die Warnung ist für den Kunden
+ * da: Nach 24 Stunden geht per WhatsApp nur noch eine bezahlte Vorlage, ein
+ * Anruf dagegen immer.
+ */
+function Warnung({ unterhaltungen }: { unterhaltungen: Unterhaltung[] }) {
+  const knapp = unterhaltungen.filter((u) => u.dringlichkeit === "knapp");
+  const abgelaufen = unterhaltungen.filter((u) => u.dringlichkeit === "abgelaufen");
+  if (knapp.length === 0 && abgelaufen.length === 0) return null;
+
+  const liste = (us: Unterhaltung[]) =>
+    us.map((u, i) => (
+      <span key={u.waId}>
+        {i > 0 && ", "}
+        <Link href={`/whatsapp?mit=${u.waId}`} className="underline">
+          {name(u)}
+        </Link>
+      </span>
+    ));
+
+  return (
+    <div
+      className="space-y-1 rounded-lg border px-4 py-3 text-sm"
+      style={
+        abgelaufen.length > 0
+          ? { borderColor: "var(--blocker)", background: "var(--blocker-hell)" }
+          : { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+      }
+    >
+      {knapp.length > 0 && (
+        <p>
+          <strong>Bald keine freie Antwort mehr möglich:</strong> {liste(knapp)}. In wenigen
+          Stunden sind die 24 Stunden seit der letzten Nachricht vorbei.
+        </p>
+      )}
+      {abgelaufen.length > 0 && (
+        <p>
+          <strong>Unbeantwortet, 24 Stunden vorbei:</strong> {liste(abgelaufen)}. Per WhatsApp geht
+          jetzt nur noch eine bezahlte Vorlage. Am besten anrufen und danach als erledigt
+          markieren.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function Liste({
@@ -130,6 +211,11 @@ function Liste({
               {u.letzteNachrichtAm ? vorZeit(u.letzteNachrichtAm) : ""}
             </span>
           </div>
+          {u.dringlichkeit !== "keine" && (
+            <div className="mt-1">
+              <Eile u={u} />
+            </div>
+          )}
           <div className="mt-0.5 flex items-center gap-2">
             {u.ungelesen && (
               <span
@@ -179,6 +265,23 @@ function Verlauf({
             +{unterhaltung.waId}
           </a>
         </div>
+        <div className="flex items-center gap-3">
+          <Eile u={unterhaltung} />
+          {unterhaltung.dringlichkeit !== "keine" && (
+            <form action={anderweitigErledigt.bind(null, unterhaltung.waId)}>
+              <button
+                type="submit"
+                className="rounded-md border border-linie px-3 py-1 text-xs hover:bg-gold-hell"
+                title="Zum Beispiel angerufen oder per Mail geklärt. Nimmt die Warnung bis zur nächsten Nachricht weg."
+              >
+                Erledigt, anderweitig geklärt
+              </button>
+            </form>
+          )}
+          {unterhaltung.erledigtVon && (
+            <span className="text-xs text-leise">anderweitig erledigt von {unterhaltung.erledigtVon}</span>
+          )}
+        </div>
       </header>
 
       <div className="flex max-h-[60vh] min-h-64 flex-col-reverse gap-2 overflow-y-auto px-4 py-4">
@@ -208,7 +311,13 @@ function Verlauf({
 function Blase({ nachricht: n }: { nachricht: Nachricht }) {
   const ein = n.richtung === "ein";
   const wer =
-    n.herkunft === "kunde" ? null : n.herkunft === "app" ? "aus der App" : (n.gesendetVon ?? "Eventmanager");
+    n.herkunft === "kunde"
+      ? null
+      : n.herkunft === "app"
+        ? "aus der App"
+        : n.herkunft === "automatik"
+          ? "automatisch"
+          : (n.gesendetVon ?? "Eventmanager");
 
   return (
     <div className={`flex ${ein ? "justify-start" : "justify-end"}`}>
@@ -273,8 +382,8 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
       ) : (
         <p className="text-sm text-leise">
           Die letzte Nachricht von {name(unterhaltung)} ist älter als 24 Stunden. WhatsApp erlaubt
-          dann nur noch genehmigte Vorlagen. Schreib ihm aus der Business App, oder antworte hier,
-          sobald er sich wieder meldet.
+          dann nur noch genehmigte Vorlagen. Ruf an, schreib eine Mail, oder antworte hier, sobald
+          er sich wieder meldet.
         </p>
       )}
     </div>

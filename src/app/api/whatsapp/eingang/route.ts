@@ -1,49 +1,78 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { ereignisseLesen } from "@/lib/whatsapp/eingang";
 import { ereignisseSpeichern } from "@/lib/db/whatsapp";
+import { unterschriftStimmt } from "@/lib/whatsapp/unterschrift";
+import { nachEingang } from "@/lib/whatsapp/nachlauf";
 
 /**
- * Hier liefert 360dialog jede WhatsApp-Nachricht ab.
+ * Hier liefert Meta jede WhatsApp-Nachricht ab.
  *
  * Kein Mensch meldet sich an, deshalb steht die Adresse im Proxy bei den
- * offenen Seiten. Geschützt ist sie über einen eigenen Schlüssel, den
- * 360dialog als Kopfzeile mitschickt. Eingetragen wird er dort über den
- * Knopf unter Einstellungen, WhatsApp. Ohne gesetzten Schlüssel nimmt die
- * Route grundsätzlich nichts an, statt versehentlich offen zu stehen.
+ * offenen Seiten. Geschützt ist sie auf zwei Wegen:
  *
- * Ein Fehler beim Speichern antwortet mit 500. Dann wiederholt 360dialog
- * die Zustellung, und weil jede Nachricht nur einmal gespeichert wird,
- * schadet das nicht. Ein kaputtes Päckchen dagegen bekommt 200, sonst
- * käme es einen Tag lang immer wieder.
+ *  GET   Beim Eintragen des Webhooks fragt Meta einmal das Prüfwort ab und
+ *        erwartet die mitgeschickte Zahl zurück. Ohne das richtige Wort
+ *        lässt sich hier nichts anmelden.
+ *
+ *  POST  Jedes Päckchen trägt eine Unterschrift mit dem App-Geheimnis.
+ *        Stimmt sie nicht, wird es abgelehnt. Ohne gesetztes Geheimnis
+ *        nimmt die Route grundsätzlich nichts an, statt versehentlich offen
+ *        zu stehen.
+ *
+ * Ein Fehler beim Speichern antwortet mit 500. Dann wiederholt Meta die
+ * Zustellung, und weil jede Nachricht nur einmal gespeichert wird, schadet
+ * das nicht. Ein kaputtes Päckchen dagegen bekommt 200, sonst käme es
+ * immer wieder.
  */
 
 export const dynamic = "force-dynamic";
 
 const HOECHSTENS_BYTES = 1_000_000;
 
-function istErlaubt(request: Request): boolean {
-  const erwartet = process.env.WHATSAPP_WEBHOOK_SCHLUESSEL;
-  const gesendet = request.headers.get("x-fzt-schluessel");
-  if (!erwartet || !gesendet) return false;
-  const a = Buffer.from(erwartet);
-  const b = Buffer.from(gesendet);
-  return a.length === b.length && timingSafeEqual(a, b);
+function gleich(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+export async function GET(request: Request) {
+  const parameter = new URL(request.url).searchParams;
+  const pruefwort = process.env.WHATSAPP_PRUEFWORT;
+
+  if (
+    pruefwort &&
+    parameter.get("hub.mode") === "subscribe" &&
+    gleich(parameter.get("hub.verify_token") ?? "", pruefwort)
+  ) {
+    // Meta will genau die Zahl zurück, als reinen Text.
+    return new Response(parameter.get("hub.challenge") ?? "", {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  return NextResponse.json({ ok: false }, { status: 403 });
 }
 
 export async function POST(request: Request) {
-  if (!istErlaubt(request)) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  const koerper = Buffer.from(await request.arrayBuffer());
+  if (koerper.length > HOECHSTENS_BYTES) {
+    return NextResponse.json({ ok: false, fehler: "zu gross" }, { status: 413 });
   }
 
-  const roh = await request.text();
-  if (roh.length > HOECHSTENS_BYTES) {
-    return NextResponse.json({ ok: false, fehler: "zu gross" }, { status: 413 });
+  if (
+    !unterschriftStimmt(
+      koerper,
+      request.headers.get("x-hub-signature-256"),
+      process.env.WHATSAPP_APP_GEHEIMNIS,
+    )
+  ) {
+    return NextResponse.json({ ok: false }, { status: 401 });
   }
 
   let paeckchen: unknown;
   try {
-    paeckchen = JSON.parse(roh);
+    paeckchen = JSON.parse(koerper.toString("utf8"));
   } catch {
     return NextResponse.json({ ok: true, hinweis: "kein JSON, übergangen" });
   }
@@ -51,7 +80,9 @@ export async function POST(request: Request) {
   const ereignisse = ereignisseLesen(paeckchen);
 
   try {
-    await ereignisseSpeichern(ereignisse);
+    const neue = await ereignisseSpeichern(ereignisse);
+    // Mail und automatische Antwort erst, wenn Meta seine Antwort hat.
+    if (neue.length > 0) after(() => nachEingang(neue));
   } catch (e) {
     console.error("WhatsApp-Eingang nicht gespeichert:", e instanceof Error ? e.message : e);
     return NextResponse.json({ ok: false }, { status: 500 });

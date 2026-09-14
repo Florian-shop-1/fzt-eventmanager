@@ -14,8 +14,12 @@
  *
  * Warum Nachfragen und keine Push-Nachrichten: Push braucht einen Dienst im
  * Hintergrund, auf dem iPhone sogar eine installierte App, und bringt für
- * drei Leute am Schreibtisch nichts, was das hier nicht auch kann. Auf dem
- * Handy klingelt ohnehin weiter die WhatsApp Business App.
+ * drei Leute am Schreibtisch nichts, was das hier nicht auch kann. Aufs
+ * Handy kommt jede neue Unterhaltung als Mail an tickets@ (whatsapp/nachlauf.ts).
+ *
+ * Neben dem grünen Zähler für Ungelesenes steht ein gelbes Ausrufezeichen,
+ * sobald eine Nachricht unbeantwortet auf das Ende der 24 Stunden zuläuft
+ * oder schon drüber ist.
  *
  * Wer gerade in genau dieser Unterhaltung ist, bekommt keine Einblendung,
  * sondern die Seite lädt die neue Nachricht einfach nach.
@@ -27,6 +31,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface Stand {
   ungelesen: number;
+  dringend: number;
   neueste: { waId: string; name: string; text: string; zeitpunkt: string } | null;
 }
 
@@ -72,7 +77,7 @@ function ton() {
 
 export function WhatsAppMelder() {
   const router = useRouter();
-  const [stand, setStand] = useState<Stand>({ ungelesen: 0, neueste: null });
+  const [stand, setStand] = useState<Stand>({ ungelesen: 0, dringend: 0, neueste: null });
   const [einblendung, setEinblendung] = useState<Stand["neueste"]>(null);
   const letzter = useRef<string | null>(null);
 
@@ -139,6 +144,16 @@ export function WhatsAppMelder() {
             aria-label={`${stand.ungelesen} neue Unterhaltungen`}
           >
             {stand.ungelesen}
+          </span>
+        )}
+        {stand.dringend > 0 && (
+          <span
+            className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white"
+            style={{ background: "var(--warnung)" }}
+            title={`${stand.dringend} unbeantwortet, 24 Stunden bald oder schon vorbei`}
+            aria-label={`${stand.dringend} dringend`}
+          >
+            !
           </span>
         )}
       </Link>

@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer?.whatsapp) {
-    return NextResponse.json({ ungelesen: 0, neueste: null }, { status: 403 });
+    return NextResponse.json({ ungelesen: 0, dringend: 0, neueste: null }, { status: 403 });
   }
 
   try {
@@ -24,6 +24,6 @@ export async function GET() {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {
-    return NextResponse.json({ ungelesen: 0, neueste: null }, { status: 503 });
+    return NextResponse.json({ ungelesen: 0, dringend: 0, neueste: null }, { status: 503 });
   }
 }

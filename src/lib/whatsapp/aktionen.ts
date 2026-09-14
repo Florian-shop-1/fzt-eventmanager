@@ -2,16 +2,16 @@
 
 /**
  * Was man im WhatsApp-Posteingang tun kann: antworten, und für den Inhaber
- * die Freigaben und die Verbindung zu 360dialog.
+ * die Freigaben, die automatische Antwort und der Verbindungstest.
  */
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
-import { ausgangSpeichern, FENSTER_STUNDEN, verlangeWhatsApp } from "@/lib/db/whatsapp";
-import { textSchicken, webhookEintragen, WhatsAppFehler } from "@/lib/whatsapp/senden";
+import { alsErledigtMarkieren, ausgangSpeichern, FENSTER_STUNDEN, verlangeWhatsApp } from "@/lib/db/whatsapp";
+import { textSchicken, verbindungPruefen, WhatsAppFehler } from "@/lib/whatsapp/senden";
+import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
 
 const ziel = (waId: string, fehler?: string) =>
   `/whatsapp?mit=${encodeURIComponent(waId)}${fehler ? `&fehler=${encodeURIComponent(fehler.slice(0, 300))}` : ""}`;
@@ -38,7 +38,7 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
       ziel(
         waId,
         "Die letzte Nachricht des Kunden ist älter als 24 Stunden. WhatsApp erlaubt dann nur " +
-          "noch genehmigte Vorlagen. Schreib ihm aus der App oder warte, bis er sich meldet.",
+          "noch genehmigte Vorlagen. Ruf ihn an, schreib ihm eine Mail oder warte, bis er sich meldet.",
       ),
     );
   }
@@ -53,6 +53,18 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
 
   revalidatePath("/whatsapp");
   redirect(ziel(waId, fehler));
+}
+
+/**
+ * Anderweitig erledigt, etwa angerufen oder per Mail geklärt.
+ * Jeder mit Freigabe darf das, nicht nur der Inhaber: Wer anruft, hakt ab.
+ */
+export async function anderweitigErledigt(waId: string): Promise<void> {
+  const benutzer = await verlangeWhatsApp();
+  if (!/^\d{6,20}$/.test(waId)) redirect("/whatsapp");
+  await alsErledigtMarkieren(waId, benutzer.name);
+  revalidatePath("/whatsapp");
+  redirect(`/whatsapp?mit=${waId}`);
 }
 
 /** Nur der Inhaber vergibt die Freigabe, wie alle Zugänge. */
@@ -70,33 +82,70 @@ export async function whatsappFreigabeUmschalten(benutzerId: string): Promise<vo
 }
 
 /**
- * Sagt 360dialog, wohin eingehende Nachrichten sollen.
+ * Speichert die automatische Antwort.
  *
- * Ein Knopf statt einer Anleitung: Der Schlüssel von 360dialog liegt nur
- * bei Vercel. Wer den Webhook von Hand eintragen wollte, müsste ihn
- * herauskopieren, und genau das soll nicht passieren.
+ * Leer ausschalten geht nicht: Wer sie nicht will, nimmt den Haken raus.
+ * Ein leerer Text würde sonst als leere Nachricht beim Kunden landen.
  */
-export async function webhookEinrichten(): Promise<void> {
-  await verlangeInhaber();
-
-  const kopf = await headers();
-  const host = kopf.get("x-forwarded-host") ?? kopf.get("host");
-  const adresse = `https://${host}/api/whatsapp/eingang`;
-
-  let ergebnis = "gut";
-  try {
-    if (!host || host.startsWith("localhost")) {
-      throw new WhatsAppFehler("Der Webhook lässt sich nur vom echten Eventmanager aus einrichten.");
-    }
-    await webhookEintragen(adresse);
-  } catch (e) {
-    ergebnis = e instanceof WhatsAppFehler ? e.message : "Das Einrichten ist fehlgeschlagen.";
+export async function autoantwortSpeichern(formData: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer || !darfBenutzerVerwalten(benutzer.rolle)) {
+    throw new Error("Nur der Inhaber ändert die automatische Antwort.");
   }
 
+  const aktiv = formData.get("aktiv") === "an";
+  const text = String(formData.get("text") ?? "").trim().slice(0, 1000);
+
+  if (aktiv && !text) {
+    redirect(`/einstellungen/whatsapp?fehler=${encodeURIComponent("Ohne Text lässt sich die automatische Antwort nicht einschalten.")}`);
+  }
+
+  await db()`
+    update wa_einstellung
+       set autoantwort_aktiv = ${aktiv},
+           autoantwort_text = case when ${text}::text = '' then autoantwort_text else ${text}::text end,
+           geaendert_am = now(), geaendert_von = ${benutzer.name}
+     where id = 1
+  `;
   revalidatePath("/einstellungen/whatsapp");
-  redirect(
-    ergebnis === "gut"
-      ? "/einstellungen/whatsapp?eingerichtet=1"
-      : `/einstellungen/whatsapp?fehler=${encodeURIComponent(ergebnis.slice(0, 300))}`,
-  );
+  redirect("/einstellungen/whatsapp?gespeichert=1");
+}
+
+/**
+ * Schickt eine Beispielmeldung an tickets@, genau so, wie sie bei einer
+ * echten WhatsApp aussähe. Damit lässt sich der Weg prüfen, bevor der erste
+ * Kunde schreibt. Der Link führt ins Leere, die Nummer gibt es nicht.
+ */
+export async function meldungTesten(): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer || !darfBenutzerVerwalten(benutzer.rolle)) {
+    throw new Error("Nur der Inhaber schickt Testmeldungen.");
+  }
+
+  let ziel: string;
+  try {
+    const an = await meldungSchicken("4900000000", "Testkunde (nur ein Test)", [
+      `Das ist eine Testmeldung, ausgelöst von ${benutzer.name} unter Einstellungen, WhatsApp.`,
+    ]);
+    ziel = `/einstellungen/whatsapp?getestet=${encodeURIComponent(an)}`;
+  } catch (e) {
+    const meldung = e instanceof Error ? e.message : "Die Testmeldung ging nicht hinaus.";
+    ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
+  }
+  redirect(ziel);
+}
+
+/** Fragt bei Meta nach, ob Schlüssel und Nummer zusammenpassen. */
+export async function verbindungTesten(): Promise<void> {
+  await verlangeInhaber();
+
+  let ziel: string;
+  try {
+    const v = await verbindungPruefen();
+    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(`${v.name} · ${v.nummer} · Qualität ${v.qualitaet}`)}`;
+  } catch (e) {
+    const meldung = e instanceof WhatsAppFehler ? e.message : "Der Test ist fehlgeschlagen.";
+    ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
+  }
+  redirect(ziel);
 }

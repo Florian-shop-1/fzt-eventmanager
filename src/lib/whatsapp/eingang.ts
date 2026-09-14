@@ -5,7 +5,7 @@
  * Liste von Ereignissen raus. So lässt es sich mit Beispielpäckchen prüfen,
  * ohne dass eine echte Nachricht nötig ist (scripts/test-whatsapp.ts).
  *
- * Das Format ist das von Meta. 360dialog reicht es unverändert durch:
+ * Das Format ist das von Meta:
  *
  *   entry[].changes[].field = "messages"
  *     value.contacts[]   wer schreibt, mit seinem Profilnamen
@@ -13,12 +13,15 @@
  *     value.statuses[]   Zustellung unserer Nachrichten
  *
  *   entry[].changes[].field = "smb_message_echoes"
- *     value.message_echoes[]  was jemand in der Business App geschrieben hat
+ *     value.message_echoes[]  was jemand in der Business App geschrieben hat.
+ *     Kommt nur, solange eine Nummer zugleich in der App läuft. Seit dem
+ *     Umzug ganz zu Meta (migrations/031) nicht mehr, gelesen wird es
+ *     trotzdem, falls die Nummer je wieder in die App geht.
  *
  * Alles andere wird still übergangen. WhatsApp schickt auch Meldungen zu
  * Kontosynchronisation und Vorlagen, die hier niemand braucht, und ein
- * Fehler an der Stelle würde nur dazu führen, dass 360dialog dasselbe
- * Päckchen einen Tag lang wiederholt.
+ * Fehler an der Stelle würde nur dazu führen, dass Meta dasselbe
+ * Päckchen immer wieder schickt.
  */
 
 export type Ereignis =

@@ -1,55 +1,76 @@
 /**
- * Schickt WhatsApp-Nachrichten über 360dialog hinaus.
+ * Schickt WhatsApp-Nachrichten direkt über die Schnittstelle von Meta.
  *
- * 360dialog ist der Anbieter zwischen uns und Meta. Er hat die Nummer aus
- * der Business App an die Schnittstelle angebunden, was Meta nur offiziellen
- * Partnern erlaubt. Die Nachrichten selbst haben das Format von Meta.
+ * Kein Anbieter dazwischen, siehe migrations/031_whatsapp_direkt.sql.
  *
- * Der Schlüssel steht in WHATSAPP_360_SCHLUESSEL und gehört nirgends sonst
- * hin. Florian trägt ihn selbst bei Vercel ein, er geht durch keine Mail und
- * keinen Chat.
+ * Vier Einträge bei Vercel:
+ *
+ *   WHATSAPP_TELEFON_ID      Kennung der Nummer bei Meta. Kein Geheimnis.
+ *   WHATSAPP_ZUGANGSTOKEN    Dauerhafter Schlüssel eines Systembenutzers im
+ *                            Meta Business Manager. Geheim.
+ *   WHATSAPP_APP_GEHEIMNIS   App-Geheimnis der Meta-App. Damit wird geprüft,
+ *                            dass eingehende Nachrichten wirklich von Meta
+ *                            kommen. Geheim.
+ *   WHATSAPP_PRUEFWORT       Selbst ausgedacht. Meta fragt es einmal ab, wenn
+ *                            der Webhook eingetragen wird.
+ *
+ * Die beiden geheimen trägt Florian selbst ein. Sie gehen durch keine Mail
+ * und keinen Chat.
  */
 
-const BASIS = "https://waba-v2.360dialog.io";
+/**
+ * Die Version der Schnittstelle. Meta hält eine Version rund zwei Jahre am
+ * Leben und kündigt das Ende vorher an. Beim Wechsel genügt es, die Zahl
+ * hochzusetzen und einmal zu senden.
+ */
+const GRAPH = "https://graph.facebook.com/v25.0";
 
 export class WhatsAppFehler extends Error {}
 
-function schluessel(): string {
-  const s = process.env.WHATSAPP_360_SCHLUESSEL;
-  if (!s) {
-    throw new WhatsAppFehler(
-      "WhatsApp ist noch nicht verbunden: Der Schlüssel von 360dialog fehlt bei Vercel " +
-        "(WHATSAPP_360_SCHLUESSEL).",
-    );
-  }
-  return s;
-}
-
-export function istEingerichtet(): { schluessel: boolean; webhookSchluessel: boolean } {
+export function istEingerichtet() {
   return {
-    schluessel: Boolean(process.env.WHATSAPP_360_SCHLUESSEL),
-    webhookSchluessel: Boolean(process.env.WHATSAPP_WEBHOOK_SCHLUESSEL),
+    telefonId: Boolean(process.env.WHATSAPP_TELEFON_ID),
+    zugangstoken: Boolean(process.env.WHATSAPP_ZUGANGSTOKEN),
+    appGeheimnis: Boolean(process.env.WHATSAPP_APP_GEHEIMNIS),
+    pruefwort: Boolean(process.env.WHATSAPP_PRUEFWORT),
   };
 }
 
-async function anfrage(pfad: string, inhalt: unknown): Promise<Record<string, unknown>> {
+function zugang(): { telefonId: string; token: string } {
+  const telefonId = process.env.WHATSAPP_TELEFON_ID;
+  const token = process.env.WHATSAPP_ZUGANGSTOKEN;
+  if (!telefonId || !token) {
+    throw new WhatsAppFehler(
+      "WhatsApp ist noch nicht verbunden: Bei Vercel fehlt " +
+        (!telefonId ? "WHATSAPP_TELEFON_ID" : "WHATSAPP_ZUGANGSTOKEN") +
+        ".",
+    );
+  }
+  return { telefonId, token };
+}
+
+async function graph(
+  methode: "GET" | "POST",
+  pfad: string,
+  inhalt?: unknown,
+): Promise<Record<string, unknown>> {
+  const { token } = zugang();
   let antwort: Response;
   try {
-    antwort = await fetch(BASIS + pfad, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "D360-API-KEY": schluessel() },
-      body: JSON.stringify(inhalt),
+    antwort = await fetch(GRAPH + pfad, {
+      method: methode,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: inhalt === undefined ? undefined : JSON.stringify(inhalt),
       cache: "no-store",
+      signal: AbortSignal.timeout(20000),
     });
-  } catch (e) {
-    if (e instanceof WhatsAppFehler) throw e;
-    throw new WhatsAppFehler("360dialog ist gerade nicht erreichbar. Bitte gleich nochmal versuchen.");
+  } catch {
+    throw new WhatsAppFehler("Meta ist gerade nicht erreichbar. Bitte gleich nochmal versuchen.");
   }
 
   const daten = (await antwort.json().catch(() => ({}))) as Record<string, unknown>;
   if (antwort.ok) return daten;
-
-  throw new WhatsAppFehler(fehlerErklaeren(antwort.status, daten));
+  throw new WhatsAppFehler(fehlerErklaeren(daten));
 }
 
 /**
@@ -57,32 +78,37 @@ async function anfrage(pfad: string, inhalt: unknown): Promise<Record<string, un
  * anfangen kann. Die häufigsten Fälle beim Namen, der Rest mit Code, damit
  * man ihn nachschlagen kann.
  */
-function fehlerErklaeren(http: number, daten: Record<string, unknown>): string {
+function fehlerErklaeren(daten: Record<string, unknown>): string {
   const fehler = (daten.error ?? {}) as Record<string, unknown>;
   const code = Number(fehler.code);
-  const meldung = typeof fehler.message === "string" ? fehler.message : "";
+  const details = String(((fehler.error_data ?? {}) as Record<string, unknown>).details ?? "");
+  const meldung = details || (typeof fehler.message === "string" ? fehler.message : "");
 
-  if (http === 401 || http === 403) {
-    return "360dialog lehnt den Schlüssel ab. Ist er bei Vercel richtig eingetragen?";
+  switch (code) {
+    case 190:
+      return "Meta lehnt den Zugangsschlüssel ab. Ist WHATSAPP_ZUGANGSTOKEN abgelaufen oder falsch eingetragen?";
+    case 131047:
+      return (
+        "Die letzte Nachricht des Kunden ist älter als 24 Stunden. Danach erlaubt WhatsApp " +
+        "nur noch genehmigte Vorlagen."
+      );
+    case 131026:
+      return "Die Nachricht kam nicht an. Die Nummer hat vermutlich kein WhatsApp.";
+    case 131056:
+      return "Zu viele Nachrichten an diese Nummer in kurzer Zeit. Kurz warten.";
+    case 131030:
+      return "Meta lässt an diese Nummer noch nicht schreiben. Die App steht vermutlich noch im Testmodus.";
+    case 133010:
+      return "Die Nummer ist bei Meta noch nicht fertig angemeldet.";
+    default:
+      return `WhatsApp hat abgelehnt${Number.isFinite(code) ? ` (Code ${code})` : ""}${meldung ? ": " + meldung : "."}`;
   }
-  if (code === 131047) {
-    return (
-      "Die letzte Nachricht des Kunden ist älter als 24 Stunden. Danach erlaubt WhatsApp " +
-      "nur noch genehmigte Vorlagen."
-    );
-  }
-  if (code === 131026) {
-    return "Die Nachricht kam nicht an. Die Nummer hat vermutlich kein WhatsApp.";
-  }
-  if (code === 131056) {
-    return "Zu viele Nachrichten an diese Nummer in kurzer Zeit. Kurz warten.";
-  }
-  return `WhatsApp hat die Nachricht abgelehnt${code ? ` (Code ${code})` : ""}${meldung ? ": " + meldung : "."}`;
 }
 
 /** Schickt eine Textnachricht und liefert die Kennung, die WhatsApp vergibt. */
 export async function textSchicken(an: string, inhalt: string): Promise<string> {
-  const daten = await anfrage("/messages", {
+  const { telefonId } = zugang();
+  const daten = await graph("POST", `/${telefonId}/messages`, {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to: an,
@@ -96,19 +122,18 @@ export async function textSchicken(an: string, inhalt: string): Promise<string> 
 }
 
 /**
- * Trägt bei 360dialog ein, wohin eingehende Nachrichten geschickt werden.
- *
- * Der eigene Schlüssel geht als Kopfzeile mit. Ohne ihn nimmt die Route
- * nichts an, sonst könnte jeder, der die Adresse kennt, Nachrichten in den
- * Posteingang schreiben.
+ * Fragt bei Meta nach, ob Schlüssel und Nummer zusammenpassen.
+ * Für den Prüfknopf in den Einstellungen.
  */
-export async function webhookEintragen(adresse: string): Promise<void> {
-  const eigener = process.env.WHATSAPP_WEBHOOK_SCHLUESSEL;
-  if (!eigener) {
-    throw new WhatsAppFehler("WHATSAPP_WEBHOOK_SCHLUESSEL fehlt bei Vercel.");
-  }
-  await anfrage("/v1/configs/webhook", {
-    url: adresse,
-    headers: { "x-fzt-schluessel": eigener },
-  });
+export async function verbindungPruefen(): Promise<{ nummer: string; name: string; qualitaet: string }> {
+  const { telefonId } = zugang();
+  const daten = await graph(
+    "GET",
+    `/${telefonId}?fields=display_phone_number,verified_name,quality_rating`,
+  );
+  return {
+    nummer: String(daten.display_phone_number ?? "?"),
+    name: String(daten.verified_name ?? "?"),
+    qualitaet: String(daten.quality_rating ?? "?"),
+  };
 }

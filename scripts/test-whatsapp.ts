@@ -4,13 +4,16 @@
  *
  * Aufruf: npm run test:whatsapp
  *
- * Die Beispiele folgen dem Format aus der Dokumentation von Meta, so wie
- * 360dialog es durchreicht. Kommt später ein echtes Päckchen, das hier
- * anders aussieht, gehört es als weiterer Fall hierher.
+ * Die Beispiele folgen dem Format aus der Dokumentation von Meta. Kommt
+ * später ein echtes Päckchen, das hier anders aussieht, gehört es als
+ * weiterer Fall hierher.
  */
 
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { ereignisseLesen, lesbarerText } from "../src/lib/whatsapp/eingang";
+import { unterschriftStimmt } from "../src/lib/whatsapp/unterschrift";
+import { dringlichkeit } from "../src/lib/whatsapp/eile";
 
 const KUNDE = "4917612345678";
 const WIR = "497317906110";
@@ -136,6 +139,39 @@ fall("Nummer wird auf Ziffern gebracht", () => {
     }),
   );
   assert.equal(e[0].waId, KUNDE);
+});
+
+fall("Unterschrift von Meta: echt, gefälscht, fehlend", () => {
+  const geheimnis = "app-geheimnis-zum-testen";
+  const koerper = Buffer.from(JSON.stringify(paeckchen("messages", { messages: [] })));
+  const echt = "sha256=" + createHmac("sha256", geheimnis).update(koerper).digest("hex");
+
+  assert.equal(unterschriftStimmt(koerper, echt, geheimnis), true);
+  assert.equal(unterschriftStimmt(koerper, echt, "anderes-geheimnis"), false);
+  assert.equal(unterschriftStimmt(Buffer.from(koerper.toString() + " "), echt, geheimnis), false);
+  assert.equal(unterschriftStimmt(koerper, "sha256=abc", geheimnis), false);
+  assert.equal(unterschriftStimmt(koerper, "sha256=zz", geheimnis), false);
+  assert.equal(unterschriftStimmt(koerper, echt.replace("sha256=", ""), geheimnis), false);
+  assert.equal(unterschriftStimmt(koerper, null, geheimnis), false);
+  // Ohne gesetztes Geheimnis nie offen, auch nicht mit leerer Unterschrift.
+  assert.equal(unterschriftStimmt(koerper, echt, undefined), false);
+  assert.equal(unterschriftStimmt(koerper, "sha256=" + createHmac("sha256", "").update(koerper).digest("hex"), ""), false);
+});
+
+fall("Eile: wartet, knapp, abgelaufen, erledigt", () => {
+  const jetzt = Date.UTC(2026, 8, 14, 12, 0);
+  const vor = (stunden: number) => new Date(jetzt - stunden * 3600_000);
+
+  assert.equal(dringlichkeit(null, false, jetzt).stufe, "keine");
+  assert.equal(dringlichkeit(vor(1), true, jetzt).stufe, "keine");
+  assert.deepEqual(dringlichkeit(vor(1), false, jetzt), { stufe: "wartet", restMinuten: 23 * 60 });
+  assert.equal(dringlichkeit(vor(19.9), false, jetzt).stufe, "wartet");
+  assert.deepEqual(dringlichkeit(vor(21), false, jetzt), { stufe: "knapp", restMinuten: 180 });
+  assert.equal(dringlichkeit(vor(23.99), false, jetzt).stufe, "knapp");
+  assert.deepEqual(dringlichkeit(vor(26), false, jetzt), { stufe: "abgelaufen", restMinuten: -120 });
+  assert.equal(dringlichkeit(vor(24 + 24 * 6), false, jetzt).stufe, "abgelaufen");
+  // Eine Woche nach Ablauf ist es Vergangenheit, sonst stünde die Warnung ewig da.
+  assert.equal(dringlichkeit(vor(24 + 24 * 7 + 1), false, jetzt).stufe, "keine");
 });
 
 console.log(`${faelle} Fälle bestanden.`);

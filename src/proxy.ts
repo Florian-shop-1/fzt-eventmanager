@@ -33,9 +33,9 @@ import type { NextRequest } from "next/server";
  * eine Woche vor der Show zu verschicken. Auch dort meldet sich kein Mensch an.
  * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt.
  *
- * "/api/whatsapp/eingang" ist die Adresse, an die 360dialog jede WhatsApp-
+ * "/api/whatsapp/eingang" ist die Adresse, an die Meta jede WhatsApp-
  * Nachricht liefert. Genau diese eine Adresse, nicht alles unter
- * /api/whatsapp: Die Route prüft einen eigenen Schlüssel im Kopf.
+ * /api/whatsapp: Die Route prüft die Unterschrift von Meta.
  */
 const OHNE_ANMELDUNG = [
   "/anmelden",
