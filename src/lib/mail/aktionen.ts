@@ -58,3 +58,35 @@ export async function testmailSchicken(): Promise<void> {
   revalidatePath("/einstellungen/mail");
   redirect(ziel);
 }
+
+/** Testmail über Brevo an die eigene Adresse. */
+export async function brevoTestmailSchicken(): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer || (benutzer.rolle !== "chef" && benutzer.rolle !== "team")) {
+    throw new Error("Nur Büro und Inhaber dürfen den Mailversand prüfen.");
+  }
+
+  let ziel = "/einstellungen/mail?brevo=gut";
+  try {
+    await mailVerschicken({
+      an: benutzer.email,
+      betreff: "Testmail über Brevo aus dem FZT Eventmanager",
+      text: [
+        `Hallo ${benutzer.name},`,
+        "",
+        "diese Mail kam über Brevo. So gehen ab jetzt die automatischen Mails an",
+        "Gäste hinaus: die Vorfreude-Mail und die Bewertungsmail.",
+        "",
+        "Florian Zimmer Theater GmbH, Eventmanager",
+      ].join("\n"),
+      ueberBrevo: true,
+      schlagwort: "probe",
+    });
+  } catch (f) {
+    const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
+    ziel = `/einstellungen/mail?brevo=fehler&meldung=${encodeURIComponent(meldung.slice(0, 400))}`;
+  }
+
+  revalidatePath("/einstellungen/mail");
+  redirect(ziel);
+}

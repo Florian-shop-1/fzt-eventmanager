@@ -73,6 +73,8 @@ export async function probemailSchicken(formular: FormData): Promise<void> {
       betreff: `[Probe] ${mail.betreff}`,
       text: mail.text,
       html: mail.html,
+      ueberBrevo: true,
+      schlagwort: "probe",
     });
     meldung = `Probemail an ${benutzer.email} ist raus.`;
   } catch (f) {

@@ -73,6 +73,8 @@ export async function GET(request: Request) {
       text: mail.text,
       html: mail.html,
       antwortAn: "tickets@florianzimmer.com",
+      ueberBrevo: true,
+      schlagwort: "probe",
     });
   } catch (f) {
     return NextResponse.json(

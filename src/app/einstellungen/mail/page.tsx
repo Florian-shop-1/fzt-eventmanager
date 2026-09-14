@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { versandPruefen } from "@/lib/mail/versand";
-import { testmailSchicken } from "@/lib/mail/aktionen";
+import { brevoTestmailSchicken, testmailSchicken } from "@/lib/mail/aktionen";
+import { brevoPruefen } from "@/lib/mail/brevo";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { Probeknopf } from "@/components/Probeknopf";
 
@@ -18,11 +19,11 @@ export const dynamic = "force-dynamic";
 export default async function MailSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ probe?: string; meldung?: string }>;
+  searchParams: Promise<{ probe?: string; brevo?: string; meldung?: string }>;
 }) {
-  const { probe, meldung } = await searchParams;
+  const { probe, brevo, meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
-  const stand = await versandPruefen();
+  const [stand, brevoStand] = await Promise.all([versandPruefen(), brevoPruefen()]);
   const absender = process.env.MAIL_ABSENDER ?? "(nicht gesetzt)";
 
   return (
@@ -85,6 +86,45 @@ export default async function MailSeite({
         )}
 
         {probe === "fehler" && (
+          <p
+            className="mt-3 rounded-md border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+          >
+            <strong>Die Mail ging nicht raus.</strong>
+            <span className="mt-1 block text-leise">{meldung ?? "Unbekannter Fehler"}</span>
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="font-semibold">Gästemails über Brevo</h2>
+        <p className="mt-1 text-sm text-leise">
+          Die automatischen Mails an Gäste, also Vorfreude und Bewertung, gehen über Brevo. So
+          bleibt der Ruf von {absender} unberührt, falls ein Gast eine davon als Spam markiert.
+          Alles andere geht weiter über das Postfach.
+        </p>
+        <div
+          className="mt-3 rounded-md border px-3 py-2 text-sm"
+          style={{
+            borderColor: brevoStand.gut ? "var(--gut)" : "var(--warnung)",
+            background: brevoStand.gut ? "var(--gut-hell)" : "var(--warnung-hell)",
+          }}
+        >
+          {brevoStand.meldung}
+        </div>
+        <form action={brevoTestmailSchicken} className="mt-3">
+          <Probeknopf bereit={brevoStand.gut} />
+        </form>
+        {brevo === "gut" && (
+          <p
+            className="mt-3 rounded-md border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+          >
+            <strong>Die Testmail über Brevo ist raus.</strong> Sie steht nicht unter Gesendete
+            Elemente, sondern in Brevo unter Transaktional, Protokolle.
+          </p>
+        )}
+        {brevo === "fehler" && (
           <p
             className="mt-3 rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}

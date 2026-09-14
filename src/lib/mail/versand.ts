@@ -18,6 +18,8 @@
  * genau dann, wenn ein Angebot raus muss.
  */
 
+import { BrevoAbgelehnt, brevoEingerichtet, brevoVerschicken } from "./brevo";
+
 const ANMELDUNG = "https://login.microsoftonline.com";
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
@@ -42,6 +44,15 @@ export interface Mail {
    * Kopie unter "Gesendete Elemente" trägt dieselbe Kennung.
    */
   imGesendetenAblegen?: boolean;
+  /**
+   * Über Brevo statt über das Postfach. Für automatische Mails an Gäste,
+   * siehe brevo.ts. Fehlt der Brevo-Schlüssel, geht die Mail über Microsoft.
+   */
+  ueberBrevo?: boolean;
+  /** Schlagwort in Brevo, zum Auswerten je Mailart. Nur mit ueberBrevo. */
+  schlagwort?: string;
+  /** Abmeldeadresse für den List-Unsubscribe-Kopf. Nur mit ueberBrevo. */
+  abmeldenLink?: string;
 }
 
 interface Einstellungen {
@@ -162,6 +173,18 @@ function empfaenger(wer: string | string[] | undefined) {
  * abschickt, muss wissen, ob sie weg ist.
  */
 export async function mailVerschicken(mail: Mail): Promise<void> {
+  if (mail.ueberBrevo && brevoEingerichtet()) {
+    try {
+      return await brevoVerschicken(mail);
+    } catch (f) {
+      // Lehnt Brevo ab (Schlüssel, Absender), ist nichts rausgegangen. Dann
+      // lieber über das Postfach als gar nicht. Bei allem anderen, etwa einer
+      // Zeitüberschreitung, nicht: Die Mail könnte schon unterwegs sein.
+      if (!(f instanceof BrevoAbgelehnt)) throw f;
+      console.warn("[versand] Brevo lehnt ab, weiter über Microsoft:", f.message);
+    }
+  }
+
   const e = einstellungen();
   const zugang = await zugangstoken(e);
 
