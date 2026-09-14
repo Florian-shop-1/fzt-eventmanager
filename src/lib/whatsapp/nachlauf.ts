@@ -52,24 +52,33 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
   }
   const web = istWebseite(waId);
   let kontakt: string[] = [];
+  let bewertung = false;
   if (web) {
     const [u] = (await db()`
-      select email, telefon, rueckweg, seite from wa_unterhaltung where wa_id = ${waId}
-    `) as Array<{ email: string | null; telefon: string | null; rueckweg: string | null; seite: string | null }>;
+      select kanal, email, telefon, rueckweg, seite from wa_unterhaltung where wa_id = ${waId}
+    `) as Array<{ kanal: string; email: string | null; telefon: string | null; rueckweg: string | null; seite: string | null }>;
+    bewertung = u?.kanal === "bewertung";
     kontakt = [
       "",
       u?.rueckweg === "anruf" ? "Wünscht sich einen Rückruf." : "Wünscht sich eine Antwort per Mail.",
       ...(u?.telefon ? [`Telefon: ${u.telefon}`] : []),
       ...(u?.email ? [`E-Mail: ${u.email}`] : []),
-      ...(u?.seite ? [`Geschrieben auf: shop.florianzimmertheater.de${u.seite}`] : []),
+      ...(u?.seite && !bewertung ? [`Geschrieben auf: shop.florianzimmertheater.de${u.seite}`] : []),
+      ...(u?.seite && bewertung ? [`Abend: ${u.seite}`] : []),
     ];
   }
 
   await mailVerschicken({
     an: empfaenger.map((e) => e.email),
-    betreff: web ? `Anfrage über die Webseite von ${name}` : `WhatsApp von ${name}`,
+    betreff: bewertung
+      ? `Schlechte Bewertung: ${name}. Bitte heute noch anrufen`
+      : web
+        ? `Anfrage über die Webseite von ${name}`
+        : `WhatsApp von ${name}`,
     text: [
-      web
+      bewertung
+        ? `Ein Gast hat seinen Abend schlecht bewertet. Bitte ruft ihn an, bevor er es öffentlich macht:`
+        : web
         ? `${name} hat über das Kontaktfenster im Shop geschrieben:`
         : `${name} (${kennungLesbar(waId)}) hat per WhatsApp geschrieben:`,
       "",

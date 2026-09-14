@@ -31,7 +31,8 @@ import type { NextRequest } from "next/server";
  *
  * "/api/vorfreude" ruft die Uhr bei Vercel einmal täglich auf, um die Mails
  * eine Woche vor der Show zu verschicken. Auch dort meldet sich kein Mensch an.
- * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt.
+ * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt. Dasselbe
+ * gilt für "/api/bewertung", die Bewertungsmail am Morgen nach der Show.
  *
  * "/api/whatsapp/eingang" ist die Adresse, an die Meta jede WhatsApp-
  * Nachricht liefert. Genau diese eine Adresse, nicht alles unter
@@ -42,6 +43,7 @@ const OHNE_ANMELDUNG = [
   "/ihr-angebot",
   "/api/shop",
   "/api/vorfreude",
+  "/api/bewertung",
   "/api/whatsapp/eingang",
 ];
 

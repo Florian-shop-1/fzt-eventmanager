@@ -32,7 +32,7 @@ export interface Unterhaltung {
   restMinuten: number | null;
   erledigtVon: string | null;
   /** whatsapp oder webseite, siehe migrations/032_kontakt_webseite.sql. */
-  kanal: "whatsapp" | "webseite";
+  kanal: "whatsapp" | "webseite" | "bewertung";
   /** Nur bei Anfragen von der Webseite. */
   email: string | null;
   telefon: string | null;
@@ -194,7 +194,7 @@ export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
       dringlichkeit: eile.stufe,
       restMinuten: eile.restMinuten,
       erledigtVon: z.anderweitig === true ? ((z.erledigt_von as string) ?? null) : null,
-      kanal: z.kanal === "webseite" ? "webseite" : "whatsapp",
+      kanal: z.kanal === "webseite" || z.kanal === "bewertung" ? z.kanal : "whatsapp",
       email: (z.email as string) ?? null,
       telefon: (z.telefon as string) ?? null,
       rueckweg: z.rueckweg === "anruf" || z.rueckweg === "mail" ? z.rueckweg : null,
@@ -436,6 +436,8 @@ export async function alsErledigtMarkieren(waId: string, von: string): Promise<v
 }
 
 export interface NeueWebanfrage {
+  /** webseite: Kontaktfenster. bewertung: schlechte Bewertung nach der Show. */
+  kanal?: "webseite" | "bewertung";
   name: string;
   nachricht: string;
   email: string | null;
@@ -459,7 +461,7 @@ export async function webanfrageSpeichern(a: NeueWebanfrage): Promise<NeuerEinga
     insert into wa_unterhaltung
       (wa_id, profilname, kanal, email, telefon, rueckweg, seite, letzte_nachricht_am, letzte_eingang_am)
     values
-      (${kennung}, ${a.name}, 'webseite', ${a.email}, ${a.telefon}, ${a.rueckweg}, ${a.seite}, now(), now())
+      (${kennung}, ${a.name}, ${a.kanal ?? "webseite"}, ${a.email}, ${a.telefon}, ${a.rueckweg}, ${a.seite}, now(), now())
   `;
   await sql`
     insert into wa_nachricht (wa_id, richtung, herkunft, typ, text, zeitpunkt)
@@ -500,7 +502,19 @@ export async function mailantwortSpeichern(waId: string, inhalt: string, von: st
 /** Kontaktdaten einer Webanfrage, für die Mail-Antwort. */
 export async function webanfrageKontakt(waId: string): Promise<{ name: string | null; email: string | null } | null> {
   const [z] = (await db()`
-    select profilname, email from wa_unterhaltung where wa_id = ${waId} and kanal = 'webseite'
+    select profilname, email from wa_unterhaltung where wa_id = ${waId} and kanal in ('webseite', 'bewertung')
   `) as Array<{ profilname: string | null; email: string | null }>;
   return z ? { name: z.profilname, email: z.email } : null;
+}
+
+/** Hängt eine weitere Kundennachricht an eine bestehende Unterhaltung, etwa die nachgereichte Kritik. */
+export async function nachrichtAnhaengen(waId: string, text: string): Promise<void> {
+  const sql = db();
+  await sql`
+    update wa_unterhaltung set letzte_nachricht_am = now(), letzte_eingang_am = now() where wa_id = ${waId}
+  `;
+  await sql`
+    insert into wa_nachricht (wa_id, richtung, herkunft, typ, text, zeitpunkt)
+    values (${waId}, 'ein', 'kunde', 'text', ${text}, now())
+  `;
 }

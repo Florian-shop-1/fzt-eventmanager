@@ -98,14 +98,22 @@ export default async function WhatsAppSeite({
   );
 }
 
-/** Kennzeichen für Anfragen aus dem Kontaktfenster im Shop. */
-function Webseite() {
+/**
+ * Kennzeichen für alles, was nicht per WhatsApp kam: Kontaktfenster im Shop
+ * (gold) oder schlechte Bewertung nach der Show (rot).
+ */
+function Kanal({ kanal }: { kanal: Unterhaltung["kanal"] }) {
+  const bewertung = kanal === "bewertung";
   return (
     <span
       className="ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide"
-      style={{ background: "var(--gold-hell)", color: "var(--gold-dunkel)" }}
+      style={
+        bewertung
+          ? { background: "var(--blocker-hell)", color: "var(--blocker)" }
+          : { background: "var(--gold-hell)", color: "var(--gold-dunkel)" }
+      }
     >
-      Webseite
+      {bewertung ? "Bewertung" : "Webseite"}
     </span>
   );
 }
@@ -139,8 +147,8 @@ function Eile({ u }: { u: Unterhaltung }) {
         color: knapp ? "var(--warnung)" : "var(--blocker)",
       }}
       title={
-        u.kanal === "webseite"
-          ? "Anfrage von der Webseite, noch nicht beantwortet"
+        u.kanal !== "whatsapp"
+          ? "Noch nicht beantwortet"
           : knapp
             ? "Unbeantwortet, das 24-Stunden-Fenster schliesst bald"
             : "Unbeantwortet, die 24 Stunden sind vorbei"
@@ -164,7 +172,7 @@ function Warnung({ unterhaltungen }: { unterhaltungen: Unterhaltung[] }) {
   const abgelaufen = whatsapp.filter((u) => u.dringlichkeit === "abgelaufen");
   // Bei der Webseite gibt es kein Fenster, das zugeht. Gewarnt wird trotzdem,
   // denn wer seit einem Tag auf Antwort wartet, wartet zu lange.
-  const webOffen = unterhaltungen.filter((u) => u.kanal === "webseite" && u.dringlichkeit === "abgelaufen");
+  const webOffen = unterhaltungen.filter((u) => u.kanal !== "whatsapp" && u.dringlichkeit === "abgelaufen");
   if (knapp.length === 0 && abgelaufen.length === 0 && webOffen.length === 0) return null;
 
   const liste = (us: Unterhaltung[]) =>
@@ -201,7 +209,7 @@ function Warnung({ unterhaltungen }: { unterhaltungen: Unterhaltung[] }) {
       )}
       {webOffen.length > 0 && (
         <p>
-          <strong>Anfragen von der Webseite, seit über 24 Stunden unbeantwortet:</strong>{" "}
+          <strong>Anfragen und Bewertungen, seit über 24 Stunden unbeantwortet:</strong>{" "}
           {liste(webOffen)}.
         </p>
       )}
@@ -237,7 +245,7 @@ function Liste({
           <div className="flex items-baseline justify-between gap-2">
             <span className={`truncate ${u.ungelesen ? "font-semibold" : ""}`}>
               {name(u)}
-              {u.kanal === "webseite" && <Webseite />}
+              {u.kanal !== "whatsapp" && <Kanal kanal={u.kanal} />}
             </span>
             <span className="shrink-0 text-xs text-leise">
               {u.letzteNachrichtAm ? vorZeit(u.letzteNachrichtAm) : ""}
@@ -288,8 +296,8 @@ function Verlauf({
             Alle
           </Link>
           <span className="font-semibold">{name(unterhaltung)}</span>
-          {unterhaltung.kanal === "webseite" ? (
-            <Webseite />
+          {unterhaltung.kanal !== "whatsapp" ? (
+            <Kanal kanal={unterhaltung.kanal} />
           ) : istNummer(unterhaltung.waId) ? (
             <a
               href={`https://wa.me/${unterhaltung.waId}`}
@@ -327,7 +335,7 @@ function Verlauf({
         </div>
       </header>
 
-      {unterhaltung.kanal === "webseite" && <Kontaktdaten u={unterhaltung} />}
+      {unterhaltung.kanal !== "whatsapp" && <Kontaktdaten u={unterhaltung} />}
 
       <div className="flex max-h-[60vh] min-h-64 flex-col-reverse gap-2 overflow-y-auto px-4 py-4">
         {umgekehrt.map((n, i) => {
@@ -410,7 +418,7 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
         </p>
       )}
 
-      {unterhaltung.kanal === "webseite" ? (
+      {unterhaltung.kanal !== "whatsapp" ? (
         <WebAntwort u={unterhaltung} />
       ) : unterhaltung.fensterOffen ? (
         <form action={antworten.bind(null, unterhaltung.waId)} className="space-y-2">
@@ -466,7 +474,9 @@ function Kontaktdaten({ u }: { u: Unterhaltung }) {
       {u.email && (
         <span className="select-all">{u.email}</span>
       )}
-      {u.seite && <span className="text-leise">von {u.seite}</span>}
+      {u.seite && (
+        <span className="text-leise">{u.kanal === "bewertung" ? u.seite : `von ${u.seite}`}</span>
+      )}
     </div>
   );
 }
