@@ -127,9 +127,13 @@ export async function meldungTesten(): Promise<void> {
     const an = await meldungSchicken("4900000000", "Testkunde (nur ein Test)", [
       `Das ist eine Testmeldung, ausgelöst von ${benutzer.name} unter Einstellungen, WhatsApp.`,
     ]);
+    // Ins Protokoll, damit sich bei Vercel nachsehen lässt, ob Microsoft die
+    // Mail angenommen hat, wenn sie im Postfach nicht auftaucht.
+    console.info(`WhatsApp-Testmeldung von Microsoft angenommen, an ${an}, ausgelöst von ${benutzer.name}`);
     ziel = `/einstellungen/whatsapp?getestet=${encodeURIComponent(an)}`;
   } catch (e) {
     const meldung = e instanceof Error ? e.message : "Die Testmeldung ging nicht hinaus.";
+    console.error("WhatsApp-Testmeldung fehlgeschlagen:", meldung);
     ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
   }
   redirect(ziel);

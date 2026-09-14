@@ -47,6 +47,9 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
   const an = meldeadresse();
   await mailVerschicken({
     an,
+    // Absender ist ebenfalls tickets@. Mit Kopie unter Gesendet käme die
+    // Meldung nicht im Posteingang an, siehe mail/versand.ts.
+    imGesendetenAblegen: false,
     betreff: `WhatsApp von ${name}`,
     text: [
       `${name} (+${waId}) hat per WhatsApp geschrieben:`,

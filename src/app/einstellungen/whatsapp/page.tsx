@@ -61,8 +61,9 @@ export default async function WhatsAppEinrichten({
       )}
       {getestet && (
         <Kasten farbe="gut">
-          <strong>Testmeldung ist raus</strong> an {getestet}. So sieht die Mail bei jeder neuen
-          WhatsApp-Unterhaltung aus.
+          <strong>Microsoft hat die Testmeldung angenommen</strong>, an {getestet}. Sie sollte in
+          ein bis zwei Minuten im Posteingang liegen, Betreff „WhatsApp von Testkunde“. Schau
+          auch im Junk-Ordner nach.
         </Kasten>
       )}
       {fehler && (

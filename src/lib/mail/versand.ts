@@ -32,6 +32,16 @@ export interface Mail {
   antwortAn?: string;
   /** Stille Kopie, etwa an das eigene Postfach. */
   blindkopie?: string | string[];
+  /**
+   * Eine Kopie unter "Gesendete Elemente" ablegen. Standard: ja.
+   *
+   * Nein für Mails an das eigene Postfach. Die erste Testmeldung von
+   * tickets@ an tickets@ kam am 14.09.2026 nicht im Posteingang an, obwohl
+   * Microsoft sie ohne Fehler angenommen hat. Vermutete Ursache: Exchange
+   * stellt keine Mail zu, deren Kennung schon im Postfach liegt, und die
+   * Kopie unter "Gesendete Elemente" trägt dieselbe Kennung.
+   */
+  imGesendetenAblegen?: boolean;
 }
 
 interface Einstellungen {
@@ -173,7 +183,7 @@ export async function mailVerschicken(mail: Mail): Promise<void> {
       },
       // Die Mail soll im Postfach unter "Gesendete Elemente" landen.
       // Das ist der halbe Grund, warum wir diesen Weg gewählt haben.
-      saveToSentItems: true,
+      saveToSentItems: mail.imGesendetenAblegen ?? true,
     }),
     signal: AbortSignal.timeout(30000),
   });
