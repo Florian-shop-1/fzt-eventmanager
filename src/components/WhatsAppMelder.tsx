@@ -124,9 +124,21 @@ export function WhatsAppMelder() {
 
     nachsehen();
     const uhr = setInterval(nachsehen, ALLE_SEKUNDEN * 1000);
+
+    /*
+      Der Countdown im Posteingang ("noch 3 Std.") wird auf dem Server
+      berechnet. Ohne neue Nachricht stünde er stundenlang still und würde
+      nie gelb oder rot. Deshalb auf der WhatsApp-Seite jede Minute neu
+      laden, ohne dass sich an Eingaben etwas ändert.
+    */
+    const minute = setInterval(() => {
+      if (window.location.pathname.startsWith("/whatsapp") && !document.hidden) router.refresh();
+    }, 60_000);
+
     return () => {
       aktiv = false;
       clearInterval(uhr);
+      clearInterval(minute);
     };
   }, [router]);
 

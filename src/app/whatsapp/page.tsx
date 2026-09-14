@@ -390,11 +390,24 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
           </div>
         </form>
       ) : (
-        <p className="text-sm text-leise">
-          Die letzte Nachricht von {name(unterhaltung)} ist älter als 24 Stunden. WhatsApp erlaubt
-          dann nur noch genehmigte Vorlagen. Ruf an, schreib eine Mail, oder antworte hier, sobald
-          er sich wieder meldet.
-        </p>
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+        >
+          <p>
+            <strong>Die 24 Stunden sind vorbei.</strong> Per WhatsApp geht keine Antwort mehr hinaus,
+            bis {name(unterhaltung)} sich wieder meldet. Am besten anrufen und danach oben auf
+            „Erledigt, anderweitig geklärt“.
+          </p>
+          {istNummer(unterhaltung.waId) && (
+            <a
+              href={`tel:+${unterhaltung.waId}`}
+              className="shrink-0 rounded-md border border-linie bg-flaeche px-4 py-2 font-medium hover:bg-gold-hell"
+            >
+              {kennungLesbar(unterhaltung.waId)} anrufen
+            </a>
+          )}
+        </div>
       )}
     </div>
   );
