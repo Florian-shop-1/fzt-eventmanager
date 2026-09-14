@@ -33,6 +33,8 @@ export interface AngemeldeterBenutzer {
   email: string;
   rolle: Rolle;
   mussPasswortAendern: boolean;
+  /** Sieht den WhatsApp-Posteingang. Pro Person, siehe migrations/030_whatsapp.sql. */
+  whatsapp: boolean;
 }
 
 function geheimnis(): string {
@@ -101,7 +103,7 @@ export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | nul
 
   try {
     const zeilen = (await db()`
-      select id, name, email, rolle, aktiv, muss_passwort_aendern
+      select id, name, email, rolle, aktiv, muss_passwort_aendern, whatsapp
         from benutzer where id = ${id}
     `) as Array<Record<string, unknown>>;
 
@@ -115,6 +117,7 @@ export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | nul
       email: String(b.email),
       rolle: b.rolle as Rolle,
       mussPasswortAendern: b.muss_passwort_aendern === true,
+      whatsapp: b.whatsapp === true,
     };
   } catch {
     // Datenbank nicht erreichbar: lieber abmelden als jemanden ohne
@@ -164,6 +167,10 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
 
 /** Seiten, die eine Rolle aufrufen darf. */
 export function darfSeite(rolle: Rolle, pfad: string): boolean {
+  // Der WhatsApp-Posteingang hängt nicht an der Rolle, sondern an einer
+  // Freigabe pro Person (Sarah ist Foyer und braucht ihn trotzdem). Die
+  // Seite prüft die Freigabe selbst, hier wird nur nicht vorher umgeleitet.
+  if (pfad.startsWith("/whatsapp")) return true;
   if (rolle === "foyer") {
     // Das Foyer braucht sein eigenes Blatt, den Einlass und den Sitzplan
     // zum Nachschauen, wohin jemand gehoert. Sonst nichts.

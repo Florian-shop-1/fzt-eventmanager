@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfSeite, type Rolle } from "@/lib/auth/sitzung";
 import { abmelden } from "@/lib/auth/aktionen";
 import { Wortmarke } from "@/components/Logo";
+import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -95,6 +96,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     {n.label}
                   </Link>
                 ))}
+                {/* Nicht in NAVIGATION: Die Freigabe hängt an der Person, nicht an der Rolle. */}
+                {benutzer.whatsapp && <WhatsAppMelder />}
               </nav>
 
               <div className="flex items-center gap-3 text-xs">

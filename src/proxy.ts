@@ -32,8 +32,18 @@ import type { NextRequest } from "next/server";
  * "/api/vorfreude" ruft die Uhr bei Vercel einmal täglich auf, um die Mails
  * eine Woche vor der Show zu verschicken. Auch dort meldet sich kein Mensch an.
  * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt.
+ *
+ * "/api/whatsapp/eingang" ist die Adresse, an die 360dialog jede WhatsApp-
+ * Nachricht liefert. Genau diese eine Adresse, nicht alles unter
+ * /api/whatsapp: Die Route prüft einen eigenen Schlüssel im Kopf.
  */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/api/shop", "/api/vorfreude"];
+const OHNE_ANMELDUNG = [
+  "/anmelden",
+  "/ihr-angebot",
+  "/api/shop",
+  "/api/vorfreude",
+  "/api/whatsapp/eingang",
+];
 
 /**
  * Der zuletzt angesehene Abend.

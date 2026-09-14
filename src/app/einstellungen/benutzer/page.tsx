@@ -1,6 +1,7 @@
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { benutzerUmschalten } from "@/lib/auth/aktionen";
+import { whatsappFreigabeUmschalten } from "@/lib/whatsapp/aktionen";
 import { BenutzerAnlegen } from "@/components/BenutzerAnlegen";
 import { PasswortZuruecksetzen } from "@/components/PasswortZuruecksetzen";
 import { vorZeit } from "@/components/Status";
@@ -13,6 +14,7 @@ const ROLLE_KURZ: Record<string, string> = {
   team: "Team",
   gastro: "Gastronomie",
   foyer: "Foyer",
+  showteam: "Showteam",
 };
 
 interface Zeile {
@@ -24,6 +26,7 @@ interface Zeile {
   letzter_login: string | null;
   muss_passwort_aendern: boolean;
   startpasswort: string | null;
+  whatsapp: boolean;
 }
 
 export default async function BenutzerSeite() {
@@ -32,7 +35,7 @@ export default async function BenutzerSeite() {
 
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
-           startpasswort
+           startpasswort, whatsapp
       from benutzer order by rolle, name
   `) as Zeile[];
 
@@ -41,12 +44,20 @@ export default async function BenutzerSeite() {
       <header>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
-          <a
-            href="/einstellungen/mail"
-            className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
-          >
-            Mailversand
-          </a>
+          <div className="flex gap-2">
+            <a
+              href="/einstellungen/mail"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              Mailversand
+            </a>
+            <a
+              href="/einstellungen/whatsapp"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              WhatsApp
+            </a>
+          </div>
         </div>
         <p className="mt-1 text-sm text-leise">
           Wer darf ins Programm, und was darf er sehen. Es werden keine Einladungsmails
@@ -67,6 +78,7 @@ export default async function BenutzerSeite() {
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">E-Mail</th>
               <th className="px-4 py-2 font-medium">Darf</th>
+              <th className="px-4 py-2 font-medium">WhatsApp</th>
               <th className="px-4 py-2 font-medium">Zuletzt da</th>
               <th className="px-4 py-2 font-medium">Status</th>
             </tr>
@@ -80,6 +92,25 @@ export default async function BenutzerSeite() {
                 </td>
                 <td className="px-4 py-3 text-leise">{b.email}</td>
                 <td className="px-4 py-3">{ROLLE_KURZ[b.rolle] ?? b.rolle}</td>
+                <td className="px-4 py-3">
+                  {/*
+                    Pro Person statt pro Rolle: Sarah ist Foyer und liest die
+                    Kundenchats trotzdem mit. Siehe migrations/030_whatsapp.sql.
+                  */}
+                  <form action={whatsappFreigabeUmschalten.bind(null, b.id)}>
+                    <button
+                      type="submit"
+                      className="rounded px-2 py-0.5 text-xs"
+                      style={{
+                        background: b.whatsapp ? "var(--gut-hell)" : "var(--hintergrund)",
+                        color: b.whatsapp ? "var(--gut)" : "var(--text-leise)",
+                      }}
+                      title={b.whatsapp ? "Freigabe entziehen" : "Freigeben"}
+                    >
+                      {b.whatsapp ? "sieht WhatsApp" : "nein"}
+                    </button>
+                  </form>
+                </td>
                 <td className="px-4 py-3 text-xs text-leise">
                   {b.letzter_login ? vorZeit(new Date(b.letzter_login).toISOString()) : "noch nie"}
                 </td>
