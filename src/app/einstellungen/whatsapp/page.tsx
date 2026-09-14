@@ -1,6 +1,11 @@
 import { db } from "@/lib/db/client";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
-import { autoantwortSpeichern, meldungTesten, verbindungTesten } from "@/lib/whatsapp/aktionen";
+import {
+  autoantwortSpeichern,
+  kontoAnschliessenAktion,
+  meldungTesten,
+  verbindungTesten,
+} from "@/lib/whatsapp/aktionen";
 import { holeEinstellung, AUTOANTWORT_STUNDEN } from "@/lib/db/whatsapp";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
@@ -105,6 +110,13 @@ export default async function WhatsAppEinrichten({
           </form>
           <form action={meldungTesten}>
             <Absendeknopf text="Testmeldung per Mail schicken" laeuftText="Wird verschickt..." />
+          </form>
+          <form action={kontoAnschliessenAktion}>
+            <Absendeknopf
+              text="WhatsApp-Konto an den Eventmanager anschliessen"
+              laeuftText="Wird angeschlossen..."
+              deaktiviert={!stand.zugangstoken || !process.env.WHATSAPP_KONTO_ID}
+            />
           </form>
         </div>
       </section>

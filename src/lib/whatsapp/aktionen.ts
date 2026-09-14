@@ -10,7 +10,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
 import { alsErledigtMarkieren, ausgangSpeichern, FENSTER_STUNDEN, verlangeWhatsApp } from "@/lib/db/whatsapp";
-import { textSchicken, verbindungPruefen, WhatsAppFehler } from "@/lib/whatsapp/senden";
+import {
+  kontoAngeschlossen,
+  kontoAnschliessen,
+  textSchicken,
+  verbindungPruefen,
+  WhatsAppFehler,
+} from "@/lib/whatsapp/senden";
 import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
 import { istKennung } from "@/lib/whatsapp/kennung";
 
@@ -147,9 +153,37 @@ export async function verbindungTesten(): Promise<void> {
   let ziel: string;
   try {
     const v = await verbindungPruefen();
-    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(`${v.name} · ${v.nummer} · Qualität ${v.qualitaet}`)}`;
+    let anschluss = "";
+    if (process.env.WHATSAPP_KONTO_ID) {
+      anschluss = (await kontoAngeschlossen())
+        ? " · Konto an die App angeschlossen"
+        : " · Konto NICHT an die App angeschlossen, eingehende Nachrichten kommen nicht an";
+    }
+    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(`${v.name} · ${v.nummer} · Qualität ${v.qualitaet}${anschluss}`)}`;
   } catch (e) {
     const meldung = e instanceof WhatsAppFehler ? e.message : "Der Test ist fehlgeschlagen.";
+    ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
+  }
+  redirect(ziel);
+}
+
+/**
+ * Schliesst das WhatsApp-Konto an die App an, damit Meta echte Nachrichten
+ * an den Webhook schickt. Ein Knopf statt eines Aufrufs von Hand: Der
+ * Zugangsschlüssel liegt nur bei Vercel und soll dort bleiben.
+ */
+export async function kontoAnschliessenAktion(): Promise<void> {
+  await verlangeInhaber();
+
+  let ziel: string;
+  try {
+    await kontoAnschliessen();
+    const ok = await kontoAngeschlossen();
+    ziel = ok
+      ? `/einstellungen/whatsapp?verbunden=${encodeURIComponent("Konto an die App angeschlossen. Schreib jetzt noch einmal vom Handy.")}`
+      : `/einstellungen/whatsapp?fehler=${encodeURIComponent("Meta hat zugestimmt, das Konto taucht aber noch nicht als angeschlossen auf.")}`;
+  } catch (e) {
+    const meldung = e instanceof WhatsAppFehler ? e.message : "Das Anschliessen ist fehlgeschlagen.";
     ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
   }
   redirect(ziel);

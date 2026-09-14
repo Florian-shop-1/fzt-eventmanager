@@ -13,6 +13,9 @@
  *                            kommen. Geheim.
  *   WHATSAPP_PRUEFWORT       Selbst ausgedacht. Meta fragt es einmal ab, wenn
  *                            der Webhook eingetragen wird.
+ *   WHATSAPP_KONTO_ID        Kennung des WhatsApp-Geschäftskontos bei Meta.
+ *                            Kein Geheimnis. Braucht es nur zum Anschliessen,
+ *                            siehe kontoAnschliessen.
  *
  * Die beiden geheimen trägt Florian selbst ein. Sie gehen durch keine Mail
  * und keinen Chat.
@@ -123,6 +126,34 @@ export async function textSchicken(an: string, inhalt: string): Promise<string> 
   const id = ((daten.messages as Array<{ id?: string }> | undefined) ?? [])[0]?.id;
   if (!id) throw new WhatsAppFehler("WhatsApp hat die Nachricht angenommen, aber keine Kennung geliefert.");
   return id;
+}
+
+function kontoId(): string {
+  const id = process.env.WHATSAPP_KONTO_ID;
+  if (!id) throw new WhatsAppFehler("Bei Vercel fehlt WHATSAPP_KONTO_ID, die Kennung des WhatsApp-Kontos.");
+  return id;
+}
+
+/**
+ * Ist das WhatsApp-Konto an unsere App angeschlossen?
+ *
+ * Ohne diesen Anschluss liefert Meta echte Nachrichten nicht an den Webhook,
+ * obwohl der Webhook eingetragen, geprüft und "messages" abonniert ist. Nur
+ * die Probe aus dem App-Dashboard kommt dann an. Genau so war es am
+ * 14.09.2026: Die Probe lief durch, die Antwort vom Handy nicht.
+ */
+export async function kontoAngeschlossen(): Promise<boolean> {
+  const daten = await graph("GET", `/${kontoId()}/subscribed_apps`);
+  const apps = (daten.data as unknown[] | undefined) ?? [];
+  return apps.length > 0;
+}
+
+/** Schliesst das WhatsApp-Konto an unsere App an. Doppelt schadet nicht. */
+export async function kontoAnschliessen(): Promise<void> {
+  const daten = await graph("POST", `/${kontoId()}/subscribed_apps`, {});
+  if (daten.success !== true) {
+    throw new WhatsAppFehler("Meta hat den Anschluss nicht bestätigt.");
+  }
 }
 
 /**
