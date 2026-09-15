@@ -114,3 +114,11 @@ export async function bewertungsuebersicht(): Promise<Bewertungsuebersicht> {
     letzte: zeilen.map((z) => ({ ...baue(z), sterneAmText: z.sterne_am ? new Date(z.sterne_am as string).toISOString() : "" })),
   };
 }
+
+/** Wer eine Probemail bekommen darf: nur aktive Leute aus Büro und Leitung, nie Gäste. */
+export async function probeEmpfaenger(): Promise<{ name: string; email: string }[]> {
+  const zeilen = (await db()`
+    select name, email from benutzer where aktiv and rolle in ('chef', 'team') order by name
+  `) as Array<{ name: string; email: string }>;
+  return zeilen.map((z) => ({ name: String(z.name), email: String(z.email) }));
+}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { bewertungAktiv, bewertungsuebersicht } from "@/lib/db/bewertung";
+import { bewertungAktiv, bewertungsuebersicht, probeEmpfaenger } from "@/lib/db/bewertung";
 import { bewertungenVerschicken, gestern } from "@/lib/bewertung/lauf";
 import { SCHLECHT_BIS } from "@/lib/bewertung/meldung";
 import { probeSchicken, schalterUmlegen, tagVerschicken } from "./aktionen";
@@ -28,6 +28,7 @@ export default async function BewertungSeite({
   const tag = tagWahl && /^\d{4}-\d{2}-\d{2}$/.test(tagWahl) ? tagWahl : gestern();
 
   const schalter = await bewertungAktiv();
+  const team = await probeEmpfaenger();
   const vorschau = await bewertungenVerschicken(tag, true);
   const uebersicht = await bewertungsuebersicht();
   const summe = Object.values(uebersicht.verteilung).reduce((a, b) => a + b, 0);
@@ -97,9 +98,20 @@ export default async function BewertungSeite({
             </form>
           </div>
           <div className="flex flex-wrap gap-2">
-            <form action={probeSchicken}>
+            <form action={probeSchicken} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="tag" value={tag} />
-              <Absendeknopf text="Probemail an mich" laeuftText="Wird verschickt..." />
+              <select name="an" defaultValue={benutzer.email} className="rounded border px-2 py-1 text-sm">
+                {team.map((e) => (
+                  <option key={e.email} value={e.email}>
+                    {e.email === benutzer.email ? `an mich (${e.email})` : `an ${e.name}`}
+                  </option>
+                ))}
+              </select>
+              <select name="zeit" defaultValue="abend" className="rounded border px-2 py-1 text-sm">
+                <option value="abend">Abendshow</option>
+                <option value="nachmittag">Mittagsshow</option>
+              </select>
+              <Absendeknopf text="Probemail schicken" laeuftText="Wird verschickt..." />
             </form>
             {benutzer.rolle === "chef" && vorschau.verschickt.length > 0 && (
               <form action={tagVerschicken}>

@@ -47,12 +47,22 @@ function h(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/**
+ * "Abend" oder "Nachmittag", je nach Beginn der Show. Mittagsshows (Schnupper
+ * Magic, Silvester-Matinee) beginnen vor 17 Uhr, da wäre "Abend" falsch.
+ * Ohne Uhrzeit bleibt es beim Abend, das ist der Normalfall.
+ */
+export function tageszeit(uhrzeit: string | null | undefined): "Abend" | "Nachmittag" {
+  const stunde = Number(/^(\d{1,2}):/.exec(uhrzeit ?? "")?.[1]);
+  return Number.isFinite(stunde) && stunde < 17 ? "Nachmittag" : "Abend";
+}
+
 /** "gestern", wenn die Mail wie geplant am Folgetag rausgeht, sonst das Datum. */
-function wannWarDerAbend(datum: string, heute = new Date()): string {
+function wannWarDerAbend(datum: string, zeit: string, heute = new Date()): string {
   const gestern = new Date(heute);
   gestern.setDate(gestern.getDate() - 1);
   const isoGestern = gestern.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  if (datum === isoGestern) return "gestern Abend";
+  if (datum === isoGestern) return `gestern ${zeit}`;
   return (
     "am " +
     new Date(`${datum}T12:00:00`).toLocaleDateString("de-DE", {
@@ -71,25 +81,26 @@ export function sterneLink(token: string, sterne: number): string {
 export function baueBewertungsmail(buchung: ShopBuchung, heute = new Date()): Bewertungsmail {
   const vn = vorname(buchung.name);
   const anrede = vn ? `Hallo ${vn},` : "Hallo,";
-  const wann = wannWarDerAbend(buchung.datum, heute);
+  const zeit = tageszeit(buchung.uhrzeit);
+  const wann = wannWarDerAbend(buchung.datum, zeit, heute);
   const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
 
-  const betreff = vn ? `${vn}, wie war dein Abend bei uns?` : "Wie war dein Abend bei uns?";
+  const betreff = vn ? `${vn}, wie war dein ${zeit} bei uns?` : `Wie war dein ${zeit} bei uns?`;
 
   const text = [
     anrede,
     "",
-    `${wann} warst du bei uns im Theater, und ich hoffe von Herzen, dass du mit`,
+    `${wann[0].toUpperCase() + wann.slice(1)} warst du bei uns im Theater, und ich hoffe von Herzen, dass du mit`,
     "einem Lächeln nach Hause gegangen bist.",
     "",
     "Darf ich dich um einen kleinen Gefallen bitten? Sag mir ehrlich, wie es dir",
-    "gefallen hat. Jeder Abend bei uns ist Handarbeit, und nichts hilft meinem",
+    "gefallen hat. Jede Show bei uns ist Handarbeit, und nichts hilft meinem",
     "Team und mir mehr als deine Rückmeldung.",
     "",
     "Und falls irgendetwas nicht so war, wie du es dir gewünscht hast: Bitte sag",
     "es zuerst uns. Wir möchten es wieder gutmachen.",
     "",
-    "Wie viele Sterne gibst du deinem Abend? Ein Klick genügt:",
+    `Wie viele Sterne gibst du deinem ${zeit}? Ein Klick genügt:`,
     "",
     ...[5, 4, 3, 2, 1].map((s) => `${"★".repeat(s)}${"☆".repeat(5 - s)}  ${sterneLink(buchung.zugangToken, s)}`),
     "",
@@ -111,10 +122,10 @@ export function baueBewertungsmail(buchung: ShopBuchung, heute = new Date()): Be
     "Telefon 0731 7906 110 · tickets@florianzimmer.com",
   ].join(NL);
 
-  return { betreff, text, html: baueHtml({ anrede, wann, token: buchung.zugangToken, abmelden }) };
+  return { betreff, text, html: baueHtml({ anrede, wann, zeit, token: buchung.zugangToken, abmelden }) };
 }
 
-function baueHtml(d: { anrede: string; wann: string; token: string; abmelden: string }): string {
+function baueHtml(d: { anrede: string; wann: string; zeit: string; token: string; abmelden: string }): string {
   const serif = "'Playfair Display', Georgia, 'Times New Roman', serif";
   const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
   const absatz = (inhalt: string, extra = "") =>
@@ -156,7 +167,7 @@ function baueHtml(d: { anrede: string; wann: string; token: string; abmelden: st
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
 <meta name="supported-color-schemes" content="dark" />
-<title>Wie war dein Abend bei uns?</title>
+<title>Wie war dein ${d.zeit} bei uns?</title>
 <style type="text/css">
   body, table, td, p, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
   img { -ms-interpolation-mode:bicubic; border:0; outline:none; text-decoration:none; display:block; }
@@ -191,19 +202,19 @@ function baueHtml(d: { anrede: string; wann: string; token: string; abmelden: st
 
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 4px;">
       <h1 class="ueberschrift" style="margin:0;font-family:${serif};font-size:31px;line-height:1.22;font-weight:400;color:${WEISS};">
-        Wie war dein<br />magischer Abend?
+        Wie war dein<br />magischer ${d.zeit}?
       </h1>
     </td></tr>
 
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
       ${absatz(h(d.anrede), "color:" + WEISS + ";font-size:17px;")}
       ${absatz(`${h(d.wann[0].toUpperCase() + d.wann.slice(1))} warst du bei uns im Theater, und ich hoffe von Herzen, dass du mit einem Lächeln nach Hause gegangen bist.`)}
-      ${absatz(`Darf ich dich um einen kleinen Gefallen bitten? Sag mir ehrlich, wie es dir gefallen hat. Jeder Abend bei uns ist Handarbeit, und nichts hilft <strong style="color:${WEISS};font-weight:600;">meinem Team und mir</strong> mehr als deine Rückmeldung.`)}
+      ${absatz(`Darf ich dich um einen kleinen Gefallen bitten? Sag mir ehrlich, wie es dir gefallen hat. Jede Show bei uns ist Handarbeit, und nichts hilft <strong style="color:${WEISS};font-weight:600;">meinem Team und mir</strong> mehr als deine Rückmeldung.`)}
       ${absatz("Und falls irgendetwas nicht so war, wie du es dir gewünscht hast: Bitte sag es zuerst uns. Wir möchten es wieder gutmachen.")}
     </td></tr>
 
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:4px 40px 0;">
-      <div style="margin:0 0 14px;font-family:${serif};font-size:20px;line-height:1.3;color:${WEISS};">Wie viele Sterne gibst du deinem Abend?</div>
+      <div style="margin:0 0 14px;font-family:${serif};font-size:20px;line-height:1.3;color:${WEISS};">Wie viele Sterne gibst du deinem ${d.zeit}?</div>
       ${sterne}
     </td></tr>
 

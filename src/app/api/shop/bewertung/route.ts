@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { kritikSpeichern, sterneSpeichern, buchungZurBewertung } from "@/lib/db/bewertung";
 import { nachKritik, nachSternen } from "@/lib/bewertung/meldung";
 import { vorname } from "@/lib/mail/vorfreude";
+import { tageszeit } from "@/lib/mail/bewertung";
 
 /**
  * Nimmt Sterne und Kritik von der Bewertungsseite im Shop entgegen.
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     const b = await buchungZurBewertung(token);
     if (!b) return NextResponse.json({ ok: false, fehler: "unbekannt" }, { status: 404 });
-    return NextResponse.json({ ok: true, vorname: vorname(b.name), sterne: b.sterne });
+    return NextResponse.json({ ok: true, vorname: vorname(b.name), sterne: b.sterne, tageszeit: tageszeit(b.uhrzeit) });
   } catch (e) {
     console.error("[bewertung]", e instanceof Error ? e.message : e);
     return NextResponse.json({ ok: false }, { status: 500 });

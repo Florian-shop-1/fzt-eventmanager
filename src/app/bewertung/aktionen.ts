@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, type AngemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { bewertungAktivSetzen } from "@/lib/db/bewertung";
+import { bewertungAktivSetzen, probeEmpfaenger } from "@/lib/db/bewertung";
 import { buchungenFuerTag, type ShopBuchung } from "@/lib/db/shop-buchungen";
 import { baueBewertungsmail } from "@/lib/mail/bewertung";
 import { mailVerschicken } from "@/lib/mail/versand";
@@ -50,16 +50,21 @@ export async function schalterUmlegen(formular: FormData): Promise<void> {
 export async function probeSchicken(formular: FormData): Promise<void> {
   const benutzer = await berechtigt();
   const tag = String(formular.get("tag") ?? "");
+  // Empfänger nur aus dem Team, damit die Probe nie bei einem Gast landet.
+  const gewuenscht = String(formular.get("an") ?? benutzer.email).toLowerCase();
+  const empfaenger = (await probeEmpfaenger()).find((e) => e.email.toLowerCase() === gewuenscht);
+  if (!empfaenger) zurueck("Probemails gehen nur an Leute aus dem Team.", tag);
+  const uhrzeit = formular.get("zeit") === "nachmittag" ? "15:00" : "20:00";
   const erfunden: ShopBuchung = {
     id: "probe",
     zugangToken: "0".repeat(32),
     cartId: null,
     ditixEventId: "",
     datum: tag,
-    uhrzeit: "20:00",
+    uhrzeit,
     show: "ULMFASSBAR",
-    name: benutzer.name,
-    email: benutzer.email,
+    name: empfaenger.name,
+    email: empfaenger.email,
     telefon: "",
     plaetze: 2,
     gesamtCent: null,
@@ -74,14 +79,14 @@ export async function probeSchicken(formular: FormData): Promise<void> {
   try {
     const mail = baueBewertungsmail(erfunden);
     await mailVerschicken({
-      an: benutzer.email,
+      an: empfaenger.email,
       betreff: `[Probe] ${mail.betreff}`,
       text: mail.text,
       html: mail.html,
       ueberBrevo: true,
       schlagwort: "probe",
     });
-    meldung = `Probemail an ${benutzer.email} ist raus. Die Sterne darin führen auf die Seite, speichern aber nichts.`;
+    meldung = `Probemail an ${empfaenger.email} ist raus. Die Sterne darin führen auf die Seite, speichern aber nichts.`;
   } catch (f) {
     meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
   }
