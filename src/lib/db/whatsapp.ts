@@ -238,6 +238,12 @@ export async function alsGelesenMarkieren(waId: string, von: string): Promise<vo
 
 export interface Stand {
   ungelesen: number;
+  /**
+   * Unterhaltungen, auf deren letzte Kundennachricht noch niemand geantwortet
+   * hat, weder hier noch in der App, und die nicht als anderweitig erledigt
+   * markiert sind. Die Zahl am WhatsApp-Knopf, wie in der App.
+   */
+  unbeantwortet: number;
   /** Unbeantwortet und knapp vor oder nach Ablauf der 24 Stunden. */
   dringend: number;
   /** Die neueste ungelesene Nachricht, für die Einblendung. */
@@ -261,11 +267,12 @@ export async function ungelesenStand(): Promise<Stand> {
      limit 1
   `) as Array<Record<string, unknown>>;
 
-  const dringend = await dringendZahl();
+  const [dringend, unbeantwortet] = await Promise.all([dringendZahl(), unbeantwortetZahl()]);
   const z = zeilen[0];
-  if (!z) return { ungelesen: 0, dringend, neueste: null };
+  if (!z) return { ungelesen: 0, unbeantwortet, dringend, neueste: null };
   return {
     ungelesen: Number(z.anzahl),
+    unbeantwortet,
     dringend,
     neueste: {
       waId: String(z.wa_id),
@@ -404,6 +411,23 @@ export async function automatikSpeichern(waId: string, metaId: string, inhalt: s
     on conflict (meta_id) do nothing
   `;
   await db()`update wa_unterhaltung set letzte_nachricht_am = now() where wa_id = ${waId}`;
+}
+
+/** Wie viele Unterhaltungen unbeantwortet sind. Dieselbe Regel wie "beantwortet" in holeUnterhaltungen. */
+async function unbeantwortetZahl(): Promise<number> {
+  const [z] = (await db()`
+    select count(*)::int as anzahl
+      from wa_unterhaltung u
+     where u.letzte_eingang_am is not null
+       and not coalesce(u.erledigt_am >= u.letzte_eingang_am, false)
+       and not exists (
+         select 1 from wa_nachricht a
+          where a.wa_id = u.wa_id and a.richtung = 'aus'
+            and a.herkunft in ('eventmanager', 'app')
+            and a.zeitpunkt >= u.letzte_eingang_am
+       )
+  `) as Array<{ anzahl: number }>;
+  return Number(z?.anzahl ?? 0);
 }
 
 /** Wie viele Unterhaltungen gerade dringend sind. Dieselbe Regel wie dringlichkeit(). */

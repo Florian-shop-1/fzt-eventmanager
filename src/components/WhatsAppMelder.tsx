@@ -17,9 +17,10 @@
  * drei Leute am Schreibtisch nichts, was das hier nicht auch kann. Aufs
  * Handy kommt jede neue Unterhaltung als Mail an alle mit Freigabe (whatsapp/nachlauf.ts).
  *
- * Neben dem grünen Zähler für Ungelesenes steht ein gelbes Ausrufezeichen,
- * sobald eine Nachricht unbeantwortet auf das Ende der 24 Stunden zuläuft
- * oder schon drüber ist.
+ * Der Knopf ist grün wie WhatsApp. Die Zahl oben rechts zählt wie in der App
+ * die unbeantworteten Unterhaltungen, auch im Titel des Browser-Tabs. Sie
+ * wird rot, sobald eine davon auf das Ende der 24 Stunden zuläuft oder schon
+ * drüber ist.
  *
  * Wer gerade in genau dieser Unterhaltung ist, bekommt keine Einblendung,
  * sondern die Seite lädt die neue Nachricht einfach nach.
@@ -31,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface Stand {
   ungelesen: number;
+  unbeantwortet: number;
   dringend: number;
   neueste: { waId: string; name: string; text: string; zeitpunkt: string } | null;
 }
@@ -77,7 +79,7 @@ function ton() {
 
 export function WhatsAppMelder() {
   const router = useRouter();
-  const [stand, setStand] = useState<Stand>({ ungelesen: 0, dringend: 0, neueste: null });
+  const [stand, setStand] = useState<Stand>({ ungelesen: 0, unbeantwortet: 0, dringend: 0, neueste: null });
   const [einblendung, setEinblendung] = useState<Stand["neueste"]>(null);
   const letzter = useRef<string | null>(null);
 
@@ -142,30 +144,38 @@ export function WhatsAppMelder() {
     };
   }, [router]);
 
+  // Die Zahl auch im Tab-Titel, damit man sie sieht, wenn der Eventmanager im Hintergrund liegt.
+  useEffect(() => {
+    const ohne = document.title.replace(/^\(\d+\) /, "");
+    document.title = stand.unbeantwortet > 0 ? `(${stand.unbeantwortet}) ${ohne}` : ohne;
+  });
+
+  const zahl = stand.unbeantwortet;
+  const eilig = stand.dringend > 0;
+
   return (
     <>
       <Link
         href="/whatsapp"
-        className="relative rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
+        className={`relative ml-1 inline-flex items-center gap-1.5 rounded-full py-1.5 pl-3 font-medium transition-[filter] hover:brightness-95 ${zahl > 0 ? "pr-4" : "pr-3"}`}
+        style={{ background: "#25D366", color: "#07361f" }}
+        title={
+          zahl > 0
+            ? `${zahl} unbeantwortet${eilig ? `, davon ${stand.dringend} dringend (24 Stunden bald oder schon vorbei)` : ""}`
+            : "Alles beantwortet"
+        }
       >
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="currentColor">
+          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91A9.86 9.86 0 0 0 12.04 2Zm0 18.15h-.01a8.23 8.23 0 0 1-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.26-8.24a8.2 8.2 0 0 1 8.24 8.25c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.42h-.48a.92.92 0 0 0-.66.31c-.23.25-.87.85-.87 2.07s.89 2.4 1.01 2.57c.12.16 1.75 2.67 4.24 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.29Z" />
+        </svg>
         WhatsApp
-        {stand.ungelesen > 0 && (
+        {zahl > 0 && (
           <span
-            className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums text-white"
-            style={{ background: "var(--gut)" }}
-            aria-label={`${stand.ungelesen} neue Unterhaltungen`}
+            className="absolute -top-2 -right-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums text-white ring-2 ring-white"
+            style={{ background: eilig ? "#E5383B" : "#0A84FF" }}
+            aria-label={`${zahl} unbeantwortet${eilig ? ", dringend" : ""}`}
           >
-            {stand.ungelesen}
-          </span>
-        )}
-        {stand.dringend > 0 && (
-          <span
-            className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white"
-            style={{ background: "var(--warnung)" }}
-            title={`${stand.dringend} unbeantwortet, 24 Stunden bald oder schon vorbei`}
-            aria-label={`${stand.dringend} dringend`}
-          >
-            !
+            {zahl > 99 ? "99+" : zahl}
           </span>
         )}
       </Link>
