@@ -2,12 +2,18 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { AnmeldeFormular } from "@/components/AnmeldeFormular";
 import { Logo } from "@/components/Logo";
+import { sicheresZiel } from "@/lib/auth/weiter";
 
 export const metadata = { title: "Anmelden | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
-export default async function AnmeldenSeite() {
-  if (await angemeldeterBenutzer()) redirect("/");
+export default async function AnmeldenSeite({
+  searchParams,
+}: {
+  searchParams: Promise<{ weiter?: string }>;
+}) {
+  const weiter = sicheresZiel((await searchParams).weiter);
+  if (await angemeldeterBenutzer()) redirect(weiter);
 
   return (
     <div className="mx-auto max-w-sm py-12">
@@ -17,7 +23,7 @@ export default async function AnmeldenSeite() {
           Eventmanager, interner Zugang
         </p>
       </header>
-      <AnmeldeFormular />
+      <AnmeldeFormular weiter={weiter} />
     </div>
   );
 }

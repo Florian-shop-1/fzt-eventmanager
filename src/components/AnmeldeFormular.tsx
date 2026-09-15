@@ -3,11 +3,12 @@
 import { useActionState } from "react";
 import { anmelden, type AnmeldeErgebnis } from "@/lib/auth/aktionen";
 
-export function AnmeldeFormular() {
+export function AnmeldeFormular({ weiter }: { weiter: string }) {
   const [ergebnis, aktion, laeuft] = useActionState<AnmeldeErgebnis, FormData>(anmelden, {});
 
   return (
     <form action={aktion} className="space-y-4 rounded-lg border border-linie bg-flaeche p-6">
+      <input type="hidden" name="weiter" value={weiter} />
       <label className="block">
         <span className="mb-1 block text-xs text-leise">E-Mail</span>
         <input type="email" name="email" required autoComplete="username" autoFocus />

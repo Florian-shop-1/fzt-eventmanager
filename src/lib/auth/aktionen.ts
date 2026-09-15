@@ -25,6 +25,7 @@ import {
   sitzungStarten,
   type Rolle,
 } from "./sitzung";
+import { sicheresZiel } from "./weiter";
 
 function text(formData: FormData, feld: string): string {
   return String(formData.get(feld) ?? "").trim();
@@ -61,7 +62,7 @@ export async function anmelden(
 
   await db()`update benutzer set letzter_login = now() where id = ${b.id}`;
   await sitzungStarten(b.id);
-  redirect("/");
+  redirect(sicheresZiel(formData.get("weiter")));
 }
 
 export async function abmelden(): Promise<void> {

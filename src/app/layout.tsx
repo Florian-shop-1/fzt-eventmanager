@@ -4,6 +4,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfSeite, type Rolle } from "@/lib/auth/sitzung";
+import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { abmelden } from "@/lib/auth/aktionen";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
@@ -59,11 +60,12 @@ const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot"];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.
-  const pfad = (await headers()).get("x-pfad") ?? "/";
+  const kopf = await headers();
+  const pfad = kopf.get("x-pfad") ?? "/";
   const offen = OHNE_ANMELDUNG.some((o) => pfad.startsWith(o));
   const benutzer = await angemeldeterBenutzer();
 
-  if (!offen && !benutzer) redirect("/anmelden");
+  if (!offen && !benutzer) redirect(anmeldenMitZiel(pfad + (kopf.get("x-suche") ?? "")));
 
   // Wer eine Seite aufruft, die seine Rolle nicht sehen darf, landet auf der
   // Übersicht statt auf einer Fehlermeldung.

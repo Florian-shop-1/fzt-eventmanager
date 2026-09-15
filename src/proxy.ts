@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { anmeldenMitZiel } from "@/lib/auth/weiter";
 
 /**
  * Läuft vor jeder Anfrage.
@@ -67,12 +68,13 @@ export function proxy(request: NextRequest) {
 
   const kopf = new Headers(request.headers);
   kopf.set("x-pfad", pfad);
+  kopf.set("x-suche", request.nextUrl.search);
 
   const offen = OHNE_ANMELDUNG.some((o) => pfad.startsWith(o));
   const hatCookie = request.cookies.has("fzt_sitzung");
 
   if (!offen && !hatCookie) {
-    const ziel = new URL("/anmelden", request.url);
+    const ziel = new URL(anmeldenMitZiel(pfad + request.nextUrl.search), request.url);
     return NextResponse.redirect(ziel);
   }
 
