@@ -7,6 +7,14 @@
     {
       "path": "/api/bewertung",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/scanner?lauf=abschicken",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/scanner?lauf=abholen",
+      "schedule": "0 5 * * *"
     }
   ]
 }

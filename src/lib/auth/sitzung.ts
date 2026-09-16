@@ -183,6 +183,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
     return (
       pfad === "/" ||
       pfad.startsWith("/foyer") ||
+      // Glücks-Moji-Karten scannen und prüfen.
+      pfad.startsWith("/scanner") ||
       pfad.startsWith("/einlassliste") ||
       pfad.startsWith("/sitzplan") ||
       pfad.startsWith("/shortcuts") ||

@@ -33,7 +33,8 @@ import { anmeldenMitZiel } from "@/lib/auth/weiter";
  * "/api/vorfreude" ruft die Uhr bei Vercel einmal täglich auf, um die Mails
  * eine Woche vor der Show zu verschicken. Auch dort meldet sich kein Mensch an.
  * Die Route prüft stattdessen das Geheimnis, das Vercel mitschickt. Dasselbe
- * gilt für "/api/bewertung", die Bewertungsmail am Morgen nach der Show.
+ * gilt für "/api/bewertung", die Bewertungsmail am Morgen nach der Show, und
+ * für "/api/scanner", den nächtlichen Lauf des Kartenscanners.
  *
  * "/api/whatsapp/eingang" ist die Adresse, an die Meta jede WhatsApp-
  * Nachricht liefert. Genau diese eine Adresse, nicht alles unter
@@ -45,6 +46,7 @@ const OHNE_ANMELDUNG = [
   "/api/shop",
   "/api/vorfreude",
   "/api/bewertung",
+  "/api/scanner",
   "/api/whatsapp/eingang",
 ];
 
