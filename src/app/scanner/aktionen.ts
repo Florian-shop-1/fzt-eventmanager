@@ -39,7 +39,7 @@ export async function karteBestaetigen(formular: FormData): Promise<void> {
     zurueck(`${befund.email}: ${befund.maengel.join(", ")}.${vorschlag} Wenn die Adresse wirklich so auf der Karte steht, „Trotzdem übernehmen“ anhaken.`, `karte-${id}`);
   }
   const tel = telefonSchoen(text(formular, "telefon"));
-  await geprueft(id, benutzer.name);
+  await geprueft(id, { id: benutzer.id, name: benutzer.name });
   await abschliessen(id, {
     vorname: nameSchoen(text(formular, "vorname")),
     nachname: nameSchoen(text(formular, "nachname")),
@@ -57,7 +57,7 @@ export async function karteBestaetigen(formular: FormData): Promise<void> {
 export async function karteVerwerfen(formular: FormData): Promise<void> {
   const benutzer = await berechtigt();
   const id = text(formular, "id");
-  await geprueft(id, benutzer.name);
+  await geprueft(id, { id: benutzer.id, name: benutzer.name });
   await ergebnisSpeichern(id, { status: "verworfen", grund: `Verworfen von ${benutzer.name}` });
   zurueck("Karte verworfen.");
 }

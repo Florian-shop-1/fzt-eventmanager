@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { scannerBenutzer } from "@/lib/scanner/zugang";
-import { karten, zahlen, einstellung } from "@/lib/db/scanner";
+import { karten, zahlen, einstellung, jePerson } from "@/lib/db/scanner";
+import { zeitpunkt } from "@/lib/zeit";
 import { azureEingerichtet } from "@/lib/scanner/azure";
 import { claudeEingerichtet } from "@/lib/scanner/claude";
 import { brevoListen, type BrevoListe } from "@/lib/scanner/brevo";
 import { ScannerKamera } from "@/components/ScannerKamera";
 import { KartePruefen } from "@/components/KartePruefen";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { vorZeit } from "@/components/Status";
 import { listenSpeichern, nachtlaufStarten } from "./aktionen";
 
 export const metadata = { title: "Emoji-Scanner | FZT Eventmanager" };
@@ -28,12 +28,13 @@ export default async function ScannerSeite({
   if (!benutzer) redirect("/");
   const { meldung } = await searchParams;
 
-  const [stand, zuPruefen, wartend, erledigt, listen] = await Promise.all([
+  const [stand, zuPruefen, wartend, erledigt, listen, personen] = await Promise.all([
     zahlen(),
     karten(["pruefen", "fehler"], 100),
     karten(["neu", "wartet_claude", "claude_laeuft"], 100),
     karten(["uebertragen", "doppelt", "verworfen"], 30),
     einstellung(),
+    jePerson(),
   ]);
   const s = (k: string) => stand.jeStatus[k] ?? 0;
 
@@ -71,7 +72,7 @@ export default async function ScannerSeite({
         </div>
       )}
 
-      <ScannerKamera />
+      <ScannerKamera vorname={benutzer.name.split(" ")[0]} />
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kachel zahl={stand.heute} was="heute gescannt" />
@@ -110,13 +111,49 @@ export default async function ScannerSeite({
               <li key={k.id} className="flex flex-wrap justify-between gap-2 py-1.5">
                 <span>{[k.vorname, k.nachname].filter(Boolean).join(" ") || "Karte"} <span className="text-leise">{k.email}</span></span>
                 <span className="text-xs text-leise">
-                  {k.status === "claude_laeuft" ? "bei Claude" : "wartet"} · {vorZeit(k.erstelltAm)}
+                  {k.status === "claude_laeuft" ? "bei Claude" : "wartet"} · gescannt von {k.erstelltVon}, {zeitpunkt(new Date(k.erstelltAm))}
                 </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <section className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
+        <h2 className="font-semibold">Wer hat gescannt</h2>
+        {personen.length === 0 ? (
+          <p className="mt-2 text-leise">Noch niemand. Der Erste bekommt einen Keks vom Hasen.</p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-left tabular-nums">
+              <thead className="text-xs text-leise">
+                <tr>
+                  <th className="py-1 pr-3 font-medium">Person</th>
+                  <th className="pr-3 text-right font-medium">heute</th>
+                  <th className="pr-3 text-right font-medium">7 Tage</th>
+                  <th className="pr-3 text-right font-medium">gesamt</th>
+                  <th className="pr-3 text-right font-medium">bei Brevo</th>
+                  <th className="pr-3 text-right font-medium">geprüft</th>
+                  <th className="font-medium">zuletzt aktiv</th>
+                </tr>
+              </thead>
+              <tbody>
+                {personen.map((p) => (
+                  <tr key={p.name} className="border-t border-linie">
+                    <td className="py-1.5 pr-3 font-medium">{p.name}</td>
+                    <td className="pr-3 text-right">{p.heute}</td>
+                    <td className="pr-3 text-right">{p.woche}</td>
+                    <td className="pr-3 text-right">{p.gesamt}</td>
+                    <td className="pr-3 text-right">{p.uebertragen}</td>
+                    <td className="pr-3 text-right">{p.geprueft}</td>
+                    <td className="text-xs text-leise">{p.zuletzt ? zeitpunkt(new Date(p.zuletzt)) : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
         <h2 className="font-semibold">Zuletzt erledigt</h2>
@@ -132,7 +169,8 @@ export default async function ScannerSeite({
                 </span>
                 <span className="text-xs" style={{ color: k.status === "uebertragen" ? "var(--gut)" : "var(--text-leise)" }}>
                   {k.status === "uebertragen" ? "bei Brevo" : k.status === "doppelt" ? "war schon da" : "verworfen"}
-                  {k.geprueftVon && ` · geprüft von ${k.geprueftVon}`} · {vorZeit(k.erstelltAm)}
+                  {" · "}gescannt von {k.erstelltVon}, {zeitpunkt(new Date(k.erstelltAm))}
+                  {k.geprueftVon && k.geprueftAm && ` · geprüft von ${k.geprueftVon}, ${zeitpunkt(new Date(k.geprueftAm))}`}
                 </span>
               </li>
             ))}

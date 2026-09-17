@@ -353,3 +353,115 @@ textarea:focus {
     color: #444444 !important;
   }
 }
+
+/*
+  Der Scan-Hase (components/ScanHase.tsx). Zeichnung und Bewegungen vom
+  Cookie-Hasen aus dem Shop übernommen.
+*/
+.sh-wrap {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  width: min(26rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  animation: sh-rein 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  pointer-events: none;
+}
+.sh-unten { bottom: max(1rem, env(safe-area-inset-bottom)); }
+.sh-oben { top: 4.5rem; }
+.sh-geht { animation: sh-raus 0.35s ease-in forwards; }
+.sh-bild { flex-shrink: 0; width: 8.5rem; height: 7rem; }
+.sh-blase {
+  position: relative;
+  flex: 1;
+  margin-bottom: 1.6rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--gold);
+  border-radius: 0.9rem;
+  background: #111;
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+}
+.sh-blase::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  bottom: 12px;
+  width: 12px;
+  height: 12px;
+  background: #111;
+  border-left: 1px solid var(--gold);
+  border-bottom: 1px solid var(--gold);
+  transform: rotate(45deg);
+}
+.sh-zu {
+  margin-top: 0.45rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #111;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+@keyframes sh-rein { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes sh-raus { to { opacity: 0; transform: translate(-50%, 16px); } }
+
+.sh-krempe, .sh-hut { fill: #111; stroke: var(--gold); stroke-width: 1.2; }
+.sh-band { fill: var(--gold); }
+.sh-loch { fill: #000; opacity: 0.55; }
+.sh-kopf, .sh-ohr ellipse:first-child { fill: #fdfdfb; stroke: #e4e0d8; stroke-width: 1; }
+.sh-ohr-innen { fill: #f3d9d6; }
+.sh-auge circle { fill: #1c1a17; }
+.sh-nase { fill: #e3a6a1; }
+.sh-mund { fill: none; stroke: #c9beb4; stroke-width: 1.4; stroke-linecap: round; }
+.sh-barthaare line { stroke: rgba(30, 28, 25, 0.25); stroke-width: 1; }
+.sh-keks circle:first-child { fill: #c68a4e; stroke: #8a5a2e; stroke-width: 1; }
+.sh-stueck { fill: #6b4423; }
+.sh-kruemel { opacity: 0; }
+.sh-kruemel circle { fill: #a97a45; }
+.sh-frage { fill: var(--gold); font-size: 42px; font-weight: 700; font-family: Georgia, serif; }
+
+.sh-hase, .sh-auge-l, .sh-auge-r, .sh-keks, .sh-frage { transform-box: fill-box; transform-origin: center; }
+
+@keyframes sh-auftauchen { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sh-hase { transform-origin: 50% 100%; animation: sh-auftauchen 0.45s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes sh-ohr-zucken { 0%, 60%, 100% { transform: rotate(0deg); } 70% { transform: rotate(-9deg); } 80% { transform: rotate(6deg); } }
+.sh-ohr-l { transform-origin: 103px 54px; animation: sh-ohr-zucken 1.6s ease-in-out infinite; }
+.sh-ohr-r { transform-origin: 137px 54px; animation: sh-ohr-zucken 1.6s ease-in-out infinite 0.25s; }
+
+@keyframes sh-blinzeln { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+.sh-auge-l, .sh-auge-r { animation: sh-blinzeln 3s ease-in-out infinite; }
+
+/* Lob: fröhlich zugekniffene Augen */
+.sh-s-lob .sh-auge-l, .sh-s-lob .sh-auge-r { animation: sh-froh 2.4s ease-in-out forwards; }
+@keyframes sh-froh { 0%, 30% { transform: scaleY(1); } 45%, 100% { transform: scaleY(0.45); } }
+
+/* Keks: wandert zum Hasen und wird gegessen */
+@keyframes sh-keks-weg {
+  0%, 20% { transform: translate(0, 0) scale(1); opacity: 1; }
+  40% { transform: translate(-56px, -38px) scale(0.85); }
+  50% { transform: translate(-56px, -38px) scale(0.55); }
+  60% { transform: translate(-56px, -38px) scale(0.8); }
+  70%, 100% { transform: translate(-56px, -38px) scale(0); opacity: 0; }
+}
+.sh-s-keks .sh-keks { animation: sh-keks-weg 2s ease-in-out forwards; }
+@keyframes sh-kruemel-da { 0%, 55% { opacity: 0; } 65%, 100% { opacity: 1; transform: translateY(6px); } }
+.sh-s-keks .sh-kruemel { animation: sh-kruemel-da 2s ease-out forwards; }
+
+/* Erinnern: Kopf neigen, Fragezeichen hüpft */
+@keyframes sh-neigen { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-7deg); } }
+.sh-s-erinnern .sh-hase { animation: sh-auftauchen 0.45s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) both, sh-neigen 2.4s 0.6s ease-in-out infinite; }
+@keyframes sh-huepfen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.sh-frage { animation: sh-huepfen 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-wrap, .sh-root, .sh-root * { animation: none !important; }
+  .sh-s-keks .sh-keks { opacity: 0; }
+}

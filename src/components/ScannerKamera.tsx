@@ -16,6 +16,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { KameraMitKreis } from "@/components/KameraMitKreis";
+import { ScanHase, lobFuer, type HasenStimmung } from "@/components/ScanHase";
 
 const MAX = 1800;
 
@@ -75,7 +76,7 @@ const FARBE: Record<Eintrag["stand"], string> = {
   fehler: "var(--blocker)",
 };
 
-export function ScannerKamera() {
+export function ScannerKamera({ vorname }: { vorname: string }) {
   const router = useRouter();
   const kamera = useRef<HTMLInputElement>(null);
   const galerie = useRef<HTMLInputElement>(null);
@@ -84,6 +85,9 @@ export function ScannerKamera() {
   const [kameraOffen, setKameraOffen] = useState(false);
   const [runde, setRunde] = useState(0);
   const [kameraFehler, setKameraFehler] = useState<string | null>(null);
+  const [hase, setHase] = useState<{ id: number; text: string; stimmung: HasenStimmung; dauer: number } | null>(null);
+  const geschafft = useRef(0);
+  const kameraAuf = useRef(false);
 
   const aendern = (schluessel: string, neu: Partial<Eintrag>) =>
     setEintraege((alt) => alt.map((e) => (e.schluessel === schluessel ? { ...e, ...neu } : e)));
@@ -98,7 +102,13 @@ export function ScannerKamera() {
         const form = new FormData();
         form.append("foto", schonKlein ? bild : await verkleinern(bild), "karte.jpg");
         const r = await fetch("/scanner/hochladen", { method: "POST", body: form });
-        aendern(schluessel, beschreiben((await r.json()) as Antwort));
+        const ergebnis = beschreiben((await r.json()) as Antwort);
+        aendern(schluessel, ergebnis);
+        if (ergebnis.stand !== "fehler") {
+          geschafft.current += 1;
+          // Während die Kamera offen ist, lobt er kurz. Das große Dankeschön kommt beim Schließen.
+          setHase({ id: Date.now(), text: lobFuer(vorname, geschafft.current), stimmung: "lob", dauer: 2200 });
+        }
       } catch (e) {
         aendern(schluessel, { stand: "fehler", text: e instanceof Error ? e.message : "Hochladen fehlgeschlagen" });
       }
@@ -119,6 +129,7 @@ export function ScannerKamera() {
       return;
     }
     setRunde(0);
+    kameraAuf.current = true;
     setKameraOffen(true);
   }
 
@@ -166,13 +177,35 @@ export function ScannerKamera() {
             setRunde((n) => n + 1);
             einreihen(bild, true);
           }}
-          onSchliessen={() => setKameraOffen(false)}
+          onSchliessen={() => {
+            kameraAuf.current = false;
+            setKameraOffen(false);
+            if (runde > 0) {
+              setHase({
+                id: Date.now(),
+                text: `Super, ${vorname || "du"}! ${runde} ${runde === 1 ? "Karte" : "Karten"} in dieser Runde. Vielen Dank fürs Scannen, hier ist ein Keks für dich.`,
+                stimmung: "keks",
+                dauer: 4500,
+              });
+            }
+          }}
           onFehler={(meldung) => {
             setKameraOffen(false);
             // Die Kamera-App lässt sich hier nicht selbst öffnen: Browser erlauben
             // das nur direkt nach einem Tippen. Deshalb Meldung mit eigenem Knopf.
             setKameraFehler(meldung);
           }}
+        />
+      )}
+
+      {hase && (
+        <ScanHase
+          key={hase.id}
+          text={hase.text}
+          stimmung={hase.stimmung}
+          dauer={hase.dauer}
+          oben={kameraOffen}
+          onWeg={() => setHase(null)}
         />
       )}
 

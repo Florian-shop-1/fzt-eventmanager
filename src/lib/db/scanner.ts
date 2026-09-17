@@ -23,7 +23,15 @@ export interface ScanKarte {
   lesungen: Lesungen;
   kostenCent: number | null;
   geprueftVon: string | null;
+  geprueftAm: string | null;
+  brevoAm: string | null;
   brevoFehler: string | null;
+}
+
+/** Wer gerade handelt. Name für die Anzeige, Kennung für die Zählung. */
+export interface Handelnder {
+  id: string;
+  name: string;
 }
 
 /** Was die Leser geliefert haben, für die Prüfansicht. */
@@ -54,18 +62,20 @@ function baue(z: Record<string, unknown>): ScanKarte {
     lesungen: (z.lesungen as Lesungen) ?? {},
     kostenCent: z.kosten_cent === null || z.kosten_cent === undefined ? null : Number(z.kosten_cent),
     geprueftVon: (z.geprueft_von as string) ?? null,
+    geprueftAm: z.geprueft_am ? new Date(z.geprueft_am as string).toISOString() : null,
+    brevoAm: z.brevo_am ? new Date(z.brevo_am as string).toISOString() : null,
     brevoFehler: (z.brevo_fehler as string) ?? null,
   };
 }
 
 const SPALTEN = `id, erstellt_am, erstellt_von, (foto is not null) as hat_foto, status, grund,
-  vorname, nachname, email, telefon, unsicher, lesungen, kosten_cent, geprueft_von, brevo_fehler`;
+  vorname, nachname, email, telefon, unsicher, lesungen, kosten_cent, geprueft_von, geprueft_am, brevo_am, brevo_fehler`;
 
 /** Legt eine Karte an. Null, wenn genau dieses Foto schon da ist. */
-export async function karteAnlegen(fotoBase64: string, hash: string, von: string): Promise<string | null> {
+export async function karteAnlegen(fotoBase64: string, hash: string, von: Handelnder): Promise<string | null> {
   const zeilen = (await db()`
-    insert into scan_karte (foto, foto_hash, erstellt_von)
-    values (decode(${fotoBase64}, 'base64'), ${hash}, ${von})
+    insert into scan_karte (foto, foto_hash, erstellt_von, erstellt_von_id)
+    values (decode(${fotoBase64}, 'base64'), ${hash}, ${von.name}, ${von.id})
     on conflict (foto_hash) do nothing
     returning id
   `) as Array<{ id: string }>;
@@ -139,8 +149,63 @@ export async function claudeVermerken(id: string, kostenCent: number | null): Pr
   await db()`update scan_karte set claude_am = now(), kosten_cent = ${kostenCent} where id = ${id}`;
 }
 
-export async function geprueft(id: string, von: string): Promise<void> {
-  await db()`update scan_karte set geprueft_von = ${von}, geprueft_am = now() where id = ${id}`;
+export async function geprueft(id: string, von: Handelnder): Promise<void> {
+  await db()`
+    update scan_karte set geprueft_von = ${von.name}, geprueft_von_id = ${von.id}, geprueft_am = now()
+     where id = ${id}
+  `;
+}
+
+export interface PersonZahlen {
+  name: string;
+  heute: number;
+  woche: number;
+  gesamt: number;
+  uebertragen: number;
+  geprueft: number;
+  zuletzt: string | null;
+}
+
+/** Wer wie viel gescannt und geprüft hat. Der aktuelle Name kommt aus dem Zugang. */
+export async function jePerson(): Promise<PersonZahlen[]> {
+  const zeilen = (await db()`
+    with tag as (select date_trunc('day', now() at time zone 'Europe/Berlin') at time zone 'Europe/Berlin' as beginn),
+    gescannt as (
+      select coalesce(k.erstellt_von_id::text, k.erstellt_von) as schluessel,
+             max(coalesce(b.name, k.erstellt_von)) as name,
+             count(*) filter (where k.erstellt_am >= (select beginn from tag))::int as heute,
+             count(*) filter (where k.erstellt_am >= now() - interval '7 days')::int as woche,
+             count(*)::int as gesamt,
+             count(*) filter (where k.status = 'uebertragen')::int as uebertragen,
+             max(k.erstellt_am) as zuletzt
+        from scan_karte k left join benutzer b on b.id = k.erstellt_von_id
+       group by 1
+    ),
+    pruefer as (
+      select coalesce(k.geprueft_von_id::text, k.geprueft_von) as schluessel,
+             max(coalesce(b.name, k.geprueft_von)) as name,
+             count(*)::int as geprueft,
+             max(k.geprueft_am) as zuletzt
+        from scan_karte k left join benutzer b on b.id = k.geprueft_von_id
+       where k.geprueft_am is not null
+       group by 1
+    )
+    select coalesce(g.name, p.name) as name,
+           coalesce(g.heute, 0) as heute, coalesce(g.woche, 0) as woche, coalesce(g.gesamt, 0) as gesamt,
+           coalesce(g.uebertragen, 0) as uebertragen, coalesce(p.geprueft, 0) as geprueft,
+           greatest(g.zuletzt, p.zuletzt) as zuletzt
+      from gescannt g full join pruefer p on p.schluessel = g.schluessel
+     order by 7 desc nulls last
+  `) as Array<Record<string, unknown>>;
+  return zeilen.map((z) => ({
+    name: String(z.name ?? "?"),
+    heute: Number(z.heute),
+    woche: Number(z.woche),
+    gesamt: Number(z.gesamt),
+    uebertragen: Number(z.uebertragen),
+    geprueft: Number(z.geprueft),
+    zuletzt: z.zuletzt ? new Date(z.zuletzt as string).toISOString() : null,
+  }));
 }
 
 export async function brevoVermerken(id: string, fehler: string | null): Promise<void> {
@@ -209,4 +274,12 @@ export async function einstellungSpeichern(newsletter: number | null, emoji: num
        set liste_newsletter = ${newsletter}, liste_emoji = ${emoji}, geaendert_am = now(), geaendert_von = ${von}
      where id = 1
   `;
+}
+
+/** Tage seit der letzten gescannten Karte. Null, solange noch nie gescannt wurde. */
+export async function tageSeitLetztemScan(): Promise<number | null> {
+  const [z] = (await db()`
+    select floor(extract(epoch from now() - max(erstellt_am)) / 86400)::int as tage from scan_karte
+  `) as Array<{ tage: number | null }>;
+  return z?.tage ?? null;
 }

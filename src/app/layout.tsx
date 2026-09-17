@@ -5,6 +5,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfSeite, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
+import { ScanErinnerung } from "@/components/ScanErinnerung";
+import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { abmelden } from "@/lib/auth/aktionen";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
@@ -71,6 +73,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Wer eine Seite aufruft, die seine Rolle nicht sehen darf, landet auf der
   // Übersicht statt auf einer Fehlermeldung.
   if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad)) redirect("/");
+
+  // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
+  const scanPause =
+    benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
+      ? await tageSeitLetztemScan().catch(() => null)
+      : null;
 
   return (
     <html
@@ -148,6 +156,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <footer className="border-t border-linie px-6 py-4 text-center text-xs text-leise print:hidden">
             Florian Zimmer Theater GmbH, Neu-Ulm
           </footer>
+        )}
+
+        {benutzer && scanPause !== null && scanPause >= 7 && (
+          <ScanErinnerung tage={scanPause} vorname={benutzer.name.split(" ")[0]} />
         )}
       </body>
     </html>

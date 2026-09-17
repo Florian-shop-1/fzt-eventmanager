@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
   const b64 = Buffer.from(await datei.arrayBuffer()).toString("base64");
   try {
-    const e = await fotoVerarbeiten(b64, benutzer.name);
+    const e = await fotoVerarbeiten(b64, { id: benutzer.id, name: benutzer.name });
     if (e.doppeltesFoto) return NextResponse.json({ ok: true, doppelt: true });
     const k = e.karte;
     return NextResponse.json({

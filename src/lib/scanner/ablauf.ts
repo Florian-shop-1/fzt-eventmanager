@@ -21,10 +21,22 @@ import { kontaktEintragen } from "./brevo";
 import { emailFormOk, emailNormalisieren, emailPruefen, nameSchoen, telefonSchoen } from "./pruefen";
 import {
   alteFotosLoeschen, batchVermerken, brevoVermerken, claudeVermerken, einstellung, ergebnisSpeichern,
-  fotoBase64, karte, karteAnlegen, karten, offeneBatches, schonUebertragen, type ScanKarte,
+  fotoBase64, karte, karteAnlegen, karten, offeneBatches, schonUebertragen, type Handelnder, type ScanKarte,
 } from "@/lib/db/scanner";
 
-const AZURE_NAME = 0.9;
+/*
+  Schwellen für die Lesesicherheit von Azure, gemessen an Florians ersten
+  echten Karten (17.09.2026):
+
+  - Namen: "Mustermann" richtig gelesen mit nur 0,67. Ein Name ist nie
+    kritisch, deshalb großzügig.
+  - E-Mail: Azure behandelt die ganze Adresse als ein Wort und gibt ihr fast
+    immer um 0,7, ob richtig ("test@thorsten.de", 0,73) oder falsch
+    ("Fest@Magier.de" statt "test@", 0,74). Der Wert trennt also nicht.
+    Deshalb bleibt die Schwelle hoch: Eine Adresse geht praktisch immer
+    noch über Claude, ehe sie zu Brevo darf.
+*/
+const AZURE_NAME = 0.6;
 const AZURE_EMAIL = 0.95;
 const AZURE_TELEFON = 0.85;
 
@@ -170,7 +182,7 @@ async function nachClaude(id: string, c: ClaudeLesung): Promise<void> {
 export type UploadErgebnis = { doppeltesFoto: true } | { doppeltesFoto: false; karte: ScanKarte | null; hinweis?: string };
 
 /** Nimmt ein Foto an und liest es sofort mit Azure, wenn möglich. */
-export async function fotoVerarbeiten(fotoB64: string, von: string): Promise<UploadErgebnis> {
+export async function fotoVerarbeiten(fotoB64: string, von: Handelnder): Promise<UploadErgebnis> {
   const hash = createHash("sha256").update(fotoB64).digest("hex");
   const id = await karteAnlegen(fotoB64, hash, von);
   if (!id) return { doppeltesFoto: true };

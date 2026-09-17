@@ -40,7 +40,10 @@ export function KartePruefen({ karte }: { karte: ScanKarte }) {
         ) : (
           <div className="rounded-md border border-dashed border-linie p-6 text-center text-sm text-leise">Foto bereits gelöscht</div>
         )}
-        <p className="mt-1 text-xs text-leise">Antippen zum Vergrößern · gescannt von {karte.erstelltVon}</p>
+        <p className="mt-1 text-xs text-leise">
+          Antippen zum Vergrößern · gescannt von {karte.erstelltVon},{" "}
+          {new Date(karte.erstelltAm).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" })}
+        </p>
       </div>
 
       <div className="space-y-3 text-sm">
