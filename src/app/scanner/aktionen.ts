@@ -10,7 +10,8 @@ import { redirect } from "next/navigation";
 import { scannerBenutzer } from "@/lib/scanner/zugang";
 import { abschliessen, nachtlauf } from "@/lib/scanner/ablauf";
 import { emailPruefen, nameSchoen, telefonSchoen } from "@/lib/scanner/pruefen";
-import { einstellungSpeichern, ergebnisSpeichern, geprueft, karte } from "@/lib/db/scanner";
+import { abgleichPruefen, inListeEintragen } from "@/lib/scanner/brevo";
+import { einstellung, einstellungSpeichern, ergebnisSpeichern, geprueft, karte } from "@/lib/db/scanner";
 
 function zurueck(meldung: string, anker = ""): never {
   revalidatePath("/scanner");
@@ -87,4 +88,27 @@ export async function nachtlaufStarten(): Promise<void> {
     `${e.abgeholt} Ergebnisse von Claude abgeholt, ${e.abgeschickt} Karten an Claude geschickt.` +
       (e.fehler.length ? ` Fehler: ${e.fehler.join("; ")}` : ""),
   );
+}
+
+/** Prüft, wer aus der Emoji-Liste noch nicht im Newsletter steht, und trägt auf Wunsch nach. Nur Florian. */
+export async function emojiInNewsletter(formular: FormData): Promise<void> {
+  const benutzer = await berechtigt();
+  if (benutzer.rolle !== "chef") zurueck("Das darf nur Florian.");
+  const { newsletter, emoji } = await einstellung();
+  if (!newsletter || !emoji) zurueck("Bitte zuerst beide Listen wählen.");
+  let meldung: string;
+  try {
+    const a = await abgleichPruefen(emoji, newsletter);
+    if (a.fehlen.length === 0) {
+      meldung = `Alles gut: Alle ${a.imEmoji} Kontakte der Emoji-Liste sind auch im Newsletter.`;
+    } else if (formular.get("eintragen") === "ja") {
+      const n = await inListeEintragen(newsletter, a.fehlen);
+      meldung = `${n} Kontakte aus der Emoji-Liste sind jetzt zusätzlich im Newsletter.`;
+    } else {
+      meldung = `${a.fehlen.length} von ${a.imEmoji} Kontakten der Emoji-Liste fehlen im Newsletter. Mit „Fehlende eintragen“ werden sie ergänzt.`;
+    }
+  } catch (e) {
+    meldung = e instanceof Error ? e.message : "Brevo nicht erreichbar";
+  }
+  zurueck(meldung);
 }

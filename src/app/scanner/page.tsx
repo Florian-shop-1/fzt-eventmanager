@@ -8,7 +8,7 @@ import { brevoListen, type BrevoListe } from "@/lib/scanner/brevo";
 import { ScannerKamera } from "@/components/ScannerKamera";
 import { KartePruefen } from "@/components/KartePruefen";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { listenSpeichern, nachtlaufStarten } from "./aktionen";
+import { emojiInNewsletter, listenSpeichern, nachtlaufStarten } from "./aktionen";
 
 export const metadata = { title: "Emoji-Scanner | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -178,7 +178,8 @@ export default async function ScannerSeite({
         )}
       </section>
 
-      {(benutzer.rolle === "chef" || benutzer.rolle === "team") && (
+      {/* Nur Florian: Listen falsch zu wählen hieße, Adressen landen in der falschen Liste. */}
+      {benutzer.rolle === "chef" && (
         <section className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
           <h2 className="font-semibold">Einrichtung</h2>
           <ul className="mt-2 space-y-1">
@@ -194,6 +195,25 @@ export default async function ScannerSeite({
               <ListenWahl name="emoji" titel="Emoji-Liste" listen={brevo} gewaehlt={listen.emoji} />
               <Absendeknopf text="Speichern" laeuftText="..." />
             </form>
+          )}
+
+          {!listenFehlen && (
+            <div className="mt-4 border-t border-linie pt-3">
+              <h3 className="font-medium">Emoji-Kontakte auch im Newsletter?</h3>
+              <p className="mt-1 text-xs text-leise">
+                Wer in der Emoji-Liste steht, soll auch Magic News bekommen. Neue Karten trägt der
+                Scanner ohnehin in beide Listen ein. Das hier gleicht den Altbestand ab.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <form action={emojiInNewsletter}>
+                  <Absendeknopf text="Prüfen" laeuftText="Prüfe..." />
+                </form>
+                <form action={emojiInNewsletter}>
+                  <input type="hidden" name="eintragen" value="ja" />
+                  <Absendeknopf text="Fehlende eintragen" laeuftText="Trage ein..." />
+                </form>
+              </div>
+            </div>
           )}
         </section>
       )}

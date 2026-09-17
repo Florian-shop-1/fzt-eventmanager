@@ -92,3 +92,51 @@ export async function kontaktEintragen(k: Kontakt, listen: number[]): Promise<vo
   if (r.status === 401) throw new Error("Brevo lehnt den Schlüssel ab.");
   throw new Error(`Brevo hat den Kontakt nicht angenommen (${r.status}): ${text}`);
 }
+
+export interface Abgleich {
+  imEmoji: number;
+  /** Adressen aus der Emoji-Liste, die nicht im Newsletter stehen. */
+  fehlen: string[];
+}
+
+/**
+ * Wer in der Emoji-Liste steht, soll auch Newsletter-Kontakt sein
+ * (Florian, 17.09.2026). Liest die Emoji-Liste seitenweise und prüft bei
+ * jedem Kontakt, ob er auch in der Newsletter-Liste ist.
+ */
+export async function abgleichPruefen(emoji: number, newsletter: number): Promise<Abgleich> {
+  const fehlen: string[] = [];
+  let imEmoji = 0;
+  for (let offset = 0; offset < 100_000; offset += 500) {
+    const r = await fetch(`${BREVO}/contacts/lists/${emoji}/contacts?limit=500&offset=${offset}`, {
+      headers: kopf(), cache: "no-store", signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`Emoji-Liste nicht lesbar (${r.status}).`);
+    const d = (await r.json()) as { contacts?: Array<{ email?: string; listIds?: number[] }> };
+    const seite = d.contacts ?? [];
+    imEmoji += seite.length;
+    for (const k of seite) {
+      if (k.email && !(k.listIds ?? []).includes(newsletter)) fehlen.push(k.email);
+    }
+    if (seite.length < 500) break;
+  }
+  return { imEmoji, fehlen };
+}
+
+/** Trägt Adressen in eine Liste ein, in Paketen von 150, wie Brevo es verlangt. */
+export async function inListeEintragen(liste: number, emails: string[]): Promise<number> {
+  let eingetragen = 0;
+  for (let i = 0; i < emails.length; i += 150) {
+    const paket = emails.slice(i, i + 150);
+    const r = await fetch(`${BREVO}/contacts/lists/${liste}/contacts/add`, {
+      method: "POST",
+      headers: kopf(),
+      body: JSON.stringify({ emails: paket }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`Brevo hat das Eintragen abgelehnt (${r.status}): ${(await r.text()).slice(0, 200)}`);
+    const d = (await r.json().catch(() => ({}))) as { contacts?: { success?: string[] } };
+    eingetragen += d.contacts?.success?.length ?? paket.length;
+  }
+  return eingetragen;
+}
