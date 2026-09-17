@@ -10,11 +10,11 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { listenSpeichern, nachtlaufStarten } from "./aktionen";
 
-export const metadata = { title: "Scanner | FZT Eventmanager" };
+export const metadata = { title: "Emoji-Scanner | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 /**
- * Glücks-Moji-Scanner.
+ * Emoji-Scanner für die Glücks-Moji-Karten.
  *
  * Oben der große Knopf zum Fotografieren, darunter der Stand und alles,
  * was ein Mensch entscheiden muss. Siehe lib/scanner/ablauf.ts.
@@ -51,7 +51,7 @@ export default async function ScannerSeite({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Glücks-Moji-Scanner</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Emoji-Scanner</h1>
         <p className="mt-1 text-sm text-leise">
           Karte fotografieren, fertig. Eindeutige Karten gehen sofort zu Brevo in Magic News und
           Emoji. Alles Unklare liest Claude nachts nach, und was dann noch zweifelhaft ist, steht

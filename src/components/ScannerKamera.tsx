@@ -15,6 +15,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { KameraMitKreis } from "@/components/KameraMitKreis";
 
 const MAX = 1800;
 
@@ -24,7 +25,7 @@ interface Eintrag {
   text: string;
 }
 
-async function verkleinern(datei: File): Promise<Blob> {
+async function verkleinern(datei: Blob): Promise<Blob> {
   const url = URL.createObjectURL(datei);
   try {
     const bild = new Image();
@@ -80,29 +81,45 @@ export function ScannerKamera() {
   const galerie = useRef<HTMLInputElement>(null);
   const [eintraege, setEintraege] = useState<Eintrag[]>([]);
   const schlange = useRef<Promise<void>>(Promise.resolve());
+  const [kameraOffen, setKameraOffen] = useState(false);
+  const [runde, setRunde] = useState(0);
+  const [kameraFehler, setKameraFehler] = useState<string | null>(null);
 
   const aendern = (schluessel: string, neu: Partial<Eintrag>) =>
     setEintraege((alt) => alt.map((e) => (e.schluessel === schluessel ? { ...e, ...neu } : e)));
 
+  /** Ein Bild in die Warteschlange. Fotos aus der Kreis-Kamera sind schon zugeschnitten. */
+  function einreihen(bild: Blob, schonKlein: boolean) {
+    const schluessel = `${Date.now()}-${Math.random()}`;
+    setEintraege((alt): Eintrag[] => [{ schluessel, stand: "laedt" as const, text: "Wird hochgeladen und gelesen..." }, ...alt].slice(0, 40));
+    // Nacheinander, nicht gleichzeitig: Azure nimmt höchstens 20 Karten pro Minute.
+    schlange.current = schlange.current.then(async () => {
+      try {
+        const form = new FormData();
+        form.append("foto", schonKlein ? bild : await verkleinern(bild), "karte.jpg");
+        const r = await fetch("/scanner/hochladen", { method: "POST", body: form });
+        aendern(schluessel, beschreiben((await r.json()) as Antwort));
+      } catch (e) {
+        aendern(schluessel, { stand: "fehler", text: e instanceof Error ? e.message : "Hochladen fehlgeschlagen" });
+      }
+      router.refresh();
+    });
+  }
+
   function annehmen(dateien: FileList | null) {
-    for (const datei of Array.from(dateien ?? [])) {
-      const schluessel = `${Date.now()}-${Math.random()}`;
-      setEintraege((alt): Eintrag[] => [{ schluessel, stand: "laedt" as const, text: "Wird hochgeladen und gelesen..." }, ...alt].slice(0, 40));
-      // Nacheinander, nicht gleichzeitig: Azure nimmt höchstens 20 Karten pro Minute.
-      schlange.current = schlange.current.then(async () => {
-        try {
-          const form = new FormData();
-          form.append("foto", await verkleinern(datei), "karte.jpg");
-          const r = await fetch("/scanner/hochladen", { method: "POST", body: form });
-          aendern(schluessel, beschreiben((await r.json()) as Antwort));
-        } catch (e) {
-          aendern(schluessel, { stand: "fehler", text: e instanceof Error ? e.message : "Hochladen fehlgeschlagen" });
-        }
-        router.refresh();
-      });
-    }
+    for (const datei of Array.from(dateien ?? [])) einreihen(datei, false);
     if (kamera.current) kamera.current.value = "";
     if (galerie.current) galerie.current.value = "";
+  }
+
+  function kameraStarten() {
+    setKameraFehler(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      kamera.current?.click();
+      return;
+    }
+    setRunde(0);
+    setKameraOffen(true);
   }
 
   return (
@@ -110,7 +127,7 @@ export function ScannerKamera() {
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => kamera.current?.click()}
+          onClick={kameraStarten}
           className="rounded-lg border border-gold bg-gold px-4 py-5 text-lg font-semibold text-white active:scale-[0.99]"
         >
           Karte fotografieren
@@ -126,8 +143,38 @@ export function ScannerKamera() {
       <input ref={kamera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => annehmen(e.target.files)} />
       <input ref={galerie} type="file" accept="image/*" multiple hidden onChange={(e) => annehmen(e.target.files)} />
       <p className="mt-3 text-xs text-leise">
-        Tipp: Karte flach auf einen dunklen Untergrund legen, von oben fotografieren, die ganze Karte im Bild.
+        Tipp: Karte flach auf einen dunklen Untergrund legen und von oben in den Kreis nehmen. Klappt
+        die Kamera nicht,{" "}
+        <button type="button" onClick={() => kamera.current?.click()} className="underline">
+          Kamera-App des Handys nutzen
+        </button>
+        .
       </p>
+      {kameraFehler && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
+          <span>{kameraFehler}</span>
+          <button type="button" onClick={() => kamera.current?.click()} className="rounded-md border border-linie bg-flaeche px-3 py-1.5">
+            Kamera-App öffnen
+          </button>
+        </div>
+      )}
+
+      {kameraOffen && (
+        <KameraMitKreis
+          anzahl={runde}
+          onFoto={(bild) => {
+            setRunde((n) => n + 1);
+            einreihen(bild, true);
+          }}
+          onSchliessen={() => setKameraOffen(false)}
+          onFehler={(meldung) => {
+            setKameraOffen(false);
+            // Die Kamera-App lässt sich hier nicht selbst öffnen: Browser erlauben
+            // das nur direkt nach einem Tippen. Deshalb Meldung mit eigenem Knopf.
+            setKameraFehler(meldung);
+          }}
+        />
+      )}
 
       {eintraege.length > 0 && (
         <ul className="mt-4 space-y-1.5 text-sm">
