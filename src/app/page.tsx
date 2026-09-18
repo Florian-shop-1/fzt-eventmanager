@@ -5,7 +5,10 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 
 export default async function Startseite() {
   // Der Food-Kiosk hat genau eine Seite. Nach dem Anmelden direkt dorthin.
-  if ((await angemeldeterBenutzer())?.rolle === "kiosk") redirect("/kiosk");
+  const rolle = (await angemeldeterBenutzer())?.rolle;
+  if (rolle === "kiosk") redirect("/kiosk");
+  // Das Showteam braucht keine Übersicht mit Restaurant und Vorgängen, nur seinen Plan.
+  if (rolle === "showteam") redirect("/dienstplan");
 
   return (
     <div className="space-y-10">

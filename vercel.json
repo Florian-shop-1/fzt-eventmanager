@@ -15,6 +15,10 @@
     {
       "path": "/api/scanner?lauf=abholen",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/dienstplan",
+      "schedule": "0 7 * * *"
     }
   ]
 }

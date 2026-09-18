@@ -10,6 +10,7 @@ import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { abmelden } from "@/lib/auth/aktionen";
+import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
  * Kundendaten und keine Zahlungen.
  */
 const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
-  { href: "/", label: "Übersicht", rollen: ["chef", "team", "gastro", "showteam"] },
+  { href: "/", label: "Übersicht", rollen: ["chef", "team", "gastro"] },
   { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
   { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
   { href: "/stoerungen", label: "Störungen", rollen: ["chef", "team"] },
@@ -44,17 +45,18 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
   { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
   { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
-  { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+  { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
+  { href: "/dienstplan", label: "Dienstplan", rollen: ["chef", "team", "showteam"] },
   { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam"] },
   { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
   { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
   { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
   { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
-  { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+  { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
   { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
   { href: "/kueche", label: "Küche", rollen: ["chef", "team", "gastro"] },
-  { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro", "showteam"] },
+  { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
   { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
   { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
   { href: "/einstellungen/mail", label: "Mailversand", rollen: ["chef", "team"] },
@@ -97,6 +99,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben. Ein Zauberer verrät nie seine Tricks!",
       });
     }
+    aufgaben.push(...(await dienstplanErinnerungen(benutzer).catch(() => [])));
   }
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.

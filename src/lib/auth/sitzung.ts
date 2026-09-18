@@ -180,6 +180,9 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   if (pfad.startsWith("/whatsapp")) return true;
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
+  // Den Dienstplan sieht jeder Mitarbeiter: Wer eine Position hat, trägt sich
+  // ein, alle anderen sehen nur. Die Einrichtung prüft die Seite selbst.
+  if (pfad.startsWith("/dienstplan") && rolle !== "kiosk") return true;
   if (rolle === "kiosk") {
     // Ein externer Partner, kein Mitarbeiter: nur die Stehtische, keine
     // Gästezahlen, keine Namen. "/" leitet ihn auf /kiosk weiter.
@@ -202,16 +205,12 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
     );
   }
   if (rolle === "showteam") {
-    // Das Showteam arbeitet am Abend im Saal. Es braucht den Saalplan,
-    // die Upgrades und den Einlass, dazu den Blick auf die kommenden
-    // Abende fuer die eigene Planung. Kueche, Angebote, Versand und
-    // Kundendaten gehen es nichts an.
+    // Das Showteam arbeitet am Abend im Saal: Upgrades (mit Gästeliste)
+    // und der Dienstplan. Alles zum Restaurant (Tische, Einlassliste,
+    // Essplätze) bleibt bewusst weg, das irritiert nur (Florian, 18.09.2026).
     return (
       pfad === "/" ||
       pfad.startsWith("/upgrades") ||
-      pfad.startsWith("/sitzplan") ||
-      pfad.startsWith("/einlassliste") ||
-      pfad.startsWith("/belegung") ||
       pfad.startsWith("/konto") ||
       pfad.startsWith("/geheimhaltung")
     );
