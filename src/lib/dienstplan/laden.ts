@@ -7,6 +7,7 @@ import { isoDatum } from "@/lib/zeit";
 import { offeneSchichtenMail } from "./mails";
 import {
   allePersonen,
+  einstellungLesen,
   einsaetzeAb,
   erinnertMerken,
   festeTage,
@@ -79,6 +80,13 @@ export async function taeglicheErinnerung(): Promise<{ mails: number; schichten:
   const { schichten, personen } = await planLaden(2);
   // Vor der Einrichtung wäre alles offen. Dann schweigen, statt Florian zuzuschütten.
   if (personen.every((p) => p.kann.size === 0)) return { mails: 0, schichten: 0, fehler: [] };
+  // Bis zum 02.10.2026 trägt sich das Showteam über den Einladungslink ein.
+  // Solange ist vieles nur scheinbar offen, deshalb erst danach erinnern
+  // (oder früher, wenn Florian die festen Tage als vollständig markiert).
+  const e = await einstellungLesen();
+  if (!e.erledigt && e.festeTageFragen && isoDatum(new Date()) < e.festeTageFragen) {
+    return { mails: 0, schichten: 0, fehler: [] };
+  }
   const chefs = personen.filter((p) => p.rolle === "chef");
   const jePerson = new Map<string, { person: Person; schichten: Array<{ termin: Vorstellungstermin; position: Position }>; dringend: boolean }>();
   const zuMerken: Array<{ termin: Vorstellungstermin; position: Position; stufe: number }> = [];

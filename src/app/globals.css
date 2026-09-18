@@ -79,7 +79,11 @@ th[align="right"],
 }
 
 /* Formularfelder einheitlich, ohne jedes Feld einzeln zu bestylen. */
+input:not([type]),
 input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
 input[type="number"],
 input[type="url"],
 input[type="date"],

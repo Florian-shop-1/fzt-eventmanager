@@ -14,7 +14,9 @@ import {
   type FestePosition,
   type Person,
 } from "@/lib/dienstplan/plan";
-import { festeTageSpeichern, positionenSpeichern } from "../aktionen";
+import { einladungAus, einladungErneuern, festeTageSpeichern, positionenSpeichern } from "../aktionen";
+import { aktiveEinladung, einladungsLink } from "@/lib/dienstplan/einladung";
+import { LinkKopieren } from "@/components/LinkKopieren";
 
 export const metadata = { title: "Dienstplan einrichten | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -33,7 +35,16 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer || benutzer.rolle !== "chef") redirect("/dienstplan");
   const { meldung } = await searchParams;
-  const [personen, fest, einstellung] = await Promise.all([allePersonen(), festeTage(), einstellungLesen()]);
+  const [personen, fest, einstellung, einladung] = await Promise.all([
+    allePersonen(),
+    festeTage(),
+    einstellungLesen(),
+    aktiveEinladung(),
+  ]);
+  const link = einladung ? einladungsLink(einladung.token) : null;
+  const whatsappText = link
+    ? `Hallo zusammen! Ab jetzt planen wir das Showteam im Eventmanager. Bitte tragt euch einmal hier ein (dauert eine Minute): ${link}`
+    : "";
 
   const nochNichts = personen.every((p) => p.kann.size === 0);
   const vor = (p: Person) => p.vorname.toLowerCase();
@@ -48,8 +59,7 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
     const v = VORSCHLAG_FEST.find((f) => f.position === pos && f.wochentag === tag);
     return (v && personen.find((p) => p.rolle === "showteam" && vor(p) === v.vorname)?.id) ?? "";
   };
-  // Wer T2 noch lernt, bekommt keinen festen T2-Tag, er läuft ja nur mit.
-  const fuer = (pos: FestePosition) => personen.filter((p) => kann(p).has(pos) && kann(p).get(pos) !== true);
+  const fuer = (pos: FestePosition) => personen.filter((p) => kann(p).has(pos));
   const fehlt = ["Leeven", "Sabah", "Levi", "Mario", "Julian", "Noel", "Sarah", "Chris", "Sammy", "Ben"].filter(
     (n) => !personen.some((p) => p.rolle === "showteam" && vor(p) === n.toLowerCase()),
   );
@@ -70,22 +80,63 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
         </div>
       )}
 
+      <section id="einladung" className="scroll-mt-24 space-y-3 rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="text-lg font-semibold">Einladungslink fürs Showteam</h2>
+        <p className="text-sm text-leise">
+          Schick diesen Link an alle vom Showteam. Jeder trägt sich selbst ein: Name, E-Mail, eigenes
+          Passwort und was er macht (FOH, T2, T2 Rookie, T1). Danach ist er angemeldet und sieht den
+          Dienstplan. Du bekommst bei jeder Anmeldung eine Mail. Die festen Tage (Levi Fr, Leeven Sa,
+          Sabah So, Ben T1) werden beim Eintragen automatisch gesetzt.
+        </p>
+        {link ? (
+          <>
+            <LinkKopieren link={link} />
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(whatsappText)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-md px-3 py-1.5 font-medium text-white"
+                style={{ background: "#25D366" }}
+              >
+                Per WhatsApp teilen
+              </a>
+              <span className="text-leise">
+                {einladung!.benutzt === 0
+                  ? "Noch niemand hat sich eingetragen."
+                  : `${einladung!.benutzt} ${einladung!.benutzt === 1 ? "Person hat" : "Personen haben"} sich eingetragen.`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs">
+              <form action={einladungErneuern}>
+                <button type="submit" className="text-leise underline">neuen Link erzeugen (alter gilt dann nicht mehr)</button>
+              </form>
+              <form action={einladungAus}>
+                <button type="submit" className="text-leise underline">Link abschalten</button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <form action={einladungErneuern}>
+            <Absendeknopf text="Einladungslink erstellen" laeuftText="..." />
+          </form>
+        )}
+      </section>
+
       {fehlt.length > 0 && (
         <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
-          Noch ohne Zugang: {fehlt.join(", ")}.{" "}
-          <Link href="/einstellungen/benutzer" className="underline">
-            Unter Zugänge anlegen
-          </Link>{" "}
-          (Rolle Showteam), danach sind sie hier schon vorausgefüllt. Einfach speichern. Wer eine
-          andere Rolle hat und trotzdem im Showteam arbeitet, steht unten unter „Weitere Mitarbeiter“.
+          Noch nicht eingetragen: {fehlt.join(", ")}. Am einfachsten über den Einladungslink oben.
+          Wer eine andere Rolle hat und trotzdem im Showteam arbeitet, steht unten unter „Weitere
+          Mitarbeiter“.
         </div>
       )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Wer macht was?</h2>
         <p className="text-sm text-leise">
-          „lernt noch“ bei T2 heißt: kann die Show noch nicht allein und läuft als Shadow mit, wenn
-          jemand T2 macht, der sie kann. Sobald jemand fertig ist, den Haken rausnehmen.
+          „Rookie“ heißt: macht T2, kann die Show aber noch nicht allein. An seinen Abenden braucht er
+          einen Shadow, also jemanden mit T2 ohne Rookie-Haken (Mario, Julian). Sobald er es allein
+          kann, den Haken rausnehmen.
           {nochNichts && " Vorausgefüllt nach deiner Liste, bitte prüfen und speichern."}
         </p>
         <form action={positionenSpeichern} className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
@@ -98,7 +149,7 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
                     {pos}
                   </th>
                 ))}
-                <th className="px-3 py-2 font-normal">T2 lernt noch</th>
+                <th className="px-3 py-2 font-normal">Rookie</th>
               </tr>
             </thead>
             <tbody>
@@ -203,7 +254,7 @@ function PersonZeile({ p, kann }: { p: Person; kann: Map<FestePosition, boolean>
         </td>
       ))}
       <td className="px-3 py-2">
-        <input type="checkbox" name={`lernt:${p.id}`} defaultChecked={kann.get("T2") === true} aria-label={`${p.name} lernt T2`} />
+        <input type="checkbox" name={`lernt:${p.id}`} defaultChecked={kann.get("T2") === true} aria-label={`${p.name} ist Rookie`} />
       </td>
     </tr>
   );

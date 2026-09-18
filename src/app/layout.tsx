@@ -64,7 +64,7 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
 ];
 
 /** Seiten, die ohne Anmeldung erreichbar sein müssen. */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot"];
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung"];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.

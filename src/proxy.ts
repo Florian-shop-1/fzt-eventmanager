@@ -43,6 +43,8 @@ import { anmeldenMitZiel } from "@/lib/auth/weiter";
 const OHNE_ANMELDUNG = [
   "/anmelden",
   "/ihr-angebot",
+  // Einladungslink fürs Showteam: selbst eintragen, siehe app/einladung.
+  "/einladung",
   "/api/shop",
   "/api/vorfreude",
   "/api/bewertung",

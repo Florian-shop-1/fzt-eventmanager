@@ -30,7 +30,7 @@ export const ERKLAERUNG: Record<Position, string> = {
   FOH: "Front of House, Licht und Ton",
   T2: "Techniker 2",
   T1: "Techniker 1",
-  SHADOW: "läuft bei T2 mit und lernt die Show",
+  SHADOW: "erfahrener T2, begleitet den Rookie",
 };
 
 export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -175,7 +175,7 @@ export interface Slot {
   /** Die Person hat gefragt, ob jemand übernimmt. */
   suchtErsatz: boolean;
   grund: string | null;
-  /** Hier wird jemand gebraucht: leer oder Ersatz gesucht. Shadow ist nie offen, nur frei. */
+  /** Hier wird jemand gebraucht: leer oder Ersatz gesucht. */
   offen: boolean;
   erinnertStufe: number;
 }
@@ -221,19 +221,21 @@ export function planBauen(
           erinnertStufe: e?.erinnertStufe ?? 0,
         });
       }
-      // Shadow gibt es nur, wenn T2 jemand macht, der die Show schon kann.
+      // Macht ein Rookie T2, braucht er einen Shadow: Mario oder Julian
+      // gehen mit. Nur dann gibt es die Zeile, und dann ist sie Pflicht.
       const t2 = slots.find((s) => s.position === "T2");
-      const sh = eintrag.get(`${termin.ditixEventId}|SHADOW`);
-      const shPerson = sh?.benutzerId ? (person.get(sh.benutzerId) ?? null) : null;
-      if (t2 && (shPerson || (t2.person && t2.person.kann.get("T2") === false))) {
+      if (t2?.person && istRookie(t2.person)) {
+        const sh = eintrag.get(`${termin.ditixEventId}|SHADOW`);
+        const shPerson = sh?.benutzerId ? (person.get(sh.benutzerId) ?? null) : null;
+        const suchtErsatz = Boolean(sh?.suchtErsatz && shPerson);
         slots.push({
           position: "SHADOW",
           person: shPerson,
           fest: false,
-          suchtErsatz: false,
-          grund: null,
-          offen: false,
-          erinnertStufe: 0,
+          suchtErsatz,
+          grund: sh?.grund ?? null,
+          offen: !shPerson || suchtErsatz,
+          erinnertStufe: sh?.erinnertStufe ?? 0,
         });
       }
       return { termin, slots };
@@ -241,13 +243,17 @@ export function planBauen(
     .filter((s) => s.slots.length > 0);
 }
 
+/** Rookie: macht T2, kann die Show aber noch nicht allein (Spalte "lernt"). */
+export function istRookie(p: Person): boolean {
+  return p.kann.get("T2") === true;
+}
+
 /**
  * Darf diese Person die Position übernehmen?
- * T2 nur, wer die Show schon allein kann. Shadow nur, wer bei T2 noch lernt.
+ * T2 dürfen alle mit T2, auch Rookies. Shadow nur, wer T2 schon allein kann.
  */
 export function darfUebernehmen(p: Person, position: Position): boolean {
-  if (position === "SHADOW") return p.kann.get("T2") === true;
-  if (position === "T2") return p.kann.get("T2") === false;
+  if (position === "SHADOW") return p.kann.get("T2") === false;
   return p.kann.has(position);
 }
 

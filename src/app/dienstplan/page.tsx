@@ -8,6 +8,7 @@ import {
   BEZEICHNUNG,
   ERKLAERUNG,
   darfUebernehmen,
+  istRookie,
   schonImDienst,
   type Person,
   type Schicht,
@@ -88,7 +89,7 @@ export default async function DienstplanSeite({
         <section className="space-y-2 rounded-lg border p-4" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
           <h2 className="font-semibold">Kannst du einspringen?</h2>
           <ul className="space-y-1 text-sm">
-            {gesucht.map((g) => (
+            {gesucht.slice(0, 6).map((g) => (
               <li key={`${g.termin.ditixEventId}${g.position}`}>
                 <a href={`#s-${g.termin.ditixEventId}`} className="underline">
                   {datumMitWochentag(g.termin.datum)}, {g.termin.uhrzeit} Uhr
@@ -97,6 +98,7 @@ export default async function DienstplanSeite({
               </li>
             ))}
           </ul>
+          {gesucht.length > 6 && <p className="text-xs text-leise">und {gesucht.length - 6} weitere, siehe unten unter „Alle Shows“</p>}
         </section>
       )}
 
@@ -138,8 +140,8 @@ export default async function DienstplanSeite({
       )}
 
       <p className="text-xs text-leise">
-        Shadow: Wer T2 noch lernt, läuft mit, wenn Mario oder Julian T2 machen. Die Zeile erscheint nur
-        an diesen Abenden.
+        Rookie: neu auf T2, kann die Show noch nicht allein. Macht ein Rookie T2, erscheint die Zeile
+        Shadow: Dann geht jemand mit, der die Show kann (Mario oder Julian).
       </p>
     </div>
   );
@@ -212,7 +214,7 @@ function SlotZeile({
     ich &&
     !meins &&
     darfUebernehmen(ich, slot.position) &&
-    (slot.position === "SHADOW" ? !slot.person : slot.offen) &&
+    slot.offen &&
     !schonDabei;
   const versteckt = (
     <>
@@ -234,6 +236,11 @@ function SlotZeile({
         {slot.person ? (
           <>
             <strong>{meins ? "Du" : slot.person.name}</strong>
+            {slot.position === "T2" && istRookie(slot.person) && (
+              <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--info-hell)", color: "var(--info)" }}>
+                Rookie, mit Shadow
+              </span>
+            )}
             {slot.fest && <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">fester Tag</span>}
             {slot.suchtErsatz && (
               <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}>
@@ -241,10 +248,10 @@ function SlotZeile({
               </span>
             )}
           </>
-        ) : slot.position === "SHADOW" ? (
-          <span className="text-leise">frei, wer T2 lernt, kann mitlaufen</span>
         ) : (
-          <strong style={{ color: "var(--warnung)" }}>offen, jemand gesucht</strong>
+          <strong style={{ color: "var(--warnung)" }}>
+            {slot.position === "SHADOW" ? "offen, der Rookie braucht einen Shadow" : "offen, jemand gesucht"}
+          </strong>
         )}
       </span>
 
@@ -252,24 +259,19 @@ function SlotZeile({
         {kannUebernehmen && (
           <form action={uebernehmen}>
             {versteckt}
-            <Absendeknopf text={slot.position === "SHADOW" ? "Mitlaufen" : "Ich übernehme"} laeuftText="Moment..." />
+            <Absendeknopf text="Ich übernehme" laeuftText="Moment..." />
           </form>
         )}
 
         {meins && !slot.suchtErsatz && (
           <details className="text-sm">
             <summary className="cursor-pointer text-leise underline">
-              {slot.position === "SHADOW" ? "austragen" : "Ich kann nicht"}
+              Ich kann nicht
             </summary>
             <form action={ersatzSuchen} className="mt-2 flex flex-wrap gap-2">
               {versteckt}
-              {slot.position !== "SHADOW" && (
-                <input name="grund" placeholder="Grund, freiwillig (krank, Urlaub, Tausch)" className="w-56 text-sm" maxLength={120} />
-              )}
-              <Absendeknopf
-                text={slot.position === "SHADOW" ? "Austragen" : "Kollegen fragen"}
-                laeuftText="Wird verschickt..."
-              />
+              <input name="grund" placeholder="Grund, freiwillig (krank, Urlaub, Tausch)" className="w-56 text-sm" maxLength={120} />
+              <Absendeknopf text="Kollegen fragen" laeuftText="Wird verschickt..." />
             </form>
           </details>
         )}
@@ -285,12 +287,12 @@ function SlotZeile({
 
         {planer && (
           <details className="text-sm">
-            <summary className="cursor-pointer text-leise underline">ändern</summary>
+            <summary className="cursor-pointer text-leise underline">einteilen</summary>
             <form action={einteilen} className="mt-2 flex flex-wrap gap-2">
               {versteckt}
               <select name="wert" defaultValue={slot.person?.id ?? "offen"} className="text-sm">
                 <option value="fest">wie fester Plan</option>
-                <option value="offen">{slot.position === "SHADOW" ? "niemand" : "offen, Kollegen fragen"}</option>
+                <option value="offen">offen, Kollegen fragen</option>
                 {personen
                   .filter((p) => darfUebernehmen(p, slot.position) || p.id === slot.person?.id)
                   .map((p) => (
@@ -299,7 +301,8 @@ function SlotZeile({
                     </option>
                   ))}
               </select>
-              <Absendeknopf text="Speichern" laeuftText="..." />
+              <input name="notiz" placeholder="Notiz für die Mail, freiwillig" className="w-56 text-sm" maxLength={300} />
+              <Absendeknopf text="Einteilen" laeuftText="..." />
             </form>
           </details>
         )}

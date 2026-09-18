@@ -112,9 +112,20 @@ export async function uebernommenMail(o: { an: Person; wer: string; termin: Vors
 }
 
 /** Florian hat jemanden eingeteilt. */
-export async function eingeteiltMail(o: { an: Person; wer: string; termin: Vorstellungstermin; position: Position }) {
+export async function eingeteiltMail(o: {
+  an: Person;
+  wer: string;
+  termin: Vorstellungstermin;
+  position: Position;
+  notiz?: string | null;
+}) {
+  const vorname = o.wer.split(" ")[0];
   return schicken([o.an], `Du bist eingeteilt: ${datumMitWochentag(o.termin.datum)}`, () => ({
-    absaetze: [`${o.wer} hat dich für diese Show eingeteilt:`, "Wenn du nicht kannst, such im Dienstplan einen Ersatz."],
+    absaetze: [
+      `${vorname} hat dich für diese Show eingeteilt:`,
+      ...(o.notiz ? [`Notiz von ${vorname}: ${o.notiz}`] : []),
+      "Wenn du nicht kannst, klick im Dienstplan auf „Ich kann nicht“, dann werden die anderen gefragt.",
+    ],
     liste: [schichtText(o.termin, o.position)],
     knopf: "Zum Dienstplan",
     link: `${appUrl()}/dienstplan`,

@@ -8,6 +8,7 @@ import { findeTermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
 import { planLaden } from "@/lib/dienstplan/laden";
 import { eingeteiltMail, ersatzGesuchtMail, uebernommenMail } from "@/lib/dienstplan/mails";
+import { einladungAbschalten, neueEinladung } from "@/lib/dienstplan/einladung";
 import {
   BEZEICHNUNG,
   POSITIONEN,
@@ -51,7 +52,7 @@ export async function uebernehmen(f: FormData): Promise<void> {
   if (!darfUebernehmen(ich, position)) {
     zurueck(eventId, `${BEZEICHNUNG[position]} ist nicht bei deinen Positionen eingetragen. Florian kann das ändern.`);
   }
-  if (position === "SHADOW" ? slot.person !== null : !slot.offen) {
+  if (!slot.offen) {
     zurueck(eventId, "Zu spät, jemand anderes war schneller.");
   }
   if (slot.person?.id !== ich.id && schonImDienst(schichten, ich.id, termin)) {
@@ -72,12 +73,6 @@ export async function ersatzSuchen(f: FormData): Promise<void> {
   const { benutzer, eventId, position, termin, schichten, personen, slot, ich } = await schichtLaden(f);
   if (!slot || !ich || slot.person?.id !== ich.id) zurueck(eventId, "Das ist nicht deine Schicht.");
   const grund = text(f, "grund").slice(0, 120) || null;
-
-  // Shadow ist freiwillig. Wer nicht kann, trägt sich einfach aus.
-  if (position === "SHADOW") {
-    await einsatzLoeschen(eventId, position);
-    zurueck(eventId, "Du bist ausgetragen.");
-  }
 
   await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: true, grund, von: benutzer.name });
   const an = werKann(personen, position, ich.id).filter((p) => !schonImDienst(schichten, p.id, termin));
@@ -112,10 +107,6 @@ export async function einteilen(f: FormData): Promise<void> {
     zurueck(eventId, "Zurück auf dem festen Plan.");
   }
   if (wert === "offen") {
-    if (position === "SHADOW") {
-      await einsatzLoeschen(eventId, position);
-      zurueck(eventId, "Shadow ist wieder frei.");
-    }
     await einsatzSetzen({ termin, position, benutzerId: null, suchtErsatz: false, grund: null, von: benutzer.name });
     const an = werKann(personen, position, slot?.person?.id).filter((p) => !schonImDienst(schichten, p.id, termin));
     await ersatzGesuchtMail({ an, wer: benutzer.name.split(" ")[0] + " (Büro)", termin, position, grund: "Schicht ist frei" });
@@ -124,7 +115,8 @@ export async function einteilen(f: FormData): Promise<void> {
   const p = personen.find((x) => x.id === wert);
   if (!p) zurueck(eventId, "Diese Person gibt es nicht.");
   await einsatzSetzen({ termin, position, benutzerId: p.id, suchtErsatz: false, grund: null, von: benutzer.name });
-  if (p.id !== benutzer.id) await eingeteiltMail({ an: p, wer: benutzer.name, termin, position });
+  const notiz = text(f, "notiz").slice(0, 300) || null;
+  if (p.id !== benutzer.id) await eingeteiltMail({ an: p, wer: benutzer.name, termin, position, notiz });
   zurueck(eventId, `${p.name} ist eingeteilt und hat eine Mail bekommen.`);
 }
 
@@ -173,4 +165,17 @@ export async function festeTageSpeichern(f: FormData): Promise<void> {
   revalidatePath("/dienstplan");
   revalidatePath("/", "layout");
   redirect(`/dienstplan/einrichtung?meldung=${encodeURIComponent("Feste Tage gespeichert.")}`);
+}
+
+/** Einladungslink fürs Showteam: neu erzeugen (der alte gilt dann nicht mehr) oder abschalten. */
+export async function einladungErneuern(): Promise<void> {
+  const b = await nurChef();
+  await neueEinladung(b.name);
+  redirect(`/dienstplan/einrichtung?meldung=${encodeURIComponent("Neuer Einladungslink erstellt. Der alte gilt nicht mehr.")}#einladung`);
+}
+
+export async function einladungAus(): Promise<void> {
+  await nurChef();
+  await einladungAbschalten();
+  redirect(`/dienstplan/einrichtung?meldung=${encodeURIComponent("Einladungslink abgeschaltet.")}#einladung`);
 }

@@ -1,0 +1,96 @@
+"use server";
+
+/**
+ * Selbst eintragen über den Einladungslink: Zugang anlegen, Position
+ * merken, anmelden, ab in den Dienstplan. Florian bekommt eine Mail.
+ */
+
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db/client";
+import { sitzungStarten } from "@/lib/auth/sitzung";
+import { passwortPruefen, passwortVerschluesseln } from "@/lib/auth/passwort";
+import { einladungBenutzt, einladungGueltig } from "@/lib/dienstplan/einladung";
+import { VORSCHLAG_FEST } from "@/lib/dienstplan/plan";
+import { appUrl } from "@/lib/dienstplan/mails";
+import { mailVerschicken } from "@/lib/mail/versand";
+
+/** Nur Florian, nicht alle Chefs: sonst bekommen vier Leute jede Anmeldung. */
+const FLORIAN = "info@florianzimmer.com";
+
+export type EinladungsErgebnis = { fehler?: string; felder?: Record<string, string> };
+
+const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+
+const POSITIONEN: Record<string, { position: "FOH" | "T2" | "T1"; lernt: boolean; text: string }> = {
+  FOH: { position: "FOH", lernt: false, text: "FOH (Licht und Ton)" },
+  T2: { position: "T2", lernt: false, text: "Techniker 2" },
+  T2neu: { position: "T2", lernt: true, text: "Techniker 2, Rookie (braucht noch einen Shadow)" },
+  T1: { position: "T1", lernt: false, text: "Techniker 1" },
+};
+
+export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Promise<EinladungsErgebnis> {
+  const token = text(f, "token");
+  if (!(await einladungGueltig(token))) {
+    return { fehler: "Dieser Einladungslink gilt nicht mehr. Bitte frag Florian nach dem neuen." };
+  }
+
+  const vorname = text(f, "vorname").slice(0, 60);
+  const nachname = text(f, "nachname").slice(0, 60);
+  const email = text(f, "email").toLowerCase().slice(0, 120);
+  const passwort = String(f.get("passwort") ?? "");
+  const wahl = POSITIONEN[text(f, "position")];
+
+  const felder: Record<string, string> = {};
+  if (!vorname) felder.vorname = "Bitte deinen Vornamen.";
+  if (!nachname) felder.nachname = "Bitte deinen Nachnamen.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) felder.email = "Diese E-Mail-Adresse stimmt nicht.";
+  const pw = passwortPruefen(passwort);
+  if (pw) felder.passwort = pw;
+  if (!wahl) felder.position = "Bitte wähl aus, was du machst.";
+  if (Object.keys(felder).length) return { fehler: "Bitte die markierten Felder prüfen.", felder };
+
+  const vorhanden = (await db()`select id from benutzer where lower(email) = ${email}`) as unknown[];
+  if (vorhanden.length) {
+    return {
+      fehler: "Mit dieser E-Mail gibt es schon einen Zugang. Melde dich einfach an, oder frag Florian nach einem neuen Passwort.",
+      felder: { email: "schon vorhanden" },
+    };
+  }
+
+  const name = `${vorname} ${nachname}`;
+  const neu = (await db()`
+    insert into benutzer (name, email, rolle, art, passwort_hash, muss_passwort_aendern)
+    values (${name}, ${email}, 'showteam', 'intern', ${await passwortVerschluesseln(passwort)}, false)
+    returning id
+  `) as Array<{ id: string }>;
+  const id = neu[0].id;
+  await db()`insert into dienst_quali (benutzer_id, position, lernt) values (${id}, ${wahl!.position}, ${wahl!.lernt})`;
+
+  // Feste Tage, die Florian am 18.09.2026 genannt hat (Levi freitags ...),
+  // gleich eintragen, sofern der Tag noch frei ist.
+  for (const v of VORSCHLAG_FEST) {
+    if (v.vorname !== vorname.toLowerCase() || v.position !== wahl!.position) continue;
+    await db()`
+      insert into dienst_fest (position, wochentag, benutzer_id)
+      select ${v.position}, ${v.wochentag}::int, ${id}::uuid
+       where not exists (select 1 from dienst_fest where position = ${v.position} and wochentag is not distinct from ${v.wochentag}::int)
+    `;
+  }
+  await einladungBenutzt(token);
+
+  // Florian Bescheid sagen. Scheitert die Mail, ist der Zugang trotzdem da.
+  try {
+    {
+      await mailVerschicken({
+        an: FLORIAN,
+        betreff: `Neu im Showteam: ${name} (${wahl!.text})`,
+        text: `${name} hat sich über den Einladungslink eingetragen.\n\nE-Mail: ${email}\nPosition: ${wahl!.text}\n\nFalls das nicht stimmt: ${appUrl()}/dienstplan/einrichtung`,
+      });
+    }
+  } catch (e) {
+    console.error("[einladung] Mail an Florian fehlgeschlagen:", e);
+  }
+
+  await sitzungStarten(id);
+  redirect(`/dienstplan?meldung=${encodeURIComponent(`Willkommen im Showteam, ${vorname}! Du bist eingetragen. Hier siehst du ab jetzt, wann du arbeitest.`)}`);
+}
