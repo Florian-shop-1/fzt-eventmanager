@@ -528,3 +528,45 @@ function bestenBlockSuchen(
 
   return bester;
 }
+
+/**
+ * Platzvorschläge für die Gästeliste (migrations/038_gaesteliste.sql).
+ *
+ * Gäste von der Gästeliste haben kein Ticket und keinen Platz. Sie werden
+ * vor Ort gesetzt, und zwar nach den Upgrades in das, was in der
+ * spielbaren Zone dann noch frei ist. Dieselben Regeln wie für die
+ * Upgrades: am Stück, nah an den anderen, mittig und vorne.
+ *
+ * Die größten Gruppen zuerst, denn für sie gibt es die wenigsten Blöcke.
+ * Findet sich keiner, bleibt der Vorschlag leer, und das Showteam setzt
+ * sie vor Ort, wo es passt.
+ */
+export function gaestePlaetze(
+  rat: Empfehlung,
+  gaeste: Array<{ id: string; anzahl: number }>,
+): Map<string, Bereich | null> {
+  const belegt = new Set<number>();
+  for (const u of rat.umzuege) for (const s of u.ziel.sitze) belegt.add(s.id);
+
+  /*
+    Zweite Wahl: das ganze Parkett. Ist in der Zone kein Block am Stück frei,
+    ist ein Platz weiter hinten oder aussen immer noch besser als keiner.
+    Gleiche Bewertung, also möglichst vorne, mittig und nah an den anderen.
+  */
+  const parkett = rat.reihen.filter((r) => !NICHT_ZIEL.test(r.sektor));
+  const weit: Spielzone = {
+    ...rat.zone,
+    reihen: parkett,
+    sitze: new Set(parkett.flatMap((r) => r.sitze.map((s) => s.id))),
+  };
+
+  const ergebnis = new Map<string, Bereich | null>();
+  for (const g of [...gaeste].sort((a, b) => b.anzahl - a.anzahl)) {
+    const ziel =
+      bestenBlockSuchen(rat.zone, g.anzahl, belegt, Number.POSITIVE_INFINITY) ??
+      bestenBlockSuchen(weit, g.anzahl, belegt, Number.POSITIVE_INFINITY);
+    if (ziel) for (const s of ziel.sitze) belegt.add(s.id);
+    ergebnis.set(g.id, ziel);
+  }
+  return ergebnis;
+}

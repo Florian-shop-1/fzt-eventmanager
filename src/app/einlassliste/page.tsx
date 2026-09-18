@@ -15,6 +15,7 @@ import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { angekommeneGruppen, einlassAbhaken } from "@/lib/db/aktionen";
 import { uhrzeit } from "@/lib/zeit";
 import type { Plan } from "@/lib/seating/types";
+import { gaesteDesTages } from "@/lib/db/gaesteliste";
 
 export const metadata = { title: "Einlassliste | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export default async function EinlasslisteSeite({
   if (!kopf) return null;
 
   const plan = kopf.festgelegt?.plan ?? varianten[0] ?? null;
+  const gaesteliste = await gaesteDesTages(kopf.datum).catch(() => []);
 
   // Nach Nachnamen sortiert, denn an der Tür sagt jeder seinen Nachnamen.
   const zeilen = gruppen.gruppen
@@ -227,6 +229,34 @@ export default async function EinlasslisteSeite({
               ))}
             </tbody>
           </table>
+        )}
+
+        {gaesteliste.length > 0 && (
+          <section className="mt-8">
+            <h3 className="mb-1 text-base font-semibold">Gästeliste (Show, ohne Ticket)</h3>
+            <p className="mb-2 text-xs text-leise">
+              Diese Gäste haben kein Ticket. Am Einlass einfach durchlassen, einen Platz bekommen sie
+              vom Showteam, das die Upgrades macht.
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {gaesteliste.map((g) => (
+                  <tr key={g.id} className="border-b border-linie last:border-0">
+                    <td className="w-10 py-2">
+                      <span className="inline-block h-5 w-5 rounded border border-text" aria-hidden="true" />
+                    </td>
+                    <td className="py-2">
+                      <span className="font-medium">{g.name}</span>
+                      {g.notiz && <span className="text-xs text-leise"> · {g.notiz}</span>}
+                    </td>
+                    <td className="w-20 py-2 text-right tabular-nums">{g.anzahl}</td>
+                    {mehrereShows && <td className="w-24 py-2 text-xs">{g.uhrzeit} Uhr</td>}
+                    <td className="w-44 py-2 text-xs">{g.platz ? `sitzt: ${g.platz}` : "Platz vom Showteam"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
         )}
 
         <footer className="mt-6 border-t border-linie pt-3 text-xs text-leise">

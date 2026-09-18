@@ -3,7 +3,10 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { termineDesTages, findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { holeSaalplan, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
-import { empfehlung, type Bereich, type Empfehlung } from "@/lib/seating/upgrade";
+import { empfehlung, gaestePlaetze, type Bereich, type Empfehlung } from "@/lib/seating/upgrade";
+import { gaesteDerVorstellung, type Gast } from "@/lib/db/gaesteliste";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { gastGesetzt } from "@/app/gaesteliste/aktionen";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
@@ -81,6 +84,12 @@ export default async function UpgradeSeite({
 
   const rat = plan ? empfehlung(plan) : null;
 
+  // Die Gästeliste: ohne Ticket, vor Ort zu setzen. Vorschläge nach den Upgrades.
+  const gaeste = vorstellung ? await gaesteDerVorstellung(vorstellung.ditixEventId) : [];
+  const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich | null>();
+  const benutzer = await angemeldeterBenutzer();
+  const darfEintragen = benutzer?.rolle === "chef" || benutzer?.rolle === "team";
+
   return (
     <div className="space-y-6">
       <Druckkopf
@@ -101,7 +110,7 @@ export default async function UpgradeSeite({
             niemand wird nach hinten gesetzt. Ausdrucken, am Einlass ansprechen, abhaken.
           </p>
         </div>
-        {rat && rat.umzuege.length > 0 && (
+        {((rat && rat.umzuege.length > 0) || gaeste.length > 0) && (
           <DruckKnopf text="Plan drucken" hinweis="mit Liste zum Abhaken" />
         )}
       </header>
@@ -159,8 +168,20 @@ export default async function UpgradeSeite({
         <>
           <Lage plan={plan} rat={rat} vorstellung={vorstellung} />
           <Umzugsliste rat={rat} />
-          <Saalzeichnung plan={plan} rat={rat} />
         </>
+      )}
+
+      {vorstellung && (gaeste.length > 0 || darfEintragen) && (
+        <Gaesteliste
+          gaeste={gaeste}
+          vorschlaege={vorschlaege}
+          mitVorschlag={Boolean(rat)}
+          eintragenLink={darfEintragen ? `/gaesteliste?v=${vorstellung.ditixEventId}` : null}
+        />
+      )}
+
+      {plan && rat && (
+        <Saalzeichnung plan={plan} rat={rat} gaeste={gaeste} vorschlaege={vorschlaege} />
       )}
     </div>
   );
@@ -335,6 +356,122 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
   );
 }
 
+/** "G1", "G2" ... für die Gäste von der Gästeliste, auf Liste und Zeichnung gleich. */
+function gastZeichen(i: number): string {
+  return `G${i + 1}`;
+}
+
+/**
+ * Die Gästeliste auf dem Ausdruck.
+ *
+ * Diese Gäste haben kein Ticket und keinen Platz. Wer die Upgrades macht,
+ * setzt sie vor Ort, am besten auf den Vorschlag: Er liegt in dem, was nach
+ * den Upgrades in der spielbaren Zone frei ist. Daneben eine Linie, um den
+ * tatsächlichen Platz mit dem Stift zu notieren, und am Bildschirm ein Feld
+ * dafür.
+ */
+function Gaesteliste({
+  gaeste,
+  vorschlaege,
+  mitVorschlag,
+  eintragenLink,
+}: {
+  gaeste: Gast[];
+  vorschlaege: Map<string, Bereich | null>;
+  mitVorschlag: boolean;
+  eintragenLink: string | null;
+}) {
+  const summe = gaeste.reduce((s, g) => s + g.anzahl, 0);
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Gästeliste
+          {gaeste.length > 0 &&
+            `: ${gaeste.length} ${gaeste.length === 1 ? "Eintrag" : "Einträge"}, ${summe} ${summe === 1 ? "Gast" : "Gäste"}`}
+        </h2>
+        {eintragenLink && (
+          <a href={eintragenLink} className="text-sm underline print:hidden">
+            Gast eintragen
+          </a>
+        )}
+      </div>
+      {gaeste.length === 0 ? (
+        <p className="text-sm text-leise print:hidden">Für diese Vorstellung steht niemand auf der Gästeliste.</p>
+      ) : (
+        <>
+          <p className="max-w-prose text-xs text-leise">
+            Ohne Ticket, ohne festen Platz. Nach den Upgrades setzen, am besten auf den Vorschlag.
+            Wo sie tatsächlich sitzen, rechts notieren.
+          </p>
+          <ul className="space-y-2">
+            {gaeste.map((g, i) => {
+              const v = vorschlaege.get(g.id);
+              return (
+                <li
+                  key={g.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-linie bg-flaeche px-3 py-2"
+                >
+                  <span
+                    className="druckt-farbe flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold"
+                    style={{ background: "var(--info)", color: "#fff" }}
+                  >
+                    {gastZeichen(i)}
+                  </span>
+                  <span className="text-sm">
+                    <strong>{g.name}</strong>
+                    {g.notiz && <span className="text-leise"> · {g.notiz}</span>}
+                  </span>
+                  <span className="text-sm text-leise">
+                    {g.anzahl} {g.anzahl === 1 ? "Gast" : "Gäste"}
+                  </span>
+                  <span className="text-sm">
+                    {g.platz ? (
+                      <>
+                        <span className="text-leise">sitzt:</span>{" "}
+                        <strong style={{ color: "var(--gut)" }}>{g.platz}</strong>
+                      </>
+                    ) : v ? (
+                      <>
+                        <span className="text-leise">Vorschlag:</span>{" "}
+                        <strong>
+                          Reihe {v.reihe.nummer}, {plaetze(v)}
+                        </strong>
+                      </>
+                    ) : (
+                      <span className="text-leise">
+                        {mitVorschlag ? "kein Block am Stück frei, vor Ort setzen" : "vor Ort setzen"}
+                      </span>
+                    )}
+                  </span>
+                  <span className="ml-auto flex items-center gap-3">
+                    <form action={gastGesetzt} className="flex items-center gap-1 print:hidden">
+                      <input type="hidden" name="id" value={g.id} />
+                      <input
+                        name="platz"
+                        defaultValue={g.platz ?? (v ? `Reihe ${v.reihe.nummer}, ${plaetze(v)}` : "")}
+                        placeholder="Reihe, Platz"
+                        className="w-40 text-xs"
+                        aria-label={`Platz für ${g.name}`}
+                      />
+                      <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs hover:bg-gold-hell">
+                        sitzt
+                      </button>
+                    </form>
+                    {/* Auf Papier: Linie für den Platz und Kästchen zum Abhaken. */}
+                    <span className="hidden w-32 border-b border-text print:inline-block" aria-hidden="true" />
+                    <span className="hidden h-6 w-6 shrink-0 rounded border border-text print:inline-block" aria-hidden="true" />
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 /**
  * Der Saal als Zeichnung.
  *
@@ -349,7 +486,19 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
  * Zeichnung die Klasse "druckt-farbe": Browser lassen Flächen beim
  * Drucken sonst weg, und dann sähen alle Plätze gleich aus.
  */
-function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
+function Saalzeichnung({
+  plan,
+  rat,
+  gaeste,
+  vorschlaege,
+}: {
+  plan: Saalplan;
+  rat: Empfehlung;
+  gaeste: Gast[];
+  vorschlaege: Map<string, Bereich | null>;
+}) {
+  const gastSitz = new Map<number, string>();
+  gaeste.forEach((g, i) => vorschlaege.get(g.id)?.sitze.forEach((s) => gastSitz.set(s.id, gastZeichen(i))));
   const ziel = new Map<number, number>();
   const quelle = new Map<number, number>();
   rat.umzuege.forEach((u, i) => {
@@ -440,6 +589,7 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
                 ziel={ziel.get(s.id)}
                 quelle={quelle.get(s.id)}
                 bleibt={bleibt.has(s.id)}
+                gast={gastSitz.get(s.id)}
               />
             ))}
           </g>
@@ -453,6 +603,7 @@ function Saalzeichnung({ plan, rat }: { plan: Saalplan; rat: Empfehlung }) {
           rahmen="var(--gold-dunkel)"
           text="sitzt hier, wird angesprochen"
         />
+        {gastSitz.size > 0 && <Zeichen farbe="var(--info)" text="Vorschlag für die Gästeliste" />}
         <Zeichen farbe="var(--text)" text="verkauft, bleibt sitzen" />
         <Zeichen
           farbe="var(--warnung-hell)"
@@ -480,12 +631,14 @@ function Platz({
   ziel,
   quelle,
   bleibt,
+  gast,
 }: {
   sitz: Sitz;
   kante: number;
   ziel: number | undefined;
   quelle: number | undefined;
   bleibt: boolean;
+  gast?: string;
 }) {
   let fuellung = "var(--flaeche)";
   let rahmen = "var(--linie)";
@@ -500,6 +653,11 @@ function Platz({
     rahmen = "var(--gold-dunkel)";
     schrift = "#ffffff";
     beschriftung = buchstabe(ziel);
+  } else if (gast) {
+    fuellung = "var(--info)";
+    rahmen = "var(--info)";
+    schrift = "#ffffff";
+    beschriftung = gast;
   } else if (quelle !== undefined) {
     fuellung = "var(--gold-hell)";
     rahmen = "var(--gold-dunkel)";
