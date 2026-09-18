@@ -36,6 +36,10 @@ export interface AngemeldeterBenutzer {
   mussPasswortAendern: boolean;
   /** Sieht den WhatsApp-Posteingang. Pro Person, siehe migrations/030_whatsapp.sql. */
   whatsapp: boolean;
+  /** FZT-intern oder FZT-extern, null wenn noch nicht festgelegt. Siehe migrations/037. */
+  art: "intern" | "extern" | null;
+  /** Wann der Personalbogen an das Lohnbüro ging. */
+  personalbogenAm: string | null;
 }
 
 function geheimnis(): string {
@@ -104,7 +108,7 @@ export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | nul
 
   try {
     const zeilen = (await db()`
-      select id, name, email, rolle, aktiv, muss_passwort_aendern, whatsapp
+      select id, name, email, rolle, aktiv, muss_passwort_aendern, whatsapp, art, personalbogen_am
         from benutzer where id = ${id}
     `) as Array<Record<string, unknown>>;
 
@@ -119,6 +123,8 @@ export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | nul
       rolle: b.rolle as Rolle,
       mussPasswortAendern: b.muss_passwort_aendern === true,
       whatsapp: b.whatsapp === true,
+      art: (b.art as "intern" | "extern" | null) ?? null,
+      personalbogenAm: (b.personalbogen_am ? new Date(b.personalbogen_am as string).toISOString() : null),
     };
   } catch {
     // Datenbank nicht erreichbar: lieber abmelden als jemanden ohne
@@ -172,6 +178,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Freigabe pro Person (Sarah ist Foyer und braucht ihn trotzdem). Die
   // Seite prüft die Freigabe selbst, hier wird nur nicht vorher umgeleitet.
   if (pfad.startsWith("/whatsapp")) return true;
+  // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
+  if (pfad.startsWith("/personalbogen")) return true;
   if (rolle === "kiosk") {
     // Ein externer Partner, kein Mitarbeiter: nur die Stehtische, keine
     // Gästezahlen, keine Namen. "/" leitet ihn auf /kiosk weiter.

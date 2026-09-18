@@ -205,3 +205,11 @@ export async function onlineUnterschreiben(formData: FormData): Promise<void> {
 
   revalidatePath("/geheimhaltung");
 }
+
+/** Hat dieser Zugang die Geheimhaltung unterschrieben? Für die Erinnerung im Layout. */
+export async function geheimhaltungUnterschrieben(benutzerId: string): Promise<boolean> {
+  const z = (await db()`
+    select 1 from geheimhaltung where benutzer_id = ${benutzerId} and unterschrieben_am is not null limit 1
+  `) as unknown[];
+  return z.length > 0;
+}

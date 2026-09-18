@@ -22,11 +22,17 @@ export function ScanErinnerung({ tage, vorname }: { tage: number; vorname: strin
     const heute = new Date().toLocaleDateString("en-CA");
     try {
       if (localStorage.getItem(SCHLUESSEL) === heute) return;
-      localStorage.setItem(SCHLUESSEL, heute);
     } catch {
       // Ohne Speicher halt jedes Mal. Kommt selten vor.
     }
-    const zeit = setTimeout(() => setZeigen(true), 1200);
+    const zeit = setTimeout(() => {
+      try {
+        localStorage.setItem(SCHLUESSEL, heute);
+      } catch {
+        // egal
+      }
+      setZeigen(true);
+    }, 1200);
     return () => clearTimeout(zeit);
   }, []);
 

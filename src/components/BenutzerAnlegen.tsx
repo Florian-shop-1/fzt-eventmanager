@@ -63,10 +63,26 @@ export function BenutzerAnlegen() {
             <option value="team">Team, sieht alles außer Zugängen</option>
             <option value="gastro">Gastronomie, Küche und Sitzplan, ohne Preise</option>
             <option value="foyer">Foyer, Stehtische und Bändchen, ohne Preise</option>
+            <option value="showteam">Showteam, Saalplan, Belegung, Upgrades und Einlass, ohne Preise und Küche</option>
             <option value="kiosk">Food-Kiosk, nur Stehtische je Abend, keine Gäste- oder Kundendaten</option>
             <option value="chef">Geschäftsführung, darf auch Zugänge verwalten</option>
           </select>
         </label>
+
+        <fieldset className="block">
+          <legend className="mb-1 block text-xs text-leise">Art</legend>
+          <div className="flex flex-wrap gap-4 pt-1.5 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="radio" name="art" value="intern" defaultChecked className="h-4 w-4" />
+              FZT-intern Mitarbeiter
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="art" value="extern" className="h-4 w-4" />
+              FZT-extern
+            </label>
+          </div>
+          <span className="mt-1 block text-xs text-leise">Interne füllen beim ersten Anmelden den Personalbogen fürs Lohnbüro aus.</span>
+        </fieldset>
 
         <div className="flex items-end">
           <button

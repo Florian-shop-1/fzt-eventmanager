@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfSeite, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
+import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
+import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { abmelden } from "@/lib/auth/aktionen";
 import { Wortmarke } from "@/components/Logo";
@@ -74,6 +76,28 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Übersicht statt auf einer Fehlermeldung.
   if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad)) redirect("/");
 
+  // Was diese Person noch erledigen muss. Geschäftsführung und externe
+  // Partner (Food-Kiosk) unterschreiben keine Geheimhaltung über das Programm.
+  const aufgaben: Erinnerung[] = [];
+  if (benutzer && !offen) {
+    if (benutzer.art === "intern" && !benutzer.personalbogenAm) {
+      aufgaben.push({
+        href: "/personalbogen",
+        leiste: "Dein Personalbogen ist noch nicht ausgefüllt.",
+        knopf: "Jetzt ausfüllen",
+        hase: "Dein Personalbogen fürs Lohnbüro fehlt noch. Dauert nur fünf Minuten.",
+      });
+    }
+    if (!["chef", "kiosk"].includes(benutzer.rolle) && !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))) {
+      aufgaben.push({
+        href: "/geheimhaltung",
+        leiste: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben.",
+        knopf: "Jetzt unterschreiben",
+        hase: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben. Ein Zauberer verrät nie seine Tricks!",
+      });
+    }
+  }
+
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
     benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
@@ -127,6 +151,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </header>
         )}
 
+        {benutzer && aufgaben.length > 0 && (
+          <Erinnerungen offen={aufgaben} vorname={benutzer.name.split(" ")[0]} />
+        )}
+
         {benutzer?.mussPasswortAendern && !offen && (
           <div
             className="border-b px-6 py-2 text-center text-sm print:hidden"
@@ -158,7 +186,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </footer>
         )}
 
-        {benutzer && scanPause !== null && scanPause >= 7 && (
+        {benutzer && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
           <ScanErinnerung tage={scanPause} vorname={benutzer.name.split(" ")[0]} />
         )}
       </body>

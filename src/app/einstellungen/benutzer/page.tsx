@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { benutzerUmschalten } from "@/lib/auth/aktionen";
+import { artSetzen, benutzerUmschalten, personalbogenAnfordern } from "@/lib/auth/aktionen";
 import { whatsappFreigabeUmschalten } from "@/lib/whatsapp/aktionen";
 import { BenutzerAnlegen } from "@/components/BenutzerAnlegen";
 import { PasswortZuruecksetzen } from "@/components/PasswortZuruecksetzen";
@@ -28,6 +28,8 @@ interface Zeile {
   muss_passwort_aendern: boolean;
   startpasswort: string | null;
   whatsapp: boolean;
+  art: "intern" | "extern" | null;
+  personalbogen_am: string | null;
 }
 
 export default async function BenutzerSeite() {
@@ -36,7 +38,7 @@ export default async function BenutzerSeite() {
 
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
-           startpasswort, whatsapp
+           startpasswort, whatsapp, art, personalbogen_am
       from benutzer order by rolle, name
   `) as Zeile[];
 
@@ -79,6 +81,7 @@ export default async function BenutzerSeite() {
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">E-Mail</th>
               <th className="px-4 py-2 font-medium">Darf</th>
+              <th className="px-4 py-2 font-medium">FZT</th>
               <th className="px-4 py-2 font-medium">WhatsApp</th>
               <th className="px-4 py-2 font-medium">Zuletzt da</th>
               <th className="px-4 py-2 font-medium">Status</th>
@@ -93,6 +96,39 @@ export default async function BenutzerSeite() {
                 </td>
                 <td className="px-4 py-3 text-leise">{b.email}</td>
                 <td className="px-4 py-3">{ROLLE_KURZ[b.rolle] ?? b.rolle}</td>
+                <td className="px-4 py-3 text-xs">
+                  <div className="flex gap-1">
+                    {(["intern", "extern"] as const).map((a) => (
+                      <form key={a} action={artSetzen.bind(null, b.id, a)}>
+                        <button
+                          type="submit"
+                          className="rounded px-2 py-0.5"
+                          style={{
+                            background: b.art === a ? "var(--gold-hell)" : "transparent",
+                            color: b.art === a ? "var(--gold-dunkel)" : "var(--text-leise)",
+                            fontWeight: b.art === a ? 600 : 400,
+                          }}
+                        >
+                          {a}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                  {b.art === "intern" && (
+                    <div className="mt-1 text-leise">
+                      {b.personalbogen_am ? (
+                        <>
+                          Personalbogen {new Date(b.personalbogen_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}
+                          <form action={personalbogenAnfordern.bind(null, b.id)} className="inline">
+                            <button type="submit" className="ml-1 underline hover:text-text">neu anfordern</button>
+                          </form>
+                        </>
+                      ) : (
+                        <span style={{ color: "var(--warnung)" }}>Personalbogen fehlt</span>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   {/*
                     Pro Person statt pro Rolle: Sarah ist Foyer und liest die
@@ -184,6 +220,28 @@ export default async function BenutzerSeite() {
             <dd>
               Sieht nur Funktionsheet und Küchenblatt. Keine Preise, keine Kundendaten, keine
               Zahlungen, keine Angebote. Für Osman und sein Team.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium text-text">Foyer</dt>
+            <dd>Foyerblatt, Einlass, Sitzplan, Parkplätze und der Emoji-Scanner. Keine Preise.</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-text">Showteam</dt>
+            <dd>
+              Alles, was zur Show gehört: Saalplan, Belegung, Upgrades und Einlass. Nichts von Küche
+              und Gastronomie, keine Preise.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium text-text">Food-Kiosk</dt>
+            <dd>Nur die Stehtische je Abend mit Pausenzeit. Keine Gäste- oder Kundendaten.</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-text">FZT-intern / FZT-extern</dt>
+            <dd>
+              Interne Mitarbeiter füllen beim Anmelden einmal den Personalbogen aus, er geht direkt an
+              das Lohnbüro (w.zimmer@florianzimmer.com und Sabine Buschow). Externe Partner nicht.
             </dd>
           </div>
         </dl>

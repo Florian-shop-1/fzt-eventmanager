@@ -135,8 +135,9 @@ export async function benutzerAnlegen(
   const rolle = text(formData, "rolle") as Rolle;
 
   if (!name || !email) return { fehler: "Name und E-Mail werden gebraucht." };
-  if (!["chef", "team", "gastro", "foyer", "kiosk"].includes(rolle))
+  if (!["chef", "team", "gastro", "foyer", "showteam", "kiosk"].includes(rolle))
     return { fehler: "Unbekannte Rolle." };
+  const art = text(formData, "art") === "extern" ? "extern" : "intern";
 
   const vorhanden = (await db()`
     select id from benutzer where lower(email) = ${email}
@@ -145,8 +146,8 @@ export async function benutzerAnlegen(
 
   const passwort = startpasswortErzeugen();
   await db()`
-    insert into benutzer (name, email, rolle, passwort_hash, muss_passwort_aendern, startpasswort)
-    values (${name}, ${email}, ${rolle}, ${await passwortVerschluesseln(passwort)}, true,
+    insert into benutzer (name, email, rolle, art, passwort_hash, muss_passwort_aendern, startpasswort)
+    values (${name}, ${email}, ${rolle}, ${art}, ${await passwortVerschluesseln(passwort)}, true,
             ${passwort})
   `;
 
@@ -210,4 +211,20 @@ export async function nameAendern(
   await db()`update benutzer set name = ${name} where id = ${benutzer.id}`;
   revalidatePath("/", "layout");
   return { erfolg: "Name gespeichert." };
+}
+
+/** Legt fest, ob jemand FZT-intern oder FZT-extern ist. */
+export async function artSetzen(benutzerId: string, art: "intern" | "extern"): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
+  await db()`update benutzer set art = ${art} where id = ${benutzerId}`;
+  revalidatePath("/einstellungen/benutzer");
+}
+
+/** Fordert den Personalbogen erneut an, etwa nach Umzug oder neuer Bankverbindung. */
+export async function personalbogenAnfordern(benutzerId: string): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
+  await db()`update benutzer set personalbogen_am = null where id = ${benutzerId}`;
+  revalidatePath("/einstellungen/benutzer");
 }
