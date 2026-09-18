@@ -99,6 +99,11 @@ export interface Bereich {
 export interface Umzug {
   gruppe: Bereich;
   ziel: Bereich;
+  /**
+   * Der hintere Teil, wenn die Gruppe als Block auf zwei Reihen sitzt:
+   * vorne in "ziel", direkt dahinter in "ziel2".
+   */
+  ziel2?: Bereich;
 }
 
 /** Der Bereich, in den umgesetzt werden darf. */
@@ -316,14 +321,46 @@ export function empfehlung(plan: Saalplan): Empfehlung {
   const umzuege: Umzug[] = [];
   const bleiben: Bereich[] = [];
 
+  /*
+    Zweite Stufe: über den Rand der Zone hinaus.
+
+    Florian, 19.09.2026: Eine Gruppe mit sieben Leuten blieb in Reihe 9
+    sitzen, obwohl Reihe 5 von Platz 2 bis 8 frei war. Nur Platz 2 lag
+    ausserhalb der Zone. Eine Gruppe hinten ist schlimmer als ein Gast
+    knapp neben dem gestrichelten Kasten. Deshalb: Findet sich in der Zone
+    nichts, dürfen die äusseren Plätze der Zonenreihen mitgenutzt werden,
+    solange mindestens die Hälfte des Blocks in der Zone liegt. Jeder Platz
+    ausserhalb kostet Punkte, damit der Block so weit innen wie möglich liegt.
+  */
+  const breit = breiteZone(zone);
+
   for (const gruppe of reihenfolge) {
-    const ziel = bestenBlockSuchen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y);
-    if (!ziel) {
-      bleiben.push(gruppe);
+    const ziel =
+      bestenBlockSuchen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y) ??
+      bestenBlockSuchen(breit, gruppe.sitze.length, belegt, gruppe.reihe.y, zone.sitze);
+    if (ziel) {
+      for (const s of ziel.sitze) belegt.add(s.id);
+      umzuege.push({ gruppe, ziel });
       continue;
     }
-    for (const s of ziel.sitze) belegt.add(s.id);
-    umzuege.push({ gruppe, ziel });
+    /*
+      Dritte Stufe: als Block auf zwei Reihen.
+
+      Florian, 19.09.2026: "Du kannst aus einer Reihe auch einen Block
+      machen, dann sitzen sie genau hintereinander." Sieben Leute passen
+      nicht am Stück in eine Reihe, aber vier vorne und drei direkt
+      dahinter. Getrennt ist dabei niemand, sie sitzen zusammen, nur in
+      zwei Reihen statt in einer.
+    */
+    const block =
+      blockAufZweiReihen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y) ??
+      blockAufZweiReihen(breit, gruppe.sitze.length, belegt, gruppe.reihe.y, zone.sitze);
+    if (block) {
+      for (const s of [...block.vorne.sitze, ...block.hinten.sitze]) belegt.add(s.id);
+      umzuege.push({ gruppe, ziel: block.vorne, ziel2: block.hinten });
+      continue;
+    }
+    bleiben.push(gruppe);
   }
 
   // Für die Ansage von vorne nach hinten sortieren, damit der Mitarbeiter
@@ -352,7 +389,91 @@ export function empfehlung(plan: Saalplan): Empfehlung {
 }
 
 /**
+ * Eine Gruppe als Block auf zwei aufeinanderfolgenden Reihen: vorne die
+ * grössere Hälfte, direkt dahinter der Rest, Platz für Platz genau
+ * hintereinander. Erst ab drei Personen, ein Paar sitzt nebeneinander.
+ */
+function blockAufZweiReihen(
+  zone: Spielzone,
+  groesse: number,
+  belegt: Set<number>,
+  hoechstensBis: number,
+  kern?: Set<number>,
+): { vorne: Bereich; hinten: Bereich } | null {
+  if (groesse < 3) return null;
+  const nVorne = Math.ceil(groesse / 2);
+  const nHinten = groesse - nVorne;
+  const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
+  const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+
+  let bester: { vorne: Bereich; hinten: Bereich } | null = null;
+  let bestePunkte = -Infinity;
+
+  for (let i = 0; i + 1 < zone.reihen.length; i++) {
+    const r1 = zone.reihen[i];
+    const r2 = zone.reihen[i + 1];
+    // Auch der hintere Teil darf nicht hinter der alten Reihe liegen.
+    if (r2.y > hoechstensBis + 0.5) continue;
+    const abstand = sitzabstand(r1);
+    const innen1 = r1.sitze.filter((s) => zone.sitze.has(s.id));
+    const innen2 = r2.sitze.filter((s) => zone.sitze.has(s.id));
+
+    const amStueck = (f: Sitz[]) => f.every((s, k) => k === 0 || nebeneinander(f[k - 1], s, abstand));
+
+    for (let a = 0; a + nVorne <= innen1.length; a++) {
+      const vorne = innen1.slice(a, a + nVorne);
+      if (!vorne.every(frei) || !amStueck(vorne)) continue;
+
+      // Der hintere Teil sitzt genau hinter einem Teil des vorderen.
+      for (let b = 0; b + nHinten <= innen2.length; b++) {
+        const hinten = innen2.slice(b, b + nHinten);
+        if (!hinten.every(frei) || !amStueck(hinten)) continue;
+        const genauDahinter = hinten.every((h) => vorne.some((v) => Math.abs(v.x - h.x) <= abstand * 0.6));
+        if (!genauDahinter) continue;
+
+        const alle = [...vorne, ...hinten];
+        const draussen = kern ? alle.filter((s) => !kern.has(s.id)).length : 0;
+        if (draussen * 2 > alle.length) continue;
+
+        // Vorne, mittig, nah an anderen, wenig ausserhalb.
+        const mitteX = alle.reduce((n, s) => n + s.x, 0) / alle.length;
+        const halbeBreite = Math.max(1, (zone.rechts - zone.links) / 2);
+        const mittig = 1 - Math.min(1, Math.abs(mitteX - zone.mitte) / halbeBreite);
+        const vorneWert = zone.reihen.length > 1 ? 1 - i / (zone.reihen.length - 1) : 1;
+        let nachbarn = 0;
+        for (const [reihe, teil] of [[r1, vorne], [r2, hinten]] as const) {
+          const i0 = reihe.sitze.indexOf(teil[0]);
+          const i1 = reihe.sitze.indexOf(teil[teil.length - 1]);
+          for (const n of [reihe.sitze[i0 - 1], reihe.sitze[i1 + 1]]) if (n && istBelegt(n)) nachbarn++;
+        }
+        const punkte = vorneWert * 6 + mittig * 4 + nachbarn * 2 - draussen * 3;
+        if (punkte > bestePunkte) {
+          bestePunkte = punkte;
+          bester = { vorne: zuBereich(r1, vorne), hinten: zuBereich(r2, hinten) };
+        }
+      }
+    }
+  }
+  return bester;
+}
+
+/** Die Zonenreihen in voller Breite, für die zweite Stufe der Suche. */
+function breiteZone(zone: Spielzone): Spielzone {
+  const sitze = new Set<number>();
+  for (const r of zone.reihen) {
+    for (const s of r.sitze) {
+      if (ROLLSTUHL.test(s.sektor) || ROLLSTUHL.test(s.kategorie)) continue;
+      sitze.add(s.id);
+    }
+  }
+  return { ...zone, sitze };
+}
+
+/**
  * Sucht den besten freien Block einer bestimmten Grösse in der Zone.
+ *
+ * Mit "kern" wird in einer breiteren Zone gesucht: Mindestens die Hälfte
+ * des Blocks muss dann im Kern liegen, und jeder Platz ausserhalb kostet.
  *
  * Bewertet wird jedes Fenster als Ganzes, denn eine Gruppe zieht als
  * Ganzes um.
@@ -362,6 +483,7 @@ function bestenBlockSuchen(
   groesse: number,
   belegt: Set<number>,
   hoechstensBis: number,
+  kern?: Set<number>,
 ): Bereich | null {
   let bester: Bereich | null = null;
   let bestePunkte = -Infinity;
@@ -403,6 +525,9 @@ function bestenBlockSuchen(
         if (!nebeneinander(fenster[i - 1], fenster[i], abstand)) zusammenhaengend = false;
       }
       if (!zusammenhaengend) continue;
+
+      const draussen = kern ? fenster.filter((s) => !kern.has(s.id)).length : 0;
+      if (draussen * 2 > fenster.length) continue;
 
       const iErster = reihe.sitze.indexOf(fenster[0]);
       const iLetzter = reihe.sitze.indexOf(fenster[fenster.length - 1]);
@@ -517,7 +642,8 @@ function bestenBlockSuchen(
         luecke * 14 -
         uebersprungen * 10 +
         vorne * 6 -
-        luecken * 2.5;
+        luecken * 2.5 -
+        draussen * 3;
 
       if (punkte > bestePunkte) {
         bestePunkte = punkte;
@@ -546,7 +672,7 @@ export function gaestePlaetze(
   gaeste: Array<{ id: string; anzahl: number }>,
 ): Map<string, Bereich | null> {
   const belegt = new Set<number>();
-  for (const u of rat.umzuege) for (const s of u.ziel.sitze) belegt.add(s.id);
+  for (const u of rat.umzuege) for (const s of [...u.ziel.sitze, ...(u.ziel2?.sitze ?? [])]) belegt.add(s.id);
 
   /*
     Zweite Wahl: das ganze Parkett. Ist in der Zone kein Block am Stück frei,
@@ -564,6 +690,7 @@ export function gaestePlaetze(
   for (const g of [...gaeste].sort((a, b) => b.anzahl - a.anzahl)) {
     const ziel =
       bestenBlockSuchen(rat.zone, g.anzahl, belegt, Number.POSITIVE_INFINITY) ??
+      bestenBlockSuchen(breiteZone(rat.zone), g.anzahl, belegt, Number.POSITIVE_INFINITY, rat.zone.sitze) ??
       bestenBlockSuchen(weit, g.anzahl, belegt, Number.POSITIVE_INFINITY);
     if (ziel) for (const s of ziel.sitze) belegt.add(s.id);
     ergebnis.set(g.id, ziel);

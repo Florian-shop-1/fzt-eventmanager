@@ -345,8 +345,16 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
               <span className="text-leise">neu:</span>{" "}
               <strong>
                 Reihe {u.ziel.reihe.nummer}, {plaetze(u.ziel)}
+                {u.ziel2 && (
+                  <>
+                    {" "}+ dahinter Reihe {u.ziel2.reihe.nummer}, {plaetze(u.ziel2)}
+                  </>
+                )}
               </strong>{" "}
-              <span className="text-leise">({u.ziel.reihe.sektor})</span>
+              <span className="text-leise">
+                ({u.ziel.reihe.sektor}
+                {u.ziel2 && `, ${u.ziel.sitze.length} vorne und ${u.ziel2.sitze.length} direkt dahinter`})
+              </span>
             </span>
 
             <span className="ml-auto flex items-center gap-3">
@@ -362,7 +370,8 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
 
       <p className="max-w-prose text-xs text-leise">
         Die Liste steht von vorne nach hinten. Jede Gruppe zieht am Stück um, niemand wird
-        getrennt. Kommt jemand nicht, bleibt sein Block einfach frei.
+        getrennt. Passt eine Gruppe nicht in eine Reihe, sitzt sie als Block auf zwei Reihen
+        genau hintereinander. Kommt jemand nicht, bleibt sein Block einfach frei.
       </p>
     </section>
   );
@@ -514,7 +523,7 @@ function Saalzeichnung({
   const ziel = new Map<number, number>();
   const quelle = new Map<number, number>();
   rat.umzuege.forEach((u, i) => {
-    u.ziel.sitze.forEach((s) => ziel.set(s.id, i));
+    [...u.ziel.sitze, ...(u.ziel2?.sitze ?? [])].forEach((s) => ziel.set(s.id, i));
     u.gruppe.sitze.forEach((s) => quelle.set(s.id, i));
   });
   const bleibt = new Set(rat.bleiben.flatMap((g) => g.sitze.map((s) => s.id)));
