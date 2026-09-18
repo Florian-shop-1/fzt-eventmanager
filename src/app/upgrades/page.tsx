@@ -10,7 +10,7 @@ import { gastGesetzt } from "@/app/gaesteliste/aktionen";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
-import { datumLang } from "@/lib/zeit";
+import { datumLang, datumMitWochentag } from "@/lib/zeit";
 
 export const metadata = { title: "Upgrades | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -96,7 +96,7 @@ export default async function UpgradeSeite({
         titel="Upgrades"
         untertitel={
           vorstellung
-            ? `${datumLang(vorstellung.datum)}, ${vorstellung.uhrzeit} Uhr — ${vorstellung.name}`
+            ? `${datumLang(vorstellung.datum)}, ${vorstellung.uhrzeit} Uhr, ${vorstellung.name}`
             : undefined
         }
       />
@@ -132,22 +132,43 @@ export default async function UpgradeSeite({
         />
       </div>
 
+      {/*
+        Zwei Shows am Tag sind zwei verschiedene Säle: eigener Verkauf,
+        eigener Plan, eigener Ausdruck. Deshalb groß zum Umschalten und
+        darunter deutlich, welche gerade zu sehen ist (Florian, 19.09.2026).
+      */}
       {shows.length > 1 && vorstellung && (
-        <nav className="flex flex-wrap gap-2 text-sm print:hidden">
-          {shows.map((s) => (
-            <Link
-              key={s.ditixEventId}
-              href={`/upgrades?abend=${gewaehlt}&monat=${aufgeschlagenerMonat ?? ""}&show=${s.ditixEventId}`}
-              className={`rounded-md border px-3 py-1.5 ${
-                s.ditixEventId === vorstellung.ditixEventId
-                  ? "border-gold bg-gold-hell"
-                  : "border-linie"
-              }`}
-            >
-              {s.uhrzeit} Uhr
-            </Link>
-          ))}
+        <nav className="grid gap-2 sm:grid-cols-2 print:hidden" aria-label="Vorstellung wählen">
+          {shows.map((s) => {
+            const aktiv = s.ditixEventId === vorstellung.ditixEventId;
+            return (
+              <Link
+                key={s.ditixEventId}
+                href={`/upgrades?abend=${gewaehlt}&monat=${aufgeschlagenerMonat ?? ""}&show=${s.ditixEventId}`}
+                aria-current={aktiv ? "page" : undefined}
+                className={`rounded-lg border-2 px-4 py-3 ${aktiv ? "border-gold bg-gold-hell" : "border-linie bg-flaeche hover:border-gold"}`}
+              >
+                <span className="block text-xs uppercase tracking-wide text-leise">
+                  {tageszeitDerShow(s.uhrzeit)}
+                </span>
+                <span className="block text-lg font-semibold">{s.uhrzeit} Uhr</span>
+                <span className="block text-sm text-leise">{s.name}</span>
+              </Link>
+            );
+          })}
         </nav>
+      )}
+
+      {vorstellung && (
+        <h2 className="text-xl font-semibold tracking-tight print:hidden">
+          {datumMitWochentag(vorstellung.datum)}, {vorstellung.uhrzeit} Uhr
+          <span className="font-normal text-leise"> · {vorstellung.name}</span>
+          {shows.length > 1 && (
+            <span className="ml-2 align-middle text-xs font-normal text-leise">
+              (nur diese Vorstellung, die andere hat ihren eigenen Plan)
+            </span>
+          )}
+        </h2>
       )}
 
       {fehler && (
@@ -185,6 +206,13 @@ export default async function UpgradeSeite({
       )}
     </div>
   );
+}
+
+/** "Mittagsshow" oder "Abendshow", damit man die beiden nicht verwechselt. */
+function tageszeitDerShow(uhrzeit: string): string {
+  if (uhrzeit < "13:00") return "Vormittagsshow";
+  if (uhrzeit < "18:00") return "Mittagsshow";
+  return "Abendshow";
 }
 
 /** Die Lage des Abends in Zahlen. */
