@@ -166,7 +166,7 @@ export default async function UpgradeSeite({
 
       {plan && rat && vorstellung && (
         <>
-          <Lage plan={plan} rat={rat} vorstellung={vorstellung} />
+          <Lage plan={plan} rat={rat} vorstellung={vorstellung} gaesteliste={gaeste.reduce((n, g) => n + g.anzahl, 0)} />
           <Umzugsliste rat={rat} />
         </>
       )}
@@ -192,11 +192,15 @@ function Lage({
   plan,
   rat,
   vorstellung,
+  gaesteliste,
 }: {
   plan: Saalplan;
   rat: Empfehlung;
   vorstellung: Vorstellungstermin;
+  /** Gäste ohne Ticket von der Gästeliste, sie sitzen trotzdem im Saal. */
+  gaesteliste: number;
 }) {
+  const gesamt = plan.verkauft + gaesteliste;
   const quote = Math.round((plan.verkauft / Math.max(1, plan.sitze.length)) * 100);
   const hintenGesamt = rat.gruppen.reduce((n, g) => n + g.sitze.length, 0);
   const quellen = [...new Set(rat.gruppen.map((g) => `Reihe ${g.reihe.nummer}`))].join(", ");
@@ -204,12 +208,20 @@ function Lage({
   return (
     <section className="space-y-3">
       <p className="hidden text-sm print:block">
+        <strong>{gesamt} Zuschauer gesamt</strong>
+        {gaesteliste > 0 && ` (${plan.verkauft} verkauft + ${gaesteliste} Gästeliste)`}.{" "}
         {plan.verkauft} von {plan.sitze.length} Plätzen verkauft ({quote} Prozent). Umzusetzen:{" "}
         {rat.gaeste} Gäste in {rat.umzuege.length}{" "}
         {rat.umzuege.length === 1 ? "Gruppe" : "Gruppen"} aus {quellen || "keiner Reihe"}.
       </p>
 
       <div className="flex flex-wrap gap-4 print:hidden">
+        <Kachel
+          zahl={gesamt}
+          was="Zuschauer gesamt"
+          hinweis={gaesteliste > 0 ? `${plan.verkauft} verkauft + ${gaesteliste} Gästeliste` : "keine Gästeliste"}
+          betont
+        />
         <Kachel
           zahl={plan.verkauft}
           was="verkauft"
@@ -248,7 +260,7 @@ function Lage({
           <ul className="mt-2 space-y-1">
             {rat.bleiben.map((g) => (
               <li key={`${g.reihe.nummer}-${g.von}`}>
-                Reihe {g.reihe.nummer}, {plaetze(g)} — {g.sitze.length}{" "}
+                Reihe {g.reihe.nummer}, {plaetze(g)}: {g.sitze.length}{" "}
                 {g.sitze.length === 1 ? "Gast" : "Gäste"}
               </li>
             ))}
