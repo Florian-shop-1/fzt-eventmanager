@@ -146,7 +146,7 @@ export default async function BewirtungSeite({
                 <h3 className="font-semibold">
                   {m ? MONATE[m - 1] : "ohne Datum"}{" "}
                   <span className="font-normal text-leise">
-                    · {liste.filter((x) => x.status === "fertig").length} Belege ·{" "}
+                    · {liste.filter((x) => x.status === "fertig").length === 1 ? "1 Beleg" : `${liste.filter((x) => x.status === "fertig").length} Belege`} ·{" "}
                     {euro(liste.filter((x) => x.status === "fertig").reduce((n, x) => n + (x.bruttoCent ?? 0) + x.trinkgeldCent, 0))}
                   </span>
                 </h3>
