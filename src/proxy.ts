@@ -49,6 +49,9 @@ const OHNE_ANMELDUNG = [
   "/api/vorfreude",
   "/api/bewertung",
   "/api/scanner",
+  // Tägliche Läufe von Vercel, sie prüfen selbst das CRON_SECRET.
+  "/api/dienstplan",
+  "/api/wein",
   "/api/whatsapp/eingang",
 ];
 

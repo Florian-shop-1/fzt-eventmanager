@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
+import { rechnungErstellenUndSenden } from "@/lib/wein/rechnung";
 import { mailVerschicken } from "@/lib/mail/versand";
 import {
   artikelListe,
@@ -132,3 +133,39 @@ export async function freischalten(f: FormData): Promise<void> {
   zurueck(an ? "Freigeschaltet. Die Gastro sieht jetzt „Bestellungen“." : "Wieder nur für dich sichtbar.", "#einrichtung");
 }
 
+
+export async function rechnungJetzt(f: FormData): Promise<void> {
+  const b = await nurInhaber();
+  const monat = text(f, "monat", 7);
+  if (!/^\d{4}-\d{2}$/.test(monat)) zurueck("Unbekannter Monat.");
+  // Erst das Ergebnis, dann umleiten: redirect() darf nicht in einem try stehen.
+  let meldung: string;
+  try {
+    const r = await rechnungErstellenUndSenden(monat, b.name);
+    meldung = `Rechnung ${r.nummer ?? ""} ist erstellt und an ${r.versendetAn.join(", ")} verschickt.`;
+  } catch (fehler) {
+    meldung = `Die Rechnung ging nicht: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
+  }
+  zurueck(meldung, "#abrechnung");
+}
+
+export async function rechnungEinstellungSpeichern(f: FormData): Promise<void> {
+  await nurInhaber();
+  const empfaenger = {
+    name: text(f, "name", 120),
+    strasse: text(f, "strasse", 120),
+    plz: text(f, "plz", 10),
+    ort: text(f, "ort", 80),
+  };
+  const an = text(f, "an", 500)
+    .split(/[,;\s]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s));
+  const ziel = Math.max(0, Math.min(60, Math.round(Number(text(f, "ziel", 3)) || 14)));
+  await db()`
+    update wein_einstellung set rechnung_empfaenger = ${JSON.stringify(empfaenger)}::jsonb, rechnung_an = ${an},
+           rechnung_automatisch = ${Boolean(f.get("automatisch"))}, zahlungsziel_tage = ${ziel}
+     where id = 1
+  `;
+  zurueck("Gespeichert.", "#einrichtung");
+}

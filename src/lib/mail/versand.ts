@@ -53,6 +53,8 @@ export interface Mail {
   schlagwort?: string;
   /** Abmeldeadresse für den List-Unsubscribe-Kopf. Nur mit ueberBrevo. */
   abmeldenLink?: string;
+  /** Dateien im Anhang, etwa die Rechnung als PDF. Inhalt als Base64. */
+  anhaenge?: Array<{ name: string; typ: string; base64: string }>;
 }
 
 interface Einstellungen {
@@ -203,6 +205,16 @@ export async function mailVerschicken(mail: Mail): Promise<void> {
         toRecipients: empfaenger(mail.an),
         bccRecipients: empfaenger(mail.blindkopie),
         replyTo: empfaenger(mail.antwortAn),
+        ...(mail.anhaenge?.length
+          ? {
+              attachments: mail.anhaenge.map((a) => ({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: a.name,
+                contentType: a.typ,
+                contentBytes: a.base64,
+              })),
+            }
+          : {}),
       },
       // Die Mail soll im Postfach unter "Gesendete Elemente" landen.
       // Das ist der halbe Grund, warum wir diesen Weg gewählt haben.

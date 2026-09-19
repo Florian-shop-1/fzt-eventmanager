@@ -18,7 +18,11 @@ import {
   freischalten,
   meldenSpeichern,
   preiseSpeichern,
+  rechnungEinstellungSpeichern,
+  rechnungJetzt,
 } from "./aktionen";
+import { lexofficeEingerichtet } from "@/lib/lexoffice/client";
+import { rechnungDesMonats, rechnungsEinstellung } from "@/lib/wein/rechnung";
 
 export const metadata = { title: "Bestellungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -78,7 +82,7 @@ export default async function BestellungenSeite({
               <label key={a.id} className="flex items-center justify-between gap-3 rounded-lg border border-linie px-4 py-3">
                 <span>
                   <span className="block font-medium">{a.name}</span>
-                  <span className="text-xs text-leise">{euro(a.ekCent)} netto je Flasche</span>
+                  <span className="text-xs text-leise">{euro(a.ekCent)} je Flasche</span>
                 </span>
                 <input
                   name={`menge:${a.id}`}
@@ -141,7 +145,7 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
         <span className="font-medium">
           {x.positionen.map((p) => `${p.menge} × ${p.name}`).join(", ")}
         </span>
-        <span className="text-sm tabular-nums">{euro(summe(x.positionen))} netto</span>
+        <span className="text-sm tabular-nums">{euro(summe(x.positionen))}</span>
       </div>
       <div className="mt-1 text-xs text-leise">
         bestellt von {x.bestellerName} am {zeit(x.erstelltAm)}
@@ -220,7 +224,7 @@ async function Abrechnung({ monat }: { monat?: string }) {
                 <th className="py-1.5">Sorte</th>
                 <th className="py-1.5 text-right">Flaschen</th>
                 <th className="py-1.5 text-right">je Flasche</th>
-                <th className="py-1.5 text-right">netto</th>
+                <th className="py-1.5 text-right">Betrag</th>
               </tr>
             </thead>
             <tbody>
@@ -243,12 +247,64 @@ async function Abrechnung({ monat }: { monat?: string }) {
             <dd className="text-right font-semibold tabular-nums">{euro(netto + ust)}</dd>
           </dl>
           <p className="text-xs text-leise">
-            {liste.length} {liste.length === 1 ? "Übergabe" : "Übergaben"}. Die Rechnung selbst kommt im nächsten Schritt,
-            sobald wir entschieden haben, ob über Lexoffice oder direkt aus dem Eventmanager.
+            {liste.length} {liste.length === 1 ? "Übergabe" : "Übergaben"}.
           </p>
+          <Rechnungsblock monat={m} />
         </>
       )}
     </section>
+  );
+}
+
+const STATUS: Record<string, string> = {
+  open: "offen",
+  overdue: "überfällig",
+  paid: "bezahlt",
+  paidoff: "bezahlt",
+  voided: "storniert",
+  draft: "Entwurf",
+};
+
+/** Die Rechnung zum Monat: anlegen und senden, oder Stand und PDF. */
+async function Rechnungsblock({ monat }: { monat: string }) {
+  const r = await rechnungDesMonats(monat);
+  const e = await rechnungsEinstellung();
+  const jetzt = new Date();
+  const laufend = monat === `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, "0")}`;
+  if (r?.versendetAm) {
+    const bezahlt = r.status === "paid" || r.status === "paidoff";
+    return (
+      <div
+        className="rounded-lg border px-4 py-3 text-sm"
+        style={{ borderColor: bezahlt ? "var(--gut)" : "var(--warnung)", background: bezahlt ? "var(--gut-hell)" : "var(--warnung-hell)" }}
+      >
+        <strong>Rechnung {r.nummer}</strong> über {euro(r.bruttoCent)}, verschickt am{" "}
+        {new Date(r.versendetAm).toLocaleDateString("de-DE")} an {r.versendetAn.join(", ")}.{" "}
+        <strong>{STATUS[r.status] ?? r.status}</strong>
+        {r.bezahltAm && ` seit ${new Date(r.bezahltAm).toLocaleDateString("de-DE")}`}.{" "}
+        <a href={`/bestellungen/rechnung/${r.id}`} target="_blank" rel="noreferrer" className="underline">
+          PDF ansehen
+        </a>
+      </div>
+    );
+  }
+  if (!lexofficeEingerichtet()) {
+    return (
+      <p className="text-xs" style={{ color: "var(--warnung)" }}>
+        Für die Rechnung fehlt noch die Verbindung zu Lexware Office (siehe Einrichtung unten).
+      </p>
+    );
+  }
+  return (
+    <form action={rechnungJetzt} className="space-y-2 rounded-lg border border-linie px-4 py-3">
+      <input type="hidden" name="monat" value={monat} />
+      <p className="text-sm">
+        Rechnung an <strong>{e.empfaenger.name}</strong> in Lexware Office anlegen und per Mail an{" "}
+        {e.an.join(", ")} schicken.
+        {laufend && " Achtung: Der Monat läuft noch, spätere Übergaben kämen dann nicht mehr auf diese Rechnung."}
+      </p>
+      <Absendeknopf text="Rechnung erstellen und senden" laeuftText="Wird erstellt und verschickt..." />
+    </form>
   );
 }
 
@@ -273,7 +329,7 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
               <tr>
                 <th className="py-1">Sorte</th>
                 <th className="py-1">VK Gast brutto €</th>
-                <th className="py-1">Preis Gastro netto €</th>
+                <th className="py-1">Preis Gastro €</th>
                 <th className="py-1">aktiv</th>
               </tr>
             </thead>
@@ -311,6 +367,8 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
         <Absendeknopf text="Speichern" laeuftText="..." />
       </form>
 
+      <RechnungsEinrichtung />
+
       <form action={freischalten} className="flex flex-wrap items-center gap-3 border-t border-linie pt-4">
         <input type="hidden" name="an" value={freigegeben ? "0" : "1"} />
         <span className="text-sm">
@@ -319,5 +377,51 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
         <Absendeknopf text={freigegeben ? "Wieder verbergen" : "Freischalten"} laeuftText="..." />
       </form>
     </section>
+  );
+}
+
+async function RechnungsEinrichtung() {
+  const e = await rechnungsEinstellung();
+  const verbunden = lexofficeEingerichtet();
+  return (
+    <form action={rechnungEinstellungSpeichern} className="space-y-3 border-t border-linie pt-4">
+      <h3 className="text-sm font-semibold">Monatsrechnung</h3>
+      <p className="text-xs" style={{ color: verbunden ? "var(--gut)" : "var(--warnung)" }}>
+        {verbunden
+          ? "Lexware Office ist verbunden. Rechnungen bekommen dort ihre Nummer, und lexoffice gleicht die Zahlung mit dem Konto ab."
+          : "Lexware Office ist noch nicht verbunden. Dafür muss der API-Schlüssel bei Vercel eingetragen werden."}
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-xs text-leise">Rechnung an (Firma)</span>
+          <input name="name" defaultValue={e.empfaenger.name} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-xs text-leise">Straße</span>
+          <input name="strasse" defaultValue={e.empfaenger.strasse} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">PLZ</span>
+          <input name="plz" defaultValue={e.empfaenger.plz} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Ort</span>
+          <input name="ort" defaultValue={e.empfaenger.ort} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-xs text-leise">Rechnung per Mail an (mit Komma getrennt)</span>
+          <input name="an" defaultValue={e.an.join(", ")} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Zahlungsziel in Tagen</span>
+          <input name="ziel" type="number" min={0} max={60} defaultValue={e.zahlungszielTage} />
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="automatisch" defaultChecked={e.automatisch} />
+        Automatisch: am 1. jedes Monats die Rechnung für den Vormonat erstellen und senden
+      </label>
+      <Absendeknopf text="Speichern" laeuftText="..." />
+    </form>
   );
 }

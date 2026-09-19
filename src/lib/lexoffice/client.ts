@@ -76,6 +76,21 @@ export async function lexoffice<T>(
   return (await antwort.json()) as T;
 }
 
+/** Holt eine Datei (etwa das PDF einer Rechnung) als Bytes. */
+export async function lexofficeDatei(pfad: string, akzeptiere = "application/pdf"): Promise<Buffer> {
+  await drosseln();
+  const antwort = await fetch(LEXWARE_BASIS + pfad, {
+    headers: { Authorization: `Bearer ${schluessel()}`, Accept: akzeptiere },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!antwort.ok) throw new LexofficeFehler(erklaerung(antwort.status), antwort.status);
+  return Buffer.from(await antwort.arrayBuffer());
+}
+
+export function lexofficeEingerichtet(): boolean {
+  return Boolean(process.env.LEXOFFICE_API_KEY);
+}
+
 /** Übersetzt die häufigsten Fehlerfälle in Klartext. */
 function erklaerung(status: number): string {
   switch (status) {
