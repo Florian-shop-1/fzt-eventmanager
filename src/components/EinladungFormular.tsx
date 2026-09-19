@@ -15,7 +15,16 @@ const WAHL = [
  * Selbst eintragen: so wenig Felder wie möglich, alles auf einer Seite.
  * Bei einem Fehler bleibt alles ausgefüllt.
  */
-export function EinladungFormular({ token }: { token: string }) {
+export function EinladungFormular({
+  token,
+  email,
+  mitPosition = true,
+}: {
+  token: string;
+  /** Bei persönlichen Einladungen fest vorgegeben. */
+  email?: string | null;
+  mitPosition?: boolean;
+}) {
   const [ergebnis, aktion] = useActionState<EinladungsErgebnis, FormData>(selbstEintragen, {});
   const [zeigen, setZeigen] = useState(false);
   const f = ergebnis.felder ?? {};
@@ -51,7 +60,15 @@ export function EinladungFormular({ token }: { token: string }) {
 
       <label className="block">
         <span className="mb-1 block text-xs text-leise">E-Mail</span>
-        <input name="email" type="email" autoComplete="email" inputMode="email" required />
+        <input
+          name="email"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          required
+          defaultValue={email ?? undefined}
+          readOnly={Boolean(email)}
+        />
         <span className="mt-1 block text-xs text-leise">Damit meldest du dich an. Hierhin kommen auch die Anfragen, ob du einspringen kannst.</span>
         {fehler("email")}
       </label>
@@ -67,6 +84,7 @@ export function EinladungFormular({ token }: { token: string }) {
         {fehler("passwort")}
       </label>
 
+      {mitPosition && (
       <fieldset>
         <legend className="mb-2 text-xs text-leise">Was machst du in der Show?</legend>
         <div className="space-y-2">
@@ -82,6 +100,7 @@ export function EinladungFormular({ token }: { token: string }) {
         </div>
         {fehler("position")}
       </fieldset>
+      )}
 
       <Absendeknopf text="Eintragen" laeuftText="Wird eingetragen..." />
     </form>

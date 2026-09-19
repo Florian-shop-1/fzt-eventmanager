@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { EinladungFormular } from "@/components/EinladungFormular";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { einladungGueltig } from "@/lib/dienstplan/einladung";
+import { einladungLesen } from "@/lib/dienstplan/einladung";
 
-export const metadata = { title: "Willkommen im Showteam | FZT Eventmanager", robots: { index: false } };
+export const metadata = { title: "Einladung | FZT Eventmanager", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 /**
@@ -13,17 +13,22 @@ export const dynamic = "force-dynamic";
  */
 export default async function EinladungSeite({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const gueltig = await einladungGueltig(token);
+  const einladung = await einladungLesen(token);
+  const gueltig = einladung !== null;
+  const showteam = (einladung?.rolle ?? "showteam") === "showteam";
   const schon = await angemeldeterBenutzer();
 
   return (
     <div className="mx-auto max-w-md px-4 py-10">
       <header className="mb-6 flex flex-col items-center text-center">
         <Logo hoehe={64} />
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Willkommen im Showteam</h1>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+          {showteam ? "Willkommen im Showteam" : "Willkommen im Eventmanager"}
+        </h1>
         <p className="mt-2 text-sm text-leise">
-          Trag dich einmal ein. Danach siehst du im Eventmanager, wann du arbeitest, kannst offene
-          Schichten übernehmen und fragen, wenn du mal nicht kannst.
+          {showteam
+            ? "Trag dich einmal ein. Danach siehst du im Eventmanager, wann du arbeitest, kannst offene Schichten übernehmen und fragen, wenn du mal nicht kannst."
+            : "Trag dich einmal ein und wähl ein Passwort. Danach bist du angemeldet und siehst alles, was du für deinen Dienst im Florian Zimmer Theater brauchst."}
         </p>
       </header>
 
@@ -34,16 +39,16 @@ export default async function EinladungSeite({ params }: { params: Promise<{ tok
       ) : schon ? (
         <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
           Du bist schon als {schon.name} angemeldet.{" "}
-          <Link href="/dienstplan" className="underline">
-            Zum Dienstplan
+          <Link href={showteam ? "/dienstplan" : "/"} className="underline">
+            {showteam ? "Zum Dienstplan" : "Zur Übersicht"}
           </Link>
         </p>
       ) : (
         <>
-          <EinladungFormular token={token} />
+          <EinladungFormular token={token} email={einladung?.email} mitPosition={showteam} />
           <p className="mt-6 text-center text-xs text-leise">
             Schon einen Zugang?{" "}
-            <Link href="/anmelden?weiter=/dienstplan" className="underline">
+            <Link href={showteam ? "/anmelden?weiter=/dienstplan" : "/anmelden"} className="underline">
               Hier anmelden
             </Link>
           </p>
