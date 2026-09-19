@@ -15,6 +15,7 @@
 
 import { csvZerlegen, pruefeTabelle } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
+import { ortFehlt, orteZurPlz } from "./plzort";
 
 const TABELLE_ID =
   process.env.SHOP_VERSAND_ID ?? "1bZ5D0Zk5z3fxXm0zs8zoIK3AX02RTzkryY59P_fSWv8";
@@ -36,6 +37,13 @@ export interface Sendung {
   strasse: string;
   plz: string;
   ort: string;
+  /**
+   * Was in der Bestellung als Ort stand, wenn der Ort aus der Postleitzahl
+   * ergänzt wurde (dort stand etwa "Bayern" oder "-"). Sonst leer.
+   */
+  ortVorher: string;
+  /** Die Postleitzahl gehört zu mehreren Orten, bitte prüfen. */
+  ortMehrdeutig: string[];
   /** Wer schenkt. Steht auf dem Begleitschreiben. */
   absender: string;
   /** Der persönliche Text des Käufers. */
@@ -135,6 +143,8 @@ export async function holeSendungen(): Promise<Sendung[]> {
       strasse: feld(z, "Straße"),
       plz: feld(z, "PLZ"),
       ort: feld(z, "Ort"),
+      ortVorher: "",
+      ortMehrdeutig: [],
       absender: feld(z, "Absender"),
       widmung: feld(z, "Widmung"),
       motiv: feld(z, "Motiv"),
@@ -144,6 +154,19 @@ export async function holeSendungen(): Promise<Sendung[]> {
       notiz: feld(z, "Notiz"),
     });
   }
+
+  // Steht als Ort ein Bundesland oder nichts, den Ort aus der PLZ holen.
+  await Promise.all(
+    sendungen
+      .filter((s) => ortFehlt(s.ort))
+      .map(async (s) => {
+        const orte = await orteZurPlz(s.plz);
+        if (orte.length === 0) return;
+        s.ortVorher = s.ort || "(leer)";
+        s.ort = orte[0];
+        if (orte.length > 1) s.ortMehrdeutig = orte;
+      }),
+  );
 
   // Neueste Bestellung zuerst: Was heute reinkam, ist heute dran.
   return sendungen.sort((a, b) => b.kaufdatum.localeCompare(a.kaufdatum));

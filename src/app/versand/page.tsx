@@ -364,6 +364,13 @@ function Karte({
               {sendung.plz} {sendung.ort}
             </address>
           )}
+          {post && sendung.ortVorher && (
+            <p className="mt-1 text-xs print:hidden" style={{ color: "var(--warnung)" }}>
+              Ort aus der Postleitzahl ergänzt. In der Bestellung stand „{sendung.ortVorher}“.
+              {sendung.ortMehrdeutig.length > 1 &&
+                ` Die PLZ gehört zu mehreren Orten (${sendung.ortMehrdeutig.join(", ")}), bitte prüfen.`}
+            </p>
+          )}
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-leise">
             {sendung.zustellart && <span>{sendung.zustellart}</span>}
