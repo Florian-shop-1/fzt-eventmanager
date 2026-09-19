@@ -63,7 +63,7 @@ export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Prom
   const name = `${vorname} ${nachname}`;
   const neu = (await db()`
     insert into benutzer (name, email, rolle, art, passwort_hash, muss_passwort_aendern, personalbogen_am)
-    values (${name}, ${email}, ${einladung.rolle}, ${einladung.art ?? "intern"}, ${await passwortVerschluesseln(passwort)}, false,
+    values (${name}, ${email}, ${einladung.rolle}, ${einladung.art ?? (einladung.rolle === "buchhaltung" ? null : "intern")}, ${await passwortVerschluesseln(passwort)}, false,
             ${einladung.personalbogenErledigt ? new Date().toISOString() : null})
     returning id
   `) as Array<{ id: string }>;

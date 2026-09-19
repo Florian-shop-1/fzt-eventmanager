@@ -7,6 +7,7 @@ export default async function Startseite() {
   // Der Food-Kiosk hat genau eine Seite. Nach dem Anmelden direkt dorthin.
   const rolle = (await angemeldeterBenutzer())?.rolle;
   if (rolle === "kiosk") redirect("/kiosk");
+  if (rolle === "buchhaltung") redirect("/bewirtung");
   // Das Showteam braucht keine Übersicht mit Restaurant und Vorgängen, nur seinen Plan.
   if (rolle === "showteam") redirect("/dienstplan");
 

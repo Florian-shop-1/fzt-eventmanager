@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfSeite, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfSeite, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
@@ -91,7 +91,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Dein Personalbogen fürs Lohnbüro fehlt noch. Dauert nur fünf Minuten.",
       });
     }
-    if (!["chef", "kiosk"].includes(benutzer.rolle) && !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))) {
+    if (!["chef", "kiosk", "buchhaltung"].includes(benutzer.rolle) && !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))) {
       aufgaben.push({
         href: "/geheimhaltung",
         leiste: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben.",
@@ -138,6 +138,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </Link>
                 ))}
                 {/* Nicht in NAVIGATION: Die Freigabe hängt an der Person, nicht an der Rolle. */}
+                {darfBuchhaltung(benutzer) && (
+                  <Link
+                    href="/bewirtung"
+                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
+                  >
+                    Bewirtung
+                  </Link>
+                )}
                 {benutzer.whatsapp && <WhatsAppMelder />}
               </nav>
 

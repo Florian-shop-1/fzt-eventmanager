@@ -26,7 +26,17 @@ const GUELTIG_TAGE = 30;
  *            Einlass und die Upgrades. Sieht keine Preise.
  *  kiosk  Externer Food-Kiosk. Sieht nur die Stehtische je Abend, sonst nichts.
  */
-export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam" | "kiosk";
+export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam" | "kiosk" | "buchhaltung";
+
+/**
+ * Buchhaltung: Florian und sein Vater (Rolle buchhaltung). Die anderen
+ * Chefs sehen diesen Bereich bewusst nicht (Florian, 19.09.2026).
+ */
+const BUCHHALTUNG_CHEF = "info@florianzimmer.com";
+export function darfBuchhaltung(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  if (!b) return false;
+  return b.rolle === "buchhaltung" || (b.rolle === "chef" && b.email.toLowerCase() === BUCHHALTUNG_CHEF);
+}
 
 export interface AngemeldeterBenutzer {
   id: string;
@@ -183,6 +193,10 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Den Dienstplan sieht jeder Mitarbeiter: Wer eine Position hat, trägt sich
   // ein, alle anderen sehen nur. Die Einrichtung prüft die Seite selbst.
   if (pfad.startsWith("/dienstplan") && rolle !== "kiosk") return true;
+  if (rolle === "buchhaltung") {
+    // Florians Vater: nur die Buchhaltung, sonst nichts aus dem Tagesgeschäft.
+    return pfad === "/" || pfad.startsWith("/bewirtung") || pfad.startsWith("/buchhaltung") || pfad.startsWith("/konto");
+  }
   if (rolle === "kiosk") {
     // Ein externer Partner, kein Mitarbeiter: nur die Stehtische, keine
     // Gästezahlen, keine Namen. "/" leitet ihn auf /kiosk weiter.
