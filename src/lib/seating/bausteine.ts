@@ -49,6 +49,16 @@ export const KOSTEN = {
   nichtPlatziertePerson: 500,
   /** Leerer Platz an einem Galerietisch. Weniger schlimm, Tische sind flexibel. */
   freierGalerieplatz: 1,
+  /**
+   * Gruppe ohne gebuchte Loge (Webshop) sitzt trotzdem in einer Loge.
+   *
+   * Florian, 19.09.2026: Das Restaurant stellt lieber auf der Eventgalerie
+   * Tische zusammen. Eine Loge für eine Gruppe, die keine gebucht hat, ist
+   * schön für die Gäste, aber mehr Aufwand für den Service. Deshalb nur,
+   * wenn die Galerie nicht reicht. Hoch genug, dass jede Galerielösung
+   * gewinnt, aber weit unter "kein Platz" (500 je Person).
+   */
+  logeOhneBuchung: 60,
 } as const;
 
 /** Ein zusammenhaengender Abschnitt aus einer oder mehreren Logen. */
@@ -93,6 +103,8 @@ export function alleBloecke(logen: Loge[]): LogenBlock[] {
 export function istLogenKandidat(g: Buchungsgruppe, opt: PlanerOptionen): boolean {
   if (g.bereichFixiert === "logen") return true;
   if (g.bereichFixiert === "eventgalerie") return false;
+  // Webshop-Gruppen haben keine Loge gebucht. Sie dürfen nur hinein, wenn
+  // die Galerie voll ist, das regelt KOSTEN.logeOhneBuchung.
   if (g.herkunft === "shop") return g.personen >= 8;
   return g.personen >= opt.logeAbPersonen - 2;
 }

@@ -248,5 +248,26 @@ fall(
   },
 );
 
+// Florian, 19.09.2026: Webshop-Gruppen haben keine Loge gebucht. Das Restaurant
+// stellt lieber auf der Eventgalerie Tische zusammen, also zuerst dorthin.
+fall("Webshop-Gruppe mit 10 Personen", [gruppe("Familie Webshop", 10, "shop")], (v) => {
+  erwarte(v[0].logen.length === 0, "ohne gebuchte Loge gehoert die Gruppe auf die Eventgalerie");
+  erwarte(v[0].galerie.some((z) => z.personen === 10), "alle zehn zusammen auf der Galerie");
+});
+
+// Ist die Galerie voll, darf die Webshop-Gruppe doch in eine Loge, aber ohne Differenz.
+fall(
+  "Galerie voll, Webshop-Gruppe weicht in die Loge aus",
+  [
+    ...Array.from({ length: 10 }, (_, i) => gruppe(`Paar ${i + 1}`, 4, "shop")),
+    gruppe("Familie Gross", 10, "shop"),
+  ],
+  (v) => {
+    const z = v[0].logen.find((l) => l.gruppeName === "Familie Gross");
+    erwarte(z !== undefined, "wenn die Galerie voll ist, bekommt die Gruppe eine Loge statt keinen Platz");
+    erwarte(v[0].differenzGesamtCent === 0, "ohne gebuchte Loge keine Differenz");
+  },
+);
+
 console.log("\n" + (fehler === 0 ? "Alle Faelle bestanden." : `${fehler} Fall/Faelle fehlgeschlagen.`));
 process.exit(fehler === 0 ? 0 : 1);

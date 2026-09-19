@@ -124,6 +124,20 @@ function bewerte(roh: Rohvariante, tische: Tisch[], opt: PlanerOptionen): Plan {
     kosten += notstuehle * KOSTEN.notstuhl;
     if (block.hatLuecke) kosten += KOSTEN.logenLuecke;
     if (gruppe.personen < opt.logeAbPersonen) kosten += KOSTEN.kleineGruppeInLoge;
+    // Loge nicht gebucht: nur als Ausweichlösung, wenn die Galerie voll ist.
+    const logeGebucht = gruppe.herkunft !== "shop" || gruppe.bereichFixiert === "logen";
+    if (!logeGebucht) {
+      kosten += KOSTEN.logeOhneBuchung;
+      hinweise.push({
+        art: "loge_ohne_buchung",
+        schwere: "info",
+        gruppeId: gruppe.id,
+        text:
+          `${gruppe.name} hat keine Loge gebucht und sitzt nur in einer Loge, weil die ` +
+          `Eventgalerie nicht reicht. Keine Differenz für freie Plätze.`,
+        ausnahmeMoeglich: false,
+      });
+    }
 
     const logenText =
       block.nummern.length === 1
@@ -144,7 +158,8 @@ function bewerte(roh: Rohvariante, tische: Tisch[], opt: PlanerOptionen): Plan {
 
     const ausnahmeAktiv = gruppe.ausnahme?.aktiv === true;
 
-    if (freiePlaetze > 0) {
+    // Wer keine Loge gebucht hat, zahlt auch keine Differenz für leere Logenplätze.
+    if (freiePlaetze > 0 && logeGebucht) {
       const differenz = freiePlaetze * ENTGANGENER_UMSATZ_PRO_LOGENPLATZ;
       if (!ausnahmeAktiv) differenzGesamtCent += differenz;
       hinweise.push({

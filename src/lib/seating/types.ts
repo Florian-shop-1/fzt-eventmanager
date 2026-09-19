@@ -46,6 +46,7 @@ export type HinweisArt =
   | "unterbelegung"
   | "kleine_gruppe_in_loge"
   | "grosse_gruppe_in_galerie"
+  | "loge_ohne_buchung"
   | "logen_luecke"
   | "notstuhl"
   | "kein_platz"
