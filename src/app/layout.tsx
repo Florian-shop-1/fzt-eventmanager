@@ -11,6 +11,7 @@ import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { abmelden } from "@/lib/auth/aktionen";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
+import { einstellungLesen as weinEinstellung, offeneAnzahl as offeneWeinbestellungen, zugang as weinZugang } from "@/lib/wein/db";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -100,7 +101,22 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       });
     }
     aufgaben.push(...(await dienstplanErinnerungen(benutzer).catch(() => [])));
+
+    // Offene Weinbestellung der Gastro: bei allen, die Bescheid bekommen sollen.
+    const wein = await weinEinstellung().catch(() => null);
+    if (wein && wein.meldenAn.includes(benutzer.id) && (wein.freigegeben || benutzer.email.toLowerCase() === "info@florianzimmer.com")) {
+      const n = await offeneWeinbestellungen().catch(() => 0);
+      if (n > 0) {
+        aufgaben.push({
+          href: "/bestellungen",
+          leiste: `Die Gastro hat Magicuvée bestellt: ${n === 1 ? "eine Bestellung ist" : `${n} Bestellungen sind`} noch nicht übergeben.`,
+          knopf: "Ansehen",
+          hase: "Die Gastro hat Wein bestellt! Bitte übergeben und abhaken.",
+        });
+      }
+    }
   }
+  const weinSichtbar = benutzer && !offen ? (await weinZugang(benutzer).catch(() => null))?.sehen === true : false;
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
@@ -138,6 +154,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </Link>
                 ))}
                 {/* Nicht in NAVIGATION: Die Freigabe hängt an der Person, nicht an der Rolle. */}
+                {weinSichtbar && (
+                  <Link
+                    href="/bestellungen"
+                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
+                  >
+                    Bestellungen
+                  </Link>
+                )}
                 {darfBuchhaltung(benutzer) && (
                   <Link
                     href="/bewirtung"

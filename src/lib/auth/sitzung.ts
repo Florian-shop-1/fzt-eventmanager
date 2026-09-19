@@ -193,6 +193,9 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Den Dienstplan sieht jeder Mitarbeiter: Wer eine Position hat, trägt sich
   // ein, alle anderen sehen nur. Die Einrichtung prüft die Seite selbst.
   if (pfad.startsWith("/dienstplan") && rolle !== "kiosk") return true;
+  // Magicuvée-Bestellungen: Die Seite prüft selbst, wer bestellen oder
+  // übergeben darf und ob der Bereich schon freigeschaltet ist.
+  if (pfad.startsWith("/bestellungen") && ["gastro", "foyer"].includes(rolle)) return true;
   if (rolle === "buchhaltung") {
     // Florians Vater: nur die Buchhaltung, sonst nichts aus dem Tagesgeschäft.
     return pfad === "/" || pfad.startsWith("/bewirtung") || pfad.startsWith("/buchhaltung") || pfad.startsWith("/konto");
