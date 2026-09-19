@@ -43,6 +43,11 @@ function angabenAus(f: FormData): Angaben | string {
     mwst19Cent: cent(text(f, "mwst19", 20)),
     trinkgeldCent: cent(text(f, "trinkgeld", 20)),
     zahlart: text(f, "zahlart", 50),
+    art: text(f, "art") === "einkauf" ? "einkauf" : "bewirtung",
+    kategorie: text(f, "kategorie", 60),
+    zweck: text(f, "zweck", 300),
+    zahlweg: (["karte", "bar"].includes(text(f, "zahlweg")) ? text(f, "zahlweg") : "") as Angaben["zahlweg"],
+    privatAusgelegt: Boolean(f.get("privat")),
     anlass: text(f, "anlass", 500),
     teilnehmer: text(f, "teilnehmer", 1000),
     bewirtender: text(f, "bewirtender", 100) || "Florian Zimmer",
@@ -68,13 +73,18 @@ export async function belegSpeichern(f: FormData): Promise<void> {
 
   if (!f.get("fertig")) zurueck(id, "Gespeichert. Noch nicht festgeschrieben.");
 
-  // Pflichtangaben für den Bewirtungsbeleg, sonst erkennt das Finanzamt ihn nicht an.
+  // Pflichtangaben. Beim Bewirtungsbeleg verlangt sie das Finanzamt, sonst wird er nicht anerkannt.
   const fehlt: string[] = [];
   if (!a.datum) fehlt.push("Datum");
-  if (!a.restaurant) fehlt.push("Restaurant");
+  if (!a.restaurant) fehlt.push(a.art === "bewirtung" ? "Restaurant" : "Geschäft");
   if (!(a.bruttoCent > 0)) fehlt.push("Betrag");
-  if (!a.anlass) fehlt.push("Anlass");
-  if (!a.teilnehmer) fehlt.push("Teilnehmer");
+  if (!a.zahlweg) fehlt.push("Karte oder bar");
+  if (a.art === "bewirtung") {
+    if (!a.anlass) fehlt.push("Anlass");
+    if (!a.teilnehmer) fehlt.push("Teilnehmer");
+  } else {
+    if (!a.zweck) fehlt.push("wofür");
+  }
   if (fehlt.length) zurueck(id, `Zum Festschreiben fehlt noch: ${fehlt.join(", ")}.`);
 
   const nummer = await festschreiben(id, b.name);

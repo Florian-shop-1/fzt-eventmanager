@@ -143,7 +143,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     href="/bewirtung"
                     className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
                   >
-                    Bewirtung
+                    Belege
                   </Link>
                 )}
                 {benutzer.whatsapp && <WhatsAppMelder />}

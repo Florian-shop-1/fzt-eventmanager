@@ -6,6 +6,7 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { belegSpeichern, belegStornieren, belegVerwerfen } from "../aktionen";
+import { KATEGORIEN } from "@/lib/bewirtung/lesen";
 
 export const metadata = { title: "Bewirtungsbeleg | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -27,8 +28,8 @@ export default async function BelegSeite({
 
   const l = b.lesung;
   const warnungen = [
-    l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Restaurantbeleg ist.",
-    l && !l.maschinell && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt in der Regel einen maschinellen Beleg.",
+    l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Beleg ist.",
+    l && !l.maschinell && b.art === "bewirtung" && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt bei Bewirtungen in der Regel einen maschinellen Beleg.",
     l && l.maschinell && !l.tse_vorhanden && "Auf dem Beleg sind keine TSE-Angaben zu erkennen. Bitte prüfen, ob sie abgeschnitten sind.",
     l?.hinweis,
   ].filter(Boolean) as string[];
@@ -41,11 +42,11 @@ export default async function BelegSeite({
             zurück zur Übersicht
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-            {b.status === "entwurf" ? "Beleg ergänzen" : `Beleg ${b.nummer}`}
+            {b.status === "entwurf" ? "Beleg ergänzen" : `${b.art === "einkauf" ? "Einkauf" : "Bewirtung"} ${b.nummer}`}
             {b.status === "storniert" && <span style={{ color: "var(--blocker)" }}> (storniert)</span>}
           </h1>
         </div>
-        {b.status !== "entwurf" && <DruckKnopf text="Drucken" hinweis="Bewirtungsbeleg mit Foto" />}
+        {b.status !== "entwurf" && <DruckKnopf text="Drucken" hinweis="Beleg mit Foto" />}
       </header>
 
       {meldung && (
@@ -56,7 +57,12 @@ export default async function BelegSeite({
 
       {b.status === "entwurf" ? (
         <div className="grid gap-6 md:grid-cols-2">
-          <form action={belegSpeichern} className="space-y-4">
+          {/*
+            Welche Felder gelten, hängt an der Belegart. Umgeschaltet wird ohne
+            Neuladen über :has(): Ist "Einkauf" gewählt, verschwinden Anlass und
+            Teilnehmer, dafür kommen Kategorie und Zweck.
+          */}
+          <form action={belegSpeichern} className="group space-y-4">
             <input type="hidden" name="id" value={b.id} />
 
             {warnungen.length > 0 && (
@@ -67,21 +73,68 @@ export default async function BelegSeite({
               </ul>
             )}
 
-            <fieldset className="space-y-3 rounded-lg border border-linie bg-flaeche p-4">
-              <legend className="px-1 text-sm font-semibold">Deine Angaben</legend>
+            <fieldset className="flex flex-wrap gap-2">
+              <legend className="mb-1 text-xs text-leise">Was für ein Beleg?</legend>
+              {(["bewirtung", "einkauf"] as const).map((a) => (
+                <label key={a} className="flex cursor-pointer items-center gap-2 rounded-lg border border-linie bg-flaeche px-4 py-2 has-[:checked]:border-gold has-[:checked]:bg-gold-hell">
+                  <input type="radio" name="art" value={a} defaultChecked={b.art === a} />
+                  <span className="text-sm font-medium">{a === "bewirtung" ? "Bewirtung (Restaurant)" : "Einkauf"}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <fieldset className="space-y-3 rounded-lg border border-linie bg-flaeche p-4 group-has-[input[name=art][value=einkauf]:checked]:hidden">
+              <legend className="px-1 text-sm font-semibold">Für das Finanzamt</legend>
               <Feld name="anlass" label="Anlass der Bewirtung" wert={b.anlass} pflicht mehrzeilig
                 hinweis="Konkret, zum Beispiel: Besprechung Weihnachtsfeier Muster GmbH, Vertragsverhandlung Kooperation Hotel X" />
               <Feld name="teilnehmer" label="Bewirtete Personen, dich eingeschlossen" wert={b.teilnehmer || "Florian Zimmer"} pflicht mehrzeilig
                 hinweis="Alle Namen, bei Geschäftspartnern mit Firma. Eine Person je Zeile." />
             </fieldset>
 
+            <fieldset className="hidden space-y-3 rounded-lg border border-linie bg-flaeche p-4 group-has-[input[name=art][value=einkauf]:checked]:block">
+              <legend className="px-1 text-sm font-semibold">Wofür?</legend>
+              <Feld name="zweck" label="Was und wofür" wert={b.zweck} pflicht
+                hinweis="Kurz, zum Beispiel: Farbe und Schrauben für Bühnenbau, Druckerpapier" />
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Kategorie</span>
+                <select name="kategorie" defaultValue={b.kategorie || "Sonstiges"}>
+                  {KATEGORIEN.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset
+              className="space-y-2 rounded-lg border p-4"
+              style={b.zahlweg ? { borderColor: "var(--linie)", background: "var(--flaeche)" } : { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+            >
+              <legend className="px-1 text-sm font-semibold">
+                Bezahlt mit {!b.zahlweg && <span style={{ color: "var(--warnung)" }}>, steht nicht auf dem Beleg: Karte oder bar?</span>}
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {(["karte", "bar"] as const).map((z) => (
+                  <label key={z} className="flex cursor-pointer items-center gap-2 rounded-lg border border-linie bg-flaeche px-4 py-2 has-[:checked]:border-gold has-[:checked]:bg-gold-hell">
+                    <input type="radio" name="zahlweg" value={z} defaultChecked={b.zahlweg === z} />
+                    <span className="text-sm font-medium">{z === "karte" ? "Karte" : "Bar"}</span>
+                  </label>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="privat" defaultChecked={b.privatAusgelegt} />
+                Privat ausgelegt (mit eigenem Geld, die Firma erstattet)
+              </label>
+            </fieldset>
+
             <fieldset className="space-y-3 rounded-lg border border-linie bg-flaeche p-4">
               <legend className="px-1 text-sm font-semibold">Vom Beleg {l ? "(von der KI gelesen, bitte prüfen)" : ""}</legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Feld name="restaurant" label="Restaurant" wert={b.restaurant} pflicht />
+                <Feld name="restaurant" label="Restaurant bzw. Geschäft" wert={b.restaurant} pflicht />
                 <Feld name="datum" label="Datum" wert={b.datum ?? ""} typ="date" pflicht />
               </div>
-              <Feld name="anschrift" label="Anschrift des Restaurants" wert={b.anschrift} />
+              <Feld name="anschrift" label="Anschrift" wert={b.anschrift} />
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Feld name="brutto" label="Betrag brutto €" wert={betrag(b.bruttoCent)} pflicht zahl />
                 <Feld name="mwst7" label="USt 7 % €" wert={betrag(b.mwst7Cent)} zahl />
@@ -89,8 +142,8 @@ export default async function BelegSeite({
                 <Feld name="trinkgeld" label="Trinkgeld €" wert={betrag(b.trinkgeldCent)} zahl />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Feld name="zahlart" label="Zahlart" wert={b.zahlart} />
-                <Feld name="bewirtender" label="Bewirtende Person" wert={b.bewirtender} />
+                <Feld name="zahlart" label="Zahlart laut Beleg" wert={b.zahlart} hinweis="zum Beispiel Girocard, Visa, Bar" />
+                <Feld name="bewirtender" label="Bewirtende bzw. einkaufende Person" wert={b.bewirtender} />
               </div>
               <input type="hidden" name="ort" value={b.ortDerBewirtung} />
               <Feld name="notiz" label="Notiz (freiwillig)" wert={b.notiz} />

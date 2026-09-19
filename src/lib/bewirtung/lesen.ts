@@ -1,5 +1,5 @@
 /**
- * Liest einen Restaurantbeleg mit Claude aus.
+ * Liest einen Beleg mit Claude aus: Restaurant (Bewirtung) oder Einkauf.
  *
  * Anders als beim Emoji-Scanner sofort und nicht als Nachtlauf: Florian
  * sitzt noch am Tisch und will den Beleg gleich fertig machen. Ein Beleg
@@ -19,20 +19,37 @@ function anthropic(): Anthropic {
   return client;
 }
 
-const SYSTEM = `Du liest Restaurantbelege (Kassenbons, Rechnungen aus deutschen Restaurants, Cafés und Bars) für die Buchhaltung ab.
+export const KATEGORIEN = [
+  "Bühne und Technik",
+  "Deko und Ausstattung",
+  "Büro und Material",
+  "Werkzeug und Baumarkt",
+  "Lebensmittel und Getränke",
+  "Reinigung und Hygiene",
+  "Fahrzeug und Tanken",
+  "Reise und Parken",
+  "Porto und Versand",
+  "Sonstiges",
+] as const;
+
+const SYSTEM = `Du liest Kassenbons und Rechnungen deutscher Geschäfte für die Buchhaltung des Florian Zimmer Theaters (Zaubertheater mit Restaurant in Neu-Ulm) ab.
 
 Gib genau wieder, was auf dem Beleg steht. Erfinde nichts. Wenn etwas nicht auf dem Beleg steht oder nicht lesbar ist, lass es leer bzw. setze 0.
 
-- restaurant: Name des Lokals, wie gedruckt.
-- anschrift: Straße, PLZ und Ort des Lokals in einer Zeile.
-- datum: Datum der Bewirtung als JJJJ-MM-TT. uhrzeit als HH:MM, wenn vorhanden.
+- art: "bewirtung", wenn es ein Restaurant, Café oder eine Bar ist und dort gegessen oder getrunken wurde. Sonst "einkauf" (Baumarkt, Supermarkt, Büro, Tankstelle, Elektronik, Drogerie ...).
+- restaurant: Name des Geschäfts bzw. Lokals, wie gedruckt.
+- anschrift: Straße, PLZ und Ort des Geschäfts in einer Zeile.
+- zweck: bei Einkäufen kurz auf Deutsch, was gekauft wurde (zum Beispiel "Farbe, Pinsel, Schrauben"). Höchstens zehn Wörter. Bei Bewirtungen leer.
+- kategorie: bei Einkäufen die passendste aus: ${KATEGORIEN.join(", ")}. Bei Bewirtungen leer.
+- datum: Datum des Belegs als JJJJ-MM-TT. uhrzeit als HH:MM, wenn vorhanden.
 - brutto: Rechnungsbetrag in Euro inklusive Mehrwertsteuer, OHNE Trinkgeld. Das ist meist "Summe", "Gesamt" oder "Total".
-- mwst7 und mwst19: die ausgewiesenen Steuerbeträge in Euro (nicht die Nettobeträge). Speisen im Restaurant werden seit 2026 wieder mit 7 % besteuert, Getränke mit 19 %. Nur übernehmen, was auf dem Beleg steht.
-- trinkgeld: nur, wenn ein Trinkgeld auf dem Beleg gedruckt oder handschriftlich vermerkt ist, sonst 0.
-- zahlart: "bar", "EC-Karte", "Kreditkarte" usw., wenn erkennbar.
+- mwst7 und mwst19: die ausgewiesenen Steuerbeträge in Euro (nicht die Nettobeträge). Im Restaurant: Speisen seit 2026 mit 7 %, Getränke mit 19 %. Nur übernehmen, was auf dem Beleg steht.
+- trinkgeld: nur bei Bewirtungen und nur, wenn ein Trinkgeld auf dem Beleg gedruckt oder handschriftlich vermerkt ist, sonst 0.
+- zahlart: so genau wie auf dem Beleg, zum Beispiel "EC-Karte", "Girocard", "Visa", "Mastercard", "Bar", "PayPal". Leer, wenn nicht erkennbar.
+- zahlweg: "karte" bei jeder Kartenzahlung (EC, Girocard, Kredit, kontaktlos, Apple Pay), "bar" bei Barzahlung (erkennbar an "Bar", "Gegeben", "Rückgeld"), "unbekannt", wenn der Beleg es nicht zeigt.
 - tse_vorhanden: true, wenn Angaben der technischen Sicherheitseinrichtung (TSE, Signatur, Transaktionsnummer, Seriennummer der Kasse) aufgedruckt sind.
 - maschinell: true, wenn der Beleg maschinell erstellt ist (Kassenbon, Rechnungsdrucker), false bei einer handschriftlichen Quittung.
-- beleg_ok: false, wenn das Bild kein Restaurantbeleg ist oder so unscharf, dass die Beträge nicht sicher lesbar sind.
+- beleg_ok: false, wenn das Bild kein Kassenbeleg und keine Rechnung ist oder so unscharf, dass die Beträge nicht sicher lesbar sind.
 - hinweis: kurz auf Deutsch, was unsicher oder auffällig war. Leer, wenn alles klar ist.`;
 
 const SCHEMA = {
@@ -40,6 +57,10 @@ const SCHEMA = {
   additionalProperties: false,
   required: [
     "beleg_ok",
+    "art",
+    "zweck",
+    "kategorie",
+    "zahlweg",
     "restaurant",
     "anschrift",
     "datum",
@@ -55,6 +76,10 @@ const SCHEMA = {
   ],
   properties: {
     beleg_ok: { type: "boolean" },
+    art: { type: "string", enum: ["bewirtung", "einkauf"] },
+    zweck: { type: "string" },
+    kategorie: { type: "string", enum: [...KATEGORIEN, ""] },
+    zahlweg: { type: "string", enum: ["karte", "bar", "unbekannt"] },
     restaurant: { type: "string" },
     anschrift: { type: "string" },
     datum: { type: "string" },
@@ -72,6 +97,10 @@ const SCHEMA = {
 
 export interface BelegLesung {
   beleg_ok: boolean;
+  art: "bewirtung" | "einkauf";
+  zweck: string;
+  kategorie: string;
+  zahlweg: "karte" | "bar" | "unbekannt";
   restaurant: string;
   anschrift: string;
   datum: string;

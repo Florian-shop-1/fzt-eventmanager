@@ -20,6 +20,12 @@ export interface Bewirtung {
   mwst19Cent: number;
   trinkgeldCent: number;
   zahlart: string;
+  art: "bewirtung" | "einkauf";
+  kategorie: string;
+  zweck: string;
+  /** karte oder bar, leer solange unbekannt. */
+  zahlweg: "" | "karte" | "bar";
+  privatAusgelegt: boolean;
   anlass: string;
   teilnehmer: string;
   bewirtender: string;
@@ -35,7 +41,8 @@ export interface Bewirtung {
 }
 
 const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, datum::text as datum, restaurant, anschrift,
-  brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, anlass, teilnehmer, bewirtender,
+  brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, art, kategorie, zweck, zahlweg,
+  privat_ausgelegt, anlass, teilnehmer, bewirtender,
   ort_der_bewirtung, lesung, notiz, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
   storniert_von, storno_grund`;
 
@@ -55,6 +62,11 @@ function baue(z: Record<string, unknown>): Bewirtung {
     mwst19Cent: Number(z.mwst19_cent ?? 0),
     trinkgeldCent: Number(z.trinkgeld_cent ?? 0),
     zahlart: String(z.zahlart ?? ""),
+    art: (z.art as Bewirtung["art"]) ?? "bewirtung",
+    kategorie: String(z.kategorie ?? ""),
+    zweck: String(z.zweck ?? ""),
+    zahlweg: (z.zahlweg as Bewirtung["zahlweg"]) ?? "",
+    privatAusgelegt: Boolean(z.privat_ausgelegt),
     anlass: String(z.anlass ?? ""),
     teilnehmer: String(z.teilnehmer ?? ""),
     bewirtender: String(z.bewirtender ?? ""),
@@ -88,12 +100,15 @@ export async function entwurfAnlegen(
   const datum = lesung && /^\d{4}-\d{2}-\d{2}$/.test(lesung.datum) ? lesung.datum : null;
   const z = (await db()`
     insert into bewirtung (foto, foto_typ, foto_hash, erstellt_von, datum, restaurant, anschrift, brutto_cent,
-                           mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, ort_der_bewirtung, lesung)
+                           mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, ort_der_bewirtung, lesung,
+                           art, kategorie, zweck, zahlweg)
     values (decode(${fotoBase64}, 'base64'), ${typ}, ${hash}, ${von}, ${datum}::date,
             ${lesung?.restaurant ?? ""}, ${lesung?.anschrift ?? ""},
             ${lesung && lesung.brutto > 0 ? cent(lesung.brutto) : null},
             ${cent(lesung?.mwst7 ?? 0)}, ${cent(lesung?.mwst19 ?? 0)}, ${cent(lesung?.trinkgeld ?? 0)},
-            ${lesung?.zahlart ?? ""}, ${lesung?.anschrift ?? ""}, ${lesung ? JSON.stringify(lesung) : null}::jsonb)
+            ${lesung?.zahlart ?? ""}, ${lesung?.anschrift ?? ""}, ${lesung ? JSON.stringify(lesung) : null}::jsonb,
+            ${lesung?.art ?? "bewirtung"}, ${lesung?.kategorie ?? ""}, ${lesung?.zweck ?? ""},
+            ${lesung && lesung.zahlweg !== "unbekannt" ? lesung.zahlweg : ""})
     returning id
   `) as Array<{ id: string }>;
   return { id: z[0].id, doppelt: false };
@@ -133,6 +148,11 @@ export interface Angaben {
   mwst19Cent: number;
   trinkgeldCent: number;
   zahlart: string;
+  art: "bewirtung" | "einkauf";
+  kategorie: string;
+  zweck: string;
+  zahlweg: "" | "karte" | "bar";
+  privatAusgelegt: boolean;
   anlass: string;
   teilnehmer: string;
   bewirtender: string;
@@ -148,7 +168,8 @@ export async function entwurfSpeichern(id: string, a: Angaben): Promise<void> {
       brutto_cent = ${a.bruttoCent}, mwst7_cent = ${a.mwst7Cent}, mwst19_cent = ${a.mwst19Cent},
       trinkgeld_cent = ${a.trinkgeldCent}, zahlart = ${a.zahlart}, anlass = ${a.anlass},
       teilnehmer = ${a.teilnehmer}, bewirtender = ${a.bewirtender}, ort_der_bewirtung = ${a.ortDerBewirtung},
-      notiz = ${a.notiz}
+      notiz = ${a.notiz}, art = ${a.art}, kategorie = ${a.kategorie}, zweck = ${a.zweck},
+      zahlweg = ${a.zahlweg}, privat_ausgelegt = ${a.privatAusgelegt}
     where id = ${id} and status = 'entwurf'
   `;
 }
@@ -160,13 +181,15 @@ export async function entwurfSpeichern(id: string, a: Angaben): Promise<void> {
 export async function festschreiben(id: string, von: string): Promise<string> {
   const z = (await db()`
     with jahr as (
-      select extract(year from coalesce(datum, now()::date))::int as j from bewirtung where id = ${id}
+      select extract(year from coalesce(datum, now()::date))::int as j,
+             case when art = 'einkauf' then 'E' else 'B' end as k
+        from bewirtung where id = ${id}
     ), naechste as (
       select coalesce(max(split_part(nummer, '-', 3)::int), 0) + 1 as n
-        from bewirtung, jahr where nummer like 'B-' || jahr.j || '-%'
+        from bewirtung, jahr where nummer like jahr.k || '-' || jahr.j || '-%'
     )
     update bewirtung set status = 'fertig', festgeschrieben_am = now(), festgeschrieben_von = ${von},
-           nummer = 'B-' || (select j from jahr) || '-' || lpad((select n from naechste)::text, 3, '0')
+           nummer = (select k from jahr) || '-' || (select j from jahr) || '-' || lpad((select n from naechste)::text, 3, '0')
      where id = ${id} and status = 'entwurf'
     returning nummer
   `) as Array<{ nummer: string }>;
@@ -184,7 +207,7 @@ export async function stornieren(id: string, von: string, grund: string): Promis
   `;
 }
 
-/** Summen fürs Steuerbüro. Stornierte und Entwürfe zählen nicht. */
+/** Summen fürs Steuerbüro. Stornierte und Entwürfe zählen nicht. Bei Bewirtungen gilt die 70-%-Regel. */
 export interface Summen {
   anzahl: number;
   bruttoCent: number;
@@ -198,13 +221,14 @@ export interface Summen {
   nichtAbziehbarCent: number;
 }
 
-export function summen(liste: Bewirtung[]): Summen {
-  const fertig = liste.filter((b) => b.status === "fertig");
+export function summen(liste: Bewirtung[], art: Bewirtung["art"] = "bewirtung"): Summen {
+  const fertig = liste.filter((b) => b.status === "fertig" && b.art === art);
   const brutto = fertig.reduce((n, b) => n + (b.bruttoCent ?? 0), 0);
   const trinkgeld = fertig.reduce((n, b) => n + b.trinkgeldCent, 0);
   const vorsteuer = fertig.reduce((n, b) => n + b.mwst7Cent + b.mwst19Cent, 0);
   const netto = brutto - vorsteuer + trinkgeld;
-  const abziehbar = Math.round(netto * 0.7);
+  // Einkäufe sind voll Betriebsausgabe, Bewirtungen zu 70 %.
+  const abziehbar = art === "bewirtung" ? Math.round(netto * 0.7) : netto;
   return {
     anzahl: fertig.length,
     bruttoCent: brutto,
@@ -218,4 +242,15 @@ export function summen(liste: Bewirtung[]): Summen {
 
 export function euro(cent: number | null | undefined): string {
   return ((cent ?? 0) / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+}
+
+/** Wie viel wurde bar, mit Karte, und privat ausgelegt bezahlt (alle Arten). */
+export function nachZahlweg(liste: Bewirtung[]): { bar: number; karte: number; privat: number } {
+  const fertig = liste.filter((b) => b.status === "fertig");
+  const gesamt = (b: Bewirtung) => (b.bruttoCent ?? 0) + b.trinkgeldCent;
+  return {
+    bar: fertig.filter((b) => b.zahlweg === "bar").reduce((n, b) => n + gesamt(b), 0),
+    karte: fertig.filter((b) => b.zahlweg === "karte").reduce((n, b) => n + gesamt(b), 0),
+    privat: fertig.filter((b) => b.privatAusgelegt).reduce((n, b) => n + gesamt(b), 0),
+  };
 }

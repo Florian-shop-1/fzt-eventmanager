@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { euro, summen } from "@/lib/bewirtung/db";
+import { euro, nachZahlweg, summen } from "@/lib/bewirtung/db";
 import { belegeDesMonats, monatLesen } from "@/lib/bewirtung/monat";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -22,8 +22,10 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
   const mo = monatLesen(m);
   if (!mo) redirect("/bewirtung");
   const belege = await belegeDesMonats(mo.jahr, mo.monat);
-  const s = summen(belege);
-  const titel = `Bewirtungsbelege ${MONATE[mo.monat - 1]} ${mo.jahr}`;
+  const s = summen(belege, "bewirtung");
+  const e = summen(belege, "einkauf");
+  const zw = nachZahlweg(belege);
+  const titel = `Belege ${MONATE[mo.monat - 1]} ${mo.jahr}`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -48,8 +50,10 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
               <tr>
                 <th className="py-1.5">Nr.</th>
                 <th className="py-1.5">Datum</th>
-                <th className="py-1.5">Restaurant</th>
-                <th className="py-1.5">Anlass</th>
+                <th className="py-1.5">Art</th>
+                <th className="py-1.5">Geschäft</th>
+                <th className="py-1.5">Anlass bzw. Zweck</th>
+                <th className="py-1.5">Bezahlt</th>
                 <th className="py-1.5 text-right">Brutto</th>
                 <th className="py-1.5 text-right">USt</th>
                 <th className="py-1.5 text-right">Trinkgeld</th>
@@ -60,8 +64,10 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
                 <tr key={b.id} className={`border-b border-linie align-top ${b.status === "storniert" ? "text-leise line-through" : ""}`}>
                   <td className="py-1.5 font-mono text-xs">{b.nummer}</td>
                   <td className="py-1.5 tabular-nums">{b.datum?.split("-").reverse().join(".")}</td>
+                  <td className="py-1.5">{b.art === "einkauf" ? `Einkauf${b.kategorie ? `, ${b.kategorie}` : ""}` : "Bewirtung"}</td>
                   <td className="py-1.5">{b.restaurant}</td>
-                  <td className="py-1.5">{b.anlass}</td>
+                  <td className="py-1.5">{b.art === "einkauf" ? b.zweck : b.anlass}</td>
+                  <td className="py-1.5">{b.zahlweg === "bar" ? "bar" : "Karte"}{b.privatAusgelegt ? ", privat" : ""}</td>
                   <td className="py-1.5 text-right tabular-nums">{euro(b.bruttoCent)}</td>
                   <td className="py-1.5 text-right tabular-nums">{euro(b.mwst7Cent + b.mwst19Cent)}</td>
                   <td className="py-1.5 text-right tabular-nums">{euro(b.trinkgeldCent)}</td>
@@ -70,7 +76,28 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
             </tbody>
           </table>
         </div>
-        <dl className="mt-4 grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-leise">Einkäufe</h2>
+        <dl className="mt-2 grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <dt className="text-leise">Belege (ohne Stornos)</dt>
+          <dd className="text-right">{e.anzahl}</dd>
+          <dt className="text-leise">Beträge brutto</dt>
+          <dd className="text-right tabular-nums">{euro(e.bruttoCent)}</dd>
+          <dt className="text-leise">darin Vorsteuer</dt>
+          <dd className="text-right tabular-nums">{euro(e.vorsteuerCent)}</dd>
+          <dt className="font-medium">netto, voll abziehbar</dt>
+          <dd className="text-right font-medium tabular-nums">{euro(e.abziehbarCent)}</dd>
+        </dl>
+        <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-leise">Bezahlt</h2>
+        <dl className="mt-2 grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <dt className="text-leise">mit Karte</dt>
+          <dd className="text-right tabular-nums">{euro(zw.karte)}</dd>
+          <dt className="text-leise">bar</dt>
+          <dd className="text-right tabular-nums">{euro(zw.bar)}</dd>
+          <dt className="font-medium">privat ausgelegt, zu erstatten</dt>
+          <dd className="text-right font-medium tabular-nums">{euro(zw.privat)}</dd>
+        </dl>
+        <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-leise">Bewirtungen</h2>
+        <dl className="mt-2 grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-leise">Belege (ohne Stornos)</dt>
           <dd className="text-right">{s.anzahl}</dd>
           <dt className="text-leise">Rechnungsbeträge brutto</dt>

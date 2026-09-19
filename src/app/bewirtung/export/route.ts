@@ -19,16 +19,20 @@ export async function GET(request: Request) {
   const belege = await belegeDesMonats(mo.jahr, mo.monat);
 
   const kopf = [
-    "Beleg-Nr.", "Datum", "Restaurant", "Anschrift", "Anlass", "Teilnehmer", "Brutto", "USt 7 %", "USt 19 %",
-    "Netto", "Trinkgeld", "Abziehbar 70 %", "Nicht abziehbar 30 %", "Zahlart", "Status", "Storno-Grund", "SHA-256 Foto",
+    "Beleg-Nr.", "Art", "Kategorie", "Datum", "Geschäft", "Anschrift", "Anlass bzw. Zweck", "Teilnehmer", "Brutto",
+    "USt 7 %", "USt 19 %", "Netto", "Trinkgeld", "Abziehbar", "Nicht abziehbar", "Bezahlt", "Privat ausgelegt",
+    "Zahlart laut Beleg", "Status", "Storno-Grund", "SHA-256 Foto",
   ];
   const zeilen = belege.map((b) => {
     const netto = (b.bruttoCent ?? 0) - b.mwst7Cent - b.mwst19Cent + b.trinkgeldCent;
-    const abziehbar = Math.round(netto * 0.7);
+    // Bewirtungen zu 70 %, Einkäufe voll.
+    const abziehbar = b.art === "bewirtung" ? Math.round(netto * 0.7) : netto;
     return [
-      feld(b.nummer ?? ""), b.datum?.split("-").reverse().join(".") ?? "", feld(b.restaurant), feld(b.anschrift),
-      feld(b.anlass), feld(b.teilnehmer), betrag(b.bruttoCent), betrag(b.mwst7Cent), betrag(b.mwst19Cent),
-      betrag(netto - b.trinkgeldCent), betrag(b.trinkgeldCent), betrag(abziehbar), betrag(netto - abziehbar),
+      feld(b.nummer ?? ""), b.art === "einkauf" ? "Einkauf" : "Bewirtung", feld(b.kategorie),
+      b.datum?.split("-").reverse().join(".") ?? "", feld(b.restaurant), feld(b.anschrift),
+      feld(b.art === "einkauf" ? b.zweck : b.anlass), feld(b.teilnehmer), betrag(b.bruttoCent), betrag(b.mwst7Cent),
+      betrag(b.mwst19Cent), betrag(netto - b.trinkgeldCent), betrag(b.trinkgeldCent), betrag(abziehbar),
+      betrag(netto - abziehbar), b.zahlweg === "bar" ? "bar" : "Karte", b.privatAusgelegt ? "ja" : "nein",
       feld(b.zahlart), b.status, feld(b.stornoGrund ?? ""), b.fotoHash,
     ].join(";");
   });
@@ -36,7 +40,7 @@ export async function GET(request: Request) {
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="bewirtung-${m}.csv"`,
+      "Content-Disposition": `attachment; filename="belege-${m}.csv"`,
     },
   });
 }

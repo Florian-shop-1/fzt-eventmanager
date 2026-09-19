@@ -18,7 +18,20 @@ function zeitpunkt(iso: string | null): string {
  */
 export function BewirtungsBlatt({ b }: { b: Bewirtung }) {
   const netto = (b.bruttoCent ?? 0) - b.mwst7Cent - b.mwst19Cent;
-  const zeilen: Array<[string, string]> = [
+  const bezahlt = `${b.zahlweg === "bar" ? "bar" : b.zahlweg === "karte" ? "Karte" : "unbekannt"}${b.zahlart ? ` (${b.zahlart})` : ""}${b.privatAusgelegt ? ", privat ausgelegt, von der Firma zu erstatten" : ""}`;
+  const zeilen: Array<[string, string]> = b.art === "einkauf" ? [
+    ["Beleg-Nr.", b.nummer ?? "Entwurf"],
+    ["Datum", datumLang(b.datum)],
+    ["Geschäft", [b.restaurant, b.anschrift].filter(Boolean).join(", ")],
+    ["Was und wofür", b.zweck],
+    ["Kategorie", b.kategorie],
+    ["Betrag (brutto)", euro(b.bruttoCent)],
+    ["davon Umsatzsteuer 7 %", euro(b.mwst7Cent)],
+    ["davon Umsatzsteuer 19 %", euro(b.mwst19Cent)],
+    ["Nettobetrag", euro(netto)],
+    ["Bezahlt", bezahlt],
+    ["Eingekauft von", b.bewirtender],
+  ] : [
     ["Beleg-Nr.", b.nummer ?? "Entwurf"],
     ["Tag der Bewirtung", datumLang(b.datum)],
     ["Ort der Bewirtung", [b.restaurant, b.ortDerBewirtung || b.anschrift].filter(Boolean).join(", ")],
@@ -30,14 +43,17 @@ export function BewirtungsBlatt({ b }: { b: Bewirtung }) {
     ["Nettobetrag", euro(netto)],
     ["Trinkgeld", euro(b.trinkgeldCent)],
     ["Gesamtaufwand", euro((b.bruttoCent ?? 0) + b.trinkgeldCent)],
-    ["Zahlart", b.zahlart],
+    ["Bezahlt", bezahlt],
     ["Bewirtende Person", b.bewirtender],
   ];
   return (
     <article className="bewirtungsblatt grid gap-6 md:grid-cols-2 print:grid-cols-2">
       <div>
-        <h2 className="mb-3 text-lg font-semibold">Bewirtungsbeleg</h2>
-        <p className="mb-3 text-xs text-leise">Florian Zimmer Theater GmbH, Neu-Ulm · Angaben nach § 4 Abs. 5 Satz 1 Nr. 2 EStG</p>
+        <h2 className="mb-3 text-lg font-semibold">{b.art === "einkauf" ? "Beleg Einkauf" : "Bewirtungsbeleg"}</h2>
+        <p className="mb-3 text-xs text-leise">
+          Florian Zimmer Theater GmbH, Neu-Ulm
+          {b.art === "bewirtung" && " · Angaben nach § 4 Abs. 5 Satz 1 Nr. 2 EStG"}
+        </p>
         <table className="w-full text-sm">
           <tbody>
             {zeilen.map(([k, v]) => (

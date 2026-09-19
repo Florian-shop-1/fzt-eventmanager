@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { bewirtungenDesJahres, euro, summen, type Bewirtung } from "@/lib/bewirtung/db";
+import { bewirtungenDesJahres, euro, nachZahlweg, summen, type Bewirtung } from "@/lib/bewirtung/db";
 import { BelegScanner } from "@/components/BelegScanner";
 
-export const metadata = { title: "Bewirtung | FZT Eventmanager" };
+export const metadata = { title: "Belege | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
@@ -33,7 +33,15 @@ export default async function BewirtungSeite({
   const alle = await bewirtungenDesJahres(jahr);
   const entwuerfe = alle.filter((x) => x.status === "entwurf");
   const belege = alle.filter((x) => x.status !== "entwurf");
-  const s = summen(belege);
+  const s = summen(belege, "bewirtung");
+  const e = summen(belege, "einkauf");
+  const zw = nachZahlweg(belege);
+  const kategorien = new Map<string, number>();
+  for (const x of belege) {
+    if (x.status !== "fertig" || x.art !== "einkauf") continue;
+    const k = x.kategorie || "Sonstiges";
+    kategorien.set(k, (kategorien.get(k) ?? 0) + (x.bruttoCent ?? 0));
+  }
 
   const jeMonat = new Map<number, Bewirtung[]>();
   for (const x of belege) {
@@ -46,10 +54,10 @@ export default async function BewirtungSeite({
     <div className="mx-auto max-w-4xl space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Bewirtungsbelege</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Belege</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Im Restaurant den Beleg fotografieren, Anlass und Teilnehmer eintragen, festschreiben.
-            Alles wird aufaddiert und steht fürs Steuerbüro bereit.
+            Beleg fotografieren, die KI erkennt Bewirtung oder Einkauf und liest alles aus. Du ergänzt
+            nur, was fehlt, und schreibst fest. Alles wird aufaddiert und steht fürs Steuerbüro bereit.
           </p>
         </div>
         <BelegScanner />
@@ -70,7 +78,14 @@ export default async function BewirtungSeite({
                 <Link href={`/bewirtung/${x.id}`} className="underline">
                   {datumKurz(x.datum)} · {x.restaurant || "Restaurant unbekannt"} · {euro(x.bruttoCent)}
                 </Link>
-                <span className="text-leise"> · {!x.anlass ? "Anlass fehlt" : !x.teilnehmer ? "Teilnehmer fehlen" : "bereit zum Festschreiben"}</span>
+                <span className="text-leise">
+                  {" · "}
+                  {!x.zahlweg
+                    ? "Karte oder bar?"
+                    : x.art === "einkauf"
+                      ? x.zweck ? "bereit zum Festschreiben" : "wofür fehlt"
+                      : !x.anlass ? "Anlass fehlt" : !x.teilnehmer ? "Teilnehmer fehlen" : "bereit zum Festschreiben"}
+                </span>
               </li>
             ))}
           </ul>
@@ -92,11 +107,30 @@ export default async function BewirtungSeite({
             ))}
           </nav>
         </div>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-leise">Bewirtungen</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kachel zahl={String(s.anzahl)} was={s.anzahl === 1 ? "Beleg" : "Belege"} />
+          <Kachel zahl={String(s.anzahl)} was={s.anzahl === 1 ? "Bewirtung" : "Bewirtungen"} />
           <Kachel zahl={euro(s.bruttoCent + s.trinkgeldCent)} was="ausgegeben" hinweis={`davon ${euro(s.trinkgeldCent)} Trinkgeld`} />
           <Kachel zahl={euro(s.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
           <Kachel zahl={euro(s.abziehbarCent)} was="Betriebsausgabe" hinweis={`70 % von ${euro(s.nettoCent)} netto`} betont />
+        </div>
+        <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Einkäufe</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kachel zahl={String(e.anzahl)} was={e.anzahl === 1 ? "Einkauf" : "Einkäufe"} />
+          <Kachel zahl={euro(e.bruttoCent)} was="ausgegeben" />
+          <Kachel zahl={euro(e.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
+          <Kachel zahl={euro(e.abziehbarCent)} was="Betriebsausgabe" hinweis="netto, voll abziehbar" betont />
+        </div>
+        {kategorien.size > 0 && (
+          <p className="text-xs text-leise">
+            {[...kategorien].sort((a, c) => c[1] - a[1]).map(([k, c]) => `${k} ${euro(c)}`).join(" · ")}
+          </p>
+        )}
+        <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Bezahlt</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kachel zahl={euro(zw.karte)} was="mit Karte" />
+          <Kachel zahl={euro(zw.bar)} was="bar" />
+          <Kachel zahl={euro(zw.privat)} was="privat ausgelegt" hinweis="erstattet dir die Firma" />
         </div>
       </section>
 
@@ -105,7 +139,6 @@ export default async function BewirtungSeite({
       ) : (
         monate.map((m) => {
           const liste = jeMonat.get(m)!;
-          const ms = summen(liste);
           const schluessel = `${jahr}-${String(m).padStart(2, "0")}`;
           return (
             <section key={m} className="space-y-2">
@@ -113,7 +146,8 @@ export default async function BewirtungSeite({
                 <h3 className="font-semibold">
                   {m ? MONATE[m - 1] : "ohne Datum"}{" "}
                   <span className="font-normal text-leise">
-                    · {ms.anzahl} {ms.anzahl === 1 ? "Beleg" : "Belege"} · {euro(ms.bruttoCent + ms.trinkgeldCent)}
+                    · {liste.filter((x) => x.status === "fertig").length} Belege ·{" "}
+                    {euro(liste.filter((x) => x.status === "fertig").reduce((n, x) => n + (x.bruttoCent ?? 0) + x.trinkgeldCent, 0))}
                   </span>
                 </h3>
                 {m > 0 && (
@@ -134,8 +168,15 @@ export default async function BewirtungSeite({
                       <span className="w-24 font-mono text-xs text-leise">{x.nummer}</span>
                       <span className="w-20 tabular-nums">{datumKurz(x.datum)}</span>
                       <span className="min-w-0 flex-1">
+                        <span
+                          className="mr-2 rounded px-1.5 py-0.5 text-[11px]"
+                          style={{ background: x.art === "einkauf" ? "var(--info-hell)" : "var(--gold-hell)" }}
+                        >
+                          {x.art === "einkauf" ? "Einkauf" : "Bewirtung"}
+                        </span>
                         <strong>{x.restaurant}</strong>
-                        <span className="text-leise"> · {x.anlass}</span>
+                        <span className="text-leise"> · {x.art === "einkauf" ? x.zweck : x.anlass}</span>
+                        <span className="text-leise"> · {x.zahlweg === "bar" ? "bar" : "Karte"}{x.privatAusgelegt ? ", privat" : ""}</span>
                       </span>
                       <span className={`tabular-nums ${x.status === "storniert" ? "line-through text-leise" : ""}`}>
                         {euro((x.bruttoCent ?? 0) + x.trinkgeldCent)}
@@ -153,6 +194,15 @@ export default async function BewirtungSeite({
       <details className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
         <summary className="cursor-pointer font-medium">Was das Finanzamt verlangt und wie es hier gelöst ist</summary>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-leise">
+          <li>
+            <strong className="text-text">Einkäufe</strong> (Baumarkt, Büro, Tanken ...): Beleg, kurz wofür, Karte oder
+            bar. Voll als Betriebsausgabe abziehbar. Ab 250 Euro brauchen Rechnungen den Namen der Firma,
+            dafür an der Kasse eine Rechnung auf Florian Zimmer Theater GmbH verlangen.
+          </li>
+          <li>
+            <strong className="text-text">Privat ausgelegt:</strong> Hast du mit eigenem Geld bezahlt, wird das
+            getrennt summiert. Das erstattet dir die Firma.
+          </li>
           <li>
             <strong className="text-text">Maschineller Beleg</strong> des Restaurants mit Name und Anschrift, Datum,
             Speisen und Getränken einzeln, Betrag und Mehrwertsteuer. Seit 2018 mit Angaben der Kassen-TSE.
