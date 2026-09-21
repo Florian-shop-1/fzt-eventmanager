@@ -10,6 +10,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { AbendHinweise } from "@/components/AbendHinweise";
 import { zeitpunkt } from "@/lib/zeit";
 import type { Plan } from "@/lib/seating/types";
 import { LOGEN } from "@/lib/domain/venue";
@@ -31,9 +32,9 @@ export const dynamic = "force-dynamic";
 export default async function FoyerSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; meldung?: string }>;
 }) {
-  const { abend, monat } = await searchParams;
+  const { abend, monat, meldung } = await searchParams;
   const termine = await alleShowtage();
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
   // Seiten: Adresse, dann der zuletzt angesehene Abend, dann heute.
@@ -133,6 +134,21 @@ export default async function FoyerSeite({
         )}
 
         {/* 1. Was vorzubereiten ist */}
+        {meldung && (
+          <p
+            className="mb-6 rounded-lg border px-4 py-3 text-sm print:hidden"
+            style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+          >
+            {meldung}
+          </p>
+        )}
+
+        <AbendHinweise
+          datum={kopf.datum}
+          darfBearbeiten={Boolean(benutzer && ["chef", "team", "foyer"].includes(benutzer.rolle))}
+          zurueckZu={`/foyer?abend=${gewaehlt}`}
+        />
+
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-leise">
             1. Vorbereiten

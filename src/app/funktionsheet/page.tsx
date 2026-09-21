@@ -15,6 +15,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { zeitpunkt } from "@/lib/zeit";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { AbendHinweise } from "@/components/AbendHinweise";
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
 
@@ -31,9 +32,9 @@ const VARIANTEN: Array<{ wert: MenueVariante; label: string }> = [
 export default async function FunktionsheetSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; meldung?: string }>;
 }) {
-  const { abend, monat } = await searchParams;
+  const { abend, monat, meldung } = await searchParams;
   // Wie viele Karten verkauft sind, geht die Gastronomie nichts an.
   // Sie braucht Menüs, Getränke und Tische, sonst nichts.
   const benutzer = await angemeldeterBenutzer();
@@ -165,6 +166,21 @@ export default async function FunktionsheetSeite({
             </div>
           )}
         </header>
+
+        {meldung && (
+          <p
+            className="mb-6 rounded-lg border px-4 py-3 text-sm print:hidden"
+            style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+          >
+            {meldung}
+          </p>
+        )}
+
+        <AbendHinweise
+          datum={blatt.datum}
+          darfBearbeiten={Boolean(benutzer && ["chef", "team", "foyer"].includes(benutzer.rolle))}
+          zurueckZu={`/funktionsheet?abend=${gewaehlt}`}
+        />
 
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-leise">

@@ -8,6 +8,7 @@ import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { AbendHinweise } from "@/components/AbendHinweise";
 import type { MenueVariante } from "@/lib/domain/types";
 
 export const metadata = { title: "Küche | FZT Eventmanager" };
@@ -98,6 +99,8 @@ function Blatt({
 
   return (
     <div className="space-y-6">
+      <AbendHinweise datum={blatt.datum} darfBearbeiten={false} zurueckZu="/kueche" />
+
       <section className="rounded-lg border border-gold bg-gold-hell p-6">
         <div className="mb-1 text-sm text-leise">
           {datumKurz(blatt.datum)} · {blatt.show}
