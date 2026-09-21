@@ -9,7 +9,7 @@ import {
   BEZEICHNUNG,
   ERKLAERUNG,
   darfUebernehmen,
-  istRookie,
+  istRookieFuer,
   schonImDienst,
   type Person,
   type Schicht,
@@ -186,8 +186,9 @@ export default async function DienstplanSeite({
       )}
 
       <p className="text-xs text-leise">
-        Rookie: neu auf T1, kann die Show noch nicht allein. Macht ein Rookie T1, erscheint die Zeile
-        Shadow: Dann geht jemand mit, der die Show kann (Mario oder Julian).
+        Rookie: kann die Position noch nicht allein. Steht ein Rookie im Plan, erscheint die Zeile
+        Shadow: Dann geht jemand mit, der die Position allein kann. Wer neu dazukommt, ist erst einmal
+        Rookie; Florian schaltet frei, sobald jemand es allein kann.
       </p>
     </div>
   );
@@ -260,7 +261,7 @@ function SlotZeile({
   const kannUebernehmen =
     ich &&
     !meins &&
-    darfUebernehmen(ich, slot.position) &&
+    darfUebernehmen(ich, slot.position, slot.fuer) &&
     slot.offen &&
     !schonDabei;
   const versteckt = (
@@ -277,13 +278,16 @@ function SlotZeile({
         title={ERKLAERUNG[slot.position]}
       >
         {BEZEICHNUNG[slot.position]}
+        {slot.position === "SHADOW" && slot.fuer && (
+          <span className="block text-xs font-normal text-leise">für {BEZEICHNUNG[slot.fuer]}</span>
+        )}
       </span>
 
       <span className="min-w-0 flex-1 text-sm">
         {slot.person ? (
           <>
             <strong>{meins ? "Du" : slot.person.name}</strong>
-            {slot.position === "T1" && istRookie(slot.person) && (
+            {slot.position !== "SHADOW" && istRookieFuer(slot.person, slot.position) && (
               <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--info-hell)", color: "var(--info)" }}>
                 Rookie, mit Shadow
               </span>

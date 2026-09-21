@@ -84,7 +84,7 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
         <h2 className="text-lg font-semibold">Einladungslink fürs Showteam</h2>
         <p className="text-sm text-leise">
           Schick diesen Link an alle vom Showteam. Jeder trägt sich selbst ein: Name, E-Mail, eigenes
-          Passwort und was er macht (FOH, T1, T1 Rookie, T2). Danach ist er angemeldet und sieht den
+          Passwort und was er macht (FOH, T1 oder T2). Danach ist er angemeldet und sieht den
           Dienstplan. Du bekommst bei jeder Anmeldung eine Mail. Die festen Tage (Levi Fr, Leeven Sa,
           Sabah So, Ben T2) werden beim Eintragen automatisch gesetzt.
         </p>
@@ -134,8 +134,10 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Wer macht was?</h2>
         <p className="text-sm text-leise">
-          „Rookie“ heißt: macht T1, kann die Show aber noch nicht allein. An seinen Abenden braucht er
-          einen Shadow, also jemanden mit T1 ohne Rookie-Haken (Mario, Julian). Sobald er es allein
+          „Rookie“ heißt: macht die Position schon, kann sie aber noch nicht allein. An seinen Abenden braucht er
+          einen Shadow, also jemanden mit derselben Position ohne Rookie-Haken. Wer sich über den Einladungslink
+          selbst einträgt, ist immer erst Rookie: Vollwertig sind bisher nur Ben, Mario, Leeven, Levi, Julian und
+          Sabah. Sobald jemand es allein
           kann, den Haken rausnehmen.
           {nochNichts && " Vorausgefüllt nach deiner Liste, bitte prüfen und speichern."}
         </p>
@@ -149,7 +151,6 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
                     {pos}
                   </th>
                 ))}
-                <th className="px-3 py-2 font-normal">Rookie</th>
               </tr>
             </thead>
             <tbody>
@@ -250,12 +251,20 @@ function PersonZeile({ p, kann }: { p: Person; kann: Map<FestePosition, boolean>
       </td>
       {POSITIONEN.map((pos) => (
         <td key={pos} className="px-3 py-2">
-          <input type="checkbox" name={`kann:${p.id}:${pos}`} defaultChecked={kann.has(pos)} aria-label={`${p.name} ${pos}`} />
+          <span className="flex items-center gap-3">
+            <input type="checkbox" name={`kann:${p.id}:${pos}`} defaultChecked={kann.has(pos)} aria-label={`${p.name} ${pos}`} />
+            <label className="flex items-center gap-1 text-xs text-leise">
+              <input
+                type="checkbox"
+                name={`lernt:${p.id}:${pos}`}
+                defaultChecked={kann.get(pos) === true}
+                aria-label={`${p.name} ist Rookie auf ${pos}`}
+              />
+              Rookie
+            </label>
+          </span>
         </td>
       ))}
-      <td className="px-3 py-2">
-        <input type="checkbox" name={`lernt:${p.id}`} defaultChecked={kann.get("T1") === true} aria-label={`${p.name} ist Rookie`} />
-      </td>
     </tr>
   );
 }

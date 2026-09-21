@@ -74,7 +74,7 @@ export function offenFuer(
     if (istAbwesend(abwesend, p.id, s.termin.datum)) continue;
     for (const slot of s.slots) {
       if (!slot.offen || slot.person?.id === p.id) continue;
-      if (!werKann([p], slot.position).length) continue;
+      if (!werKann([p], slot.position, null, slot.fuer).length) continue;
       if (schonImDienst(schichten, p.id, s.termin) && !slot.suchtErsatz) continue;
       liste.push({ termin: s.termin, position: slot.position });
     }
@@ -107,7 +107,7 @@ export async function taeglicheErinnerung(): Promise<{ mails: number; schichten:
     if (stufe === 0) continue;
     for (const slot of s.slots) {
       if (!slot.offen || slot.erinnertStufe >= stufe) continue;
-      const an = werKann(personen, slot.position, slot.person?.id).filter(
+      const an = werKann(personen, slot.position, slot.person?.id, slot.fuer).filter(
         (p) => !schonImDienst(schichten, p.id, s.termin) && !istAbwesend(abwesend, p.id, s.termin.datum),
       );
       if (stufe === 3) for (const c of chefs) if (!an.some((p) => p.id === c.id)) an.push(c);

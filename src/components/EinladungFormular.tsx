@@ -4,10 +4,14 @@ import { useActionState, useState } from "react";
 import { selbstEintragen, type EinladungsErgebnis } from "@/app/einladung/[token]/aktionen";
 import { Absendeknopf } from "@/components/Absendeknopf";
 
+/*
+  Alle drei Positionen als Rookie: Wer neu dazukommt, laeuft erst mit
+  einem erfahrenen Kollegen mit. Florian schaltet frei, sobald jemand
+  die Position allein kann (Florian, 21.09.2026).
+*/
 const WAHL = [
   { wert: "FOH", titel: "FOH", text: "Licht und Ton" },
-  { wert: "T1", titel: "Techniker 1", text: "ich kann die Show allein" },
-  { wert: "T1neu", titel: "Techniker 1, Rookie", text: "ich bin neu, jemand Erfahrenes geht als Shadow mit" },
+  { wert: "T1", titel: "Techniker 1", text: "" },
   { wert: "T2", titel: "Techniker 2", text: "" },
 ];
 

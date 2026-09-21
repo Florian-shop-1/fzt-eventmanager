@@ -31,11 +31,18 @@ function standardArt(rolle: string): "intern" | "extern" | null {
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
+/**
+ * Was man beim Selbst-Eintragen waehlen kann.
+ *
+ * Immer als Rookie (lernt = true): Wer sich selbst eintraegt, laeuft erst
+ * einmal mit einem erfahrenen Kollegen mit. Vollwertig macht daraus nur
+ * Florian in der Einrichtung (Florian, 21.09.2026). Vollwertig sind
+ * bisher Ben, Mario, Leeven, Levi, Julian und Sabah.
+ */
 const POSITIONEN: Record<string, { position: "FOH" | "T2" | "T1"; lernt: boolean; text: string }> = {
-  FOH: { position: "FOH", lernt: false, text: "FOH (Licht und Ton)" },
-  T1: { position: "T1", lernt: false, text: "Techniker 1" },
-  T1neu: { position: "T1", lernt: true, text: "Techniker 1, Rookie (braucht noch einen Shadow)" },
-  T2: { position: "T2", lernt: false, text: "Techniker 2" },
+  FOH: { position: "FOH", lernt: true, text: "FOH (Licht und Ton), Rookie" },
+  T1: { position: "T1", lernt: true, text: "Techniker 1, Rookie" },
+  T2: { position: "T2", lernt: true, text: "Techniker 2, Rookie" },
 };
 
 export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Promise<EinladungsErgebnis> {

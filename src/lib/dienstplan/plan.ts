@@ -223,6 +223,8 @@ export interface Slot {
   /** Hier wird jemand gebraucht: leer oder Ersatz gesucht. */
   offen: boolean;
   erinnertStufe: number;
+  /** Nur beim Shadow: Welche Position er begleitet. */
+  fuer?: FestePosition;
   /** Direkt angefragt und noch nicht beantwortet. */
   angefragt: Person | null;
   angefragtVon: Person | null;
@@ -273,15 +275,19 @@ export function planBauen(
           angefragtNotiz: e?.angefragtNotiz ?? null,
         });
       }
-      // Macht ein Rookie T2, braucht er einen Shadow: Mario oder Julian
-      // gehen mit. Nur dann gibt es die Zeile, und dann ist sie Pflicht.
-      const t1 = slots.find((s) => s.position === "T1");
-      if (t1?.person && istRookie(t1.person)) {
+      // Steht ein Rookie auf einer Position, geht jemand mit, der sie
+      // allein kann. Nur dann gibt es die Shadow-Zeile, und dann ist sie
+      // Pflicht. Gilt fuer FOH, T1 und T2 gleichermassen.
+      const mitRookie = slots.find(
+        (s) => s.person && s.position !== "SHADOW" && istRookieFuer(s.person, s.position as FestePosition),
+      );
+      if (mitRookie) {
         const sh = eintrag.get(`${termin.ditixEventId}|SHADOW`);
         const shPerson = sh?.benutzerId ? (person.get(sh.benutzerId) ?? null) : null;
         const suchtErsatz = Boolean(sh?.suchtErsatz && shPerson);
         slots.push({
           position: "SHADOW",
+          fuer: mitRookie.position as FestePosition,
           person: shPerson,
           fest: false,
           suchtErsatz,
@@ -298,23 +304,44 @@ export function planBauen(
     .filter((s) => s.slots.length > 0);
 }
 
-/** Rookie: macht T1, kann die Show aber noch nicht allein (Spalte "lernt"). */
+/**
+ * Rookie: macht die Position schon, kann sie aber noch nicht allein
+ * (Spalte "lernt"). Vollwertig ist nur, wen Florian dazu erklaert hat;
+ * wer sich selbst eintraegt, faengt als Rookie an (Florian, 21.09.2026).
+ */
+export function istRookieFuer(p: Person, position: FestePosition): boolean {
+  return p.kann.get(position) === true;
+}
+
+/** Rookie auf irgendeiner seiner Positionen. Fuer Listen und Hinweise. */
 export function istRookie(p: Person): boolean {
-  return p.kann.get("T1") === true;
+  return [...p.kann.values()].some((lernt) => lernt);
+}
+
+/** Kann diese Person die Position allein? Dann darf sie auch begleiten. */
+export function istVollwertig(p: Person, position: FestePosition): boolean {
+  return p.kann.get(position) === false;
 }
 
 /**
  * Darf diese Person die Position übernehmen?
- * T1 dürfen alle mit T1, auch Rookies. Shadow nur, wer T1 schon allein kann.
+ * Die eigene Position dürfen alle übernehmen, die sie können, auch
+ * Rookies: Sie bekommen dann einen Shadow an die Seite. Der Shadow
+ * selbst darf nur sein, wer die begleitete Position allein kann.
  */
-export function darfUebernehmen(p: Person, position: Position): boolean {
-  if (position === "SHADOW") return p.kann.get("T1") === false;
+export function darfUebernehmen(p: Person, position: Position, fuer: FestePosition = "T1"): boolean {
+  if (position === "SHADOW") return istVollwertig(p, fuer);
   return p.kann.has(position);
 }
 
 /** Wer bei einer offenen Schicht angeschrieben wird. */
-export function werKann(personen: Person[], position: Position, ausser?: string | null): Person[] {
-  return personen.filter((p) => p.id !== ausser && darfUebernehmen(p, position));
+export function werKann(
+  personen: Person[],
+  position: Position,
+  ausser?: string | null,
+  fuer: FestePosition = "T1",
+): Person[] {
+  return personen.filter((p) => p.id !== ausser && darfUebernehmen(p, position, fuer));
 }
 
 /** Arbeitet diese Person an diesem Tag schon (auf einer anderen Position)? */

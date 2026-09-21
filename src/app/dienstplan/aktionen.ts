@@ -60,7 +60,7 @@ async function schichtLaden(f: FormData) {
 export async function uebernehmen(f: FormData): Promise<void> {
   const { benutzer, eventId, position, termin, schichten, slot, ich } = await schichtLaden(f);
   if (!slot || !ich) zurueck(eventId, "Diese Schicht gibt es nicht.");
-  if (!darfUebernehmen(ich, position)) {
+  if (!darfUebernehmen(ich, position, slot.fuer)) {
     zurueck(eventId, `${BEZEICHNUNG[position]} ist nicht bei deinen Positionen eingetragen. Florian kann das ändern.`);
   }
   if (!slot.offen) {
@@ -86,7 +86,7 @@ export async function ersatzSuchen(f: FormData): Promise<void> {
   const grund = text(f, "grund").slice(0, 120) || null;
 
   await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: true, grund, von: benutzer.name });
-  const an = werKann(personen, position, ich.id).filter(
+  const an = werKann(personen, position, ich.id, slot.fuer).filter(
     (p) => !schonImDienst(schichten, p.id, termin) && !istAbwesend(abwesend, p.id, termin.datum),
   );
   await ersatzGesuchtMail({ an, wer: ich.name, termin, position, grund });
@@ -121,7 +121,7 @@ export async function einteilen(f: FormData): Promise<void> {
   }
   if (wert === "offen") {
     await einsatzSetzen({ termin, position, benutzerId: null, suchtErsatz: false, grund: null, von: benutzer.name });
-    const an = werKann(personen, position, slot?.person?.id).filter(
+    const an = werKann(personen, position, slot?.person?.id, slot?.fuer).filter(
       (p) => !schonImDienst(schichten, p.id, termin) && !istAbwesend(abwesend, p.id, termin.datum),
     );
     await ersatzGesuchtMail({ an, wer: benutzer.name.split(" ")[0] + " (Büro)", termin, position, grund: "Schicht ist frei" });
@@ -283,7 +283,9 @@ export async function positionenSpeichern(f: FormData): Promise<void> {
     await sql`delete from dienst_quali where benutzer_id = ${id}`;
     for (const pos of POSITIONEN) {
       if (!f.get(`kann:${id}:${pos}`)) continue;
-      const lernt = pos === "T1" && Boolean(f.get(`lernt:${id}`));
+      // Der Haken steht je Position: Wer die Show dort allein kann, ist
+      // vollwertig, alle anderen sind Rookie (Florian, 21.09.2026).
+      const lernt = Boolean(f.get(`lernt:${id}:${pos}`));
       await sql`insert into dienst_quali (benutzer_id, position, lernt) values (${id}, ${pos}, ${lernt})`;
     }
   }
