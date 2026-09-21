@@ -620,12 +620,13 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         <p className="text-xs font-semibold uppercase tracking-wide text-gold-dunkel">Das sagst du</p>
         <p className="mt-1">
           „Guten Abend! Gute Nachricht: Bei uns hat heute eine Gruppe abgesagt.{" "}
-          <strong>Ich kann euch kostenfrei weiter nach vorne setzen.</strong> Von dort seht ihr die Show noch besser.
-          Passt das für euch?“
+          <strong>Ich setze euch kostenfrei weiter nach vorne.</strong> Von dort seht ihr die Show noch besser, kommt
+          einfach mit.“
         </p>
         <p className="mt-2 text-xs text-leise">
-          Sagt jemand nein: „Kein Problem, dann bleibt ihr natürlich auf euren Plätzen.“ Nie sagen, dass hinten
-          schlecht ist, nur dass vorne etwas frei geworden ist.
+          Nicht nachfragen, ob es recht ist: Das wird angeboten, nicht erbeten. Wer lieber sitzen bleiben will, sagt
+          es von selbst, und dann heißt es: „Kein Problem, dann bleibt ihr natürlich auf euren Plätzen.“ Nie sagen,
+          dass hinten schlecht ist, nur dass vorne etwas frei geworden ist.
         </p>
       </div>
     </section>
