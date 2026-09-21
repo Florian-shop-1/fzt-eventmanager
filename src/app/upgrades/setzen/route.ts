@@ -24,6 +24,7 @@ interface Anfrage {
   zielIds?: number[];
   personen?: number;
   gastId?: string;
+  gastName?: string;
 }
 
 export async function POST(request: Request) {
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     zielText: d.zielText.slice(0, 200),
     zielIds: (d.zielIds ?? []).map(Number).filter(Number.isFinite),
     personen: Number(d.personen ?? 0),
+    gastName: (d.gastName ?? "").slice(0, 80),
     von: b.name,
   });
 

@@ -215,6 +215,7 @@ export default async function UpgradeSeite({
             schluessel: u.schluessel,
             zielText: u.zielText,
             zielIds: u.zielIds,
+            gastName: u.gastName,
             gesetztVon: u.gesetztVon,
           }))}
           zone={{ links: rat.zone.links, rechts: rat.zone.rechts, oben: rat.zone.oben, unten: rat.zone.unten }}

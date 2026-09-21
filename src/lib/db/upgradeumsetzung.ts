@@ -20,6 +20,8 @@ export interface Umsetzung {
   zielText: string;
   zielIds: number[];
   personen: number;
+  /** Name des Gastes, falls der Einlass ihn mitgeschrieben hat. */
+  gastName: string;
   gesetztVon: string | null;
   gesetztAm: string;
 }
@@ -32,6 +34,7 @@ function baue(z: Record<string, unknown>): Umsetzung {
     zielText: String(z.ziel_text),
     zielIds: ((z.ziel_ids as number[]) ?? []).map(Number),
     personen: Number(z.personen ?? 0),
+    gastName: String(z.gast_name ?? ""),
     gesetztVon: (z.gesetzt_von as string) ?? null,
     gesetztAm: new Date(z.gesetzt_am as string).toISOString(),
   };
@@ -57,16 +60,18 @@ export async function umsetzungSpeichern(o: {
   zielText: string;
   zielIds: number[];
   personen: number;
+  gastName?: string;
   von: string;
 }): Promise<void> {
   await db()`
     insert into upgrade_umsetzung
-      (ditix_event_id, schluessel, art, quelle_text, ziel_text, ziel_ids, personen, gesetzt_von, gesetzt_am)
+      (ditix_event_id, schluessel, art, quelle_text, ziel_text, ziel_ids, personen, gast_name, gesetzt_von, gesetzt_am)
     values (${o.ditixEventId}, ${o.schluessel}, ${o.art}, ${o.quelleText}, ${o.zielText},
-            ${o.zielIds}::bigint[], ${o.personen}, ${o.von}, now())
+            ${o.zielIds}::bigint[], ${o.personen}, ${o.gastName ?? ""}, ${o.von}, now())
     on conflict (ditix_event_id, schluessel) do update set
       ziel_text = excluded.ziel_text, ziel_ids = excluded.ziel_ids, personen = excluded.personen,
-      quelle_text = excluded.quelle_text, gesetzt_von = excluded.gesetzt_von, gesetzt_am = now()
+      quelle_text = excluded.quelle_text, gast_name = excluded.gast_name,
+      gesetzt_von = excluded.gesetzt_von, gesetzt_am = now()
   `;
 }
 
