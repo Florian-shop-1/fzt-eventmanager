@@ -19,6 +19,7 @@ import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
 import { EigeneTermine } from "@/components/EigeneTermine";
 import { eigeneTermine } from "@/lib/db/eigenertermin";
+import { kochtNormalerweise, menueBuchbarAmTag } from "@/lib/shop/menuepruefung";
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
 
@@ -86,6 +87,14 @@ export default async function FunktionsheetSeite({
 
   const plan = kopf.festgelegt?.plan ?? varianten[0] ?? null;
 
+  // Sind an diesem Abend im Shop ueberhaupt Menues buchbar? Steht in Ditix
+  // alles auf "nicht aktiv", findet ein Gast beim Nachbuchen nichts
+  // (Florian, 21.09.2026).
+  const kochtHeute = blatt.shows.some((sh) => kochtNormalerweise(sh.name));
+  const menueImShop = kochtHeute
+    ? await menueBuchbarAmTag(blatt.shows.map((sh) => sh.ditixEventId))
+    : true;
+
   // Die Abschnitte werden fortlaufend nummeriert. Manche fallen weg,
   // deshalb zählt ein Zähler mit, statt die Nummern von Hand zu rechnen.
   let nr = 0;
@@ -115,6 +124,17 @@ export default async function FunktionsheetSeite({
                 : "noch nichts gebucht",
         }))}
       />
+
+      {!menueImShop && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>An diesem Abend ist im Ticketshop kein Menü buchbar.</strong> In Ditix stehen die
+          Menü-Ticketarten für diesen Termin auf „nicht aktiv“. Wer Karten hat und das Menü nachbuchen möchte,
+          findet nichts. Wenn das nicht so gewollt ist, in Ditix wieder freischalten.
+        </div>
+      )}
 
       {darfTermine && <EigeneTermine termine={eigene} zurueckZu={`/funktionsheet?abend=${gewaehlt}`} />}
 

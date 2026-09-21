@@ -4,8 +4,10 @@ import { verfuegbareGruppen, type Leistungsgruppe } from "@/lib/shop/zusatzleist
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { zieldatum, VORLAUF_TAGE } from "@/lib/mail/vorfreudelauf";
 import { Absendeknopf } from "@/components/Absendeknopf";
+import { gemeldeteAbendeOhneMenue } from "@/lib/shop/menuepruefung";
 import { datumMitWochentag, zeitpunkt } from "@/lib/zeit";
 import {
+  menuesPruefen,
   jetztVerschicken,
   probemailSchicken,
   widerspruchVonHand,
@@ -93,6 +95,8 @@ export default async function VorfreudeSeite({
       {meldung && (
         <div className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">{meldung}</div>
       )}
+
+      <OhneMenue />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -259,5 +263,60 @@ export default async function VorfreudeSeite({
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * Abende, an denen im Shop kein Menue buchbar ist.
+ *
+ * Der Anlass: Eine Gaestin wollte das Menue nachbuchen und fand keines,
+ * weil es in Ditix fuer diesen Abend deaktiviert war (Florian, 21.09.2026).
+ * Die Liste fuellt der taegliche Lauf, der dabei auch eine Mail schickt.
+ */
+async function OhneMenue() {
+  const abende = await gemeldeteAbendeOhneMenue().catch(() => []);
+  return (
+    <section
+      id="menues"
+      className="scroll-mt-24 space-y-3 rounded-lg border px-4 py-3"
+      style={
+        abende.length > 0
+          ? { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+          : { borderColor: "var(--linie)", background: "var(--flaeche)" }
+      }
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-base font-semibold">Menüs im Ticketshop</h2>
+        <form action={menuesPruefen}>
+          <Absendeknopf text="Jetzt prüfen" laeuftText="Wird geprüft..." />
+        </form>
+      </div>
+
+      {abende.length === 0 ? (
+        <p className="text-sm text-leise">
+          An allen kommenden Abenden ist im Shop ein Menü buchbar. Geprüft wird jeden Morgen mit dem Versand.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm">
+            An diesen Abenden steht im Shop kein Menü zur Auswahl. Wer Karten hat und das Menü nachbuchen möchte,
+            findet nichts. In Ditix stehen die Menü-Ticketarten dort auf „nicht aktiv“.
+          </p>
+          <ul className="space-y-1 text-sm">
+            {abende.map((a) => (
+              <li key={a.ditixEventId}>
+                <strong>{datumMitWochentag(a.datum)}</strong>
+                {a.uhrzeit && `, ${a.uhrzeit} Uhr`}
+                {a.name && ` · ${a.name}`}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-leise">
+            Ist das so gewollt (Haus exklusiv gebucht, Küche voll), kannst du es stehen lassen. Sonst in Ditix
+            freischalten und hier auf „Jetzt prüfen“ drücken.
+          </p>
+        </>
+      )}
+    </section>
   );
 }

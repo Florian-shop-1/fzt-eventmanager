@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
+import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 
 /**
  * Der Auslöser für den täglichen Versand.
@@ -42,7 +43,17 @@ export async function GET(request: Request) {
       `[vorfreude] ${ergebnis.datum}: ${ergebnis.verschickt.length} verschickt, ` +
         `${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler`,
     );
-    return NextResponse.json({ ok: true, ...ergebnis });
+    // Am selben Zug: Gibt es Abende, an denen im Shop kein Menü buchbar ist?
+    // Das faellt sonst erst auf, wenn ein Gast danach fragt.
+    const menues = await taeglicheMenuepruefung().catch((f) => {
+      console.error("[menuepruefung] Lauf fehlgeschlagen:", f);
+      return { offen: 0, gemeldet: 0 };
+    });
+    if (menues.offen > 0) {
+      console.log(`[menuepruefung] ${menues.offen} Abend(e) ohne Menü, davon ${menues.gemeldet} neu gemeldet`);
+    }
+
+    return NextResponse.json({ ok: true, ...ergebnis, menues });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     console.error("[vorfreude] Lauf fehlgeschlagen:", meldung);

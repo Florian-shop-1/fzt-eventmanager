@@ -18,6 +18,7 @@ import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { vorfreudeVerschicken } from "@/lib/mail/vorfreudelauf";
 import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
+import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 
 /** Nur Büro und Inhaber. Hier gehen Mails an Gäste raus. */
 async function berechtigt() {
@@ -111,4 +112,28 @@ export async function widerspruchAufheben(formular: FormData): Promise<void> {
     meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
   }
   zurueck(datum, meldung);
+}
+
+/**
+ * Prueft jetzt, an welchen Abenden im Shop kein Menue buchbar ist.
+ *
+ * Laeuft sonst einmal taeglich mit dem Vorfreude-Lauf. Von Hand ist es der
+ * Weg, um nach dem Freischalten in Ditix gleich nachzusehen.
+ */
+export async function menuesPruefen(): Promise<void> {
+  await berechtigt();
+  let meldung: string;
+  try {
+    const e = await taeglicheMenuepruefung();
+    meldung =
+      e.offen === 0
+        ? "Geprüft: An allen kommenden Abenden ist ein Menü buchbar."
+        : `Geprüft: ${e.offen} ${e.offen === 1 ? "Abend hat" : "Abende haben"} kein buchbares Menü` +
+          `${e.gemeldet > 0 ? `, ${e.gemeldet} davon neu gemeldet` : ""}.`;
+  } catch (f) {
+    meldung = f instanceof Error ? f.message : "Die Prüfung hat nicht geklappt.";
+  }
+  revalidatePath("/vorfreude");
+  revalidatePath("/funktionsheet");
+  redirect(`/vorfreude?meldung=${encodeURIComponent(meldung)}#menues`);
 }
