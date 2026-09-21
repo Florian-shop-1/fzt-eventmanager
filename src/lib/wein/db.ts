@@ -169,3 +169,120 @@ export function summe(positionen: WeinPosition[]): number {
 export function euro(cent: number): string {
   return (cent / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 }
+
+// ---------------------------------------------------------------------------
+// Wo die Lieferung steht. Steht im Formular, in der Mail und im Pop-up, damit
+// niemand suchen muss (Florian, 21.09.2026).
+
+export const ABSTELLORT = "Erdgeschoss bei den Kühlhäusern, vor dem Lastenaufzug";
+
+// ---------------------------------------------------------------------------
+// Leihware: Was sich die Gastro aus unserem Bestand nimmt. Siehe migrations/050.
+
+export interface LeihArtikel {
+  id: string;
+  name: string;
+  marktpreisCent: number;
+  quelle: string;
+  stand: string | null;
+  aktiv: boolean;
+}
+
+export interface Leihe {
+  id: string;
+  datum: string;
+  name: string;
+  menge: number;
+  marktpreisCent: number;
+  preisCent: number;
+  notiz: string;
+  status: "offen" | "zurueck";
+  erfasstVon: string;
+  zurueckAm: string | null;
+  zurueckVon: string | null;
+}
+
+/** Aufschlag auf den Marktpreis, wenn die Ware nicht zurückkommt. */
+export const AUFSCHLAG = 0.1;
+
+export function mitAufschlag(marktpreisCent: number): number {
+  return Math.round(marktpreisCent * (1 + AUFSCHLAG));
+}
+
+export async function leihArtikel(): Promise<LeihArtikel[]> {
+  const z = (await db()`
+    select id, name, marktpreis_cent, quelle, stand::text as stand, aktiv from leih_artikel where aktiv order by sortierung, name
+  `) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    id: String(r.id),
+    name: String(r.name),
+    marktpreisCent: Number(r.marktpreis_cent),
+    quelle: String(r.quelle ?? ""),
+    stand: (r.stand as string) ?? null,
+    aktiv: Boolean(r.aktiv),
+  }));
+}
+
+function baueLeihe(r: Record<string, unknown>): Leihe {
+  const t = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+  return {
+    id: String(r.id),
+    datum: String(r.datum),
+    name: String(r.name),
+    menge: Number(r.menge),
+    marktpreisCent: Number(r.marktpreis_cent),
+    preisCent: Number(r.preis_cent),
+    notiz: String(r.notiz ?? ""),
+    status: r.status as Leihe["status"],
+    erfasstVon: String(r.erfasst_von),
+    zurueckAm: t(r.zurueck_am),
+    zurueckVon: (r.zurueck_von as string) ?? null,
+  };
+}
+
+export async function leihen(o: { seit?: string; bis?: string; nurOffene?: boolean } = {}): Promise<Leihe[]> {
+  const z = (await db()`
+    select id, datum::text as datum, name, menge, marktpreis_cent, preis_cent, notiz, status, erfasst_von,
+           zurueck_am, zurueck_von
+      from wein_leihe
+     where (${o.seit ?? null}::date is null or datum >= ${o.seit ?? null}::date)
+       and (${o.bis ?? null}::date is null or datum < ${o.bis ?? null}::date)
+       and (${!o.nurOffene} or status = 'offen')
+     order by datum desc, erstellt_am desc
+     limit 200
+  `) as Array<Record<string, unknown>>;
+  return z.map(baueLeihe);
+}
+
+export async function leiheAnlegen(l: {
+  datum: string;
+  artikelId: string | null;
+  name: string;
+  menge: number;
+  marktpreisCent: number;
+  notiz: string;
+  von: string;
+}): Promise<void> {
+  await db()`
+    insert into wein_leihe (datum, artikel_id, name, menge, marktpreis_cent, preis_cent, notiz, erfasst_von)
+    values (${l.datum}::date, ${l.artikelId}, ${l.name}, ${l.menge}, ${l.marktpreisCent},
+            ${mitAufschlag(l.marktpreisCent)}, ${l.notiz}, ${l.von})
+  `;
+}
+
+/** Zurückgebracht: kostet nichts und kommt nicht auf die Rechnung. */
+export async function leiheZurueck(id: string, von: string): Promise<boolean> {
+  const z = (await db()`
+    update wein_leihe set status = 'zurueck', zurueck_am = now(), zurueck_von = ${von}
+     where id = ${id} and status = 'offen' returning id
+  `) as unknown[];
+  return z.length > 0;
+}
+
+export async function leiheWiederOffen(id: string): Promise<void> {
+  await db()`update wein_leihe set status = 'offen', zurueck_am = null, zurueck_von = null where id = ${id}`;
+}
+
+export async function leiheLoeschen(id: string): Promise<void> {
+  await db()`delete from wein_leihe where id = ${id}`;
+}

@@ -11,7 +11,14 @@ import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { abmelden } from "@/lib/auth/aktionen";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
-import { einstellungLesen as weinEinstellung, offeneAnzahl as offeneWeinbestellungen, zugang as weinZugang } from "@/lib/wein/db";
+import {
+  ABSTELLORT,
+  bestellungen as weinBestellungen,
+  einstellungLesen as weinEinstellung,
+  offeneAnzahl as offeneWeinbestellungen,
+  zugang as weinZugang,
+} from "@/lib/wein/db";
+import { BestellungPopup, type OffeneBestellung } from "@/components/BestellungPopup";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -83,6 +90,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Was diese Person noch erledigen muss. Geschäftsführung und externe
   // Partner (Food-Kiosk) unterschreiben keine Geheimhaltung über das Programm.
   const aufgaben: Erinnerung[] = [];
+  // Für das Pop-up: die offenen Bestellungen der Gastro, kurz gefasst.
+  let offeneBestellungen: OffeneBestellung[] = [];
   if (benutzer && !offen) {
     if (benutzer.art === "intern" && !benutzer.personalbogenAm) {
       aufgaben.push({
@@ -109,10 +118,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       if (n > 0) {
         aufgaben.push({
           href: "/bestellungen",
-          leiste: `Die Gastro hat Magicuvée bestellt: ${n === 1 ? "eine Bestellung ist" : `${n} Bestellungen sind`} noch nicht übergeben.`,
+          leiste: `Die Gastro hat Magicuvée bestellt: ${n === 1 ? "eine Bestellung ist" : `${n} Bestellungen sind`} noch nicht abgestellt.`,
           knopf: "Ansehen",
-          hase: "Die Gastro hat Wein bestellt! Bitte übergeben und abhaken.",
+          hase: "Die Gastro hat Wein bestellt! Bitte bei den Kühlhäusern bereitstellen und abhaken.",
         });
+        offeneBestellungen = (await weinBestellungen({ status: "offen" }).catch(() => [])).map((x) => ({
+          id: x.id,
+          zeilen: x.positionen.map((p) => `${p.menge} × ${p.name}`),
+          besteller: x.bestellerName,
+          notiz: x.notiz,
+        }));
       }
     }
   }
@@ -185,6 +200,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </div>
             </div>
           </header>
+        )}
+
+        {offeneBestellungen.length > 0 && (
+          <BestellungPopup offen={offeneBestellungen} abstellort={ABSTELLORT} />
         )}
 
         {benutzer && aufgaben.length > 0 && (

@@ -3,26 +3,35 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import {
+  ABSTELLORT,
   artikelListe,
   bestellungen,
   einstellungLesen,
   euro,
+  leihArtikel,
+  leihen,
+  mitAufschlag,
   summe,
   zugang,
   type WeinBestellung,
 } from "@/lib/wein/db";
 import {
+  absenderSpeichern,
   alsUebergebenMarkieren,
   bestellen,
   bestellungStornieren,
   freischalten,
+  leiheDochBerechnen,
+  leiheEntfernen,
+  leiheErfassen,
+  leiheZurueckgebracht,
   meldenSpeichern,
   preiseSpeichern,
   rechnungEinstellungSpeichern,
   rechnungJetzt,
 } from "./aktionen";
 import { lexofficeEingerichtet } from "@/lib/lexoffice/client";
-import { rechnungDesMonats, rechnungsEinstellung } from "@/lib/wein/rechnung";
+import { fehlendePflichtangaben, monatsPositionen, rechnungDesMonats, rechnungsEinstellung } from "@/lib/wein/rechnung";
 
 export const metadata = { title: "Bestellungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -101,6 +110,9 @@ export default async function BestellungenSeite({
             <span className="mb-1 block text-xs text-leise">Notiz (freiwillig), zum Beispiel „bis Freitag“ oder „für Tisch 12“</span>
             <input name="notiz" maxLength={300} />
           </label>
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--gut-hell)", color: "var(--gut)" }}>
+            Die Lieferung wird im {ABSTELLORT} bereitgestellt.
+          </p>
           <Absendeknopf text="Bestellen" laeuftText="Wird bestellt..." />
         </form>
       )}
@@ -131,6 +143,8 @@ export default async function BestellungenSeite({
         </section>
       )}
 
+      {z.uebergeben && <Leihware darfLoeschen={z.verwalten} />}
+
       {z.verwalten && <Abrechnung monat={monat} />}
       {z.verwalten && <Einrichtung freigegeben={z.freigegeben} />}
     </div>
@@ -150,7 +164,7 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
       <div className="mt-1 text-xs text-leise">
         bestellt von {x.bestellerName} am {zeit(x.erstelltAm)}
         {x.notiz && ` · ${x.notiz}`}
-        {x.status === "uebergeben" && x.uebergebenAm && ` · übergeben am ${zeit(x.uebergebenAm)} von ${x.uebergebenVon}`}
+        {x.status === "uebergeben" && x.uebergebenAm && ` · abgestellt am ${zeit(x.uebergebenAm)} von ${x.uebergebenVon}`}
         {x.status === "storniert" && " · zurückgezogen"}
       </div>
       {(uebergeben || darfZurueck) && x.status === "offen" && (
@@ -158,7 +172,7 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
           {uebergeben && (
             <form action={alsUebergebenMarkieren}>
               <input type="hidden" name="id" value={x.id} />
-              <Absendeknopf text="Übergeben" laeuftText="..." />
+              <Absendeknopf text="Abgestellt bei den Kühlhäusern" laeuftText="..." />
             </form>
           )}
           {darfZurueck && (
@@ -175,79 +189,66 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
   );
 }
 
-/** Was im Monat übergeben wurde: die Grundlage für die Rechnung. */
+/** Was im Monat zu berechnen ist: übergebener Wein und nicht zurückgebrachte Ware. */
 async function Abrechnung({ monat }: { monat?: string }) {
   const jetzt = new Date();
   const m = /^\d{4}-\d{2}$/.test(monat ?? "") ? monat! : `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, "0")}`;
   const [j, mm] = m.split("-").map(Number);
-  const von = new Date(Date.UTC(j, mm - 1, 1)).toISOString();
-  const bis = new Date(Date.UTC(j, mm, 1)).toISOString();
   const vorher = `${mm === 1 ? j - 1 : j}-${String(mm === 1 ? 12 : mm - 1).padStart(2, "0")}`;
   const danach = `${mm === 12 ? j + 1 : j}-${String(mm === 12 ? 1 : mm + 1).padStart(2, "0")}`;
-
-  const liste = await bestellungen({ status: "uebergeben", seit: von, bis });
-  const jeSorte = new Map<string, { name: string; menge: number; ekCent: number; summe: number }>();
-  for (const x of liste) {
-    for (const p of x.positionen) {
-      const k = `${p.artikelId}|${p.ekCent}`;
-      const e = jeSorte.get(k) ?? { name: p.name, menge: 0, ekCent: p.ekCent, summe: 0 };
-      e.menge += p.menge;
-      e.summe += p.menge * p.ekCent;
-      jeSorte.set(k, e);
-    }
-  }
-  const netto = [...jeSorte.values()].reduce((n, e) => n + e.summe, 0);
-  const ust = Math.round(netto * 0.19);
+  const daten = await monatsPositionen(m);
 
   return (
-    <section id="abrechnung" className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
+    <section id="abrechnung" className="scroll-mt-24 space-y-3 rounded-lg border border-linie bg-flaeche p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">
           Abrechnung {MONATE[mm - 1]} {j}
         </h2>
         <span className="flex gap-3 text-sm">
           <a href={`/bestellungen?monat=${vorher}#abrechnung`} className="underline">
-            ← Vormonat
+            Vormonat
           </a>
           <a href={`/bestellungen?monat=${danach}#abrechnung`} className="underline">
-            Folgemonat →
+            Folgemonat
           </a>
         </span>
       </div>
-      {liste.length === 0 ? (
-        <p className="text-sm text-leise">In diesem Monat wurde noch nichts übergeben.</p>
+      {daten.positionen.length === 0 ? (
+        <p className="text-sm text-leise">In diesem Monat gibt es nichts zu berechnen.</p>
       ) : (
         <>
           <table className="w-full text-sm">
             <thead className="border-b border-linie text-left text-xs text-leise">
               <tr>
-                <th className="py-1.5">Sorte</th>
-                <th className="py-1.5 text-right">Flaschen</th>
-                <th className="py-1.5 text-right">je Flasche</th>
+                <th className="py-1.5">Position</th>
+                <th className="py-1.5 text-right">Anzahl</th>
+                <th className="py-1.5 text-right">Einzelpreis</th>
                 <th className="py-1.5 text-right">Betrag</th>
               </tr>
             </thead>
             <tbody>
-              {[...jeSorte.values()].map((e) => (
-                <tr key={e.name + e.ekCent} className="border-b border-linie">
+              {daten.positionen.map((e) => (
+                <tr key={e.name + e.einzelCent} className="border-b border-linie">
                   <td className="py-1.5">{e.name}</td>
                   <td className="py-1.5 text-right tabular-nums">{e.menge}</td>
-                  <td className="py-1.5 text-right tabular-nums">{euro(e.ekCent)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{euro(e.summe)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{euro(e.einzelCent)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{euro(e.summeCent)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <dl className="ml-auto grid max-w-xs grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <dt className="text-leise">Netto</dt>
-            <dd className="text-right tabular-nums">{euro(netto)}</dd>
+            <dd className="text-right tabular-nums">{euro(daten.netto)}</dd>
             <dt className="text-leise">Umsatzsteuer 19 %</dt>
-            <dd className="text-right tabular-nums">{euro(ust)}</dd>
+            <dd className="text-right tabular-nums">{euro(daten.ust)}</dd>
             <dt className="font-semibold">Rechnungsbetrag</dt>
-            <dd className="text-right font-semibold tabular-nums">{euro(netto + ust)}</dd>
+            <dd className="text-right font-semibold tabular-nums">{euro(daten.brutto)}</dd>
           </dl>
           <p className="text-xs text-leise">
-            {liste.length} {liste.length === 1 ? "Übergabe" : "Übergaben"}.
+            {daten.uebergaben} {daten.uebergaben === 1 ? "Lieferung" : "Lieferungen"}
+            {daten.leihware.length > 0 && `, dazu ${daten.leihware.length} Position aus unserem Bestand`}.
+            Leistungszeitraum {daten.leistungszeitraum}.
           </p>
           <Rechnungsblock monat={m} />
         </>
@@ -269,8 +270,10 @@ const STATUS: Record<string, string> = {
 async function Rechnungsblock({ monat }: { monat: string }) {
   const r = await rechnungDesMonats(monat);
   const e = await rechnungsEinstellung();
+  const fehlt = fehlendePflichtangaben(e.absender);
   const jetzt = new Date();
   const laufend = monat === `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, "0")}`;
+
   if (r?.versendetAm) {
     const bezahlt = r.status === "paid" || r.status === "paidoff";
     return (
@@ -280,28 +283,55 @@ async function Rechnungsblock({ monat }: { monat: string }) {
       >
         <strong>Rechnung {r.nummer}</strong> über {euro(r.bruttoCent)}, verschickt am{" "}
         {new Date(r.versendetAm).toLocaleDateString("de-DE")} an {r.versendetAn.join(", ")}.{" "}
-        <strong>{STATUS[r.status] ?? r.status}</strong>
+        {r.lexofficeId ? <strong>{STATUS[r.status] ?? r.status}</strong> : <span className="text-leise">Zahlungsstand nicht verbunden</span>}
         {r.bezahltAm && ` seit ${new Date(r.bezahltAm).toLocaleDateString("de-DE")}`}.{" "}
-        <a href={`/bestellungen/rechnung/${r.id}`} target="_blank" rel="noreferrer" className="underline">
-          PDF ansehen
-        </a>
+        {r.hatPdf && (
+          <a href={`/bestellungen/rechnung/${r.id}`} target="_blank" rel="noreferrer" className="underline">
+            PDF ansehen
+          </a>
+        )}
       </div>
     );
   }
-  if (!lexofficeEingerichtet()) {
+
+  // Erstellt, aber der Versand ging schief: Nummer und PDF stehen, ein Klick wiederholt den Versand.
+  if (r && !r.versendetAm) {
+    return (
+      <div className="space-y-2 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
+        <p>
+          <strong>Rechnung {r.nummer}</strong> über {euro(r.bruttoCent)} ist erstellt, aber noch nicht verschickt.
+          {r.hatPdf && (
+            <>
+              {" "}
+              <a href={`/bestellungen/rechnung/${r.id}`} target="_blank" rel="noreferrer" className="underline">
+                PDF ansehen
+              </a>
+            </>
+          )}
+        </p>
+        <form action={rechnungJetzt}>
+          <input type="hidden" name="monat" value={monat} />
+          <Absendeknopf text="Jetzt verschicken" laeuftText="Wird verschickt..." />
+        </form>
+      </div>
+    );
+  }
+
+  if (fehlt.length > 0) {
     return (
       <p className="text-xs" style={{ color: "var(--warnung)" }}>
-        Für die Rechnung fehlt noch die Verbindung zu Lexware Office (siehe Einrichtung unten).
+        Für die Rechnung fehlen noch Angaben: {fehlt.join(", ")}. Siehe unten unter „Absender auf der Rechnung“.
       </p>
     );
   }
+
   return (
     <form action={rechnungJetzt} className="space-y-2 rounded-lg border border-linie px-4 py-3">
       <input type="hidden" name="monat" value={monat} />
       <p className="text-sm">
-        Rechnung an <strong>{e.empfaenger.name}</strong> in Lexware Office anlegen und per Mail an{" "}
-        {e.an.join(", ")} schicken.
-        {laufend && " Achtung: Der Monat läuft noch, spätere Übergaben kämen dann nicht mehr auf diese Rechnung."}
+        Rechnung an <strong>{e.empfaenger.name}</strong> erstellen und per Mail an {e.an.join(", ")} schicken
+        {e.kopie.length > 0 && `, Kopie an ${e.kopie.join(", ")}`}.
+        {laufend && " Achtung: Der Monat läuft noch, spätere Lieferungen kämen dann nicht mehr auf diese Rechnung."}
       </p>
       <Absendeknopf text="Rechnung erstellen und senden" laeuftText="Wird erstellt und verschickt..." />
     </form>
@@ -367,6 +397,8 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
         <Absendeknopf text="Speichern" laeuftText="..." />
       </form>
 
+      <AbsenderEinrichtung />
+
       <RechnungsEinrichtung />
 
       <form action={freischalten} className="flex flex-wrap items-center gap-3 border-t border-linie pt-4">
@@ -423,5 +455,151 @@ async function RechnungsEinrichtung() {
       </label>
       <Absendeknopf text="Speichern" laeuftText="..." />
     </form>
+  );
+}
+
+/**
+ * Ware, die sich die Gastro genommen hat. Kommt sie zurück, kostet sie
+ * nichts. Sonst steht sie mit Ladenpreis plus 10 Prozent auf der Rechnung.
+ */
+async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
+  const [katalog, liste] = await Promise.all([leihArtikel(), leihen({})]);
+  const offeneSumme = liste.filter((l) => l.status === "offen").reduce((n, l) => n + l.menge * l.preisCent, 0);
+  const heute = new Date().toISOString().slice(0, 10);
+
+  return (
+    <section id="leihware" className="scroll-mt-24 space-y-4 rounded-lg border border-linie bg-flaeche p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">Ware aus unserem Bestand</h2>
+        {offeneSumme > 0 && <span className="text-sm text-leise">offen: {euro(offeneSumme)}</span>}
+      </div>
+      <p className="text-sm text-leise">
+        Wenn sich die Gastro etwas nimmt, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet es nichts.
+        Sonst kommt sie mit einem Aufschlag von 10 Prozent auf die Monatsrechnung.
+      </p>
+
+      <form action={leiheErfassen} className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Was wurde genommen?</span>
+          <select name="artikel" defaultValue={katalog[0]?.id ?? ""}>
+            {katalog.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({euro(a.marktpreisCent)}, berechnet {euro(mitAufschlag(a.marktpreisCent))})
+              </option>
+            ))}
+            <option value="">etwas anderes ...</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Menge</span>
+          <input name="menge" type="number" min={1} max={100} defaultValue={1} inputMode="numeric" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Nur bei „etwas anderes“: Bezeichnung</span>
+          <input name="name" maxLength={120} placeholder="zum Beispiel Havana Club 0,7 l" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Nur bei „etwas anderes“: üblicher Ladenpreis €</span>
+          <input name="marktpreis" inputMode="decimal" placeholder="12,99" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Wann</span>
+          <input name="datum" type="date" defaultValue={heute} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Notiz (freiwillig)</span>
+          <input name="notiz" maxLength={200} placeholder="zum Beispiel: von Giusi geholt" />
+        </label>
+        <div className="sm:col-span-2">
+          <Absendeknopf text="Eintragen" laeuftText="Wird eingetragen..." />
+        </div>
+      </form>
+
+      {liste.length > 0 && (
+        <ul className="divide-y divide-linie border-t border-linie">
+          {liste.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+              <span className="w-24 tabular-nums text-leise">{l.datum.split("-").reverse().join(".")}</span>
+              <span className="min-w-0 flex-1">
+                <strong>
+                  {l.menge} × {l.name}
+                </strong>
+                {l.notiz && <span className="text-leise"> · {l.notiz}</span>}
+                <span className="text-leise"> · eingetragen von {l.erfasstVon}</span>
+              </span>
+              <span className={`tabular-nums ${l.status === "zurueck" ? "text-leise line-through" : ""}`}>
+                {euro(l.menge * l.preisCent)}
+              </span>
+              {l.status === "offen" ? (
+                <form action={leiheZurueckgebracht}>
+                  <input type="hidden" name="id" value={l.id} />
+                  <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs hover:bg-gold-hell">
+                    zurückgebracht
+                  </button>
+                </form>
+              ) : (
+                <form action={leiheDochBerechnen}>
+                  <input type="hidden" name="id" value={l.id} />
+                  <button type="submit" className="text-xs text-leise underline">
+                    doch berechnen
+                  </button>
+                </form>
+              )}
+              {darfLoeschen && (
+                <form action={leiheEntfernen}>
+                  <input type="hidden" name="id" value={l.id} />
+                  <button type="submit" className="text-xs text-leise underline">
+                    löschen
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Absenderdaten für die Rechnung. Ohne sie geht keine Rechnung raus. */
+async function AbsenderEinrichtung() {
+  const e = await rechnungsEinstellung();
+  const a = e.absender;
+  const fehlt = fehlendePflichtangaben(a);
+  return (
+    <form action={absenderSpeichern} className="space-y-3 border-t border-linie pt-4">
+      <h3 className="text-sm font-semibold">Absender auf der Rechnung</h3>
+      {fehlt.length > 0 && (
+        <p className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}>
+          Es fehlt noch: {fehlt.join(", ")}. Ohne diese Angaben lässt sich keine Rechnung erstellen.
+        </p>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Feld name="firma" label="Firma" wert={a.firma} spalten />
+        <Feld name="a_strasse" label="Straße" wert={a.strasse} spalten />
+        <Feld name="a_plz" label="PLZ" wert={a.plz} />
+        <Feld name="a_ort" label="Ort" wert={a.ort} />
+        <Feld name="telefon" label="Telefon" wert={a.telefon} />
+        <Feld name="a_email" label="E-Mail" wert={a.email} />
+        <Feld name="web" label="Webseite" wert={a.web} />
+        <Feld name="gf" label="Geschäftsführung" wert={a.geschaeftsfuehrer} />
+        <Feld name="steuernummer" label="Steuernummer" wert={a.steuernummer} />
+        <Feld name="ustid" label="USt-IdNr." wert={a.ustId} />
+        <Feld name="bank" label="Bank" wert={a.bank} />
+        <Feld name="iban" label="IBAN" wert={a.iban} />
+        <Feld name="bic" label="BIC" wert={a.bic} />
+        <Feld name="registergericht" label="Registergericht" wert={a.registergericht} />
+      </div>
+      <Absendeknopf text="Absender speichern" laeuftText="..." />
+    </form>
+  );
+}
+
+function Feld({ name, label, wert, spalten }: { name: string; label: string; wert: string; spalten?: boolean }) {
+  return (
+    <label className={`block ${spalten ? "sm:col-span-2" : ""}`}>
+      <span className="mb-1 block text-xs text-leise">{label}</span>
+      <input name={name} defaultValue={wert} />
+    </label>
   );
 }

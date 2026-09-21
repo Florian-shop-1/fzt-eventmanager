@@ -7,9 +7,16 @@ import { db } from "@/lib/db/client";
 import { rechnungErstellenUndSenden } from "@/lib/wein/rechnung";
 import { mailVerschicken } from "@/lib/mail/versand";
 import {
+  ABSTELLORT,
   artikelListe,
   bestellungAnlegen,
   einstellungLesen,
+  leihArtikel,
+  leiheAnlegen,
+  leiheLoeschen,
+  leiheWiederOffen,
+  leiheZurueck,
+  mitAufschlag,
   stornieren,
   uebergeben,
   zugang,
@@ -56,11 +63,13 @@ export async function bestellen(f: FormData): Promise<void> {
     const betreff = `Weinbestellung von ${b.name}: ${zeilen.join(", ")}`;
     const klartext =
       `${b.name} möchte Magicuvée haben:\n\n${zeilen.map((z) => `- ${z}`).join("\n")}` +
-      `${notiz ? `\n\nNotiz: ${notiz}` : ""}\n\nWenn der Wein übergeben ist, bitte abhaken: ${APP}/bestellungen`;
+      `${notiz ? `\n\nNotiz: ${notiz}` : ""}\n\nBereitstellen: ${ABSTELLORT}.` +
+      `\n\nWenn der Wein dort steht, bitte abhaken: ${APP}/bestellungen`;
     const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b18">
 <p><strong>${h(b.name)}</strong> möchte Magicuvée haben:</p>
 <ul>${zeilen.map((z) => `<li>${h(z)}</li>`).join("")}</ul>
 ${notiz ? `<p>Notiz: ${h(notiz)}</p>` : ""}
+<p style="margin:14px 0">Bereitstellen: <strong>${h(ABSTELLORT)}</strong>.</p>
 <p><a href="${APP}/bestellungen" style="display:inline-block;background:#c9a45c;color:#1d1b18;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px">Bestellung ansehen und abhaken</a></p></div>`;
     for (const p of an) {
       try {
@@ -78,7 +87,7 @@ export async function alsUebergebenMarkieren(f: FormData): Promise<void> {
   const z = await zugang(b);
   if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
   const ok = await uebergeben(text(f, "id", 40), b.name);
-  zurueck(ok ? "Als übergeben gespeichert. Das kommt auf die Monatsrechnung." : "Diese Bestellung war schon erledigt.");
+  zurueck(ok ? "Danke! Als abgestellt gespeichert, das kommt auf die Monatsrechnung." : "Diese Bestellung war schon erledigt.");
 }
 
 export async function bestellungStornieren(f: FormData): Promise<void> {
@@ -168,4 +177,88 @@ export async function rechnungEinstellungSpeichern(f: FormData): Promise<void> {
      where id = 1
   `;
   zurueck("Gespeichert.", "#einrichtung");
+}
+
+// ---------------------------------------------------------------------------
+// Ware, die sich die Gastro genommen hat (Aperol und so weiter)
+
+/** Erfassen, wer sich was genommen hat. Preis = Marktpreis plus 10 Prozent. */
+export async function leiheErfassen(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  const z = await zugang(b);
+  if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
+
+  const katalog = await leihArtikel();
+  const gewaehlt = text(f, "artikel", 40);
+  const eigener = katalog.find((a) => a.id === gewaehlt) ?? null;
+  const name = (eigener?.name ?? text(f, "name", 120)).trim();
+  const menge = Math.round(Number(text(f, "menge", 4)) || 0);
+  const preis = eigener ? eigener.marktpreisCent : cent(text(f, "marktpreis", 20));
+  const datum = text(f, "datum", 10) || new Date().toISOString().slice(0, 10);
+
+  if (!name) zurueck("Bitte eintragen, was genommen wurde.", "#leihware");
+  if (!(menge >= 1 && menge <= 100)) zurueck("Bitte eine Menge zwischen 1 und 100 eintragen.", "#leihware");
+  if (!Number.isFinite(preis) || preis <= 0) zurueck("Bitte den üblichen Ladenpreis eintragen.", "#leihware");
+
+  await leiheAnlegen({
+    datum,
+    artikelId: eigener?.id ?? null,
+    name,
+    menge,
+    marktpreisCent: preis,
+    notiz: text(f, "notiz", 200),
+    von: b.name,
+  });
+  zurueck(
+    `Eingetragen: ${menge} × ${name}. Berechnet werden ${((mitAufschlag(preis) * menge) / 100).toFixed(2).replace(".", ",")} € ` +
+      "(Ladenpreis plus 10 Prozent), wenn die Ware nicht zurückkommt.",
+    "#leihware",
+  );
+}
+
+/** Wieder zurückgebracht: kostet nichts. */
+export async function leiheZurueckgebracht(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  const z = await zugang(b);
+  if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
+  const ok = await leiheZurueck(text(f, "id", 40), b.name);
+  zurueck(ok ? "Als zurückgegeben gespeichert. Es wird nichts berechnet." : "Das war schon erledigt.", "#leihware");
+}
+
+/** Doch nicht zurück: kommt wieder auf die Rechnung. */
+export async function leiheDochBerechnen(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  const z = await zugang(b);
+  if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
+  await leiheWiederOffen(text(f, "id", 40));
+  zurueck("Kommt wieder auf die Rechnung.", "#leihware");
+}
+
+export async function leiheEntfernen(f: FormData): Promise<void> {
+  await nurInhaber();
+  await leiheLoeschen(text(f, "id", 40));
+  zurueck("Eintrag gelöscht.", "#leihware");
+}
+
+/** Absender und Empfänger der Rechnung. Nur Florian. */
+export async function absenderSpeichern(f: FormData): Promise<void> {
+  await nurInhaber();
+  const a = {
+    firma: text(f, "firma", 120),
+    strasse: text(f, "a_strasse", 120),
+    plz: text(f, "a_plz", 10),
+    ort: text(f, "a_ort", 80),
+    telefon: text(f, "telefon", 40),
+    email: text(f, "a_email", 120),
+    web: text(f, "web", 120),
+    steuernummer: text(f, "steuernummer", 40),
+    ustId: text(f, "ustid", 40),
+    iban: text(f, "iban", 40),
+    bic: text(f, "bic", 20),
+    bank: text(f, "bank", 80),
+    geschaeftsfuehrer: text(f, "gf", 80),
+    registergericht: text(f, "registergericht", 120),
+  };
+  await db()`update wein_einstellung set absender = ${JSON.stringify(a)}::jsonb where id = 1`;
+  zurueck("Absenderdaten gespeichert.", "#einrichtung");
 }
