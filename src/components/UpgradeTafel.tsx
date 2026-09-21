@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * Upgrades am Tablet: Gruppe antippen, neuen Platz antippen, fertig.
+ * Upgrades am Einlass, mit einem Tipper.
  *
- * So läuft es am Einlass (Florian, 21.09.2026): Die Gäste stehen vor der
- * Tür, der Mitarbeiter sagt "bei uns hat eine Gruppe abgesagt, ich kann
- * euch kostenfrei weiter nach vorne setzen", zeigt auf den Plan und hält
- * gleich fest, wo sie wirklich sitzen. Kein Zettel, kein Nachtragen.
+ * Der erste Entwurf ließ den Mitarbeiter im ganzen Saalplan suchen. Das
+ * war zu viel: "muss ultra leicht sein" (Florian, 21.09.2026). Jetzt
+ * steht auf jeder Karte ein großer Knopf mit dem fertigen Platz. Ein
+ * Tipp, die Gruppe sitzt, und daneben steht der Satz, den man sagt.
  *
- * Bewusst zwei Tipper statt Ziehen: Auf einem Tablet ist Ziehen mit
- * Handschuhen, in Bewegung und bei Gegenlicht unzuverlässig. Antippen
- * trifft immer, und ein Fehlgriff ist mit "rückgängig" sofort zurück.
+ * Nur wenn es anders kommt, weil die Gruppe größer ist oder woanders
+ * sitzen will, geht es über "anderer Platz" in den Saalplan. Dann sind
+ * ausschließlich die Plätze angetippt, an denen die Gruppe wirklich am
+ * Stück sitzen kann, und nur innerhalb der spielbaren Zone.
  *
- * Der Vorschlag bleibt sichtbar, ist aber nur ein Vorschlag: Am Ende
- * zählt, was hier eingetippt wird. Geändert wird dabei nichts in Ditix,
- * das ist unsere eigene Notiz für den Abend.
+ * Geändert wird dabei nichts in Ditix. Das hier ist unsere Notiz für den
+ * Abend, sichtbar auf jedem Tablet.
  */
 
 import { useMemo, useState } from "react";
@@ -34,12 +34,9 @@ export interface TafelSitz {
 export interface TafelGruppe {
   schluessel: string;
   art: "gruppe" | "gast";
-  /** "Reihe 9, Platz 5 bis 8" oder der Name des Gastes. */
   titel: string;
-  /** Was darunter steht: Herkunft oder Notiz. */
   zusatz: string;
   personen: number;
-  /** Die alten Plätze, damit sie im Plan zu sehen sind. */
   quelleIds: number[];
   vorschlagText: string | null;
   vorschlagIds: number[];
@@ -63,34 +60,32 @@ interface Props {
 
 const KANTE = 22;
 
-/**
- * Platznamen eines Blocks als Ansage: "Platz 1 bis 7".
- *
- * Die Nummern laufen je nach Reihe von links nach rechts auf- oder
- * absteigend. Angesagt wird immer von der kleineren zur groesseren Zahl,
- * so wie es auf der Karte steht.
- */
+/** Platznamen eines Blocks als Ansage, immer von der kleineren Zahl aus. */
 function ansage(block: TafelSitz[]): string {
-  if (block.length === 0) return "";
   const namen = [...block.map((s) => s.name)].sort((a, b) => {
     const za = Number(a);
     const zb = Number(b);
     return Number.isFinite(za) && Number.isFinite(zb) ? za - zb : a.localeCompare(b, "de");
   });
+  if (namen.length === 0) return "";
   return namen.length === 1 ? `Platz ${namen[0]}` : `Platz ${namen[0]} bis ${namen[namen.length - 1]}`;
+}
+
+function blockText(block: TafelSitz[]): string {
+  return block.length === 0 ? "" : `Reihe ${block[0].reihe}, ${ansage(block)}`;
 }
 
 export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Props) {
   const router = useRouter();
-  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
+  /** Für welche Gruppe gerade ein Platz im Plan gesucht wird. */
+  const [sucht, setSucht] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
-  const [hinweis, setHinweis] = useState<string>("");
-  const [laeuft, setLaeuft] = useState(false);
+  const [hinweis, setHinweis] = useState("");
+  const [laeuft, setLaeuft] = useState("");
 
-  const gruppe = gruppen.find((g) => g.schluessel === gewaehlt) ?? null;
   const umsetzungVon = (schluessel: string) => gesetzt.find((u) => u.schluessel === schluessel) ?? null;
+  const gruppe = gruppen.find((g) => g.schluessel === sucht) ?? null;
 
-  // Reihen für die Zeichnung, von vorne nach hinten.
   const reihen = useMemo(() => {
     const nach = new Map<string, TafelSitz[]>();
     for (const s of sitze) {
@@ -107,7 +102,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       .sort((a, b) => a.y - b.y);
   }, [sitze]);
 
-  // Welche Plätze schon vergeben sind: von einer anderen Gruppe belegt.
   const belegt = useMemo(() => {
     const m = new Map<number, string>();
     for (const u of gesetzt) for (const id of u.zielIds) m.set(id, u.schluessel);
@@ -120,15 +114,8 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     return m;
   }, [gruppen]);
 
-  const vorschlagVon = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const g of gruppen) {
-      if (umsetzungVon(g.schluessel)) continue;
-      for (const id of g.vorschlagIds) m.set(id, g.schluessel);
-    }
-    return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gruppen, gesetzt]);
+  /** Sitze, die zu einer bereits gesetzten Gruppe gehören. */
+  const zielSitze = useMemo(() => new Set([...belegt.keys()]), [belegt]);
 
   const masse = useMemo(() => {
     const xs = sitze.map((s) => s.x);
@@ -149,53 +136,55 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     };
   }, [sitze]);
 
-  /** Sucht ab einem angetippten Platz einen freien Block in derselben Reihe. */
-  function blockAb(start: TafelSitz, anzahl: number): TafelSitz[] | null {
-    const reihe = reihen.find((r) => r.schluessel === `${start.sektor}::${start.reihe}`);
-    if (!reihe) return null;
-    const frei = (s: TafelSitz) =>
-      s.status === "frei" && (!belegt.has(s.id) || belegt.get(s.id) === gewaehlt);
-    const i = reihe.sitze.findIndex((s) => s.id === start.id);
-    if (i < 0 || !frei(start)) return null;
+  const istFrei = (s: TafelSitz, fuer: string | null) =>
+    s.status === "frei" && (!belegt.has(s.id) || belegt.get(s.id) === fuer);
 
-    const block: TafelSitz[] = [];
-    for (let j = i; j < reihe.sitze.length && block.length < anzahl; j++) {
-      if (!frei(reihe.sitze[j])) break;
-      block.push(reihe.sitze[j]);
+  /**
+   * Alle Plätze, auf die man für diese Gruppe tippen darf: Von hier aus
+   * geht ein Block am Stück auf, und er liegt in der spielbaren Zone.
+   */
+  function moeglicheStarts(g: TafelGruppe): Map<number, TafelSitz[]> {
+    const treffer = new Map<number, TafelSitz[]>();
+    const anzahl = Math.max(1, g.personen);
+    for (const r of reihen) {
+      for (let i = 0; i < r.sitze.length; i++) {
+        const block: TafelSitz[] = [];
+        for (let j = i; j < r.sitze.length && block.length < anzahl; j++) {
+          if (!istFrei(r.sitze[j], g.schluessel)) break;
+          block.push(r.sitze[j]);
+        }
+        if (block.length < anzahl) continue;
+        if (!block.every((s) => s.inZone)) continue;
+        treffer.set(r.sitze[i].id, block);
+      }
     }
-    // Reicht es nach rechts nicht, nach links weitersuchen.
-    for (let j = i - 1; j >= 0 && block.length < anzahl; j--) {
-      if (!frei(reihe.sitze[j])) break;
-      block.unshift(reihe.sitze[j]);
-    }
-    return block.length >= anzahl ? block.slice(0, anzahl) : null;
+    return treffer;
   }
 
-  async function platzieren(start: TafelSitz) {
-    if (!gruppe || laeuft) return;
-    const block = blockAb(start, Math.max(1, gruppe.personen));
-    if (!block) {
-      setHinweis(
-        `In Reihe ${start.reihe} sind ab hier keine ${gruppe.personen} Plätze am Stück frei. Tipp einen anderen Platz an.`,
-      );
-      return;
-    }
-    const zielText = `Reihe ${block[0].reihe}, ${ansage(block)} (${block[0].sektor})`;
-    setLaeuft(true);
+  const starts = useMemo(
+    () => (gruppe ? moeglicheStarts(gruppe) : new Map<number, TafelSitz[]>()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gruppe, gesetzt, reihen],
+  );
+
+  async function setzen(g: TafelGruppe, block: TafelSitz[]) {
+    if (laeuft) return;
+    setLaeuft(g.schluessel);
     setHinweis("");
+    const zielText = `${blockText(block)} (${block[0].sektor})`;
     try {
       const antwort = await fetch("/upgrades/setzen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId,
-          schluessel: gruppe.schluessel,
-          art: gruppe.art,
-          gastId: gruppe.gastId,
-          quelleText: gruppe.titel,
+          schluessel: g.schluessel,
+          art: g.art,
+          gastId: g.gastId,
+          quelleText: g.titel,
           zielText,
           zielIds: block.map((s) => s.id),
-          personen: gruppe.personen,
+          personen: g.personen,
         }),
       });
       const e = (await antwort.json()) as { ok: boolean; fehler?: string };
@@ -204,20 +193,31 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         return;
       }
       setGesetzt((alt) => [
-        ...alt.filter((u) => u.schluessel !== gruppe.schluessel),
-        { schluessel: gruppe.schluessel, zielText, zielIds: block.map((s) => s.id), gesetztVon: null },
+        ...alt.filter((u) => u.schluessel !== g.schluessel),
+        { schluessel: g.schluessel, zielText, zielIds: block.map((s) => s.id), gesetztVon: null },
       ]);
-      setGewaehlt(null);
+      setSucht(null);
       router.refresh();
     } catch {
-      setHinweis("Keine Verbindung. Bitte noch einmal antippen.");
+      setHinweis("Keine Verbindung. Bitte noch einmal tippen.");
     } finally {
-      setLaeuft(false);
+      setLaeuft("");
     }
   }
 
+  /** Der Vorschlag als Block, sofern er noch frei ist. */
+  function vorschlagBlock(g: TafelGruppe): TafelSitz[] | null {
+    if (g.vorschlagIds.length === 0) return null;
+    const block = g.vorschlagIds
+      .map((id) => sitze.find((s) => s.id === id))
+      .filter((s): s is TafelSitz => Boolean(s));
+    if (block.length !== g.vorschlagIds.length) return null;
+    if (!block.every((s) => istFrei(s, g.schluessel))) return null;
+    return [...block].sort((a, b) => a.y - b.y || a.x - b.x);
+  }
+
   async function zuruecknehmen(g: TafelGruppe) {
-    setLaeuft(true);
+    setLaeuft(g.schluessel);
     try {
       await fetch("/upgrades/setzen", {
         method: "DELETE",
@@ -227,13 +227,11 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       setGesetzt((alt) => alt.filter((u) => u.schluessel !== g.schluessel));
       router.refresh();
     } finally {
-      setLaeuft(false);
+      setLaeuft("");
     }
   }
 
-  const offen = gruppen.filter((g) => !umsetzungVon(g.schluessel));
   const fertig = gruppen.filter((g) => umsetzungVon(g.schluessel));
-  const zielText = gruppe ? (umsetzungVon(gruppe.schluessel)?.zielText ?? gruppe.vorschlagText) : null;
 
   return (
     <section className="space-y-4 print:hidden">
@@ -244,20 +242,16 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         </span>
       </div>
 
-      {/* Das Wording: Was der Mitarbeiter sagt, wenn die Gäste vor ihm stehen. */}
       <div className="rounded-lg border px-4 py-3" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gold-dunkel">So ansprechen</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gold-dunkel">Das sagst du</p>
         <p className="mt-1 text-base">
-          „Guten Abend! Ich habe eine gute Nachricht: Bei uns hat heute eine Gruppe abgesagt.{" "}
-          <strong>
-            Deshalb kann ich euch kostenfrei weiter nach vorne setzen
-            {zielText ? `, auf ${zielText}` : ""}.
-          </strong>{" "}
-          Von dort seht ihr die Show noch besser. Passt das für euch?“
+          „Guten Abend! Gute Nachricht: Bei uns hat heute eine Gruppe abgesagt.{" "}
+          <strong>Ich kann euch kostenfrei weiter nach vorne setzen.</strong> Von dort seht ihr die Show noch besser.
+          Passt das für euch?“
         </p>
         <p className="mt-2 text-xs text-leise">
-          Sagt jemand nein, ist das in Ordnung: „Kein Problem, dann bleibt ihr natürlich auf euren Plätzen.“ Dann
-          die Gruppe einfach nicht setzen. Niemals sagen, dass hinten schlecht ist, nur dass vorne frei geworden ist.
+          Sagt jemand nein: „Kein Problem, dann bleibt ihr natürlich auf euren Plätzen.“ Nie sagen, dass hinten
+          schlecht ist, nur dass vorne etwas frei geworden ist.
         </p>
       </div>
 
@@ -267,176 +261,205 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {/* Der Saal zum Antippen. */}
-        <figure className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
-          <svg viewBox={masse.viewBox} className="mx-auto block h-auto w-full" role="img" aria-label="Saalplan zum Umsetzen">
-            <rect
-              x={masse.links - KANTE}
-              y={masse.oben - KANTE / 2 - 50}
-              width={masse.rechts - masse.links + KANTE * 2}
-              height={17}
-              rx={4}
-              fill="var(--gold-hell)"
-              stroke="var(--gold)"
-              strokeWidth={0.8}
-            />
-            <text
-              x={(masse.links + masse.rechts) / 2}
-              y={masse.oben - KANTE / 2 - 38}
-              textAnchor="middle"
-              fontSize={11}
-              letterSpacing={2}
-              fill="var(--gold-dunkel)"
-            >
-              BÜHNE
-            </text>
+      {/* Die Karten: eine je Gruppe, ein großer Knopf. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {gruppen.map((g) => {
+          const u = umsetzungVon(g.schluessel);
+          const block = vorschlagBlock(g);
+          const suchtHier = sucht === g.schluessel;
 
-            <rect
-              x={zone.links - KANTE / 2 - 5}
-              y={zone.oben - KANTE / 2 - 5}
-              width={zone.rechts - zone.links + KANTE + 10}
-              height={zone.unten - zone.oben + KANTE + 10}
-              rx={6}
-              fill="none"
-              stroke="var(--gold-dunkel)"
-              strokeWidth={1.6}
-              strokeDasharray="7 4"
-            />
-
-            {reihen.map((r) => (
-              <g key={r.schluessel}>
-                <text x={masse.links - KANTE} y={r.y + 3.5} textAnchor="end" fontSize={9} fill="var(--text-leise)">
-                  {r.nummer}
-                </text>
-                {r.sitze.map((s) => {
-                  const belegtVon = belegt.get(s.id);
-                  const istZiel = Boolean(belegtVon);
-                  const istQuelle = quelleVon.get(s.id);
-                  const istVorschlag = vorschlagVon.get(s.id);
-                  const waehlbar =
-                    Boolean(gruppe) && s.status === "frei" && (!belegtVon || belegtVon === gewaehlt);
-
-                  let fuellung = "var(--flaeche)";
-                  let rahmen = "var(--linie)";
-                  let schrift = "var(--text-leise)";
-                  if (s.status === "gesperrt") {
-                    fuellung = "var(--linie)";
-                  } else if (istZiel) {
-                    fuellung = "var(--gut)";
-                    rahmen = "var(--gut)";
-                    schrift = "#fff";
-                  } else if (istQuelle) {
-                    fuellung = istQuelle === gewaehlt ? "var(--gold)" : "var(--gold-hell)";
-                    rahmen = "var(--gold-dunkel)";
-                    schrift = istQuelle === gewaehlt ? "#fff" : "var(--gold-dunkel)";
-                  } else if (istVorschlag) {
-                    fuellung = "var(--flaeche)";
-                    rahmen = "var(--gold)";
-                    schrift = "var(--gold-dunkel)";
-                  } else if (s.status === "verkauft") {
-                    fuellung = "var(--text)";
-                    rahmen = "var(--text)";
-                    schrift = "#fff";
-                  }
-
-                  return (
-                    <g
-                      key={s.id}
-                      onClick={() => {
-                        if (waehlbar) void platzieren(s);
-                        else if (istQuelle) setGewaehlt(istQuelle === gewaehlt ? null : istQuelle);
-                      }}
-                      style={{ cursor: waehlbar || istQuelle ? "pointer" : "default" }}
-                    >
-                      <rect
-                        x={s.x - KANTE / 2}
-                        y={s.y - KANTE / 2}
-                        width={KANTE}
-                        height={KANTE}
-                        rx={3.5}
-                        fill={fuellung}
-                        stroke={waehlbar ? "var(--gut)" : rahmen}
-                        strokeWidth={waehlbar ? 2 : 1}
-                        strokeDasharray={waehlbar ? "3 2" : undefined}
-                      />
-                      <text x={s.x} y={s.y + 3.2} textAnchor="middle" fontSize={9} fill={schrift}>
-                        {s.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-            ))}
-          </svg>
-          <figcaption className="mt-2 text-center text-xs text-leise">
-            {gruppe
-              ? `${gruppe.titel} ist ausgewählt: Tipp jetzt den ersten neuen Platz an, die Gruppe wird von dort aus zusammengesetzt.`
-              : "Erst eine Gruppe rechts antippen, dann den neuen Platz im Saal."}
-          </figcaption>
-        </figure>
-
-        {/* Die Gruppen zum Antippen. */}
-        <div className="space-y-2">
-          {offen.length === 0 && fertig.length === 0 && (
-            <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm text-leise">
-              Hier ist heute nichts umzusetzen.
-            </p>
-          )}
-
-          {offen.map((g) => {
-            const aktiv = g.schluessel === gewaehlt;
-            return (
-              <button
-                key={g.schluessel}
-                type="button"
-                onClick={() => setGewaehlt(aktiv ? null : g.schluessel)}
-                className="w-full rounded-lg border-2 px-3 py-3 text-left"
-                style={{
-                  borderColor: aktiv ? "var(--gold)" : "var(--linie)",
-                  background: aktiv ? "var(--gold-hell)" : "var(--flaeche)",
-                }}
-              >
-                <span className="block font-semibold">{g.titel}</span>
-                <span className="block text-sm text-leise">
-                  {g.personen} {g.personen === 1 ? "Gast" : "Gäste"}
-                  {g.zusatz && ` · ${g.zusatz}`}
-                </span>
-                {g.vorschlagText && (
-                  <span className="mt-1 block text-sm">
-                    <span className="text-leise">Vorschlag:</span> {g.vorschlagText}
-                  </span>
-                )}
-                {aktiv && <span className="mt-1 block text-xs text-gold-dunkel">Jetzt den neuen Platz antippen</span>}
-              </button>
-            );
-          })}
-
-          {fertig.map((g) => {
-            const u = umsetzungVon(g.schluessel)!;
+          if (u) {
             return (
               <div
                 key={g.schluessel}
-                className="rounded-lg border-2 px-3 py-3"
+                className="rounded-xl border-2 px-4 py-3"
                 style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
               >
-                <span className="block font-semibold">{g.titel}</span>
-                <span className="block text-sm">
-                  sitzt jetzt: <strong>{u.zielText}</strong>
-                </span>
+                <p className="text-sm text-leise">{g.titel}</p>
+                <p className="text-lg font-semibold">sitzt jetzt: {u.zielText}</p>
+                <p className="mt-1 text-sm">
+                  „Ihr sitzt jetzt auf <strong>{u.zielText}</strong>, viel Spaß!“
+                </p>
                 <button
                   type="button"
                   onClick={() => void zuruecknehmen(g)}
-                  disabled={laeuft}
-                  className="mt-1 text-xs underline text-leise"
+                  disabled={laeuft === g.schluessel}
+                  className="mt-2 text-xs underline text-leise"
                 >
-                  rückgängig
+                  doch nicht, rückgängig
                 </button>
               </div>
             );
-          })}
-        </div>
+          }
+
+          return (
+            <div
+              key={g.schluessel}
+              className="rounded-xl border-2 px-4 py-3"
+              style={{
+                borderColor: suchtHier ? "var(--gold)" : "var(--linie)",
+                background: suchtHier ? "var(--gold-hell)" : "var(--flaeche)",
+              }}
+            >
+              <p className="text-lg font-semibold">{g.titel}</p>
+              <p className="text-sm text-leise">
+                {g.personen} {g.personen === 1 ? "Gast" : "Gäste"}
+                {g.zusatz && ` · ${g.zusatz}`}
+              </p>
+
+              {block ? (
+                <button
+                  type="button"
+                  onClick={() => void setzen(g, block)}
+                  disabled={Boolean(laeuft)}
+                  className="mt-3 w-full rounded-xl px-4 py-4 text-left text-white disabled:opacity-60"
+                  style={{ background: "var(--gut)" }}
+                >
+                  <span className="block text-xs uppercase tracking-wide opacity-80">hierhin setzen</span>
+                  <span className="block text-lg font-semibold">{blockText(block)}</span>
+                </button>
+              ) : (
+                <p className="mt-3 text-sm" style={{ color: "var(--warnung)" }}>
+                  Kein freier Block am Stück. Bitte einen Platz im Saalplan aussuchen.
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSucht(suchtHier ? null : g.schluessel);
+                  setHinweis("");
+                }}
+                className="mt-2 text-sm underline text-leise"
+              >
+                {suchtHier ? "Abbrechen" : block ? "anderer Platz" : "Platz im Saalplan aussuchen"}
+              </button>
+
+              {suchtHier && (
+                <p className="mt-1 text-sm font-medium text-gold-dunkel">
+                  Tipp unten im Saal auf einen der markierten Plätze.
+                </p>
+              )}
+            </div>
+          );
+        })}
+
+        {gruppen.length === 0 && (
+          <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm text-leise">
+            Hier ist heute nichts umzusetzen.
+          </p>
+        )}
       </div>
+
+      {/* Der Saal. Ohne gewählte Gruppe nur zum Anschauen. */}
+      <figure className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
+        <svg viewBox={masse.viewBox} className="mx-auto block h-auto w-full" role="img" aria-label="Saalplan">
+          <rect
+            x={masse.links - KANTE}
+            y={masse.oben - KANTE / 2 - 50}
+            width={masse.rechts - masse.links + KANTE * 2}
+            height={17}
+            rx={4}
+            fill="var(--gold-hell)"
+            stroke="var(--gold)"
+            strokeWidth={0.8}
+          />
+          <text
+            x={(masse.links + masse.rechts) / 2}
+            y={masse.oben - KANTE / 2 - 38}
+            textAnchor="middle"
+            fontSize={11}
+            letterSpacing={2}
+            fill="var(--gold-dunkel)"
+          >
+            BÜHNE
+          </text>
+
+          <rect
+            x={zone.links - KANTE / 2 - 5}
+            y={zone.oben - KANTE / 2 - 5}
+            width={zone.rechts - zone.links + KANTE + 10}
+            height={zone.unten - zone.oben + KANTE + 10}
+            rx={6}
+            fill="none"
+            stroke="var(--gold-dunkel)"
+            strokeWidth={1.2}
+            strokeDasharray="7 4"
+          />
+
+          {reihen.map((r) => (
+            <g key={r.schluessel}>
+              <text x={masse.links - KANTE} y={r.y + 3.5} textAnchor="end" fontSize={9} fill="var(--text-leise)">
+                {r.nummer}
+              </text>
+              {r.sitze.map((s) => {
+                const start = starts.get(s.id);
+                const istZiel = zielSitze.has(s.id);
+                const istQuelle = quelleVon.get(s.id);
+
+                let fuellung = "var(--flaeche)";
+                let rahmen = "var(--linie)";
+                let schrift = "var(--text-leise)";
+                if (s.status === "gesperrt") {
+                  fuellung = "var(--linie)";
+                } else if (istZiel) {
+                  fuellung = "var(--gut)";
+                  rahmen = "var(--gut)";
+                  schrift = "#fff";
+                } else if (istQuelle) {
+                  fuellung = istQuelle === sucht ? "var(--gold)" : "var(--gold-hell)";
+                  rahmen = "var(--gold-dunkel)";
+                  schrift = istQuelle === sucht ? "#fff" : "var(--gold-dunkel)";
+                } else if (s.status === "verkauft") {
+                  fuellung = "var(--text)";
+                  rahmen = "var(--text)";
+                  schrift = "#fff";
+                } else if (start) {
+                  // Hier kann die gewählte Gruppe am Stück sitzen.
+                  fuellung = "var(--gut-hell)";
+                  rahmen = "var(--gut)";
+                  schrift = "var(--gut)";
+                }
+
+                return (
+                  <g
+                    key={s.id}
+                    onClick={() => {
+                      if (start && gruppe) void setzen(gruppe, start);
+                    }}
+                    style={{ cursor: start ? "pointer" : "default" }}
+                  >
+                    <rect
+                      x={s.x - KANTE / 2}
+                      y={s.y - KANTE / 2}
+                      width={KANTE}
+                      height={KANTE}
+                      rx={3.5}
+                      fill={fuellung}
+                      stroke={rahmen}
+                      strokeWidth={start ? 2 : 1}
+                    />
+                    <text x={s.x} y={s.y + 3.2} textAnchor="middle" fontSize={9} fill={schrift}>
+                      {s.name}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          ))}
+        </svg>
+        <figcaption className="mt-2 text-center text-sm">
+          {gruppe ? (
+            <span className="font-medium">
+              {gruppe.titel}: Tipp auf einen grün umrandeten Platz, dort beginnt die Gruppe.
+            </span>
+          ) : (
+            <span className="text-leise">
+              Grün: schon umgesetzt. Gold: sitzt hinten und wird angesprochen. Schwarz: verkauft.
+            </span>
+          )}
+        </figcaption>
+      </figure>
     </section>
   );
 }

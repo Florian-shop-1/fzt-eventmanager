@@ -17,6 +17,8 @@ import {
   antragEntscheiden,
   antragStellen,
   nachtragen,
+  schluesselLoeschen,
+  schluesselNeu,
   stempelEntfernen,
   zeitAendern,
   type StempelArt,
@@ -56,9 +58,11 @@ export async function standortSpeichern(f: FormData): Promise<void> {
     redirect(`/stempeluhr?meldung=${encodeURIComponent("Die Koordinaten sehen nicht richtig aus.")}`);
   }
 
+  const feierabend = /^\d{2}:\d{2}$/.test(text(f, "feierabend", 5)) ? text(f, "feierabend", 5) : "23:45";
+
   await db()`
     update stempel_einstellung set lat = ${lat}, lon = ${lon}, radius_m = ${radius},
-           max_stunden = ${maxStunden}, aktiv = ${Boolean(f.get("aktiv"))}
+           max_stunden = ${maxStunden}, aktiv = ${Boolean(f.get("aktiv"))}, feierabend = ${feierabend}
      where id = 1
   `;
   zurueck("Gespeichert.");
@@ -171,4 +175,22 @@ export async function stempelNachtragen(f: FormData): Promise<void> {
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur", f);
   await nachtragen({ benutzerId, art, zeitpunkt, von: b.name });
   zurueck("Nachgetragen.", "#korrektur", f);
+}
+
+/* ------------------------------------------------------------------ *
+ * Der persönliche Schlüssel fürs Ausstempeln vom Handy aus.
+ * ------------------------------------------------------------------ */
+
+export async function schluesselErzeugen(): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!b) throw new Error("Bitte neu anmelden.");
+  await schluesselNeu(b.id);
+  zurueck("Dein Link ist fertig. Jetzt unten in den Kurzbefehl einsetzen.", "#automatik");
+}
+
+export async function schluesselAbschalten(): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!b) throw new Error("Bitte neu anmelden.");
+  await schluesselLoeschen(b.id);
+  zurueck("Abgeschaltet. Der alte Link geht nicht mehr.", "#automatik");
 }

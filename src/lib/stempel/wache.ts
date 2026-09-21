@@ -63,21 +63,28 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
 export async function automatischAusstempeln(o: {
   benutzerId: string;
   name: string;
-  grund: "gelaende" | "zu_lange";
+  grund: "gelaende" | "zu_lange" | "feierabend" | "kurzbefehl";
   entfernungM?: number;
+  /** Abweichende Uhrzeit, etwa der Feierabend statt der Nachtstunde. */
+  zeitpunkt?: string;
 }): Promise<void> {
   const notiz =
     o.grund === "gelaende"
       ? `Automatisch ausgestempelt: Gelände verlassen${o.entfernungM ? `, rund ${o.entfernungM} m entfernt` : ""}`
-      : "Automatisch ausgestempelt: zu lange eingestempelt";
+      : o.grund === "zu_lange"
+        ? "Automatisch ausgestempelt: zu lange eingestempelt"
+        : o.grund === "feierabend"
+          ? "Automatisch ausgestempelt: Feierabend, es war niemand mehr im Haus"
+          : "Ausgestempelt über den Kurzbefehl am Handy";
 
   await stempelSetzen({
     benutzerId: o.benutzerId,
     name: o.name,
     art: "gehen",
     imHaus: false,
-    quelle: "auto",
+    quelle: o.grund === "kurzbefehl" ? "kurzbefehl" : "auto",
     notiz,
+    zeitpunkt: o.zeitpunkt,
   });
 
   const p = (await db()`select email from benutzer where id = ${o.benutzerId}`) as Array<{ email: string }>;
@@ -91,9 +98,13 @@ export async function automatischAusstempeln(o: {
         "",
         o.grund === "gelaende"
           ? "dein Handy hat gemeldet, dass du nicht mehr auf dem Gelände bist, du warst aber noch eingestempelt."
-          : "du warst ungewöhnlich lange eingestempelt, ohne Feierabend zu stempeln.",
+          : o.grund === "kurzbefehl"
+            ? "dein Handy hat gemeldet, dass du das Gelände verlassen hast."
+            : o.grund === "feierabend"
+              ? "du warst am Ende des Tages noch eingestempelt."
+              : "du warst ungewöhnlich lange eingestempelt, ohne Feierabend zu stempeln.",
         "",
-        `Das Programm hat dich deshalb um ${new Date().toLocaleTimeString("de-DE", {
+        `Das Programm hat dich deshalb um ${new Date(o.zeitpunkt ?? Date.now()).toLocaleTimeString("de-DE", {
           timeZone: "Europe/Berlin",
           hour: "2-digit",
           minute: "2-digit",
@@ -231,4 +242,55 @@ export async function nebenbeiPruefen(): Promise<void> {
   zuletztGeprueft = Date.now();
   await langeSchichtenPruefen().catch((f) => console.error("[stempel] Prüfung nebenbei:", f));
   await pausenPflichtPruefen().catch((f) => console.error("[stempel] Pausenprüfung nebenbei:", f));
+}
+
+/**
+ * Der Schlussstrich am Ende des Tages.
+ *
+ * Wer jetzt noch eingestempelt ist, hat es vergessen: Nachts ist niemand
+ * mehr im Haus. Ausgestempelt wird nicht zur Laufzeit dieses Laufs,
+ * sondern zur hinterlegten Feierabendzeit, damit in der Monatsliste eine
+ * plausible Zeit steht und nicht halb zwei.
+ *
+ * Das ist die Absicherung für den Fall, den kein Browser abfangen kann:
+ * Handy in der Tasche, Programm zu, Heimweg. Stimmt die Zeit nicht, wird
+ * sie am nächsten Tag korrigiert, dafür gibt es die Änderungswünsche.
+ */
+export async function nachtabschluss(): Promise<{ beendet: number }> {
+  const e = await einstellungLesen();
+  const da = await werIstDa();
+  let beendet = 0;
+
+  for (const p of da) {
+    // Die Feierabendzeit des Tages, an dem die Schicht begonnen hat.
+    const start = new Date(p.seit);
+    const tag = start.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const [h, m] = e.feierabend.split(":").map(Number);
+    const schluss = new Date(`${tag}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+    // Der Browser des Servers rechnet in UTC, deshalb den Abstand zu
+    // Europe/Berlin herausrechnen.
+    const versatz =
+      new Date(schluss.toLocaleString("en-US", { timeZone: "Europe/Berlin" })).getTime() -
+      new Date(schluss.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+    let zeitpunkt = new Date(schluss.getTime() - versatz);
+
+    // Wer nach der Feierabendzeit gekommen ist, bekommt wenigstens eine
+    // halbe Stunde. Und nie in der Zukunft stempeln.
+    if (zeitpunkt.getTime() <= start.getTime()) zeitpunkt = new Date(start.getTime() + 30 * 60000);
+    if (zeitpunkt.getTime() > Date.now()) zeitpunkt = new Date();
+
+    await automatischAusstempeln({
+      benutzerId: p.benutzerId,
+      name: p.name,
+      grund: "feierabend",
+      zeitpunkt: zeitpunkt.toISOString(),
+    });
+    await melden(`${p.name} war noch eingestempelt und wurde zum Feierabend ausgestempelt`, [
+      `${p.name} hat am ${zeit(p.seit)} eingestempelt und nicht ausgestempelt.`,
+      `Das Programm hat den Feierabend auf ${zeit(zeitpunkt.toISOString())} gesetzt.`,
+      "Wenn die Zeit nicht stimmt, in der Stempeluhr unter „Zeiten korrigieren“ ändern.",
+    ]);
+    beendet++;
+  }
+  return { beendet };
 }
