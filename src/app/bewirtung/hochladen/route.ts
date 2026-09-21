@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { belegLesen, leserEingerichtet, type BelegLesung } from "@/lib/bewirtung/lesen";
-import { entwurfAnlegen } from "@/lib/bewirtung/db";
+import { bewirtungLesen, entwurfAnlegen, moeglicheDubletten } from "@/lib/bewirtung/db";
 
 /**
  * Nimmt das Belegfoto vom Handy entgegen, lässt es von Claude lesen und legt
@@ -43,6 +43,14 @@ export async function POST(request: Request) {
 
   try {
     const e = await entwurfAnlegen(b64, datei.type, lesung, b!.name);
+    if (!e.doppelt) {
+      const neu = await bewirtungLesen(e.id);
+      const gleich = neu ? await moeglicheDubletten(neu) : [];
+      if (gleich.length) {
+        const g = gleich[0];
+        hinweis = `Achtung: Dieser Beleg ist vermutlich schon erfasst (${g.nummer ?? "Entwurf"}, ${g.restaurant}, gleiches Datum und gleicher Betrag).`;
+      }
+    }
     return NextResponse.json({ ok: true, id: e.id, doppelt: e.doppelt, hinweis });
   } catch (f) {
     console.error("[bewirtung] Speichern:", f);

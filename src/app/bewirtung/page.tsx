@@ -211,7 +211,9 @@ export default async function BewirtungSeite({
           <li>
             <strong className="text-text">Ergänzt von dir:</strong> Anlass (konkret, etwa „Besprechung Firmenfeier
             Muster GmbH“, nicht nur „Geschäftsessen“) und alle Teilnehmer mit Namen, du selbst eingeschlossen.
-            Seit 2023 darf das digital ergänzt werden.
+            Das darf digital ergänzt werden. Dazu unterschreibst du in der App mit dem Finger. Ob die
+            Unterschrift bei digitalen Belegen zwingend ist, sehen Steuerberater unterschiedlich. Mit ihr bist du
+            auf der sicheren Seite.
           </li>
           <li>
             <strong className="text-text">Trinkgeld</strong> separat. Am besten lässt du es auf dem Beleg vermerken
@@ -224,6 +226,7 @@ export default async function BewirtungSeite({
           <li>
             <strong className="text-text">Aufbewahrung (GoBD):</strong> Festgeschriebene Belege lassen sich nicht mehr
             ändern oder löschen, nur mit Grund stornieren. Jedes Foto hat einen Fingerabdruck (SHA-256).
+            Wird ein Beleg zweimal gescannt (gleiches Datum, gleicher Betrag), warnt die App.
             Ob das Papieroriginal danach weg darf (ersetzendes Scannen), stimmt bitte mit dem Steuerbüro ab.
             Bis dahin die Papierbelege aufheben.
           </li>

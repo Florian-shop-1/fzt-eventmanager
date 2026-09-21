@@ -32,6 +32,9 @@ export interface Bewirtung {
   ortDerBewirtung: string;
   lesung: BelegLesung | null;
   notiz: string;
+  /** Gezeichnete Unterschrift als PNG-Datenadresse. */
+  unterschrift: string | null;
+  unterschriebenAm: string | null;
   status: "entwurf" | "fertig" | "storniert";
   festgeschriebenAm: string | null;
   festgeschriebenVon: string | null;
@@ -43,7 +46,7 @@ export interface Bewirtung {
 const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, datum::text as datum, restaurant, anschrift,
   brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, art, kategorie, zweck, zahlweg,
   privat_ausgelegt, anlass, teilnehmer, bewirtender,
-  ort_der_bewirtung, lesung, notiz, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
+  ort_der_bewirtung, lesung, notiz, unterschrift, unterschrieben_am, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
   storniert_von, storno_grund`;
 
 function baue(z: Record<string, unknown>): Bewirtung {
@@ -73,6 +76,8 @@ function baue(z: Record<string, unknown>): Bewirtung {
     ortDerBewirtung: String(z.ort_der_bewirtung ?? ""),
     lesung: (z.lesung as BelegLesung) ?? null,
     notiz: String(z.notiz ?? ""),
+    unterschrift: (z.unterschrift as string) ?? null,
+    unterschriebenAm: t(z.unterschrieben_am),
     status: z.status as Bewirtung["status"],
     festgeschriebenAm: t(z.festgeschrieben_am),
     festgeschriebenVon: (z.festgeschrieben_von as string) ?? null,
@@ -178,6 +183,24 @@ export async function entwurfSpeichern(id: string, a: Angaben): Promise<void> {
  * Festschreiben: Ab jetzt unveränderbar (die Datenbank verhindert jede
  * Änderung, siehe Trigger). Vergibt die laufende Nummer des Jahres.
  */
+/**
+ * Belege, die derselbe sein könnten: gleiches Datum und gleicher Betrag.
+ * Der Fingerabdruck des Fotos hilft hier nicht, denn ein zweites Foto
+ * desselben Zettels hat einen anderen.
+ */
+export async function moeglicheDubletten(b: Pick<Bewirtung, "id" | "datum" | "bruttoCent">): Promise<Array<{ id: string; nummer: string | null; restaurant: string; status: string }>> {
+  if (!b.datum || !b.bruttoCent) return [];
+  return (await db()`
+    select id, nummer, restaurant, status from bewirtung
+     where id <> ${b.id} and status <> 'storniert' and datum = ${b.datum}::date and brutto_cent = ${b.bruttoCent}
+     order by erstellt_am
+  `) as Array<{ id: string; nummer: string | null; restaurant: string; status: string }>;
+}
+
+export async function unterschriftSetzen(id: string, png: string): Promise<void> {
+  await db()`update bewirtung set unterschrift = ${png}, unterschrieben_am = now() where id = ${id} and status = 'entwurf'`;
+}
+
 export async function festschreiben(id: string, von: string): Promise<string> {
   const z = (await db()`
     with jahr as (

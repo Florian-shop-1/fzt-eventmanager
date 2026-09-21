@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import {
   bewirtungLesen,
+  moeglicheDubletten,
+  unterschriftSetzen,
   entwurfSpeichern,
   entwurfVerwerfen,
   festschreiben,
@@ -70,6 +72,9 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   const a = angabenAus(f);
   if (typeof a === "string") zurueck(id, a);
   await entwurfSpeichern(id, a);
+  const png = String(f.get("unterschrift") ?? "");
+  const hatUnterschrift = png.startsWith("data:image/png;base64,") && png.length > 1200 && png.length < 400000;
+  if (hatUnterschrift) await unterschriftSetzen(id, png);
 
   if (!f.get("fertig")) zurueck(id, "Gespeichert. Noch nicht festgeschrieben.");
 
@@ -82,10 +87,21 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   if (a.art === "bewirtung") {
     if (!a.anlass) fehlt.push("Anlass");
     if (!a.teilnehmer) fehlt.push("Teilnehmer");
+    if (!hatUnterschrift && !alt.unterschrift) fehlt.push("deine Unterschrift");
   } else {
     if (!a.zweck) fehlt.push("wofür");
   }
   if (fehlt.length) zurueck(id, `Zum Festschreiben fehlt noch: ${fehlt.join(", ")}.`);
+
+  // Gleiches Datum, gleicher Betrag: vermutlich zweimal gescannt.
+  const gleich = await moeglicheDubletten({ id, datum: a.datum, bruttoCent: a.bruttoCent });
+  if (gleich.length && !f.get("keine_dublette")) {
+    zurueck(
+      id,
+      `Es gibt schon einen Beleg mit gleichem Datum und Betrag (${gleich[0].nummer ?? "Entwurf"}, ${gleich[0].restaurant}). ` +
+        "Ist es derselbe, bitte verwerfen. Ist es wirklich ein anderer, den Haken „Das ist ein anderer Beleg“ setzen.",
+    );
+  }
 
   const nummer = await festschreiben(id, b.name);
   revalidatePath("/bewirtung");

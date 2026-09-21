@@ -65,6 +65,15 @@ export function BewirtungsBlatt({ b }: { b: Bewirtung }) {
           </tbody>
         </table>
         {b.notiz && <p className="mt-3 text-xs text-leise">Notiz: {b.notiz}</p>}
+        {b.art === "bewirtung" && b.unterschrift && (
+          <div className="mt-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={b.unterschrift} alt="Unterschrift" className="h-16 border-b border-text" />
+            <p className="text-[11px] text-leise">
+              Unterschrift {b.bewirtender}, digital am {zeitpunkt(b.unterschriebenAm)}
+            </p>
+          </div>
+        )}
         <p className="mt-4 text-[11px] leading-relaxed text-leise">
           Digital erfasst von {b.erstelltVon} am {zeitpunkt(b.erstelltAm)}
           {b.festgeschriebenAm && `, festgeschrieben von ${b.festgeschriebenVon} am ${zeitpunkt(b.festgeschriebenAm)}`}.

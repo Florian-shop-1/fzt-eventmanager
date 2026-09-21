@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { bewirtungLesen } from "@/lib/bewirtung/db";
+import { bewirtungLesen, moeglicheDubletten } from "@/lib/bewirtung/db";
+import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -27,6 +28,7 @@ export default async function BelegSeite({
   if (!b) notFound();
 
   const l = b.lesung;
+  const dubletten = b.status === "entwurf" ? await moeglicheDubletten(b) : [];
   const warnungen = [
     l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Beleg ist.",
     l && !l.maschinell && b.art === "bewirtung" && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt bei Bewirtungen in der Regel einen maschinellen Beleg.",
@@ -73,6 +75,26 @@ export default async function BelegSeite({
               </ul>
             )}
 
+            {dubletten.length > 0 && (
+              <div className="space-y-2 rounded-lg border-2 px-4 py-3 text-sm" style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}>
+                <strong>Schon erfasst?</strong> Mit gleichem Datum und Betrag gibt es bereits:
+                <ul className="list-disc pl-5">
+                  {dubletten.map((d) => (
+                    <li key={d.id}>
+                      <Link href={`/bewirtung/${d.id}`} className="underline">
+                        {d.nummer ?? "Entwurf"}, {d.restaurant}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <p>Ist es derselbe Beleg, unten auf „Entwurf verwerfen“ tippen.</p>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="keine_dublette" />
+                  Das ist ein anderer Beleg, trotzdem festschreiben
+                </label>
+              </div>
+            )}
+
             <fieldset className="flex flex-wrap gap-2">
               <legend className="mb-1 text-xs text-leise">Was für ein Beleg?</legend>
               {(["bewirtung", "einkauf"] as const).map((a) => (
@@ -89,6 +111,17 @@ export default async function BelegSeite({
                 hinweis="Konkret, zum Beispiel: Besprechung Weihnachtsfeier Muster GmbH, Vertragsverhandlung Kooperation Hotel X" />
               <Feld name="teilnehmer" label="Bewirtete Personen, dich eingeschlossen" wert={b.teilnehmer || "Florian Zimmer"} pflicht mehrzeilig
                 hinweis="Alle Namen, bei Geschäftspartnern mit Firma. Eine Person je Zeile." />
+              <div>
+                <span className="mb-1 block text-xs text-leise">
+                  Deine Unterschrift als bewirtende Person<span style={{ color: "var(--warnung)" }}> *</span>
+                </span>
+                {b.unterschrift ? (
+                  <p className="text-sm" style={{ color: "var(--gut)" }}>
+                    Schon unterschrieben. Neu unterschreiben ersetzt sie:
+                  </p>
+                ) : null}
+                <Unterschriftsfeld name="unterschrift" />
+              </div>
             </fieldset>
 
             <fieldset className="hidden space-y-3 rounded-lg border border-linie bg-flaeche p-4 group-has-[input[name=art][value=einkauf]:checked]:block">
