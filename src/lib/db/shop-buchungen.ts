@@ -243,6 +243,35 @@ export async function buchungenFuerTag(datum: string): Promise<ShopBuchung[]> {
 }
 
 /**
+ * Die naechste Buchung zu einer Mailadresse.
+ *
+ * Gebraucht im Posteingang: Wer schreibt "ich moechte noch das Menue dazu",
+ * hat meist schon Karten. Dann muss niemand suchen, das Programm findet die
+ * Buchung selbst und kann ihr den persoenlichen Link schicken.
+ */
+export async function naechsteBuchungZu(email: string): Promise<ShopBuchung | null> {
+  const adresse = email.trim().toLowerCase();
+  if (!adresse.includes("@")) return null;
+  try {
+    const zeilen = (await db()`
+      select *, datum::text as datum_text
+        from shop_buchung
+       where lower(email) = ${adresse}
+         and datum >= (now() at time zone 'Europe/Berlin')::date
+       order by datum limit 1
+    `) as Record<string, unknown>[];
+    if (zeilen.length === 0) return null;
+    const posten = (await db()`
+      select * from shop_buchung_posten where buchung_id = ${String(zeilen[0].id)}
+    `) as Record<string, unknown>[];
+    return baueBuchung(zeilen[0], posten);
+  } catch (e) {
+    console.warn("[shop-buchungen] Suche nach Adresse fehlgeschlagen:", e);
+    return null;
+  }
+}
+
+/**
  * Haelt fest, dass die Vorfreude-Mail raus ist.
  *
  * Wird erst NACH dem erfolgreichen Versand gerufen, nie vorher. Andersherum

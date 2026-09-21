@@ -7,12 +7,25 @@ import {
   type Nachricht,
   type Unterhaltung,
 } from "@/lib/db/whatsapp";
-import { anderweitigErledigt, antworten, perMailAntworten } from "@/lib/whatsapp/aktionen";
+import {
+  anderweitigErledigt,
+  antworten,
+  perMailAntworten,
+  vorfreudeJetztSchicken,
+} from "@/lib/whatsapp/aktionen";
+import { naechsteBuchungZu } from "@/lib/db/shop-buchungen";
+import { LinkKopieren } from "@/components/LinkKopieren";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { BenachrichtigungErlauben } from "@/components/BenachrichtigungErlauben";
 import { vorZeit } from "@/components/Status";
-import { uhrzeit, datumMitWochentag, isoDatum } from "@/lib/zeit";
+import { uhrzeit, datumMitWochentag, isoDatum, zeitpunkt } from "@/lib/zeit";
+import { vorname as vornameVon } from "@/lib/mail/vorfreude";
+
+const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+
+/** "11.12.2026" aus "2026-12-11". */
+const tagKurz = (iso: string) => iso.split("-").reverse().join(".");
 import { istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
@@ -486,7 +499,12 @@ function Kontaktdaten({ u }: { u: Unterhaltung }) {
  * ist, sonst nur der Anrufknopf. Wünscht sich der Kunde einen Rückruf, steht
  * der Anruf vorne, die Mail bleibt als zweiter Weg.
  */
-function WebAntwort({ u }: { u: Unterhaltung }) {
+async function WebAntwort({ u }: { u: Unterhaltung }) {
+  // Hat der Schreiber schon Karten? Dann kann er alles Weitere selbst
+  // dazubuchen, ohne dass jemand etwas eintippt (Florian, 21.09.2026).
+  const buchung = u.email ? await naechsteBuchungZu(u.email) : null;
+  const link = buchung ? `${SHOP}/upgrade/${buchung.zugangToken}` : null;
+  const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
   const anrufen = u.telefon && (
     <a
       href={`tel:${u.telefon}`}
@@ -498,6 +516,38 @@ function WebAntwort({ u }: { u: Unterhaltung }) {
 
   return (
     <div className="space-y-3">
+      {buchung && link && (
+        <div className="space-y-2 rounded-md border px-4 py-3 text-sm" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          <p>
+            <strong>Hat schon gebucht:</strong> {tagKurz(buchung.datum)}
+            {buchung.uhrzeit ? `, ${buchung.uhrzeit} Uhr` : ""}
+            {buchung.plaetze ? `, ${buchung.plaetze} ${buchung.plaetze === 1 ? "Karte" : "Karten"}` : ""}
+            {menueDabei ? ", Menü ist dabei" : ", noch ohne Menü"}
+            {buchung.mailGesendetAm && (
+              <span className="text-leise"> · Vorfreude-Mail schon am {zeitpunkt(buchung.mailGesendetAm)} raus</span>
+            )}
+          </p>
+          {!buchung.bestaetigt && (
+            <p className="text-xs" style={{ color: "var(--warnung)" }}>
+              Der Shop hat die Zahlung zu dieser Buchung noch nicht bestätigt. Im täglichen Lauf bekäme sie deshalb
+              keine Mail. Von Hand geht sie trotzdem hinaus, wenn du sicher bist, dass die Karten bezahlt sind.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <form action={vorfreudeJetztSchicken.bind(null, u.waId)}>
+              <Absendeknopf
+                text={buchung.mailGesendetAm ? "Vorfreude-Mail noch einmal schicken" : "Vorfreude-Mail jetzt schicken"}
+                laeuftText="Wird geschickt..."
+              />
+            </form>
+            <span className="text-xs text-leise">
+              Geht sofort an {buchung.email}: Erinnerung an den Abend und der persönliche Link zum Dazubuchen.
+            </span>
+          </div>
+          <LinkKopieren link={link} />
+        </div>
+      )}
+
       {u.rueckweg === "anruf" && anrufen && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <span>
@@ -513,12 +563,25 @@ function WebAntwort({ u }: { u: Unterhaltung }) {
             name="text"
             rows={4}
             required
-            defaultValue={`Hallo ${u.profilname ?? ""},
+            defaultValue={
+              link && buchung
+                ? `Hallo ${vornameVon(u.profilname)},
+
+sehr gern! Du musst dafür keine neuen Karten kaufen. Über diesen Link kommst du direkt zu deiner Buchung vom ${tagKurz(buchung.datum)} und kannst dort alles dazubuchen, was es an dem Abend gibt:
+
+${link}
+
+Der Link gehört nur zu deiner Buchung, du musst nichts noch einmal eingeben.
+
+Viele Grüße
+Dein Team vom Florian Zimmer Theater`
+                : `Hallo ${vornameVon(u.profilname)},
 
 
 
 Viele Grüße
-Dein Team vom Florian Zimmer Theater`}
+Dein Team vom Florian Zimmer Theater`
+            }
             className="w-full rounded-md border border-linie px-3 py-2 text-sm"
           />
           <div className="flex items-center justify-between gap-3">

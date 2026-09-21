@@ -26,6 +26,9 @@ import {
   WhatsAppFehler,
 } from "@/lib/whatsapp/senden";
 import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
+import { merkeMailGesendet, naechsteBuchungZu } from "@/lib/db/shop-buchungen";
+import { baueVorfreudemail } from "@/lib/mail/vorfreude";
+import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 import { istKennung } from "@/lib/whatsapp/kennung";
 
 const ziel = (waId: string, fehler?: string) =>
@@ -101,6 +104,48 @@ export async function perMailAntworten(waId: string, formData: FormData): Promis
   }
 
   revalidatePath("/whatsapp");
+  redirect(ziel(waId, fehler));
+}
+
+/**
+ * Schickt die Vorfreude-Mail sofort, statt auf den taeglichen Lauf zu warten.
+ *
+ * Der haeufigste Fall im Posteingang: Jemand hat Karten und moechte noch das
+ * Menue dazu. Genau das steht in dieser Mail, mit dem persoenlichen Link auf
+ * seine Buchung. Damit bucht er selbst, ohne dass jemand etwas eintippt.
+ *
+ * Die Buchung wird als angeschrieben vermerkt, damit der taegliche Lauf sie
+ * nicht ein zweites Mal anschreibt.
+ */
+export async function vorfreudeJetztSchicken(waId: string): Promise<void> {
+  const benutzer = await verlangeWhatsApp();
+  if (!istKennung(waId)) redirect("/whatsapp");
+
+  const kontakt = await webanfrageKontakt(waId);
+  if (!kontakt?.email) redirect(ziel(waId, "Für diese Anfrage ist keine Mailadresse hinterlegt."));
+
+  const buchung = await naechsteBuchungZu(kontakt.email);
+  if (!buchung) {
+    redirect(ziel(waId, "Zu dieser Mailadresse gibt es keine kommende Buchung im Shop."));
+  }
+
+  let fehler: string | undefined;
+  try {
+    const mail = baueVorfreudemail(buchung, await verfuegbareGruppen(buchung.ditixEventId));
+    await mailVerschicken({ an: buchung.email, betreff: mail.betreff, text: mail.text, html: mail.html });
+    await merkeMailGesendet(buchung.id);
+    await mailantwortSpeichern(
+      waId,
+      `Vorfreude-Mail zur Buchung vom ${buchung.datum.split("-").reverse().join(".")} geschickt. ` +
+        `Darin der persönliche Link, mit dem alles zum Abend dazugebucht werden kann.`,
+      benutzer.name,
+    );
+  } catch (e) {
+    fehler = e instanceof Error ? `Die Mail ging nicht hinaus: ${e.message}` : "Die Mail ging nicht hinaus.";
+  }
+
+  revalidatePath("/whatsapp");
+  revalidatePath("/vorfreude");
   redirect(ziel(waId, fehler));
 }
 
