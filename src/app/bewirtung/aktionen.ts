@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import {
   bewirtungLesen,
+  hinterlegteUnterschrift,
+  unterschriftHinterlegen,
   moeglicheDubletten,
   unterschriftSetzen,
   entwurfSpeichern,
@@ -87,7 +89,6 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   if (a.art === "bewirtung") {
     if (!a.anlass) fehlt.push("Anlass");
     if (!a.teilnehmer) fehlt.push("Teilnehmer");
-    if (!hatUnterschrift && !alt.unterschrift) fehlt.push("deine Unterschrift");
   } else {
     if (!a.zweck) fehlt.push("wofür");
   }
@@ -101,6 +102,14 @@ export async function belegSpeichern(f: FormData): Promise<void> {
       `Es gibt schon einen Beleg mit gleichem Datum und Betrag (${gleich[0].nummer ?? "Entwurf"}, ${gleich[0].restaurant}). ` +
         "Ist es derselbe, bitte verwerfen. Ist es wirklich ein anderer, den Haken „Das ist ein anderer Beleg“ setzen.",
     );
+  }
+
+  // Keine eigene Unterschrift an diesem Beleg? Dann die hinterlegte nehmen.
+  // Ist auch keine hinterlegt, bleibt die digitale Freigabe: Wer erfasst und
+  // festgeschrieben hat, steht ohnehin auf dem Blatt.
+  if (a.art === "bewirtung" && !hatUnterschrift && !alt.unterschrift) {
+    const hinterlegt = await hinterlegteUnterschrift();
+    if (hinterlegt.png) await unterschriftSetzen(id, hinterlegt.png);
   }
 
   const nummer = await festschreiben(id, b.name);
@@ -122,4 +131,20 @@ export async function belegStornieren(f: FormData): Promise<void> {
   if (!grund) zurueck(id, "Bitte einen Grund für das Storno angeben.");
   await stornieren(id, b.name, grund);
   zurueck(id, "Storniert. Der Beleg bleibt zur Nachvollziehbarkeit erhalten, zählt aber nicht mehr mit.");
+}
+
+/** Unterschrift einmal hinterlegen, sie kommt dann auf jeden Bewirtungsbeleg. */
+export async function unterschriftSpeichern(f: FormData): Promise<void> {
+  const b = await zugang();
+  const png = String(f.get("unterschrift") ?? "");
+  if (f.get("loeschen")) {
+    await unterschriftHinterlegen(null, b.name);
+    redirect(`/bewirtung?meldung=${encodeURIComponent("Hinterlegte Unterschrift gelöscht.")}`);
+  }
+  if (!(png.startsWith("data:image/png;base64,") && png.length > 1200 && png.length < 400000)) {
+    redirect(`/bewirtung?meldung=${encodeURIComponent("Da war noch nichts gezeichnet.")}`);
+  }
+  await unterschriftHinterlegen(png, b.name);
+  revalidatePath("/bewirtung");
+  redirect(`/bewirtung?meldung=${encodeURIComponent("Unterschrift hinterlegt. Sie kommt ab jetzt automatisch auf jede Bewirtung.")}`);
 }

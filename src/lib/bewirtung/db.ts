@@ -197,6 +197,26 @@ export async function moeglicheDubletten(b: Pick<Bewirtung, "id" | "datum" | "br
   `) as Array<{ id: string; nummer: string | null; restaurant: string; status: string }>;
 }
 
+/** Die einmal hinterlegte Unterschrift, die auf jeden Bewirtungsbeleg kommt. */
+export async function hinterlegteUnterschrift(): Promise<{ png: string | null; von: string | null; am: string | null }> {
+  const z = (await db()`select unterschrift, unterschrift_von, unterschrift_am from beleg_einstellung where id = 1`) as Array<
+    Record<string, unknown>
+  >;
+  return {
+    png: (z[0]?.unterschrift as string) ?? null,
+    von: (z[0]?.unterschrift_von as string) ?? null,
+    am: z[0]?.unterschrift_am ? new Date(z[0].unterschrift_am as string).toISOString() : null,
+  };
+}
+
+export async function unterschriftHinterlegen(png: string | null, von: string): Promise<void> {
+  await db()`
+    update beleg_einstellung set unterschrift = ${png}, unterschrift_von = ${png ? von : null},
+           unterschrift_am = ${png ? new Date().toISOString() : null}::timestamptz
+     where id = 1
+  `;
+}
+
 export async function unterschriftSetzen(id: string, png: string): Promise<void> {
   await db()`update bewirtung set unterschrift = ${png}, unterschrieben_am = now() where id = ${id} and status = 'entwurf'`;
 }

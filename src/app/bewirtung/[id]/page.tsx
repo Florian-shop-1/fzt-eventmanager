@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { bewirtungLesen, moeglicheDubletten } from "@/lib/bewirtung/db";
+import { bewirtungLesen, hinterlegteUnterschrift, moeglicheDubletten } from "@/lib/bewirtung/db";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
@@ -29,6 +29,7 @@ export default async function BelegSeite({
 
   const l = b.lesung;
   const dubletten = b.status === "entwurf" ? await moeglicheDubletten(b) : [];
+  const hinterlegt = b.status === "entwurf" ? await hinterlegteUnterschrift() : { png: null, von: null, am: null };
   const warnungen = [
     l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Beleg ist.",
     l && !l.maschinell && b.art === "bewirtung" && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt bei Bewirtungen in der Regel einen maschinellen Beleg.",
@@ -111,17 +112,18 @@ export default async function BelegSeite({
                 hinweis="Konkret, zum Beispiel: Besprechung Weihnachtsfeier Muster GmbH, Vertragsverhandlung Kooperation Hotel X" />
               <Feld name="teilnehmer" label="Bewirtete Personen, dich eingeschlossen" wert={b.teilnehmer || "Florian Zimmer"} pflicht mehrzeilig
                 hinweis="Alle Namen, bei Geschäftspartnern mit Firma. Eine Person je Zeile." />
-              <div>
-                <span className="mb-1 block text-xs text-leise">
-                  Deine Unterschrift als bewirtende Person<span style={{ color: "var(--warnung)" }}> *</span>
-                </span>
-                {b.unterschrift ? (
-                  <p className="text-sm" style={{ color: "var(--gut)" }}>
-                    Schon unterschrieben. Neu unterschreiben ersetzt sie:
-                  </p>
-                ) : null}
-                <Unterschriftsfeld name="unterschrift" />
-              </div>
+              <details className="text-sm">
+                <summary className="cursor-pointer text-leise underline">
+                  {b.unterschrift
+                    ? "Unterschrift an diesem Beleg ändern"
+                    : hinterlegt.png
+                      ? "Unterschrift: deine hinterlegte wird gesetzt (hier abweichend zeichnen)"
+                      : "Unterschrift für diesen Beleg zeichnen (freiwillig)"}
+                </summary>
+                <div className="mt-2">
+                  <Unterschriftsfeld name="unterschrift" />
+                </div>
+              </details>
             </fieldset>
 
             <fieldset className="hidden space-y-3 rounded-lg border border-linie bg-flaeche p-4 group-has-[input[name=art][value=einkauf]:checked]:block">

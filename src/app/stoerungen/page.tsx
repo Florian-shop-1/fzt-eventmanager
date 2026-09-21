@@ -4,6 +4,7 @@ import { leadSpeichern, leadStaende, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
 import { technikStoerungen, type TechnikStoerung } from "@/lib/db/technik-stoerung";
 import { grundText } from "@/lib/stoerung/meldung";
+import { ditixTerminLink } from "@/lib/ditix/link";
 import { stoerungAbhaken } from "./aktionen";
 
 export const metadata = { title: "Störungen | FZT Eventmanager" };
@@ -316,6 +317,8 @@ function Karte({ meldung, stand }: { meldung: Lead; stand: LeadStand | undefined
 function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
   const erledigt = Boolean(stoerung.erledigtAm);
   const farbe = erledigt ? "var(--text-leise)" : "var(--blocker)";
+  // Der Weg zur Behebung führt immer über Ditix, also gleich dorthin verlinken.
+  const ditix = ditixTerminLink(stoerung.eventId);
 
   return (
     <article
@@ -350,6 +353,17 @@ function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
           <p className="mt-3 max-w-prose rounded border border-linie bg-white/40 px-3 py-2 text-sm text-leise">
             {grundText(stoerung.grund)}
           </p>
+
+          {ditix && (
+            <a
+              href={ditix}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+            >
+              Termin in Ditix öffnen
+            </a>
+          )}
 
           <div className="mt-2 text-xs text-leise">
             {stoerung.eventId && <>Ditix-Termin-Nr. {stoerung.eventId} · </>}

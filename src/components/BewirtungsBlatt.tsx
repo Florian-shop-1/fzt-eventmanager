@@ -65,6 +65,12 @@ export function BewirtungsBlatt({ b }: { b: Bewirtung }) {
           </tbody>
         </table>
         {b.notiz && <p className="mt-3 text-xs text-leise">Notiz: {b.notiz}</p>}
+        {b.art === "bewirtung" && !b.unterschrift && b.festgeschriebenAm && (
+          <p className="mt-4 text-[11px] text-leise">
+            Digital freigegeben von {b.festgeschriebenVon}. Eine handschriftliche Unterschrift liegt nicht vor,
+            die Erfassung ist protokolliert.
+          </p>
+        )}
         {b.art === "bewirtung" && b.unterschrift && (
           <div className="mt-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}

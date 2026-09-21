@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { bewirtungenDesJahres, euro, nachZahlweg, summen, type Bewirtung } from "@/lib/bewirtung/db";
 import { BelegScanner } from "@/components/BelegScanner";
+import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
+import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
+import { unterschriftSpeichern } from "./aktionen";
 
 export const metadata = { title: "Belege | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -191,6 +194,8 @@ export default async function BewirtungSeite({
         })
       )}
 
+      <UnterschriftEinrichten />
+
       <details className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
         <summary className="cursor-pointer font-medium">Was das Finanzamt verlangt und wie es hier gelöst ist</summary>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-leise">
@@ -211,9 +216,9 @@ export default async function BewirtungSeite({
           <li>
             <strong className="text-text">Ergänzt von dir:</strong> Anlass (konkret, etwa „Besprechung Firmenfeier
             Muster GmbH“, nicht nur „Geschäftsessen“) und alle Teilnehmer mit Namen, du selbst eingeschlossen.
-            Das darf digital ergänzt werden. Dazu unterschreibst du in der App mit dem Finger. Ob die
-            Unterschrift bei digitalen Belegen zwingend ist, sehen Steuerberater unterschiedlich. Mit ihr bist du
-            auf der sicheren Seite.
+            Das darf digital ergänzt werden. Ob eine Unterschrift bei digitalen Belegen zwingend ist, sehen
+            Steuerberater unterschiedlich. Deshalb hinterlegst du sie hier einmal, und sie kommt automatisch auf
+            jeden Bewirtungsbeleg. Festgehalten wird ohnehin, wer den Beleg erfasst und festgeschrieben hat.
           </li>
           <li>
             <strong className="text-text">Trinkgeld</strong> separat. Am besten lässt du es auf dem Beleg vermerken
@@ -246,5 +251,47 @@ function Kachel({ zahl, was, hinweis, betont }: { zahl: string; was: string; hin
       <div className="text-sm">{was}</div>
       {hinweis && <div className="text-xs text-leise">{hinweis}</div>}
     </div>
+  );
+}
+
+/** Unterschrift einmal hinterlegen. Sie kommt dann auf jede Bewirtung. */
+async function UnterschriftEinrichten() {
+  const u = await hinterlegteUnterschrift();
+  return (
+    <details className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Unterschrift {u.png ? "hinterlegt" : "hinterlegen"}
+        {!u.png && <span className="text-leise"> (dann musst du nie wieder unterschreiben)</span>}
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-leise">
+          Einmal zeichnen, fertig. Sie wird beim Festschreiben automatisch auf jeden Bewirtungsbeleg gesetzt.
+          Bei einem einzelnen Beleg kannst du trotzdem abweichend unterschreiben.
+        </p>
+        {u.png && (
+          <div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={u.png} alt="Hinterlegte Unterschrift" className="h-16 border-b border-text" />
+            <p className="mt-1 text-xs text-leise">
+              hinterlegt von {u.von} am {u.am ? new Date(u.am).toLocaleDateString("de-DE") : ""}
+            </p>
+          </div>
+        )}
+        <form action={unterschriftSpeichern} className="space-y-2">
+          <Unterschriftsfeld name="unterschrift" />
+          <button type="submit" className="rounded-md px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--gold-dunkel)" }}>
+            {u.png ? "Neue Unterschrift hinterlegen" : "Unterschrift hinterlegen"}
+          </button>
+        </form>
+        {u.png && (
+          <form action={unterschriftSpeichern}>
+            <input type="hidden" name="loeschen" value="1" />
+            <button type="submit" className="text-xs text-leise underline">
+              hinterlegte Unterschrift löschen
+            </button>
+          </form>
+        )}
+      </div>
+    </details>
   );
 }

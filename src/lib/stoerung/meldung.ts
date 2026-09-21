@@ -8,6 +8,7 @@
 
 import { mailVerschicken } from "@/lib/mail/versand";
 import { stoerungMailVermerken, type TechnikStoerung } from "@/lib/db/technik-stoerung";
+import { ditixTerminLink } from "@/lib/ditix/link";
 
 export const STOERUNG_EMPFAENGER = [
   "info@florianzimmer.com",
@@ -50,6 +51,8 @@ export async function stoerungMailen(s: TechnikStoerung): Promise<void> {
     `Show: ${s.showName ?? "unbekannt"}`,
     `Termin: ${s.eventZeit ?? "unbekannt"}`,
     s.eventId ? `Ditix-Termin-Nr.: ${s.eventId}` : "",
+    // Direkt zum Termin in Ditix, damit niemand erst suchen muss.
+    ditixTerminLink(s.eventId) ? `In Ditix öffnen: ${ditixTerminLink(s.eventId)}` : "",
     "",
     s.art === "warteliste"
       ? "Der Gast hat statt des Saalplans die Warteliste gesehen, obwohl diese Show bis zum Showbeginn im Verkauf ist."
