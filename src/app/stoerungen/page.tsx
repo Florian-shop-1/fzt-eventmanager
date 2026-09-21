@@ -4,7 +4,7 @@ import { leadSpeichern, leadStaende, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
 import { technikStoerungen, type TechnikStoerung } from "@/lib/db/technik-stoerung";
 import { grundText } from "@/lib/stoerung/meldung";
-import { ditixTerminLink } from "@/lib/ditix/link";
+import { ditixTerminLink, ditixTicketsLink } from "@/lib/ditix/link";
 import { stoerungAbhaken } from "./aktionen";
 
 export const metadata = { title: "Störungen | FZT Eventmanager" };
@@ -317,8 +317,10 @@ function Karte({ meldung, stand }: { meldung: Lead; stand: LeadStand | undefined
 function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
   const erledigt = Boolean(stoerung.erledigtAm);
   const farbe = erledigt ? "var(--text-leise)" : "var(--blocker)";
-  // Der Weg zur Behebung führt immer über Ditix, also gleich dorthin verlinken.
-  const ditix = ditixTerminLink(stoerung.eventId);
+  // Der Weg zur Behebung führt immer über Ditix, also gleich dorthin verlinken:
+  // auf die Ticketseite des Termins, wo Preise und Verkaufszeiten stehen.
+  const ditix = ditixTicketsLink(stoerung.eventId);
+  const ditixUebersicht = ditixTerminLink(stoerung.eventId);
 
   return (
     <article
@@ -355,14 +357,21 @@ function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
           </p>
 
           {ditix && (
-            <a
-              href={ditix}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-block rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-            >
-              Termin in Ditix öffnen
-            </a>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <a
+                href={ditix}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+              >
+                Preise und Verkaufszeiten in Ditix
+              </a>
+              {ditixUebersicht && (
+                <a href={ditixUebersicht} target="_blank" rel="noreferrer" className="text-sm underline hover:text-gold-dunkel">
+                  Übersicht zum Termin
+                </a>
+              )}
+            </div>
           )}
 
           <div className="mt-2 text-xs text-leise">
