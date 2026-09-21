@@ -85,3 +85,18 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
   }
   return { gemeldet };
 }
+
+/**
+ * Dieselbe Prüfung, aber sparsam: höchstens alle zehn Minuten.
+ *
+ * Wird beim Aufruf einer Seite von Florian oder Kevin mitgemacht. So fällt
+ * ein vergessenes Ausstempeln schon tagsüber auf und nicht erst beim
+ * nächtlichen Lauf. Kostet im Normalfall eine einzige Abfrage.
+ */
+let zuletztGeprueft = 0;
+
+export async function nebenbeiPruefen(): Promise<void> {
+  if (Date.now() - zuletztGeprueft < 600000) return;
+  zuletztGeprueft = Date.now();
+  await langeSchichtenPruefen().catch((f) => console.error("[stempel] Prüfung nebenbei:", f));
+}

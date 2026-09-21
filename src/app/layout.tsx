@@ -19,6 +19,7 @@ import {
   zugang as weinZugang,
 } from "@/lib/wein/db";
 import { BestellungPopup, type OffeneBestellung } from "@/components/BestellungPopup";
+import { nebenbeiPruefen } from "@/lib/stempel/wache";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -111,6 +112,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       });
     }
     aufgaben.push(...(await dienstplanErinnerungen(benutzer).catch(() => [])));
+
+    // Nebenbei prüfen, ob jemand das Ausstempeln vergessen hat.
+    if (["chef", "team"].includes(benutzer.rolle)) void nebenbeiPruefen();
 
     // Offene Weinbestellung der Gastro: bei allen, die Bescheid bekommen sollen.
     const wein = await weinEinstellung().catch(() => null);
