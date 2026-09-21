@@ -1,27 +1,30 @@
 "use client";
 
 /**
- * Der Saalplan als Werkzeug: Gruppe antippen, neuen Platz antippen.
+ * Der Saalplan zum Anfassen: Gruppe aufnehmen, hinschieben, loslassen.
  *
- * Dritter Anlauf, und diesmal ohne Umweg über Karten (Florian,
- * 21.09.2026): Man arbeitet im Plan. Jede zusammenhängende Reihe
- * verkaufter Plätze ist eine Gruppe. Tippt man sie an, liegt sie „in der
- * Hand“, oben steht groß, wer gerade bewegt wird, und jeder Platz, auf
- * den die Gruppe am Stück passt, ist grün umrandet. Der zweite Tipp
- * setzt sie. Ein dritter Tipp auf „zurück“ macht es rückgängig.
+ * Am Einlass steht der Mitarbeiter mit dem Tablet vor den Gästen. Er
+ * nimmt die Gruppe mit dem Finger auf und zieht sie dorthin, wo sie
+ * sitzen soll; unter dem Finger zeigt der Plan, welche Plätze sie belegen
+ * würde. Loslassen setzt sie. Aufnehmen geht immer wieder, auch aus dem
+ * neuen Platz heraus, beliebig oft (Florian, 21.09.2026).
  *
- * Hin und her geht also mit zwei Tippern, in beide Richtungen, auch
- * mehrfach.
+ * Wer lieber tippt, tippt: Ein kurzer Tipp nimmt die Gruppe in die Hand,
+ * der nächste setzt sie. Beides läuft über dieselben Zeigerereignisse,
+ * damit Finger, Maus und Stift gleich behandelt werden.
+ *
+ * Die Empfehlung liegt als Vorlage im Plan: derselbe Buchstabe hinten wie
+ * vorne, ein Tipp auf das gestrichelte Feld reicht.
  *
  * Wer da sitzt, steht nicht dabei: Ditix liefert über den öffentlichen
  * Weg nur, welcher Platz verkauft ist, nicht an wen. Sobald es einen
- * Zugang zum Ditix-Backend gibt, kommen die Namen von selbst dazu; bis
- * dahin erinnert der Merkzettel daran (siehe lib/db/merker.ts).
+ * Zugang zum Ditix-Backend gibt, kommen die Namen dazu; bis dahin
+ * erinnert der Merkzettel daran (siehe lib/db/merker.ts).
  *
  * In Ditix wird nichts geändert, das hier ist unsere Notiz für den Abend.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface TafelSitz {
@@ -68,15 +71,17 @@ interface Props {
 }
 
 const KANTE = 22;
+/** Ab so vielen Pixeln gilt es als Ziehen und nicht mehr als Tippen. */
+const ZIEH_SCHWELLE = 8;
 
-function nummer(name: string): number {
+function zahl(name: string): number {
   const n = Number(name);
   return Number.isFinite(n) ? n : 0;
 }
 
 /** "Platz 5 bis 8", immer von der kleineren Nummer aus. */
 function ansage(block: TafelSitz[]): string {
-  const namen = [...block.map((s) => s.name)].sort((a, b) => nummer(a) - nummer(b) || a.localeCompare(b, "de"));
+  const namen = [...block.map((s) => s.name)].sort((a, b) => zahl(a) - zahl(b) || a.localeCompare(b, "de"));
   if (namen.length === 0) return "";
   return namen.length === 1 ? `Platz ${namen[0]}` : `Platz ${namen[0]} bis ${namen[namen.length - 1]}`;
 }
@@ -85,20 +90,26 @@ function blockText(block: TafelSitz[]): string {
   return block.length === 0 ? "" : `Reihe ${block[0].reihe}, ${ansage(block)}`;
 }
 
-/** Der Schlüssel einer Gruppe: ihre ursprünglichen Plätze. */
 function schluesselVon(ids: number[]): string {
   return `g:${[...ids].sort((a, b) => a - b).join("-")}`;
 }
 
 export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Props) {
   const router = useRouter();
+  const svg = useRef<SVGSVGElement | null>(null);
   const [inDerHand, setInDerHand] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
-  const [name, setName] = useState("");
   const [hinweis, setHinweis] = useState("");
   const [laeuft, setLaeuft] = useState(false);
 
-  const umsetzungVon = (k: string) => gesetzt.find((u) => u.schluessel === k) ?? null;
+  /** Was gerade am Finger hängt, solange gezogen wird. */
+  const [zieht, setZieht] = useState<{ schluessel: string; x: number; y: number } | null>(null);
+  const griff = useRef<{ schluessel: string; startX: number; startY: number; bewegt: boolean } | null>(null);
+
+  const umsetzungVon = useCallback(
+    (k: string) => gesetzt.find((x) => x.schluessel === k) ?? null,
+    [gesetzt],
+  );
 
   const reihen = useMemo(() => {
     const nach = new Map<string, TafelSitz[]>();
@@ -116,10 +127,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       .sort((a, b) => a.y - b.y);
   }, [sitze]);
 
-  /**
-   * Alle Gruppen im Saal: jede zusammenhängende Kette verkaufter Plätze.
-   * So lässt sich jeder bewegen, nicht nur die aus dem Vorschlag.
-   */
+  /** Jede zusammenhängende Kette verkaufter Plätze ist eine Gruppe. */
   const alleGruppen = useMemo(() => {
     const liste: TafelGruppe[] = [];
     for (const r of reihen) {
@@ -149,7 +157,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       }
       schliessen();
     }
-    // Gäste von der Gästeliste haben keine Plätze im Saal, sie kommen dazu.
     for (const g of gruppen) if (g.art === "gast") liste.push(g);
     return liste;
   }, [reihen, gruppen]);
@@ -162,11 +169,17 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
 
   const belegt = useMemo(() => {
     const m = new Map<number, string>();
-    for (const u of gesetzt) for (const id of u.zielIds) m.set(id, u.schluessel);
+    for (const x of gesetzt) for (const id of x.zielIds) m.set(id, x.schluessel);
     return m;
   }, [gesetzt]);
 
-  const gruppe = alleGruppen.find((g) => g.schluessel === inDerHand) ?? null;
+  const gruppeZu = useCallback(
+    (schluessel: string | null) => alleGruppen.find((g) => g.schluessel === schluessel) ?? null,
+    [alleGruppen],
+  );
+
+  const gruppe = gruppeZu(inDerHand);
+  const gezogene = gruppeZu(zieht?.schluessel ?? null);
 
   const masse = useMemo(() => {
     const xs = sitze.map((s) => s.x);
@@ -187,27 +200,116 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     };
   }, [sitze]);
 
-  const istFrei = (s: TafelSitz, fuer: string | null) =>
-    s.nutzbar && (!belegt.has(s.id) || belegt.get(s.id) === fuer);
+  const istFrei = useCallback(
+    (s: TafelSitz, fuer: string | null) => s.nutzbar && (!belegt.has(s.id) || belegt.get(s.id) === fuer),
+    [belegt],
+  );
 
-  /** Plätze, auf die die Gruppe in der Hand passt: Start eines freien Blocks. */
+  /** Der Block, der ab diesem Platz für so viele Leute frei ist. */
+  const blockAb = useCallback(
+    (start: TafelSitz, anzahl: number, fuer: string | null): TafelSitz[] | null => {
+      const reihe = reihen.find((r) => r.schluessel === `${start.sektor}::${start.reihe}`);
+      if (!reihe) return null;
+      const i = reihe.sitze.findIndex((s) => s.id === start.id);
+      if (i < 0 || !istFrei(start, fuer)) return null;
+      const block: TafelSitz[] = [];
+      for (let j = i; j < reihe.sitze.length && block.length < anzahl; j++) {
+        if (!istFrei(reihe.sitze[j], fuer)) break;
+        block.push(reihe.sitze[j]);
+      }
+      for (let j = i - 1; j >= 0 && block.length < anzahl; j--) {
+        if (!istFrei(reihe.sitze[j], fuer)) break;
+        block.unshift(reihe.sitze[j]);
+      }
+      return block.length >= anzahl ? block.slice(0, anzahl) : null;
+    },
+    [reihen, istFrei],
+  );
+
+  /** Alle Plätze, an denen die Gruppe in der Hand anfangen könnte. */
   const starts = useMemo(() => {
     const treffer = new Map<number, TafelSitz[]>();
-    if (!gruppe) return treffer;
-    const anzahl = Math.max(1, gruppe.personen);
+    const g = gruppe ?? gezogene;
+    if (!g) return treffer;
     for (const r of reihen) {
-      for (let i = 0; i < r.sitze.length; i++) {
-        const block: TafelSitz[] = [];
-        for (let j = i; j < r.sitze.length && block.length < anzahl; j++) {
-          if (!istFrei(r.sitze[j], gruppe.schluessel)) break;
-          block.push(r.sitze[j]);
-        }
-        if (block.length === anzahl) treffer.set(r.sitze[i].id, block);
+      for (const s of r.sitze) {
+        const block = blockAb(s, Math.max(1, g.personen), g.schluessel);
+        if (block) treffer.set(s.id, block);
       }
     }
     return treffer;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gruppe, reihen, gesetzt]);
+  }, [gruppe, gezogene, reihen, blockAb]);
+
+  /** Die Empfehlung als Vorlage: gleicher Buchstabe hinten wie vorne. */
+  const mitVorschlag = useMemo(() => alleGruppen.filter((g) => g.vorschlagIds.length > 0), [alleGruppen]);
+
+  const buchstabeVon = useMemo(() => {
+    const m = new Map<string, string>();
+    mitVorschlag.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
+    return m;
+  }, [mitVorschlag]);
+
+  const vorlageVon = useMemo(() => {
+    const m = new Map<number, TafelGruppe>();
+    for (const g of mitVorschlag) {
+      if (gesetzt.some((x) => x.schluessel === g.schluessel)) continue;
+      for (const id of g.vorschlagIds) m.set(id, g);
+    }
+    return m;
+  }, [mitVorschlag, gesetzt]);
+
+  const vorschlagBlock = useCallback(
+    (g: TafelGruppe): TafelSitz[] | null => {
+      if (g.vorschlagIds.length === 0) return null;
+      const block = g.vorschlagIds
+        .map((id) => sitze.find((s) => s.id === id))
+        .filter((s): s is TafelSitz => Boolean(s));
+      if (block.length !== g.vorschlagIds.length) return null;
+      if (!block.every((s) => istFrei(s, g.schluessel))) return null;
+      return [...block].sort((a, b) => a.y - b.y || a.x - b.x);
+    },
+    [sitze, istFrei],
+  );
+
+  /* ---------------------------------------------------------------- *
+   * Ziehen: Der Finger führt die Gruppe, der Plan schnappt ein.
+   * ---------------------------------------------------------------- */
+
+  /** Bildschirmpunkt in die Koordinaten der Zeichnung umrechnen. */
+  function punkt(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
+    const el = svg.current;
+    const ctm = el?.getScreenCTM();
+    if (!el || !ctm) return null;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  /** Der Platz unter dem Finger, wenn er nah genug ist. */
+  const sitzBei = useCallback(
+    (p: { x: number; y: number }): TafelSitz | null => {
+      let beste: TafelSitz | null = null;
+      let abstand = KANTE * 1.2;
+      for (const s of sitze) {
+        const d = Math.hypot(s.x - p.x, s.y - p.y);
+        if (d < abstand) {
+          abstand = d;
+          beste = s;
+        }
+      }
+      return beste;
+    },
+    [sitze],
+  );
+
+  /** Wo die gezogene Gruppe gerade landen würde. */
+  const ziel = useMemo(() => {
+    if (!zieht || !gezogene) return null;
+    const s = sitzBei({ x: zieht.x, y: zieht.y });
+    if (!s) return null;
+    return blockAb(s, Math.max(1, gezogene.personen), gezogene.schluessel);
+  }, [zieht, gezogene, blockAb, sitzBei]);
+
+  const zielIds = useMemo(() => new Set((ziel ?? []).map((s) => s.id)), [ziel]);
 
   async function setzen(g: TafelGruppe, block: TafelSitz[]) {
     if (laeuft) return;
@@ -227,7 +329,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
           zielText,
           zielIds: block.map((s) => s.id),
           personen: g.personen,
-          gastName: name.trim() || umsetzungVon(g.schluessel)?.gastName || "",
         }),
       });
       const e = (await antwort.json()) as { ok: boolean; fehler?: string };
@@ -236,20 +337,13 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         return;
       }
       setGesetzt((alt) => [
-        ...alt.filter((u) => u.schluessel !== g.schluessel),
-        {
-          schluessel: g.schluessel,
-          zielText,
-          zielIds: block.map((s) => s.id),
-          gastName: name.trim() || umsetzungVon(g.schluessel)?.gastName || "",
-          gesetztVon: null,
-        },
+        ...alt.filter((x) => x.schluessel !== g.schluessel),
+        { schluessel: g.schluessel, zielText, zielIds: block.map((s) => s.id), gesetztVon: null },
       ]);
       setInDerHand(null);
-      setName("");
       router.refresh();
     } catch {
-      setHinweis("Keine Verbindung. Bitte noch einmal tippen.");
+      setHinweis("Keine Verbindung. Bitte noch einmal versuchen.");
     } finally {
       setLaeuft(false);
     }
@@ -263,7 +357,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, schluessel: g.schluessel, art: g.art, gastId: g.gastId }),
       });
-      setGesetzt((alt) => alt.filter((u) => u.schluessel !== g.schluessel));
+      setGesetzt((alt) => alt.filter((x) => x.schluessel !== g.schluessel));
       setInDerHand(null);
       router.refresh();
     } finally {
@@ -271,47 +365,63 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     }
   }
 
-  function vorschlagBlock(g: TafelGruppe): TafelSitz[] | null {
-    if (g.vorschlagIds.length === 0) return null;
-    const block = g.vorschlagIds
-      .map((id) => sitze.find((s) => s.id === id))
-      .filter((s): s is TafelSitz => Boolean(s));
-    if (block.length !== g.vorschlagIds.length) return null;
-    if (!block.every((s) => istFrei(s, g.schluessel))) return null;
-    return [...block].sort((a, b) => a.y - b.y || a.x - b.x);
+  function aufnehmen(e: React.PointerEvent, g: TafelGruppe) {
+    griff.current = { schluessel: g.schluessel, startX: e.clientX, startY: e.clientY, bewegt: false };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  }
+
+  function bewegen(e: React.PointerEvent) {
+    const g = griff.current;
+    if (!g) return;
+    if (!g.bewegt) {
+      if (Math.hypot(e.clientX - g.startX, e.clientY - g.startY) <= ZIEH_SCHWELLE) return;
+      g.bewegt = true;
+      setInDerHand(g.schluessel);
+    }
+    const p = punkt(e);
+    if (p) setZieht({ schluessel: g.schluessel, x: p.x, y: p.y });
+  }
+
+  function loslassen(aufSitz: TafelSitz | null) {
+    const g = griff.current;
+    griff.current = null;
+
+    // Gezogen: dort ablegen, wo der Finger ist.
+    if (g?.bewegt) {
+      const gez = gruppeZu(g.schluessel);
+      const block = ziel;
+      setZieht(null);
+      if (gez && block) void setzen(gez, block);
+      else setHinweis("Dort passt die Gruppe nicht am Stück hin. Nimm sie noch einmal auf.");
+      return;
+    }
+    setZieht(null);
+
+    // Nur getippt: je nachdem, worauf.
+    if (!aufSitz) return;
+    setHinweis("");
+    const start = starts.get(aufSitz.id);
+    if (start && gruppe) {
+      void setzen(gruppe, start);
+      return;
+    }
+    const vorlage = vorlageVon.get(aufSitz.id);
+    if (vorlage) {
+      const block = vorschlagBlock(vorlage);
+      if (block) {
+        void setzen(vorlage, block);
+        return;
+      }
+    }
+    const daraufGesetzt = belegt.get(aufSitz.id);
+    const naechste = gruppeZu(daraufGesetzt ?? null) ?? gruppeVonSitz.get(aufSitz.id) ?? null;
+    if (naechste) setInDerHand(naechste.schluessel === inDerHand ? null : naechste.schluessel);
   }
 
   const u = gruppe ? umsetzungVon(gruppe.schluessel) : null;
   const vorschlag = gruppe && !u ? vorschlagBlock(gruppe) : null;
   const offeneVorschlaege = alleGruppen.filter((g) => g.vorschlagText && !umsetzungVon(g.schluessel));
-
-  /**
-   * Die Empfehlung liegt als Vorlage im Plan: Jede vorgeschlagene Gruppe
-   * bekommt einen Buchstaben, der an ihren jetzigen Plätzen und an den
-   * vorgeschlagenen steht. Ein Tipp auf die Vorlage setzt sie dorthin
-   * (Florian, 21.09.2026).
-   */
-  const mitVorschlag = useMemo(
-    () => alleGruppen.filter((g) => g.vorschlagIds.length > 0),
-    [alleGruppen],
-  );
-
-  const buchstabeVon = useMemo(() => {
-    const m = new Map<string, string>();
-    mitVorschlag.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
-    return m;
-  }, [mitVorschlag]);
-
-  /** Sitz -> Gruppe, deren Vorschlag hier liegt (nur solange sie nicht sitzt). */
-  const vorlageVon = useMemo(() => {
-    const m = new Map<number, TafelGruppe>();
-    for (const g of mitVorschlag) {
-      if (umsetzungVon(g.schluessel)) continue;
-      for (const id of g.vorschlagIds) m.set(id, g);
-    }
-    return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mitVorschlag, gesetzt]);
+  const gaeste = alleGruppen.filter((g) => g.art === "gast");
 
   return (
     <section className="space-y-3 print:hidden">
@@ -323,7 +433,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         </span>
       </div>
 
-      {/* Die Leiste: Sie sagt jederzeit, was als Nächstes zu tun ist. */}
       <div
         className="sticky top-0 z-10 rounded-xl border-2 px-4 py-3"
         style={{
@@ -333,18 +442,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       >
         {!gruppe ? (
           <p className="text-sm">
-            {offeneVorschlaege.length > 0 ? (
-              <>
-                <strong>Die Buchstaben zeigen, wohin welche Gruppe soll.</strong> Sind die Gäste da, tipp auf ihr
-                helles Feld vorne, dann sitzen sie dort. Willst du sie woanders hinsetzen: erst die Gruppe antippen,
-                dann den Platz.
-              </>
-            ) : (
-              <>
-                <strong>Tipp eine Gruppe im Saal an</strong> (die dunklen Plätze). Danach tippst du ihren neuen Platz
-                an.
-              </>
-            )}
+            <strong>Gruppe mit dem Finger nehmen und dorthin schieben, wo sie sitzen soll.</strong> Loslassen setzt
+            sie, aufnehmen geht immer wieder.
+            {offeneVorschlaege.length > 0 &&
+              " Die Buchstaben zeigen die Empfehlung: A gehört zu A. Ein Tipp auf das gestrichelte Feld reicht auch."}
           </p>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -357,7 +458,13 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                 </span>
               </p>
               <p className="text-sm">
-                {u ? "Tipp einen anderen Platz an, oder setz sie zurück." : "Jetzt den neuen Platz antippen."}
+                {zieht
+                  ? ziel
+                    ? `Loslassen: ${blockText(ziel)}`
+                    : "Hier passt sie nicht am Stück hin."
+                  : u
+                    ? "Zieh sie weiter, oder setz sie zurück."
+                    : "Hinschieben und loslassen, oder den neuen Platz antippen."}
               </p>
             </div>
 
@@ -397,8 +504,49 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         </p>
       )}
 
+      {/* Gäste von der Gästeliste haben keinen Platz im Saal: hier aufnehmen. */}
+      {gaeste.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-leise">Gästeliste:</span>
+          {gaeste.map((g) => {
+            const gesetztG = umsetzungVon(g.schluessel);
+            return (
+              <button
+                key={g.schluessel}
+                type="button"
+                onClick={() => setInDerHand(g.schluessel === inDerHand ? null : g.schluessel)}
+                className="rounded-full border-2 px-3 py-1.5"
+                style={{
+                  borderColor: gesetztG ? "var(--gut)" : g.schluessel === inDerHand ? "var(--gold)" : "var(--linie)",
+                  background: gesetztG
+                    ? "var(--gut-hell)"
+                    : g.schluessel === inDerHand
+                      ? "var(--gold-hell)"
+                      : "var(--flaeche)",
+                }}
+              >
+                {g.titel} ({g.personen})
+                {gesetztG && <span className="text-leise"> · {gesetztG.zielText}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <figure className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
-        <svg viewBox={masse.viewBox} className="mx-auto block h-auto w-full" role="img" aria-label="Saalplan zum Umsetzen">
+        <svg
+          ref={svg}
+          viewBox={masse.viewBox}
+          className="mx-auto block h-auto w-full select-none"
+          role="img"
+          aria-label="Saalplan zum Umsetzen"
+          onPointerMove={bewegen}
+          onPointerUp={() => loslassen(null)}
+          onPointerCancel={() => {
+            griff.current = null;
+            setZieht(null);
+          }}
+        >
           <rect
             x={masse.links - KANTE}
             y={masse.oben - KANTE / 2 - 50}
@@ -439,10 +587,9 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               </text>
               {r.sitze.map((s) => {
                 const start = starts.get(s.id);
+                const empfohlen = Boolean(start && start.every((x) => x.inZone)) && !zieht;
+                const unterFinger = zielIds.has(s.id);
                 const vorlage = vorlageVon.get(s.id) ?? null;
-                // Markiert wird nur, was in der spielbaren Zone liegt. Weiter
-                // hinten geht auch, wird aber nicht vorgeschlagen.
-                const empfohlen = Boolean(start && start.every((x) => x.inZone));
                 const zielVon = belegt.get(s.id);
                 const heimat = gruppeVonSitz.get(s.id) ?? null;
                 const heimatUmsetzung = heimat ? umsetzungVon(heimat.schluessel) : null;
@@ -454,22 +601,18 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                 let beschriftung = s.name;
 
                 if (s.freiLassen) {
-                  // Muss leer bleiben, auch am Einlass.
                   fuellung = "var(--blocker-hell)";
                   rahmen = "var(--blocker)";
                   schrift = "var(--blocker)";
                   beschriftung = "×";
                 } else if (s.status === "gesperrt" && !zielVon) {
-                  // Sperre aus dem Verkauf: hier darf jemand sitzen.
                   fuellung = "var(--linie)";
                   schrift = "var(--flaeche)";
                 } else if (zielVon) {
-                  // Hier sitzt jetzt eine umgesetzte Gruppe.
                   fuellung = "var(--gut)";
                   rahmen = "var(--gut)";
                   schrift = "#fff";
                 } else if (heimat && heimatUmsetzung) {
-                  // Alter Platz einer Gruppe, die schon vorne sitzt.
                   fuellung = "var(--flaeche)";
                   rahmen = "var(--gut)";
                   schrift = "var(--gut)";
@@ -482,47 +625,33 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   const bu = buchstabeVon.get(heimat.schluessel);
                   if (gold && bu) beschriftung = bu;
                 } else if (vorlage) {
-                  // Die Vorlage: hier soll die Gruppe hin.
                   fuellung = "var(--flaeche)";
                   rahmen = "var(--gold)";
                   schrift = "var(--gold-dunkel)";
                   beschriftung = buchstabeVon.get(vorlage.schluessel) ?? s.name;
                 }
 
-                const klickbar = Boolean(start) || Boolean(heimat) || Boolean(zielVon) || Boolean(vorlage);
+                const greifbar = Boolean(heimat ?? zielVon);
 
                 return (
                   <g
                     key={s.id}
-                    onClick={() => {
-                      setHinweis("");
-                      if (start && gruppe) {
-                        void setzen(gruppe, start);
-                        return;
-                      }
-                      // Tipp auf die Vorlage: Die Gruppe setzt sich genau dorthin.
-                      if (vorlage) {
-                        const block = vorschlagBlock(vorlage);
-                        if (block) {
-                          void setzen(vorlage, block);
-                          return;
-                        }
-                      }
-                      const ziel = zielVon ? alleGruppen.find((g) => g.schluessel === zielVon) : null;
-                      const naechste = ziel ?? heimat;
-                      if (naechste) {
-                        setInDerHand(naechste.schluessel === inDerHand ? null : naechste.schluessel);
-                        setName("");
-                      }
+                    onPointerDown={(e) => {
+                      const g = zielVon ? gruppeZu(zielVon) : heimat;
+                      if (g) aufnehmen(e, g);
                     }}
-                    style={{ cursor: klickbar ? "pointer" : "default" }}
+                    onPointerUp={() => loslassen(s)}
+                    style={{
+                      cursor: greifbar ? "grab" : start || vorlage ? "pointer" : "default",
+                      touchAction: greifbar ? "none" : undefined,
+                    }}
                   >
                     <title>
-                      {heimat || zielVon
-                        ? `${(zielVon ? umsetzungVon(zielVon)?.gastName : heimatUmsetzung?.gastName) || "Gruppe"}, ${
-                            (zielVon ? alleGruppen.find((g) => g.schluessel === zielVon)?.personen : heimat?.personen) ?? 0
-                          } Gäste`
-                        : `Reihe ${s.reihe}, Platz ${s.name}`}
+                      {greifbar
+                        ? `${(zielVon ? gruppeZu(zielVon)?.personen : heimat?.personen) ?? 0} Gäste, zum Verschieben ziehen`
+                        : s.freiLassen
+                          ? "Reihe 4, Platz 3 bleibt frei"
+                          : `Reihe ${s.reihe}, Platz ${s.name}`}
                     </title>
                     <rect
                       x={s.x - KANTE / 2}
@@ -530,19 +659,27 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                       width={KANTE}
                       height={KANTE}
                       rx={3.5}
-                      fill={empfohlen ? "var(--gut-hell)" : fuellung}
-                      stroke={empfohlen ? "var(--gut)" : inDerHandHier ? "var(--gold)" : rahmen}
-                      strokeWidth={empfohlen || inDerHandHier ? 2.4 : vorlage ? 1.8 : 1}
-                      strokeDasharray={vorlage && !empfohlen ? "4 2" : undefined}
+                      fill={unterFinger ? "var(--gold)" : empfohlen ? "var(--gut-hell)" : fuellung}
+                      stroke={
+                        unterFinger
+                          ? "var(--gold-dunkel)"
+                          : empfohlen
+                            ? "var(--gut)"
+                            : inDerHandHier
+                              ? "var(--gold)"
+                              : rahmen
+                      }
+                      strokeWidth={unterFinger || empfohlen || inDerHandHier ? 2.4 : vorlage ? 1.8 : 1}
+                      strokeDasharray={vorlage && !empfohlen && !unterFinger ? "4 2" : undefined}
                     />
                     <text
                       x={s.x}
                       y={s.y + 3.2}
                       textAnchor="middle"
                       fontSize={9}
-                      fill={empfohlen ? "var(--gut)" : schrift}
+                      fill={unterFinger ? "#fff" : empfohlen ? "var(--gut)" : schrift}
                     >
-                      {empfohlen ? "＋" : beschriftung}
+                      {unterFinger ? "●" : empfohlen ? "＋" : beschriftung}
                     </text>
                   </g>
                 );
@@ -550,26 +687,23 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
             </g>
           ))}
 
-          {/* Die Namen an den Gruppen, damit man sie wiederfindet. */}
-          {gesetzt.map((x) => {
-            const block = x.zielIds
-              .map((id) => sitze.find((s) => s.id === id))
-              .filter((s): s is TafelSitz => Boolean(s));
-            if (block.length === 0 || !x.gastName) return null;
-            const mitte = block.reduce((n, s) => n + s.x, 0) / block.length;
-            return (
-              <text
-                key={x.schluessel}
-                x={mitte}
-                y={block[0].y + KANTE / 2 + 9}
-                textAnchor="middle"
-                fontSize={8}
-                fill="var(--gut)"
-              >
-                {x.gastName}
+          {/* Was am Finger hängt: die Gruppe als Schild über dem Plan. */}
+          {zieht && gezogene && (
+            <g pointerEvents="none">
+              <rect
+                x={zieht.x - 34}
+                y={zieht.y - KANTE - 10}
+                width={68}
+                height={18}
+                rx={4}
+                fill="var(--gold-dunkel)"
+                opacity={0.92}
+              />
+              <text x={zieht.x} y={zieht.y - KANTE + 3} textAnchor="middle" fontSize={10} fill="#fff">
+                {gezogene.personen} {gezogene.personen === 1 ? "Gast" : "Gäste"}
               </text>
-            );
-          })}
+            </g>
+          )}
         </svg>
 
         <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-leise">
@@ -585,15 +719,15 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
             sitzt hinten, sollte nach vorne
           </span>
           <span>
-            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--gut)" }} />
-            umgesetzt
-          </span>
-          <span>
             <span
               className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
               style={{ borderColor: "var(--gold)" }}
             />
             Empfehlung: A gehört zu A
+          </span>
+          <span>
+            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--gut)" }} />
+            umgesetzt
           </span>
           <span>
             <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
@@ -605,13 +739,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               style={{ background: "var(--blocker-hell)", borderColor: "var(--blocker)" }}
             />
             Reihe 4, Platz 3 bleibt frei
-          </span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
-              style={{ background: "var(--gut-hell)", borderColor: "var(--gut)" }}
-            />
-            hierhin möglich
           </span>
         </figcaption>
       </figure>
