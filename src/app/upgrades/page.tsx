@@ -11,6 +11,8 @@ import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
+import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
+import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
 
 export const metadata = { title: "Upgrades | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -89,6 +91,9 @@ export default async function UpgradeSeite({
   const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich | null>();
   const benutzer = await angemeldeterBenutzer();
   const darfEintragen = benutzer?.rolle === "chef" || benutzer?.rolle === "team";
+  // Was am Einlass schon gesetzt wurde. Steht ueber dem Vorschlag: Der Plan
+  // ist eine Empfehlung, gezaehlt wird, was der Einlass eingetippt hat.
+  const umsetzungen = vorstellung ? await umsetzungenDerVorstellung(vorstellung.ditixEventId) : [];
 
   return (
     <div className="space-y-6">
@@ -198,6 +203,21 @@ export default async function UpgradeSeite({
           vorschlaege={vorschlaege}
           mitVorschlag={Boolean(rat)}
           eintragenLink={darfEintragen ? `/gaesteliste?v=${vorstellung.ditixEventId}` : null}
+        />
+      )}
+
+      {plan && rat && vorstellung && (
+        <UpgradeTafel
+          eventId={vorstellung.ditixEventId}
+          sitze={tafelSitze(plan, rat)}
+          gruppen={tafelGruppen(rat, gaeste, vorschlaege)}
+          umsetzungen={umsetzungen.map((u) => ({
+            schluessel: u.schluessel,
+            zielText: u.zielText,
+            zielIds: u.zielIds,
+            gesetztVon: u.gesetztVon,
+          }))}
+          zone={{ links: rat.zone.links, rechts: rat.zone.rechts, oben: rat.zone.oben, unten: rat.zone.unten }}
         />
       )}
 
@@ -751,4 +771,72 @@ function Zeichen({ farbe, rahmen, text }: { farbe: string; rahmen?: string; text
       {text}
     </span>
   );
+}
+
+/** Die Sitze, wie das Tablet sie braucht: flach und ohne Ditix-Eigenheiten. */
+function tafelSitze(plan: Saalplan, rat: Empfehlung): TafelSitz[] {
+  return plan.sitze.map((s) => ({
+    id: s.id,
+    name: s.name,
+    reihe: s.reihe,
+    sektor: s.sektor,
+    x: s.x,
+    y: s.y,
+    status: s.status,
+    inZone: rat.zone.sitze.has(s.id),
+  }));
+}
+
+/**
+ * Was am Einlass umzusetzen ist: die Gruppen von hinten und die Gäste von
+ * der Gästeliste. Der Schlüssel haengt an der Herkunft, nicht am Ziel:
+ * So bleibt er gleich, auch wenn jemand zweimal umgesetzt wird.
+ */
+function tafelGruppen(
+  rat: Empfehlung,
+  gaeste: Gast[],
+  vorschlaege: Map<string, Bereich | null>,
+): TafelGruppe[] {
+  const ausBereich = (b: Bereich): string => `g:${b.sitze.map((s) => s.id).sort((x, y) => x - y).join("-")}`;
+
+  const umzuege: TafelGruppe[] = rat.umzuege.map((u) => ({
+    schluessel: ausBereich(u.gruppe),
+    art: "gruppe" as const,
+    titel: `Reihe ${u.gruppe.reihe.nummer}, ${plaetze(u.gruppe)}`,
+    zusatz: u.gruppe.reihe.sektor,
+    personen: u.gruppe.sitze.length,
+    quelleIds: u.gruppe.sitze.map((s) => s.id),
+    vorschlagText: `Reihe ${u.ziel.reihe.nummer}, ${plaetze(u.ziel)}${
+      u.ziel2 ? ` und Reihe ${u.ziel2.reihe.nummer}, ${plaetze(u.ziel2)}` : ""
+    }`,
+    vorschlagIds: [...u.ziel.sitze, ...(u.ziel2?.sitze ?? [])].map((s) => s.id),
+  }));
+
+  const bleiben: TafelGruppe[] = rat.bleiben.map((b) => ({
+    schluessel: ausBereich(b),
+    art: "gruppe" as const,
+    titel: `Reihe ${b.reihe.nummer}, ${plaetze(b)}`,
+    zusatz: "kein Block am Stück frei",
+    personen: b.sitze.length,
+    quelleIds: b.sitze.map((s) => s.id),
+    vorschlagText: null,
+    vorschlagIds: [],
+  }));
+
+  const gaesteliste: TafelGruppe[] = gaeste.map((g) => {
+    const v = vorschlaege.get(g.id) ?? null;
+    return {
+      schluessel: `gast:${g.id}`,
+      art: "gast" as const,
+      titel: g.name,
+      zusatz: g.notiz || "Gästeliste, ohne Ticket",
+      personen: g.anzahl,
+      quelleIds: [],
+      vorschlagText: v ? `Reihe ${v.reihe.nummer}, ${plaetze(v)}` : null,
+      vorschlagIds: v ? v.sitze.map((s) => s.id) : [],
+      gastId: g.id,
+    };
+  });
+
+  return [...umzuege, ...bleiben, ...gaesteliste];
 }
