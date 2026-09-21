@@ -190,6 +190,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   if (pfad.startsWith("/whatsapp")) return true;
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
+  // Stempeln darf jeder Mitarbeiter, auch das Foyer und das Showteam.
+  if (pfad.startsWith("/stempeluhr") && rolle !== "kiosk") return true;
   // Den Dienstplan sieht jeder Mitarbeiter: Wer eine Position hat, trägt sich
   // ein, alle anderen sehen nur. Die Einrichtung prüft die Seite selbst.
   if (pfad.startsWith("/dienstplan") && rolle !== "kiosk") return true;
