@@ -2,6 +2,9 @@ import Link from "next/link";
 import { holeLeads, istStoerung, STOERUNG_STATUS, type Lead } from "@/lib/shop/leads";
 import { leadSpeichern, leadStaende, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
+import { technikStoerungen, type TechnikStoerung } from "@/lib/db/technik-stoerung";
+import { grundText } from "@/lib/stoerung/meldung";
+import { stoerungAbhaken } from "./aktionen";
 
 export const metadata = { title: "Störungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -37,6 +40,16 @@ export default async function StoerungenSeite({
   }
 
   const staende = await leadStaende();
+
+  // Meldungen, die der Shop selbst abgibt, ohne dass ein Gast etwas tun muss.
+  let technik: TechnikStoerung[] = [];
+  let technikFehler: string | null = null;
+  try {
+    technik = await technikStoerungen(alleZeigen);
+  } catch (e) {
+    technikFehler = e instanceof Error ? e.message : "Unbekannter Fehler";
+  }
+  const technikOffen = technik.filter((t) => !t.erledigtAm);
 
   const meldungen = leads
     .filter(istStoerung)
@@ -75,7 +88,47 @@ export default async function StoerungenSeite({
           betont={offen.length > 0}
         />
         <Kachel zahl={meldungen.length} was="insgesamt" hinweis="seit Beginn der Liste" />
+        <Kachel
+          zahl={technikOffen.length}
+          was="vom Shop gemeldet"
+          hinweis="Buchung war nicht möglich"
+          betont={technikOffen.length > 0}
+        />
       </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Vom Shop gemeldet</h2>
+          <p className="mt-1 max-w-prose text-sm text-leise">
+            Der Shop merkt selbst, wenn bei ULMFASSBAR, Flo-Zirkus oder Magic Memories die
+            Warteliste erscheint, obwohl diese Shows bis zum Beginn im Verkauf sind. Dann steht
+            der Termin hier, und Florian, Kevin und Julian haben eine Mail. Die Ursache liegt
+            meistens in Ditix: Verkaufszeitraum, Preise auf den Kategorien, Ticketarten.
+          </p>
+        </div>
+
+        {technikFehler && (
+          <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">
+            <strong style={{ color: "var(--blocker)" }}>Meldungen nicht lesbar.</strong>
+            <div className="mt-1 text-leise">{technikFehler}</div>
+          </div>
+        )}
+
+        {technik.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-linie px-6 py-8 text-center text-sm">
+            <div className="font-medium">Keine Meldung</div>
+            <p className="mt-1 text-leise">
+              {alleZeigen
+                ? "Der Shop hat bisher keine Störung gemeldet."
+                : "Gerade ist nichts offen."}
+            </p>
+          </div>
+        ) : (
+          technik.map((t) => <TechnikKarte key={t.id} stoerung={t} />)
+        )}
+      </section>
+
+      <h2 className="text-lg font-semibold tracking-tight">Rückrufwünsche</h2>
 
       <nav className="flex flex-wrap gap-2 text-sm">
         <Link
@@ -249,6 +302,88 @@ function Karte({ meldung, stand }: { meldung: Lead; stand: LeadStand | undefined
             Sichern
           </button>
         </form>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Eine Meldung des Shops.
+ *
+ * Wichtig ist hier nicht eine Telefonnummer, sondern der Termin: Mit dem
+ * geht Julian in Ditix und sieht nach, warum nichts zu verkaufen war.
+ */
+function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
+  const erledigt = Boolean(stoerung.erledigtAm);
+  const farbe = erledigt ? "var(--text-leise)" : "var(--blocker)";
+
+  return (
+    <article
+      className="rounded-lg border p-5"
+      style={{
+        borderColor: erledigt ? "var(--linie)" : "var(--blocker)",
+        background: "var(--flaeche)",
+        opacity: erledigt ? 0.65 : 1,
+      }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="rounded-full border px-2 py-px text-xs font-medium"
+              style={{ color: farbe, borderColor: farbe }}
+            >
+              {stoerung.art === "warteliste" ? "Warteliste statt Saalplan" : stoerung.art}
+            </span>
+            <span className="text-sm text-leise">
+              {stoerung.anzahl === 1
+                ? `einmal, ${vorZeit(stoerung.zuletztAm)}`
+                : `${stoerung.anzahl} mal, zuletzt ${vorZeit(stoerung.zuletztAm)}`}
+            </span>
+          </div>
+
+          <div className="mt-2 text-xl font-semibold tracking-tight">
+            {stoerung.showName ?? "Unbekannte Show"}
+          </div>
+          <div className="text-sm">{stoerung.eventZeit ?? "Termin unbekannt"}</div>
+
+          <p className="mt-3 max-w-prose rounded border border-linie bg-white/40 px-3 py-2 text-sm text-leise">
+            {grundText(stoerung.grund)}
+          </p>
+
+          <div className="mt-2 text-xs text-leise">
+            {stoerung.eventId && <>Ditix-Termin-Nr. {stoerung.eventId} · </>}
+            zuerst {vorZeit(stoerung.erstmalsAm)}
+            {stoerung.mailAm ? " · Mail ist raus" : " · Mail steht noch aus"}
+          </div>
+
+          {erledigt && (
+            <div className="mt-2 text-xs text-leise">
+              Abgehakt von {stoerung.erledigtVon}, {vorZeit(stoerung.erledigtAm!)}
+              {stoerung.notiz ? `: ${stoerung.notiz}` : ""}
+            </div>
+          )}
+        </div>
+
+        {!erledigt && (
+          <form
+            action={stoerungAbhaken.bind(null, stoerung.id)}
+            className="flex shrink-0 flex-col items-end gap-2"
+          >
+            <input
+              type="text"
+              name="notiz"
+              placeholder="Was war die Ursache?"
+              className="w-56 rounded-md border border-linie px-3 py-1.5 text-sm"
+            />
+            <button
+              type="submit"
+              className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+            >
+              Behoben
+            </button>
+          </form>
+        )}
       </div>
     </article>
   );
