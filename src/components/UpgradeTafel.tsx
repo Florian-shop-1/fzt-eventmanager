@@ -38,6 +38,8 @@ export interface TafelSitz {
   nutzbar: boolean;
   /** Der eine Platz, der wirklich leer bleibt: Reihe 4, Platz 3. */
   freiLassen: boolean;
+  /** Direkt neben dem eingeweihten Zuschauer: hier sitzt gern jemand. */
+  nebenZuschauer: "links" | "rechts" | null;
 }
 
 export interface TafelGruppe {
@@ -630,6 +632,12 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   rahmen = "var(--blocker)";
                   schrift = "var(--blocker)";
                   beschriftung = "×";
+                } else if (s.nebenZuschauer && !zielVon && !heimat && s.status !== "verkauft") {
+                  // Neben dem Eingeweihten: freundlich markiert, damit
+                  // der Einlass den Platz gern zuerst vergibt.
+                  fuellung = "var(--warnung-hell)";
+                  rahmen = "var(--warnung)";
+                  schrift = "var(--warnung)";
                 } else if (s.status === "gesperrt" && !zielVon) {
                   fuellung = "var(--linie)";
                   schrift = "var(--flaeche)";
@@ -672,8 +680,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                         : heimat
                           ? `${heimat.personen} Gäste, ${heimat.titel}`
                           : s.freiLassen
-                            ? "Reihe 4, Platz 3 bleibt frei"
-                            : `Reihe ${s.reihe}, Platz ${s.name}`}
+                            ? "Reihe 4, Platz 3: bleibt frei für den eingeweihten Zuschauer"
+                            : s.nebenZuschauer
+                              ? `Reihe ${s.reihe}, Platz ${s.name}: direkt neben dem Eingeweihten, hier sitzt gern jemand`
+                              : `Reihe ${s.reihe}, Platz ${s.name}`}
                     </title>
                     <rect
                       x={s.x - KANTE / 2}
@@ -775,6 +785,13 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               style={{ background: "var(--blocker-hell)", borderColor: "var(--blocker)" }}
             />
             Reihe 4, Platz 3 bleibt frei
+          </span>
+          <span>
+            <span
+              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+              style={{ background: "var(--warnung-hell)", borderColor: "var(--warnung)" }}
+            />
+            daneben: gern besetzen
           </span>
         </figcaption>
       </figure>

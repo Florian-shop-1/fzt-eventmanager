@@ -39,10 +39,11 @@ const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
  * Florian in der Einrichtung (Florian, 21.09.2026). Vollwertig sind
  * bisher Ben, Mario, Leeven, Levi, Julian und Sabah.
  */
-const POSITIONEN: Record<string, { position: "FOH" | "T2" | "T1"; lernt: boolean; text: string }> = {
+const POSITIONEN: Record<string, { position: "FOH" | "T2" | "T1" | "ZUSCHAUER"; lernt: boolean; text: string }> = {
   FOH: { position: "FOH", lernt: true, text: "FOH (Licht und Ton), Rookie" },
   T1: { position: "T1", lernt: true, text: "Techniker 1, Rookie" },
   T2: { position: "T2", lernt: true, text: "Techniker 2, Rookie" },
+  ZUSCHAUER: { position: "ZUSCHAUER", lernt: true, text: "Eingeweihter Zuschauer, Rookie" },
 };
 
 export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Promise<EinladungsErgebnis> {

@@ -11,6 +11,7 @@ import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
 import { faelligeMerker } from "@/lib/db/merker";
+import { offeneFreigaben } from "@/lib/foyer/dienstplan";
 import {
   ABSTELLORT,
   bestellungen as weinBestellungen,
@@ -61,6 +62,7 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
   { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
+  { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
   { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
   { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
   { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
@@ -122,6 +124,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         knopf: "Merkzettel",
         hase: `${m.titel}${m.text ? ` ${m.text}` : ""}`,
       });
+    }
+
+    // Aushilfen im Foyer warten auf Freigabe: Kevin und Florian sehen das
+    // in der Leiste, sonst bliebe Sarah hängen (Florian, 22.09.2026).
+    if (["chef", "team"].includes(benutzer.rolle)) {
+      const warten = await offeneFreigaben().catch(() => []);
+      if (warten.length > 0) {
+        aufgaben.push({
+          href: "/foyer/plan",
+          leiste: `${warten.length === 1 ? "Eine Aushilfe im Foyer wartet" : `${warten.length} Aushilfen im Foyer warten`} auf deine Freigabe.`,
+          knopf: "Ansehen",
+          hase: "Sarah möchte eine Aushilfe fürs Foyer einteilen. Ein Klick, und sie weiß Bescheid.",
+        });
+      }
     }
 
     // Nebenbei prüfen, ob jemand das Ausstempeln vergessen hat.

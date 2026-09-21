@@ -13,6 +13,7 @@ const WAHL = [
   { wert: "FOH", titel: "FOH", text: "Licht und Ton" },
   { wert: "T1", titel: "Techniker 1", text: "" },
   { wert: "T2", titel: "Techniker 2", text: "" },
+  { wert: "ZUSCHAUER", titel: "Zuschauer", text: "der Eingeweihte im Publikum" },
 ];
 
 /**

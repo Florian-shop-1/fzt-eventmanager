@@ -7,6 +7,7 @@ import {
   empfehlung,
   gaestePlaetze,
   mussFreiBleiben,
+  nebenDemZuschauer,
   type Bereich,
   type Empfehlung,
 } from "@/lib/seating/upgrade";
@@ -228,8 +229,15 @@ export default async function UpgradeSeite({
         />
       )}
 
+      {/*
+        Nur einer am Bildschirm: Der Plan zum Antippen ist der Plan. Die
+        gezeichnete Fassung bleibt fürs Papier, damit der Ausdruck in der
+        Hand weiter funktioniert (Florian, 22.09.2026).
+      */}
       {plan && rat && (
-        <Saalzeichnung plan={plan} rat={rat} gaeste={gaeste} vorschlaege={vorschlaege} />
+        <div className="hidden print:block">
+          <Saalzeichnung plan={plan} rat={rat} gaeste={gaeste} vorschlaege={vorschlaege} />
+        </div>
       )}
     </div>
   );
@@ -801,6 +809,7 @@ function tafelSitze(plan: Saalplan, rat: Empfehlung): TafelSitz[] {
       inZone: rat.zone.sitze.has(s.id),
       nutzbar: !freiLassen && s.status !== "verkauft",
       freiLassen,
+      nebenZuschauer: nebenDemZuschauer(s),
     };
   });
 }

@@ -99,6 +99,25 @@ export function mussFreiBleiben(sitz: { reihe: string; name: string }): boolean 
   return sitz.reihe.trim() === "4" && sitz.name.trim() === "3";
 }
 
+/**
+ * Der eingeweihte Zuschauer sitzt auf Reihe 4, Platz 3.
+ *
+ * Damit er nicht auffällt, sollen die Plätze neben ihm besetzt sein,
+ * vor allem der zu seiner Linken: Ein einzelner Gast in einer sonst
+ * leeren Ecke fällt auf, mitten in einer vollen Reihe niemandem
+ * (Florian, 22.09.2026).
+ *
+ * Die Platznummern laufen im Saal von rechts nach links. Aus Sicht des
+ * Zuschauers, der zur Bühne schaut, liegt links von ihm die nächsthöhere
+ * Nummer, also Platz 4, rechts die Nummer 2.
+ */
+export function nebenDemZuschauer(sitz: { reihe: string; name: string }): "links" | "rechts" | null {
+  if (sitz.reihe.trim() !== "4") return null;
+  if (sitz.name.trim() === "4") return "links";
+  if (sitz.name.trim() === "2") return "rechts";
+  return null;
+}
+
 /** Ein Stück Reihe: eine Gruppe oder ein Zielblock. */
 export interface Bereich {
   reihe: Reihe;
@@ -459,7 +478,15 @@ function blockAufZweiReihen(
           const i1 = reihe.sitze.indexOf(teil[teil.length - 1]);
           for (const n of [reihe.sitze[i0 - 1], reihe.sitze[i1 + 1]]) if (n && istBelegt(n)) nachbarn++;
         }
-        const punkte = vorneWert * 6 + mittig * 4 + nachbarn * 2 - draussen * 3;
+        let einmauern = 0;
+        for (const f of alle) {
+          const seite = nebenDemZuschauer(f);
+          if (seite === "links") einmauern += 8;
+          if (seite === "rechts") einmauern += 4;
+        }
+        // Dieselbe Gewichtung wie in der einreihigen Suche: mittig vor
+        // vorne, Anschluss an die Nachbarn zählt mit.
+        const punkte = vorneWert * 5 + mittig * 9 + nachbarn * 3 - draussen * 3 + einmauern;
         if (punkte > bestePunkte) {
           bestePunkte = punkte;
           bester = { vorne: zuBereich(r1, vorne), hinten: zuBereich(r2, hinten) };
@@ -647,16 +674,39 @@ function bestenBlockSuchen(
         if (!danach || !nebeneinander(rechts, danach, abstand) || istBelegt(danach)) luecken++;
       }
 
+      /*
+        Den Eingeweihten einmauern: Sein Platz bleibt frei, aber die
+        Plätze daneben sollen belegt sein. Links wiegt schwerer, dort
+        schaut er im Zweifel hin.
+      */
+      let einmauern = 0;
+      for (const f of fenster) {
+        const seite = nebenDemZuschauer(f);
+        if (seite === "links") einmauern += 8;
+        if (seite === "rechts") einmauern += 4;
+      }
+
+      /*
+        Gewichtung (Florian, 22.09.2026): "gucken, dass die Leute
+        möglichst im Block mittig sitzen. Die Show muss spielbar sein, und
+        je mehr Lücken, desto schwieriger."
+
+        Deshalb wiegt die Mitte jetzt schwerer als die Nähe zur Bühne, und
+        ein einzelner freier Stuhl neben dem Block kostet mehr als ein
+        Platz weiter hinten. Reihenfolge der Größen, absteigend: keine
+        Reihe auslassen, mittig sitzen, Anschluss an andere, vorne sein.
+      */
       const punkte =
-        anschluss * 5 +
+        anschluss * 6 +
         ueberGang * 5 +
         senkrecht * 4 +
-        mittig * 4 +
+        mittig * 9 +
         luecke * 14 -
         uebersprungen * 10 +
-        vorne * 6 -
-        luecken * 2.5 -
-        draussen * 3;
+        vorne * 5 -
+        luecken * 6 -
+        draussen * 3 +
+        einmauern;
 
       if (punkte > bestePunkte) {
         bestePunkte = punkte;

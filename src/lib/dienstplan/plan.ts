@@ -14,15 +14,16 @@
 import { db } from "@/lib/db/client";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 
-export type Position = "FOH" | "T2" | "T1" | "SHADOW";
+export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "SHADOW";
 export type FestePosition = Exclude<Position, "SHADOW">;
 
-export const POSITIONEN: FestePosition[] = ["FOH", "T1", "T2"];
+export const POSITIONEN: FestePosition[] = ["FOH", "T1", "T2", "ZUSCHAUER"];
 
 export const BEZEICHNUNG: Record<Position, string> = {
   FOH: "FOH",
   T2: "T2",
   T1: "T1",
+  ZUSCHAUER: "Zuschauer (nur erste Hälfte)",
   SHADOW: "Shadow",
 };
 
@@ -32,7 +33,10 @@ export const ERKLAERUNG: Record<Position, string> = {
   // (Florian, 21.09.2026). Genau so stehen die Werte auch in der Datenbank.
   T2: "Techniker 2",
   T1: "Techniker 1",
-  SHADOW: "erfahrener T1, begleitet den Rookie",
+  // Der Eingeweihte im Publikum, Reihe 4, Platz 3. Gespielt von Roman,
+  // Anita, Olena oder Sarah (Florian, 22.09.2026).
+  ZUSCHAUER: "eingeweihter Zuschauer im Saal, Reihe 4, Platz 3, nur erste Hälfte der Show",
+  SHADOW: "erfahrener Kollege, begleitet den Rookie",
 };
 
 export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -41,13 +45,14 @@ export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donners
  * Welche Positionen eine Show braucht.
  *
  * ULMFASSBAR und Magic Memories in allen Fassungen (Family Special, für
- * Schwaben, Silvester) brauchen FOH, T1 und T2. Den Flo-Zirkus macht Ben
- * allein (T2). Was nicht unsere eigene Show ist (RegioTV), braucht keinen Dienst.
+ * Schwaben, Silvester) brauchen FOH, T1, T2 und den eingeweihten
+ * Zuschauer. Den Flo-Zirkus macht Ben allein (T2). Was nicht unsere
+ * eigene Show ist (RegioTV), braucht keinen Dienst.
  */
 export function positionenDerShow(name: string): FestePosition[] {
   if (/regio\s*tv/i.test(name)) return [];
   if (/flo-?zirkus/i.test(name)) return ["T2"];
-  return ["FOH", "T1", "T2"];
+  return ["FOH", "T1", "T2", "ZUSCHAUER"];
 }
 
 /** Wochentag eines Datums JJJJ-MM-TT, 0 = Sonntag. */
