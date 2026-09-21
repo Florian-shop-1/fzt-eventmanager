@@ -323,18 +323,13 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
 
       <form action={preiseSpeichern} className="space-y-2">
         <h3 className="text-sm font-semibold">Preise</h3>
-        <p className="text-xs text-leise">
-          Abgemacht mit Osman: rund ein Viertel des Netto-Verkaufspreises, also etwa 22 % vom Gästepreis.
-          Die Stillweine haben einen einheitlichen Preis. Alte Bestellungen behalten ihren Preis.
-        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-leise">
               <tr>
                 <th className="py-1">Sorte</th>
-                <th className="py-1">VK Gast brutto €</th>
-                <th className="py-1">Preis Gastro netto €</th>
-                <th className="py-1">Anteil am VK</th>
+                <th className="py-1">Preis für Gäste €</th>
+                <th className="py-1">Preis Gastro €</th>
                 <th className="py-1">aktiv</th>
               </tr>
             </thead>
@@ -347,10 +342,6 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
                   </td>
                   <td className="py-1 pr-2">
                     <input name={`ek:${a.id}`} defaultValue={betrag(a.ekCent)} inputMode="decimal" className="w-24" />
-                  </td>
-                  <td className="py-1 pr-2 text-xs text-leise">
-                    {Math.round((a.ekCent / a.vkCent) * 100)} % brutto ·{" "}
-                    {Math.round((a.ekCent / (a.vkCent / 1.19)) * 100)} % netto
                   </td>
                   <td className="py-1">
                     <input type="checkbox" name={`aktiv:${a.id}`} defaultChecked={a.aktiv} />
