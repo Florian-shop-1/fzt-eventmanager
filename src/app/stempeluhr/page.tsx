@@ -435,7 +435,14 @@ async function Einrichtung() {
       <form action={standortSpeichern} className="mt-3 space-y-3">
         <p className="text-leise">
           Der Mittelpunkt ist die Grethe-Weiser-Straße 2. Wer weiter als der Umkreis entfernt ist, kann nicht
-          stempeln. Steh am besten im Haus und übernimm deinen eigenen Standort, dann passt der Mittelpunkt genau.
+          stempeln. Meldet das Handy während der Arbeitszeit, dass jemand das Gelände verlassen hat, stempelt das
+          Programm ihn automatisch aus und schickt ihm und euch eine Mail.
+        </p>
+        <p className="text-leise">
+          Das geht nur, solange der Eventmanager auf dem Handy offen ist und der Standort halbwegs genau ist: Am
+          Rechner oder mit ausgeschaltetem GPS ist die Position schnell zweihundert Meter daneben, dann merkt das
+          Programm den Heimweg nicht. Dafür gibt es die Stundengrenze darunter: Danach wird auf jeden Fall
+          ausgestempelt.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="block">
@@ -451,7 +458,7 @@ async function Einrichtung() {
             <input name="radius" type="number" min={30} max={2000} defaultValue={e.radiusM} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-leise">Meldung nach wie vielen Stunden</span>
+            <span className="mb-1 block text-xs text-leise">Automatisch ausstempeln nach wie vielen Stunden</span>
             <input name="maxStunden" type="number" min={1} max={24} defaultValue={e.maxStunden} />
           </label>
         </div>

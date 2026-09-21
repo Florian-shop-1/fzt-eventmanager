@@ -20,6 +20,7 @@ import {
 import { BestellungPopup, type OffeneBestellung } from "@/components/BestellungPopup";
 import { nebenbeiPruefen } from "@/lib/stempel/wache";
 import { zustandVon } from "@/lib/stempel/db";
+import { StempelWache } from "@/components/StempelWache";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -239,6 +240,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </header>
         )}
+
+        {/*
+          Wer eingestempelt ist, meldet still seinen Standort. Verlaesst er
+          das Gelaende, stempelt der Server ihn aus (Florian, 21.09.2026).
+        */}
+        {stempelZustand && stempelZustand !== "aus" && <StempelWache />}
 
         {offeneBestellungen.length > 0 && (
           <BestellungPopup offen={offeneBestellungen} abstellort={ABSTELLORT} />

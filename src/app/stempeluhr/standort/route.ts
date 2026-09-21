@@ -41,6 +41,7 @@ export async function POST(request: Request) {
   const gemeldet = kommen
     ? await gelaendeVerlassen({
         kommenId: kommen.id,
+        benutzerId: b.id,
         name: b.name,
         seit: kommen.zeitpunkt,
         entfernungM: p.entfernungM,

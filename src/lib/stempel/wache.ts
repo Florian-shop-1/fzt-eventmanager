@@ -17,7 +17,7 @@
 
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stunden, werIstDa } from "./db";
+import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stempelSetzen, stunden, werIstDa } from "./db";
 
 /**
  * Nach so vielen Minuten Arbeit ohne Pause kommt die Erinnerung.
@@ -52,22 +52,99 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
 }
 
 /**
+ * Stempelt jemanden automatisch aus.
+ *
+ * Wer das Gelände verlässt, arbeitet nicht mehr. Bisher wurde das nur
+ * gemeldet, die Zeit lief weiter (Florian, 21.09.2026). Jetzt setzt das
+ * Programm selbst den Feierabendstempel und schreibt dazu, warum. Die
+ * Zeit lässt sich hinterher korrigieren, dafür gibt es die Anträge und
+ * die Korrektur in der Stempeluhr.
+ */
+export async function automatischAusstempeln(o: {
+  benutzerId: string;
+  name: string;
+  grund: "gelaende" | "zu_lange";
+  entfernungM?: number;
+}): Promise<void> {
+  const notiz =
+    o.grund === "gelaende"
+      ? `Automatisch ausgestempelt: Gelände verlassen${o.entfernungM ? `, rund ${o.entfernungM} m entfernt` : ""}`
+      : "Automatisch ausgestempelt: zu lange eingestempelt";
+
+  await stempelSetzen({
+    benutzerId: o.benutzerId,
+    name: o.name,
+    art: "gehen",
+    imHaus: false,
+    quelle: "auto",
+    notiz,
+  });
+
+  const p = (await db()`select email from benutzer where id = ${o.benutzerId}`) as Array<{ email: string }>;
+  if (!p[0]?.email) return;
+  try {
+    await mailVerschicken({
+      an: p[0].email,
+      betreff: "Du wurdest automatisch ausgestempelt",
+      text: [
+        `Hallo ${o.name.split(" ")[0]},`,
+        "",
+        o.grund === "gelaende"
+          ? "dein Handy hat gemeldet, dass du nicht mehr auf dem Gelände bist, du warst aber noch eingestempelt."
+          : "du warst ungewöhnlich lange eingestempelt, ohne Feierabend zu stempeln.",
+        "",
+        `Das Programm hat dich deshalb um ${new Date().toLocaleTimeString("de-DE", {
+          timeZone: "Europe/Berlin",
+          hour: "2-digit",
+          minute: "2-digit",
+        })} Uhr ausgestempelt.`,
+        "",
+        "Stimmt die Zeit nicht? Dann stell in der Stempeluhr kurz einen Änderungswunsch,",
+        "das Büro trägt die richtige Zeit ein:",
+        `${APP}/stempeluhr#antrag`,
+      ].join("\n"),
+    });
+  } catch (f) {
+    console.error("[stempel] Hinweis auf das automatische Ausstempeln fehlgeschlagen:", f);
+  }
+}
+
+/**
  * Jemand ist laut Handy nicht mehr auf dem Gelände, aber noch eingestempelt.
  * Wird von der Stempeluhr gemeldet, während sie offen ist.
  */
 export async function gelaendeVerlassen(o: {
   kommenId: string;
+  benutzerId: string;
   name: string;
   seit: string;
   entfernungM: number;
+  /** Wahr, wenn die Person gerade selbst von unterwegs ausgestempelt hat. */
+  schonGestempelt?: boolean;
 }): Promise<boolean> {
   if (await schonGemeldet(o.kommenId, "gelaende_verlassen")) return false;
   await meldungMerken(o.kommenId, "gelaende_verlassen");
-  await melden(`${o.name} hat das Gelände verlassen, ohne auszustempeln`, [
-    `${o.name} ist seit ${zeit(o.seit)} eingestempelt.`,
-    `Das Handy meldet gerade rund ${o.entfernungM} Meter Entfernung vom Haus.`,
-    "Bitte nachfragen oder die Zeit von Hand korrigieren.",
-  ]);
+  if (!o.schonGestempelt) {
+    await automatischAusstempeln({
+      benutzerId: o.benutzerId,
+      name: o.name,
+      grund: "gelaende",
+      entfernungM: o.entfernungM,
+    });
+  }
+  await melden(
+    o.schonGestempelt
+      ? `${o.name} hat von außerhalb ausgestempelt`
+      : `${o.name} hat das Gelände verlassen und wurde ausgestempelt`,
+    [
+      `${o.name} war seit ${zeit(o.seit)} eingestempelt.`,
+      `Das Handy hat rund ${o.entfernungM} Meter Entfernung vom Haus gemeldet.`,
+      o.schonGestempelt
+        ? "Der Feierabendstempel kam von ihm selbst, nur eben nicht im Haus."
+        : "Das Programm hat den Feierabend automatisch gestempelt.",
+      "Wenn die Zeit nicht stimmt, in der Stempeluhr unter „Zeiten korrigieren“ ändern.",
+    ],
+  );
   return true;
 }
 
@@ -85,10 +162,11 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
     if (stundenOffen < e.maxStunden) continue;
     if (await schonGemeldet(p.kommenId, "zu_lange")) continue;
     await meldungMerken(p.kommenId, "zu_lange");
-    await melden(`${p.name} ist seit ${stunden(p.minuten)} Stunden eingestempelt`, [
+    await automatischAusstempeln({ benutzerId: p.benutzerId, name: p.name, grund: "zu_lange" });
+    await melden(`${p.name} war ${stunden(p.minuten)} Stunden eingestempelt und wurde ausgestempelt`, [
       `${p.name} hat am ${zeit(p.seit)} eingestempelt und seitdem nicht ausgestempelt.`,
-      p.zustand === "pause" ? "Die Pause läuft noch." : "Die Arbeitszeit läuft noch.",
-      "Vermutlich wurde das Ausstempeln vergessen.",
+      "Das Programm hat den Feierabend automatisch gestempelt.",
+      "Vermutlich wurde das Ausstempeln vergessen. Die Zeit lässt sich in der Stempeluhr korrigieren.",
     ]);
     gemeldet++;
   }

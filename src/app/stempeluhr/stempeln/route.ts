@@ -76,7 +76,10 @@ export async function POST(request: Request) {
     // gemeldet wird, falls die Stempeluhr das schon getan hat.
     await gelaendeVerlassen({
       kommenId: stand.stempelHeute.find((s) => s.art === "kommen")?.id ?? stempel.id,
+      benutzerId: b.id,
       name: b.name,
+      // Hier hat er selbst gestempelt, es braucht keinen zweiten Stempel.
+      schonGestempelt: true,
       seit: stand.stempelHeute.find((s) => s.art === "kommen")?.zeitpunkt ?? stempel.zeitpunkt,
       entfernungM: pruefung.entfernungM,
     }).catch(() => undefined);
