@@ -29,9 +29,16 @@ function termin(eventId: string | null | undefined): string | null {
 }
 
 /**
- * Ticketarten, Preise und Verkaufszeiten des Termins. Das ist die Seite, auf
- * der eine falsch hinterlegte Verkaufszeit zu korrigieren ist.
+ * Die Seite "Verkauf": Verkaufszeitraum und Kontingent. Dort wird ein falsch
+ * hinterlegtes Verkaufsende korrigiert, also der häufigste Grund für eine
+ * Warteliste, die keine sein dürfte.
  */
+export function ditixVerkaufLink(eventId: string | null | undefined): string | null {
+  const basis = termin(eventId);
+  return basis ? `${basis}/sale` : null;
+}
+
+/** Ticketarten und Preise des Termins, etwa wenn auf einer Kategorie kein Preis steht. */
 export function ditixTicketsLink(eventId: string | null | undefined): string | null {
   const basis = termin(eventId);
   return basis ? `${basis}/tickets` : null;

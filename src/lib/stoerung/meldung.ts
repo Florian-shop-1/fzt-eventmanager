@@ -8,7 +8,7 @@
 
 import { mailVerschicken } from "@/lib/mail/versand";
 import { stoerungMailVermerken, type TechnikStoerung } from "@/lib/db/technik-stoerung";
-import { ditixTerminLink, ditixTicketsLink } from "@/lib/ditix/link";
+import { ditixTicketsLink, ditixVerkaufLink } from "@/lib/ditix/link";
 
 export const STOERUNG_EMPFAENGER = [
   "info@florianzimmer.com",
@@ -51,10 +51,10 @@ export async function stoerungMailen(s: TechnikStoerung): Promise<void> {
     `Show: ${s.showName ?? "unbekannt"}`,
     `Termin: ${s.eventZeit ?? "unbekannt"}`,
     s.eventId ? `Ditix-Termin-Nr.: ${s.eventId}` : "",
-    // Direkt in Ditix, damit niemand erst den Termin suchen muss. Zuerst die
-    // Ticketseite: Dort stehen Preise und Verkaufszeiten, dort wird es behoben.
-    ditixTicketsLink(s.eventId) ? `Preise und Verkaufszeiten in Ditix: ${ditixTicketsLink(s.eventId)}` : "",
-    ditixTerminLink(s.eventId) ? `Übersicht zum Termin: ${ditixTerminLink(s.eventId)}` : "",
+    // Direkt in Ditix, damit niemand erst den Termin suchen muss: Verkauf für
+    // den Verkaufszeitraum, Tickets für die Preise der Kategorien.
+    ditixVerkaufLink(s.eventId) ? `Verkaufszeitraum in Ditix: ${ditixVerkaufLink(s.eventId)}` : "",
+    ditixTicketsLink(s.eventId) ? `Ticketarten und Preise: ${ditixTicketsLink(s.eventId)}` : "",
     "",
     s.art === "warteliste"
       ? "Der Gast hat statt des Saalplans die Warteliste gesehen, obwohl diese Show bis zum Showbeginn im Verkauf ist."
