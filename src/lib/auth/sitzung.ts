@@ -62,6 +62,23 @@ export function darfZeitenAendern(b: { rolle: Rolle; email: string } | null | un
   return ZEITEN_TEAM.includes(b.email.toLowerCase());
 }
 
+/**
+ * Wer Einladungslinks ausgeben darf: Florian und Kevin
+ * (Florian, 21.09.2026). Zugänge anlegen und Rollen ändern bleibt beim Chef.
+ */
+export function darfEinladen(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  if (!b) return false;
+  return b.rolle === "chef" || ZEITEN_TEAM.includes(b.email.toLowerCase());
+}
+
+/**
+ * Wer einen Termin anlegen darf, den es im Ticketshop nicht gibt
+ * (exklusiv gebuchtes Haus): Florian und Kevin (Florian, 21.09.2026).
+ */
+export function darfTermineAnlegen(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  return darfEinladen(b);
+}
+
 export interface AngemeldeterBenutzer {
   id: string;
   name: string;
@@ -214,6 +231,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   if (pfad.startsWith("/whatsapp")) return true;
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
+  // Einladungslinks: Die Seite prüft selbst, ob diese Person sie ausgeben darf.
+  if (pfad.startsWith("/einstellungen/einladungen") && ["chef", "team"].includes(rolle)) return true;
   // Stempeln darf jeder Mitarbeiter, auch das Foyer und das Showteam.
   // Stempeln ist nur für interne Mitarbeiter. Ob diese Person dazugehört,
   // hängt nicht nur an der Rolle (siehe darfStempeln), deshalb prüft die

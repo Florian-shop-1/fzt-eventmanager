@@ -5,6 +5,8 @@ import { whatsappFreigabeUmschalten } from "@/lib/whatsapp/aktionen";
 import { BenutzerAnlegen } from "@/components/BenutzerAnlegen";
 import { PasswortZuruecksetzen } from "@/components/PasswortZuruecksetzen";
 import { vorZeit } from "@/components/Status";
+import { BEREICHE, einladungsLink, offeneEinladungen } from "@/lib/dienstplan/einladung";
+import { LinkKopieren } from "@/components/LinkKopieren";
 
 export const metadata = { title: "Zugänge | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -42,6 +44,7 @@ export default async function BenutzerSeite() {
            startpasswort, whatsapp, art, personalbogen_am
       from benutzer order by rolle, name
   `) as Zeile[];
+  const offeneLinks = await offeneEinladungen();
 
   return (
     <div className="space-y-6">
@@ -49,6 +52,13 @@ export default async function BenutzerSeite() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
           <div className="flex gap-2">
+            <a
+              href="/einstellungen/einladungen"
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
+              style={{ background: "var(--gold-dunkel)" }}
+            >
+              Einladungslinks
+            </a>
             <a
               href="/einstellungen/mail"
               className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
@@ -74,6 +84,48 @@ export default async function BenutzerSeite() {
           seines vergisst, bekommt über <strong>Passwort neu vergeben</strong> ein neues.
         </p>
       </header>
+
+      <section className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold">Einladungslinks je Bereich</h2>
+          <a href="/einstellungen/einladungen" className="text-sm underline">
+            verwalten
+          </a>
+        </div>
+        <p className="text-sm text-leise">
+          Schick den passenden Link an die neue Person. Sie trägt sich selbst ein und ist sofort
+          drin, ohne Startpasswort. Jeder, der den Link hat, kann sich einen Zugang anlegen.
+        </p>
+        <ul className="space-y-3">
+          {BEREICHE.map((b) => {
+            const e = offeneLinks.find((o) => o.rolle === b.rolle);
+            return (
+              <li key={b.rolle} className="border-t border-linie pt-3 first:border-0 first:pt-0">
+                <p className="text-sm font-medium">
+                  {b.titel}
+                  {e && e.benutzt > 0 && (
+                    <span className="ml-2 text-xs text-leise">
+                      {e.benutzt} {e.benutzt === 1 ? "Eintrag" : "Einträge"}
+                    </span>
+                  )}
+                </p>
+                {e ? (
+                  <div className="mt-1">
+                    <LinkKopieren link={einladungsLink(e.token)} />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-leise">
+                    Noch kein Link.{" "}
+                    <a href={`/einstellungen/einladungen#b-${b.rolle}`} className="underline">
+                      Jetzt einen erstellen
+                    </a>
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <div className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
         <table className="w-full text-sm">

@@ -2,8 +2,12 @@
  * Einladungslinks. Siehe migrations/041_einladung.sql und 042.
  *
  * Zwei Arten:
- *  - der offene Link fürs Showteam: einer für alle, jeder wählt seine Position
+ *  - offene Links je Bereich: einer für alle (Showteam, Foyer, Gastro ...),
+ *    beliebig oft verwendbar, bis er abgeschaltet oder erneuert wird
  *  - persönliche Links: für eine Person, feste E-Mail und Rolle, nur einmal gültig
+ *
+ * Wer den Link hat, legt sich einen Zugang an. Deshalb gehört er nur in
+ * den Kreis, für den er gedacht ist; ein neuer Link schaltet den alten ab.
  */
 
 import { randomBytes } from "node:crypto";
@@ -20,13 +24,74 @@ export interface Einladung {
   geheimhaltungErledigt: boolean;
 }
 
-export async function aktiveEinladung(): Promise<{ token: string; benutzt: number } | null> {
+/** Die Bereiche, für die es einen offenen Link geben kann. */
+export const BEREICHE: Array<{ rolle: string; titel: string; text: string; achtung?: string }> = [
+  {
+    rolle: "showteam",
+    titel: "Showteam",
+    text: "Abenddienst im Saal. Jeder wählt beim Eintragen selbst, was er macht (FOH, T1, T1 Rookie, T2), und landet im Dienstplan.",
+  },
+  {
+    rolle: "foyer",
+    titel: "Foyer",
+    text: "Einlass, Stehtische, Bändchen. Sieht Foyerblatt, Einlassliste, Sitzplan und Parkplätze, aber keine Preise.",
+  },
+  {
+    rolle: "gastro",
+    titel: "Gastronomie",
+    text: "Küche und Sitzplan. Sieht Funktionsheet, Küchenblatt und Belegung, keine Preise und keine Kundendaten.",
+  },
+  {
+    rolle: "kiosk",
+    titel: "Food-Kiosk",
+    text: "Externer Partner. Sieht ausschließlich die Stehtische je Abend.",
+  },
+  {
+    rolle: "team",
+    titel: "Büro",
+    text: "Vorgänge, Angebote, Versand, Planung.",
+    achtung: "Das Büro sieht Preise, Kundendaten und Zahlungen. Diesen Link nur an Leute geben, die das dürfen.",
+  },
+  {
+    rolle: "buchhaltung",
+    titel: "Buchhaltung",
+    text: "Nur die Belege und die Buchhaltung, nichts aus dem Tagesgeschäft.",
+    achtung: "Führt direkt in die Buchhaltung. Am besten nur persönlich weitergeben.",
+  },
+];
+
+export interface OffenerLink {
+  rolle: string;
+  token: string;
+  benutzt: number;
+  erstelltVon: string | null;
+  erstelltAm: string;
+}
+
+/** Der offene Link eines Bereichs, oder null. */
+export async function aktiveEinladung(rolle = "showteam"): Promise<{ token: string; benutzt: number } | null> {
   const z = (await db()`
     select token, benutzt from einladung
-     where aktiv and rolle = 'showteam' and email is null
+     where aktiv and rolle = ${rolle} and email is null
      order by erstellt_am desc limit 1
   `) as Array<{ token: string; benutzt: number }>;
   return z[0] ?? null;
+}
+
+/** Alle offenen Links, für die Übersicht bei den Zugängen. */
+export async function offeneEinladungen(): Promise<OffenerLink[]> {
+  const z = (await db()`
+    select distinct on (rolle) rolle, token, benutzt, erstellt_von, erstellt_am
+      from einladung where aktiv and email is null
+     order by rolle, erstellt_am desc
+  `) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    rolle: String(r.rolle),
+    token: String(r.token),
+    benutzt: Number(r.benutzt ?? 0),
+    erstelltVon: (r.erstellt_von as string) ?? null,
+    erstelltAm: new Date(r.erstellt_am as string).toISOString(),
+  }));
 }
 
 /** Die Einladung zu einem Link, oder null, wenn er nicht (mehr) gilt. */
@@ -52,11 +117,11 @@ export async function einladungGueltig(token: string): Promise<boolean> {
   return (await einladungLesen(token)) !== null;
 }
 
-/** Neuer Showteam-Link, der alte gilt ab sofort nicht mehr. */
-export async function neueEinladung(von: string): Promise<string> {
+/** Neuer offener Link für einen Bereich, der alte gilt ab sofort nicht mehr. */
+export async function neueEinladung(von: string, rolle = "showteam"): Promise<string> {
   const token = randomBytes(18).toString("base64url");
-  await db()`update einladung set aktiv = false where rolle = 'showteam' and email is null`;
-  await db()`insert into einladung (token, erstellt_von) values (${token}, ${von})`;
+  await db()`update einladung set aktiv = false where rolle = ${rolle} and email is null`;
+  await db()`insert into einladung (token, rolle, erstellt_von) values (${token}, ${rolle}, ${von})`;
   return token;
 }
 
@@ -70,8 +135,8 @@ export async function persoenlicheEinladung(e: Omit<Einladung, "token">, von: st
   return token;
 }
 
-export async function einladungAbschalten(): Promise<void> {
-  await db()`update einladung set aktiv = false where rolle = 'showteam' and email is null`;
+export async function einladungAbschalten(rolle = "showteam"): Promise<void> {
+  await db()`update einladung set aktiv = false where rolle = ${rolle} and email is null`;
 }
 
 /** Zählt mit. Persönliche Links gelten danach nicht mehr. */

@@ -1,6 +1,7 @@
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { PasswortFormular } from "@/components/PasswortFormular";
 import { NameFormular } from "@/components/NameFormular";
+import { abmelden } from "@/lib/auth/aktionen";
 
 export const metadata = { title: "Mein Zugang | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -55,6 +56,21 @@ export default async function KontoSeite() {
           </p>
         )}
         <PasswortFormular />
+      </section>
+
+      {/*
+        Abmelden gibt es nur hier, nicht in der Kopfzeile: Wer im Haus
+        arbeitet, soll angemeldet bleiben (Florian, 21.09.2026).
+      */}
+      <section className="text-center">
+        <form action={abmelden}>
+          <button type="submit" className="text-sm text-leise underline hover:text-text">
+            Von diesem Gerät abmelden
+          </button>
+        </form>
+        <p className="mt-1 text-xs text-leise">
+          Nur nötig, wenn jemand anderes an dein Handy geht. Sonst bleibst du einfach angemeldet.
+        </p>
       </section>
     </div>
   );

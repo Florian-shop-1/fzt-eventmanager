@@ -3,13 +3,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfSeite, darfStempeln, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
-import { abmelden } from "@/lib/auth/aktionen";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
 import {
   ABSTELLORT,
@@ -188,6 +187,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     Bestellungen
                   </Link>
                 )}
+                {/* Einladungslinks: Florian und Kevin, unabhängig von der Rolle. */}
+                {darfEinladen(benutzer) && benutzer.rolle !== "chef" && (
+                  <Link
+                    href="/einstellungen/einladungen"
+                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
+                  >
+                    Einladungen
+                  </Link>
+                )}
                 {darfBuchhaltung(benutzer) && (
                   <Link
                     href="/bewirtung"
@@ -218,14 +226,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                         : "AUS-stempeln"}
                   </Link>
                 )}
+                {/*
+                  Kein Abmelden in der Kopfzeile: Die Leute sollen angemeldet
+                  bleiben, so wie sie es von anderen Programmen kennen. Wer
+                  sich wirklich abmelden will, findet es unter seinem Namen
+                  (Florian, 21.09.2026).
+                */}
                 <Link href="/konto" className="text-leise hover:text-text">
                   {benutzer.name}
                 </Link>
-                <form action={abmelden}>
-                  <button type="submit" className="text-leise underline hover:text-text">
-                    abmelden
-                  </button>
-                </form>
               </div>
             </div>
           </header>

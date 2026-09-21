@@ -18,6 +18,7 @@
  */
 
 import { isoDatum, uhrzeit, ZEITZONE } from "@/lib/zeit";
+import { alleEigenenTermine, beginnAls } from "@/lib/db/eigenertermin";
 
 const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
 
@@ -71,7 +72,25 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
     );
   }
 
-  return (await antwort.json()) as ShopVorstellung[];
+  const ausDemShop = (await antwort.json()) as ShopVorstellung[];
+
+  // Dazu die eigenen Termine: exklusiv gebuchte Abende, für die es keine
+  // Karten im Shop gibt (siehe lib/db/eigenertermin.ts). Ab hier ist kein
+  // Unterschied mehr zu sehen, alles Weitere läuft gleich.
+  const eigene = await alleEigenenTermine().catch(() => []);
+  return [
+    ...ausDemShop,
+    ...eigene.map((e) => ({
+      id: e.eventId,
+      code: "",
+      name: e.name,
+      timestampStart: beginnAls(e.datum, e.uhrzeit),
+      timestampEnd: beginnAls(e.datum, e.uhrzeit) + 2 * 60 * 60 * 1000,
+      location: "Florian Zimmer Theater",
+      ticketSaleState: "CLOSED",
+      kind: "eigen",
+    })),
+  ];
 }
 
 /**

@@ -14,9 +14,11 @@ import { Logo } from "@/components/Logo";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { zeitpunkt } from "@/lib/zeit";
-import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
+import { EigeneTermine } from "@/components/EigeneTermine";
+import { eigeneTermine } from "@/lib/db/eigenertermin";
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
 
@@ -43,6 +45,10 @@ export default async function FunktionsheetSeite({
   // Jeder Spieltag bekommt ein Funktionsheet, auch ohne Menügäste:
   // Bar, Foyer und Service laufen trotzdem.
   const termine = await alleShowtage();
+  // Termine ohne Ticketshop (exklusiv gebuchtes Haus) legen nur Florian
+  // und Kevin an. Alle anderen sehen den Kasten gar nicht.
+  const darfTermine = darfTermineAnlegen(benutzer);
+  const eigene = darfTermine ? await eigeneTermine() : [];
   // Ohne Abend in der Adresse: der erste des gewaehlten Monats.
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
   // Seiten: Adresse, dann der zuletzt angesehene Abend, dann heute.
@@ -53,12 +59,15 @@ export default async function FunktionsheetSeite({
 
   if (!gewaehlt) {
     return (
-      <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm">
-        <div className="font-medium">Keine Vorstellungen gefunden</div>
-        <p className="mt-1 text-leise">
-          Der Spielplan aus dem Ticketshop ist gerade nicht erreichbar. Ohne ihn weiß das
-          Programm nicht, an welchen Tagen gespielt wird.
-        </p>
+      <div className="space-y-6">
+        <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm">
+          <div className="font-medium">Keine Vorstellungen gefunden</div>
+          <p className="mt-1 text-leise">
+            Der Spielplan aus dem Ticketshop ist gerade nicht erreichbar. Ohne ihn weiß das
+            Programm nicht, an welchen Tagen gespielt wird.
+          </p>
+        </div>
+        {darfTermine && <EigeneTermine termine={eigene} zurueckZu="/funktionsheet" />}
       </div>
     );
   }
@@ -106,6 +115,8 @@ export default async function FunktionsheetSeite({
                 : "noch nichts gebucht",
         }))}
       />
+
+      {darfTermine && <EigeneTermine termine={eigene} zurueckZu={`/funktionsheet?abend=${gewaehlt}`} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <DruckKnopf
