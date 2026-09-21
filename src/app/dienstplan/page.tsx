@@ -178,7 +178,8 @@ export default async function DienstplanSeite({
               schichten={schichten}
               ich={ich}
               planer={planer}
-              personen={personen.filter((p) => !istAbwesend(abwesend, p.id, s.termin.datum))}
+              personen={personen}
+              abgemeldet={new Set(personen.filter((p) => istAbwesend(abwesend, p.id, s.termin.datum)).map((p) => p.id))}
               markiert={markiert === s.termin.ditixEventId}
             />
           ))}
@@ -200,6 +201,7 @@ function ShowKarte({
   ich,
   planer,
   personen,
+  abgemeldet,
   markiert,
 }: {
   schicht: Schicht;
@@ -207,6 +209,8 @@ function ShowKarte({
   ich: Person | null;
   planer: boolean;
   personen: Person[];
+  /** Wer sich für diesen Tag abgemeldet hat (Urlaub, privat). */
+  abgemeldet: Set<string>;
   markiert: boolean;
 }) {
   const t = schicht.termin;
@@ -233,6 +237,7 @@ function ShowKarte({
             ich={ich}
             planer={planer}
             personen={personen}
+            abgemeldet={abgemeldet}
             schonDabei={Boolean(ich && schonImDienst(schichten, ich.id, t))}
           />
         ))}
@@ -247,6 +252,7 @@ function SlotZeile({
   ich,
   planer,
   personen,
+  abgemeldet,
   schonDabei,
 }: {
   slot: Slot;
@@ -254,6 +260,7 @@ function SlotZeile({
   ich: Person | null;
   planer: boolean;
   personen: Person[];
+  abgemeldet: Set<string>;
   schonDabei: boolean;
 }) {
   const meins = Boolean(ich && slot.person?.id === ich.id);
@@ -373,11 +380,19 @@ function SlotZeile({
               <select name="wert" defaultValue={slot.person?.id ?? "offen"} className="text-sm">
                 <option value="fest">wie fester Plan</option>
                 <option value="offen">offen, Kollegen fragen</option>
+                {/*
+                  Beim Shadow zählt die Position, die er begleitet: Für
+                  einen Rookie auf FOH kommt nur jemand infrage, der FOH
+                  allein kann. Wer sich abgemeldet hat, steht mit Hinweis
+                  trotzdem in der Liste: Das Büro darf ihn einteilen, es
+                  weiß dann nur, was es tut (Florian, 22.09.2026).
+                */}
                 {personen
-                  .filter((p) => darfUebernehmen(p, slot.position) || p.id === slot.person?.id)
+                  .filter((p) => darfUebernehmen(p, slot.position, slot.fuer) || p.id === slot.person?.id)
                   .map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
+                      {abgemeldet.has(p.id) ? " (abgemeldet)" : ""}
                     </option>
                   ))}
               </select>

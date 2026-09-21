@@ -23,6 +23,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ScanHase } from "@/components/ScanHase";
 
 export interface TafelSitz {
   id: number;
@@ -42,6 +43,8 @@ export interface TafelSitz {
 export interface TafelGruppe {
   schluessel: string;
   art: "gruppe" | "gast";
+  /** Sitzt hinten und soll nach vorne. Nur diese werden farbig. */
+  umzusetzen?: boolean;
   titel: string;
   zusatz: string;
   personen: number;
@@ -113,6 +116,8 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
   const [hinweis, setHinweis] = useState("");
   const [laeuft, setLaeuft] = useState(false);
+  /** Der Hase aus dem Zylinder, wenn eine Gruppe vorne sitzt. */
+  const [lob, setLob] = useState<string | null>(null);
 
   const umsetzungVon = useCallback(
     (k: string) => gesetzt.find((x) => x.schluessel === k) ?? null,
@@ -146,7 +151,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         const k = schluesselVon(ids);
         const ausPlan = gruppen.find((g) => g.schluessel === k);
         liste.push(
-          ausPlan ?? {
+          ausPlan ? { ...ausPlan, umzusetzen: true } : {
             schluessel: k,
             art: "gruppe",
             titel: blockText(lauf),
@@ -165,7 +170,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       }
       schliessen();
     }
-    for (const g of gruppen) if (g.art === "gast") liste.push(g);
+    for (const g of gruppen) if (g.art === "gast") liste.push({ ...g, umzusetzen: true });
     return liste;
   }, [reihen, gruppen]);
 
@@ -254,17 +259,27 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
    */
   const mitVorschlag = useMemo(() => alleGruppen.filter((g) => g.vorschlagIds.length > 0), [alleGruppen]);
 
+  /**
+   * Bunt wird nur, was zu tun ist: Gruppen, die hinten sitzen, und die
+   * schon umgesetzten. Wer ohnehin gut sitzt, bleibt schlicht schwarz,
+   * sonst leuchtet der halbe Saal (Florian, 22.09.2026).
+   */
+  const bunte = useMemo(
+    () => alleGruppen.filter((g) => g.umzusetzen || gesetzt.some((x) => x.schluessel === g.schluessel)),
+    [alleGruppen, gesetzt],
+  );
+
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
-    alleGruppen.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
+    bunte.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
     return m;
-  }, [alleGruppen]);
+  }, [bunte]);
 
   const farbeVon = useMemo(() => {
     const m = new Map<string, string>();
-    alleGruppen.forEach((g, i) => m.set(g.schluessel, FARBEN[i % FARBEN.length]));
+    bunte.forEach((g, i) => m.set(g.schluessel, FARBEN[i % FARBEN.length]));
     return m;
-  }, [alleGruppen]);
+  }, [bunte]);
 
   const vorlageVon = useMemo(() => {
     const m = new Map<number, TafelGruppe>();
@@ -318,6 +333,20 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         { schluessel: g.schluessel, zielText, zielIds: block.map((s) => s.id), gesetztVon: null },
       ]);
       setInDerHand(null);
+      // Nur loben, wenn es wirklich ein Upgrade war: nach vorne, in die
+      // spielbare Zone. Ein Verschieben innerhalb der Zone ist Alltag.
+      // Gelobt wird, was wirklich ein Upgrade ist: Die Gruppe sitzt
+      // weiter vorne als vorher. Kleines y heißt nah an der Bühne.
+      const alt = g.quelleIds
+        .map((id) => sitze.find((y) => y.id === id))
+        .filter((y): y is TafelSitz => Boolean(y));
+      const mitte = (liste: TafelSitz[]) => liste.reduce((n, y) => n + y.y, 0) / Math.max(1, liste.length);
+      const nachVorne = alt.length === 0 || mitte(block) < mitte(alt) - 1;
+      if (nachVorne && g.umzusetzen) {
+        setLob(
+          `${g.personen} ${g.personen === 1 ? "Gast sitzt" : "Gäste sitzen"} jetzt auf ${blockText(block)}. Gut gemacht!`,
+        );
+      }
       router.refresh();
     } catch {
       setHinweis("Keine Verbindung. Bitte noch einmal versuchen.");
@@ -689,6 +718,8 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
           </span>
         </figcaption>
       </figure>
+
+      {lob && <ScanHase stimmung="lob" text={lob} dauer={4000} onWeg={() => setLob(null)} />}
 
       <div className="rounded-lg border px-4 py-3" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
         <p className="text-xs font-semibold uppercase tracking-wide text-gold-dunkel">Das sagst du</p>
