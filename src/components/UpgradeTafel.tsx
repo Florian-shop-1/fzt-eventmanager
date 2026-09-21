@@ -281,6 +281,34 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   const vorschlag = gruppe && !u ? vorschlagBlock(gruppe) : null;
   const offeneVorschlaege = alleGruppen.filter((g) => g.vorschlagText && !umsetzungVon(g.schluessel));
 
+  /**
+   * Die Empfehlung liegt als Vorlage im Plan: Jede vorgeschlagene Gruppe
+   * bekommt einen Buchstaben, der an ihren jetzigen Plätzen und an den
+   * vorgeschlagenen steht. Ein Tipp auf die Vorlage setzt sie dorthin
+   * (Florian, 21.09.2026).
+   */
+  const mitVorschlag = useMemo(
+    () => alleGruppen.filter((g) => g.vorschlagIds.length > 0),
+    [alleGruppen],
+  );
+
+  const buchstabeVon = useMemo(() => {
+    const m = new Map<string, string>();
+    mitVorschlag.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
+    return m;
+  }, [mitVorschlag]);
+
+  /** Sitz -> Gruppe, deren Vorschlag hier liegt (nur solange sie nicht sitzt). */
+  const vorlageVon = useMemo(() => {
+    const m = new Map<number, TafelGruppe>();
+    for (const g of mitVorschlag) {
+      if (umsetzungVon(g.schluessel)) continue;
+      for (const id of g.vorschlagIds) m.set(id, g);
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mitVorschlag, gesetzt]);
+
   return (
     <section className="space-y-3 print:hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -301,8 +329,18 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       >
         {!gruppe ? (
           <p className="text-sm">
-            <strong>Tipp eine Gruppe im Saal an</strong> (die dunklen Plätze). Danach tippst du ihren neuen Platz an.
-            {offeneVorschlaege.length > 0 && " Die goldenen Gruppen sitzen hinten und sollten nach vorne."}
+            {offeneVorschlaege.length > 0 ? (
+              <>
+                <strong>Die Buchstaben zeigen, wohin welche Gruppe soll.</strong> Sind die Gäste da, tipp auf ihr
+                helles Feld vorne, dann sitzen sie dort. Willst du sie woanders hinsetzen: erst die Gruppe antippen,
+                dann den Platz.
+              </>
+            ) : (
+              <>
+                <strong>Tipp eine Gruppe im Saal an</strong> (die dunklen Plätze). Danach tippst du ihren neuen Platz
+                an.
+              </>
+            )}
           </p>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -397,6 +435,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               </text>
               {r.sitze.map((s) => {
                 const start = starts.get(s.id);
+                const vorlage = vorlageVon.get(s.id) ?? null;
                 // Markiert wird nur, was in der spielbaren Zone liegt. Weiter
                 // hinten geht auch, wird aber nicht vorgeschlagen.
                 const empfohlen = Boolean(start && start.every((x) => x.inZone));
@@ -428,9 +467,17 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   fuellung = gold ? "var(--gold-hell)" : "var(--text)";
                   rahmen = gold ? "var(--gold-dunkel)" : "var(--text)";
                   schrift = gold ? "var(--gold-dunkel)" : "#fff";
+                  const bu = buchstabeVon.get(heimat.schluessel);
+                  if (gold && bu) beschriftung = bu;
+                } else if (vorlage) {
+                  // Die Vorlage: hier soll die Gruppe hin.
+                  fuellung = "var(--flaeche)";
+                  rahmen = "var(--gold)";
+                  schrift = "var(--gold-dunkel)";
+                  beschriftung = buchstabeVon.get(vorlage.schluessel) ?? s.name;
                 }
 
-                const klickbar = Boolean(start) || Boolean(heimat) || Boolean(zielVon);
+                const klickbar = Boolean(start) || Boolean(heimat) || Boolean(zielVon) || Boolean(vorlage);
 
                 return (
                   <g
@@ -440,6 +487,14 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                       if (start && gruppe) {
                         void setzen(gruppe, start);
                         return;
+                      }
+                      // Tipp auf die Vorlage: Die Gruppe setzt sich genau dorthin.
+                      if (vorlage) {
+                        const block = vorschlagBlock(vorlage);
+                        if (block) {
+                          void setzen(vorlage, block);
+                          return;
+                        }
                       }
                       const ziel = zielVon ? alleGruppen.find((g) => g.schluessel === zielVon) : null;
                       const naechste = ziel ?? heimat;
@@ -465,7 +520,8 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                       rx={3.5}
                       fill={empfohlen ? "var(--gut-hell)" : fuellung}
                       stroke={empfohlen ? "var(--gut)" : inDerHandHier ? "var(--gold)" : rahmen}
-                      strokeWidth={empfohlen || inDerHandHier ? 2.4 : 1}
+                      strokeWidth={empfohlen || inDerHandHier ? 2.4 : vorlage ? 1.8 : 1}
+                      strokeDasharray={vorlage && !empfohlen ? "4 2" : undefined}
                     />
                     <text
                       x={s.x}
@@ -519,6 +575,13 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
           <span>
             <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--gut)" }} />
             umgesetzt
+          </span>
+          <span>
+            <span
+              className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
+              style={{ borderColor: "var(--gold)" }}
+            />
+            Empfehlung: A gehört zu A
           </span>
           <span>
             <span
