@@ -231,6 +231,8 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   if (pfad.startsWith("/whatsapp")) return true;
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
+  // Der eigene Merkzettel gehört jedem, unabhängig von der Rolle.
+  if (pfad.startsWith("/merker")) return true;
   // Einladungslinks: Die Seite prüft selbst, ob diese Person sie ausgeben darf.
   if (pfad.startsWith("/einstellungen/einladungen") && ["chef", "team"].includes(rolle)) return true;
   // Stempeln darf jeder Mitarbeiter, auch das Foyer und das Showteam.

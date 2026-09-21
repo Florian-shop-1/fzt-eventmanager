@@ -10,6 +10,7 @@ import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
+import { faelligeMerker } from "@/lib/db/merker";
 import {
   ABSTELLORT,
   bestellungen as weinBestellungen,
@@ -112,6 +113,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       });
     }
     aufgaben.push(...(await dienstplanErinnerungen(benutzer).catch(() => [])));
+
+    // Der eigene Merkzettel: meldet sich alle paar Tage, siehe lib/db/merker.ts.
+    for (const m of await faelligeMerker(benutzer.id).catch(() => [])) {
+      aufgaben.push({
+        href: "/merker",
+        leiste: m.titel,
+        knopf: "Merkzettel",
+        hase: `${m.titel}${m.text ? ` ${m.text}` : ""}`,
+      });
+    }
 
     // Nebenbei prüfen, ob jemand das Ausstempeln vergessen hat.
     if (["chef", "team"].includes(benutzer.rolle)) void nebenbeiPruefen();

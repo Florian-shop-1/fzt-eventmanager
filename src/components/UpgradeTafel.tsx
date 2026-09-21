@@ -11,9 +11,12 @@
  * setzt sie. Ein dritter Tipp auf „zurück“ macht es rückgängig.
  *
  * Hin und her geht also mit zwei Tippern, in beide Richtungen, auch
- * mehrfach. Wer will, schreibt den Namen vom Ticket dazu; dann steht er
- * im Plan an der Gruppe. Den Namen liefert Ditix uns nicht mit, deshalb
- * das Feld.
+ * mehrfach.
+ *
+ * Wer da sitzt, steht nicht dabei: Ditix liefert über den öffentlichen
+ * Weg nur, welcher Platz verkauft ist, nicht an wen. Sobald es einen
+ * Zugang zum Ditix-Backend gibt, kommen die Namen von selbst dazu; bis
+ * dahin erinnert der Merkzettel daran (siehe lib/db/merker.ts).
  *
  * In Ditix wird nichts geändert, das hier ist unsere Notiz für den Abend.
  */
@@ -315,13 +318,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                 {u ? "Tipp einen anderen Platz an, oder setz sie zurück." : "Jetzt den neuen Platz antippen."}
               </p>
             </div>
-
-            <input
-              value={name || u?.gastName || ""}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name vom Ticket (freiwillig)"
-              className="w-52 text-sm"
-            />
 
             {vorschlag && (
               <button
