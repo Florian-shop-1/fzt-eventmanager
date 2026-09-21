@@ -355,6 +355,33 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     }
   }
 
+  /** Alle Umsetzungen des Abends zurücknehmen, in einem Rutsch. */
+  async function allesZurueck() {
+    if (laeuft || gesetzt.length === 0) return;
+    setLaeuft(true);
+    setHinweis("");
+    try {
+      for (const x of [...gesetzt]) {
+        const g = gruppeZu(x.schluessel);
+        await fetch("/upgrades/setzen", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId,
+            schluessel: x.schluessel,
+            art: g?.art ?? "gruppe",
+            gastId: g?.gastId,
+          }),
+        });
+      }
+      setGesetzt([]);
+      setInDerHand(null);
+      router.refresh();
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
   async function zurueck(g: TafelGruppe) {
     setLaeuft(true);
     try {
@@ -472,6 +499,39 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
         <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
           {hinweis}
         </p>
+      )}
+
+      {/*
+        Rückgängig, ohne erst die Gruppe suchen zu müssen: das Letzte mit
+        einem Tipp, und wenn alles durcheinandergeraten ist, der ganze
+        Abend auf Anfang (Florian, 22.09.2026).
+      */}
+      {gesetzt.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-linie bg-flaeche px-4 py-2 text-sm">
+          <span className="text-leise">
+            Zuletzt: {gruppeZu(gesetzt[gesetzt.length - 1].schluessel)?.titel ?? "Gruppe"} →{" "}
+            {gesetzt[gesetzt.length - 1].zielText}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const letzte = gruppeZu(gesetzt[gesetzt.length - 1].schluessel);
+              if (letzte) void zurueck(letzte);
+            }}
+            disabled={laeuft}
+            className="rounded-md border border-linie px-3 py-1.5 font-medium"
+          >
+            Rückgängig
+          </button>
+          <button
+            type="button"
+            onClick={() => void allesZurueck()}
+            disabled={laeuft}
+            className="text-xs underline text-leise"
+          >
+            alle {gesetzt.length} Umsetzungen zurücknehmen
+          </button>
+        </div>
       )}
 
       {/* Gäste von der Gästeliste haben keinen Platz im Saal: hier aufnehmen. */}
