@@ -1,20 +1,17 @@
 "use client";
 
 /**
- * Der Saalplan zum Anfassen: Gruppe aufnehmen, hinschieben, loslassen.
+ * Der Saalplan zum Antippen: erst die Gruppe, dann ihr neuer Platz.
  *
- * Am Einlass steht der Mitarbeiter mit dem Tablet vor den Gästen. Er
- * nimmt die Gruppe mit dem Finger auf und zieht sie dorthin, wo sie
- * sitzen soll; unter dem Finger zeigt der Plan, welche Plätze sie belegen
- * würde. Loslassen setzt sie. Aufnehmen geht immer wieder, auch aus dem
- * neuen Platz heraus, beliebig oft (Florian, 21.09.2026).
+ * Ziehen mit dem Finger war auf dem Tablet zu wacklig, deshalb bleibt es
+ * beim Tippen (Florian, 21.09.2026): Ein Tipp nimmt die Gruppe in die
+ * Hand, der nächste setzt sie. Nochmal antippen nimmt sie wieder auf,
+ * beliebig oft, auch zurück.
  *
- * Wer lieber tippt, tippt: Ein kurzer Tipp nimmt die Gruppe in die Hand,
- * der nächste setzt sie. Beides läuft über dieselben Zeigerereignisse,
- * damit Finger, Maus und Stift gleich behandelt werden.
- *
- * Die Empfehlung liegt als Vorlage im Plan: derselbe Buchstabe hinten wie
- * vorne, ein Tipp auf das gestrichelte Feld reicht.
+ * Damit man sieht, wer wohin gehört, hat jede Gruppe eine eigene Farbe
+ * und einen Buchstaben. Die alten Plätze behalten sie gestrichelt, die
+ * neuen ausgefüllt, und ein Pfeil dazwischen zeigt die Richtung. So ist
+ * auch nach einer Stunde noch klar, wo eine Gruppe hergekommen ist.
  *
  * Wer da sitzt, steht nicht dabei: Ditix liefert über den öffentlichen
  * Weg nur, welcher Platz verkauft ist, nicht an wen. Sobald es einen
@@ -24,7 +21,7 @@
  * In Ditix wird nichts geändert, das hier ist unsere Notiz für den Abend.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface TafelSitz {
@@ -71,8 +68,24 @@ interface Props {
 }
 
 const KANTE = 22;
-/** Ab so vielen Pixeln gilt es als Ziehen und nicht mehr als Tippen. */
-const ZIEH_SCHWELLE = 8;
+
+/**
+ * Eine Farbe je Gruppe. Bewusst kräftige, gut unterscheidbare Töne, die
+ * auch auf dem Tablet bei Hallenlicht noch auseinanderzuhalten sind. Rot
+ * fehlt: Das gehört dem Platz, der frei bleiben muss.
+ */
+const FARBEN = [
+  "#1d4ed8",
+  "#0f766e",
+  "#7c3aed",
+  "#be185d",
+  "#c2410c",
+  "#4d7c0f",
+  "#0e7490",
+  "#78350f",
+  "#334155",
+  "#9b7f2f",
+];
 
 function zahl(name: string): number {
   const n = Number(name);
@@ -96,15 +109,10 @@ function schluesselVon(ids: number[]): string {
 
 export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Props) {
   const router = useRouter();
-  const svg = useRef<SVGSVGElement | null>(null);
   const [inDerHand, setInDerHand] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
   const [hinweis, setHinweis] = useState("");
   const [laeuft, setLaeuft] = useState(false);
-
-  /** Was gerade am Finger hängt, solange gezogen wird. */
-  const [zieht, setZieht] = useState<{ schluessel: string; x: number; y: number } | null>(null);
-  const griff = useRef<{ schluessel: string; startX: number; startY: number; bewegt: boolean } | null>(null);
 
   const umsetzungVon = useCallback(
     (k: string) => gesetzt.find((x) => x.schluessel === k) ?? null,
@@ -179,7 +187,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   );
 
   const gruppe = gruppeZu(inDerHand);
-  const gezogene = gruppeZu(zieht?.schluessel ?? null);
 
   const masse = useMemo(() => {
     const xs = sitze.map((s) => s.x);
@@ -229,7 +236,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   /** Alle Plätze, an denen die Gruppe in der Hand anfangen könnte. */
   const starts = useMemo(() => {
     const treffer = new Map<number, TafelSitz[]>();
-    const g = gruppe ?? gezogene;
+    const g = gruppe;
     if (!g) return treffer;
     for (const r of reihen) {
       for (const s of r.sitze) {
@@ -238,16 +245,26 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       }
     }
     return treffer;
-  }, [gruppe, gezogene, reihen, blockAb]);
+  }, [gruppe, reihen, blockAb]);
 
-  /** Die Empfehlung als Vorlage: gleicher Buchstabe hinten wie vorne. */
+  /**
+   * Jede Gruppe bekommt Buchstabe und Farbe, nicht nur die aus dem
+   * Vorschlag: So sieht man auf einen Blick, welcher Block wohin gehört,
+   * und findet nach dem Umsetzen den alten Platz wieder.
+   */
   const mitVorschlag = useMemo(() => alleGruppen.filter((g) => g.vorschlagIds.length > 0), [alleGruppen]);
 
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
-    mitVorschlag.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
+    alleGruppen.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
     return m;
-  }, [mitVorschlag]);
+  }, [alleGruppen]);
+
+  const farbeVon = useMemo(() => {
+    const m = new Map<string, string>();
+    alleGruppen.forEach((g, i) => m.set(g.schluessel, FARBEN[i % FARBEN.length]));
+    return m;
+  }, [alleGruppen]);
 
   const vorlageVon = useMemo(() => {
     const m = new Map<number, TafelGruppe>();
@@ -270,46 +287,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     },
     [sitze, istFrei],
   );
-
-  /* ---------------------------------------------------------------- *
-   * Ziehen: Der Finger führt die Gruppe, der Plan schnappt ein.
-   * ---------------------------------------------------------------- */
-
-  /** Bildschirmpunkt in die Koordinaten der Zeichnung umrechnen. */
-  function punkt(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
-    const el = svg.current;
-    const ctm = el?.getScreenCTM();
-    if (!el || !ctm) return null;
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-    return { x: p.x, y: p.y };
-  }
-
-  /** Der Platz unter dem Finger, wenn er nah genug ist. */
-  const sitzBei = useCallback(
-    (p: { x: number; y: number }): TafelSitz | null => {
-      let beste: TafelSitz | null = null;
-      let abstand = KANTE * 1.2;
-      for (const s of sitze) {
-        const d = Math.hypot(s.x - p.x, s.y - p.y);
-        if (d < abstand) {
-          abstand = d;
-          beste = s;
-        }
-      }
-      return beste;
-    },
-    [sitze],
-  );
-
-  /** Wo die gezogene Gruppe gerade landen würde. */
-  const ziel = useMemo(() => {
-    if (!zieht || !gezogene) return null;
-    const s = sitzBei({ x: zieht.x, y: zieht.y });
-    if (!s) return null;
-    return blockAb(s, Math.max(1, gezogene.personen), gezogene.schluessel);
-  }, [zieht, gezogene, blockAb, sitzBei]);
-
-  const zielIds = useMemo(() => new Set((ziel ?? []).map((s) => s.id)), [ziel]);
 
   async function setzen(g: TafelGruppe, block: TafelSitz[]) {
     if (laeuft) return;
@@ -365,56 +342,24 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
     }
   }
 
-  function aufnehmen(e: React.PointerEvent, g: TafelGruppe) {
-    griff.current = { schluessel: g.schluessel, startX: e.clientX, startY: e.clientY, bewegt: false };
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-  }
-
-  function bewegen(e: React.PointerEvent) {
-    const g = griff.current;
-    if (!g) return;
-    if (!g.bewegt) {
-      if (Math.hypot(e.clientX - g.startX, e.clientY - g.startY) <= ZIEH_SCHWELLE) return;
-      g.bewegt = true;
-      setInDerHand(g.schluessel);
-    }
-    const p = punkt(e);
-    if (p) setZieht({ schluessel: g.schluessel, x: p.x, y: p.y });
-  }
-
-  function loslassen(aufSitz: TafelSitz | null) {
-    const g = griff.current;
-    griff.current = null;
-
-    // Gezogen: dort ablegen, wo der Finger ist.
-    if (g?.bewegt) {
-      const gez = gruppeZu(g.schluessel);
-      const block = ziel;
-      setZieht(null);
-      if (gez && block) void setzen(gez, block);
-      else setHinweis("Dort passt die Gruppe nicht am Stück hin. Nimm sie noch einmal auf.");
-      return;
-    }
-    setZieht(null);
-
-    // Nur getippt: je nachdem, worauf.
-    if (!aufSitz) return;
+  /** Ein Tipp im Plan: aufnehmen, setzen oder die Empfehlung annehmen. */
+  function tippen(s: TafelSitz) {
     setHinweis("");
-    const start = starts.get(aufSitz.id);
+    const start = starts.get(s.id);
     if (start && gruppe) {
       void setzen(gruppe, start);
       return;
     }
-    const vorlage = vorlageVon.get(aufSitz.id);
-    if (vorlage) {
+    const vorlage = vorlageVon.get(s.id);
+    if (vorlage && !gruppe) {
       const block = vorschlagBlock(vorlage);
       if (block) {
         void setzen(vorlage, block);
         return;
       }
     }
-    const daraufGesetzt = belegt.get(aufSitz.id);
-    const naechste = gruppeZu(daraufGesetzt ?? null) ?? gruppeVonSitz.get(aufSitz.id) ?? null;
+    const daraufGesetzt = belegt.get(s.id);
+    const naechste = gruppeZu(daraufGesetzt ?? null) ?? gruppeVonSitz.get(s.id) ?? null;
     if (naechste) setInDerHand(naechste.schluessel === inDerHand ? null : naechste.schluessel);
   }
 
@@ -442,10 +387,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       >
         {!gruppe ? (
           <p className="text-sm">
-            <strong>Gruppe mit dem Finger nehmen und dorthin schieben, wo sie sitzen soll.</strong> Loslassen setzt
-            sie, aufnehmen geht immer wieder.
+            <strong>Erst die Gruppe antippen, dann ihren neuen Platz.</strong> Jede Gruppe hat eine eigene Farbe und
+            einen Buchstaben; nach dem Umsetzen zeigt ein Pfeil, wo sie hergekommen ist.
             {offeneVorschlaege.length > 0 &&
-              " Die Buchstaben zeigen die Empfehlung: A gehört zu A. Ein Tipp auf das gestrichelte Feld reicht auch."}
+              " Das gestrichelte Feld in derselben Farbe ist die Empfehlung: ein Tipp darauf genügt."}
           </p>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -458,13 +403,9 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                 </span>
               </p>
               <p className="text-sm">
-                {zieht
-                  ? ziel
-                    ? `Loslassen: ${blockText(ziel)}`
-                    : "Hier passt sie nicht am Stück hin."
-                  : u
-                    ? "Zieh sie weiter, oder setz sie zurück."
-                    : "Hinschieben und loslassen, oder den neuen Platz antippen."}
+                {u
+                  ? `Sitzt jetzt auf ${u.zielText}. Tipp einen anderen Platz an, oder setz sie zurück.`
+                  : "Jetzt den neuen Platz antippen: Die grünen Felder sind frei."}
               </p>
             </div>
 
@@ -535,17 +476,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
 
       <figure className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
         <svg
-          ref={svg}
           viewBox={masse.viewBox}
           className="mx-auto block h-auto w-full select-none"
           role="img"
           aria-label="Saalplan zum Umsetzen"
-          onPointerMove={bewegen}
-          onPointerUp={() => loslassen(null)}
-          onPointerCancel={() => {
-            griff.current = null;
-            setZieht(null);
-          }}
         >
           <rect
             x={masse.links - KANTE}
@@ -587,13 +521,15 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               </text>
               {r.sitze.map((s) => {
                 const start = starts.get(s.id);
-                const empfohlen = Boolean(start && start.every((x) => x.inZone)) && !zieht;
-                const unterFinger = zielIds.has(s.id);
+                const empfohlen = Boolean(start && start.every((x) => x.inZone));
                 const vorlage = vorlageVon.get(s.id) ?? null;
                 const zielVon = belegt.get(s.id);
                 const heimat = gruppeVonSitz.get(s.id) ?? null;
                 const heimatUmsetzung = heimat ? umsetzungVon(heimat.schluessel) : null;
                 const inDerHandHier = heimat?.schluessel === inDerHand || zielVon === inDerHand;
+                const eigner = zielVon ?? heimat?.schluessel ?? vorlage?.schluessel ?? null;
+                const farbe = eigner ? (farbeVon.get(eigner) ?? "var(--text)") : "var(--text)";
+                const zeichen = eigner ? (buchstabeVon.get(eigner) ?? s.name) : s.name;
 
                 let fuellung = "var(--flaeche)";
                 let rahmen = "var(--linie)";
@@ -609,49 +545,46 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   fuellung = "var(--linie)";
                   schrift = "var(--flaeche)";
                 } else if (zielVon) {
-                  fuellung = "var(--gut)";
-                  rahmen = "var(--gut)";
+                  // Hier sitzt die Gruppe jetzt: ihre Farbe, ausgefüllt.
+                  fuellung = farbe;
+                  rahmen = farbe;
                   schrift = "#fff";
+                  beschriftung = zeichen;
                 } else if (heimat && heimatUmsetzung) {
+                  // Der alte Platz: dieselbe Farbe, aber nur als Umriss.
                   fuellung = "var(--flaeche)";
-                  rahmen = "var(--gut)";
-                  schrift = "var(--gut)";
-                  beschriftung = "→";
+                  rahmen = farbe;
+                  schrift = farbe;
+                  beschriftung = zeichen;
                 } else if (heimat) {
-                  const gold = Boolean(heimat.vorschlagText);
-                  fuellung = gold ? "var(--gold-hell)" : "var(--text)";
-                  rahmen = gold ? "var(--gold-dunkel)" : "var(--text)";
-                  schrift = gold ? "var(--gold-dunkel)" : "#fff";
-                  const bu = buchstabeVon.get(heimat.schluessel);
-                  if (gold && bu) beschriftung = bu;
+                  fuellung = farbe;
+                  rahmen = farbe;
+                  schrift = "#fff";
+                  beschriftung = zeichen;
                 } else if (vorlage) {
+                  // Die Empfehlung: gestrichelt, in der Farbe der Gruppe.
                   fuellung = "var(--flaeche)";
-                  rahmen = "var(--gold)";
-                  schrift = "var(--gold-dunkel)";
-                  beschriftung = buchstabeVon.get(vorlage.schluessel) ?? s.name;
+                  rahmen = farbe;
+                  schrift = farbe;
+                  beschriftung = zeichen;
                 }
 
-                const greifbar = Boolean(heimat ?? zielVon);
+                const anfassbar = Boolean(heimat ?? zielVon) || Boolean(start) || Boolean(vorlage);
 
                 return (
                   <g
                     key={s.id}
-                    onPointerDown={(e) => {
-                      const g = zielVon ? gruppeZu(zielVon) : heimat;
-                      if (g) aufnehmen(e, g);
-                    }}
-                    onPointerUp={() => loslassen(s)}
-                    style={{
-                      cursor: greifbar ? "grab" : start || vorlage ? "pointer" : "default",
-                      touchAction: greifbar ? "none" : undefined,
-                    }}
+                    onClick={() => tippen(s)}
+                    style={{ cursor: anfassbar ? "pointer" : "default" }}
                   >
                     <title>
-                      {greifbar
-                        ? `${(zielVon ? gruppeZu(zielVon)?.personen : heimat?.personen) ?? 0} Gäste, zum Verschieben ziehen`
-                        : s.freiLassen
-                          ? "Reihe 4, Platz 3 bleibt frei"
-                          : `Reihe ${s.reihe}, Platz ${s.name}`}
+                      {zielVon
+                        ? `${gruppeZu(zielVon)?.titel ?? ""} sitzt jetzt hier`
+                        : heimat
+                          ? `${heimat.personen} Gäste, ${heimat.titel}`
+                          : s.freiLassen
+                            ? "Reihe 4, Platz 3 bleibt frei"
+                            : `Reihe ${s.reihe}, Platz ${s.name}`}
                     </title>
                     <rect
                       x={s.x - KANTE / 2}
@@ -659,27 +592,19 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                       width={KANTE}
                       height={KANTE}
                       rx={3.5}
-                      fill={unterFinger ? "var(--gold)" : empfohlen ? "var(--gut-hell)" : fuellung}
-                      stroke={
-                        unterFinger
-                          ? "var(--gold-dunkel)"
-                          : empfohlen
-                            ? "var(--gut)"
-                            : inDerHandHier
-                              ? "var(--gold)"
-                              : rahmen
-                      }
-                      strokeWidth={unterFinger || empfohlen || inDerHandHier ? 2.4 : vorlage ? 1.8 : 1}
-                      strokeDasharray={vorlage && !empfohlen && !unterFinger ? "4 2" : undefined}
+                      fill={empfohlen ? "var(--gut-hell)" : fuellung}
+                      stroke={empfohlen ? "var(--gut)" : inDerHandHier ? "var(--text)" : rahmen}
+                      strokeWidth={empfohlen || inDerHandHier ? 2.4 : vorlage || heimatUmsetzung ? 1.8 : 1}
+                      strokeDasharray={(vorlage || (heimat && heimatUmsetzung)) && !empfohlen ? "4 2" : undefined}
                     />
                     <text
                       x={s.x}
                       y={s.y + 3.2}
                       textAnchor="middle"
                       fontSize={9}
-                      fill={unterFinger ? "#fff" : empfohlen ? "var(--gut)" : schrift}
+                      fill={empfohlen ? "var(--gut)" : schrift}
                     >
-                      {unterFinger ? "●" : empfohlen ? "＋" : beschriftung}
+                      {empfohlen ? "＋" : beschriftung}
                     </text>
                   </g>
                 );
@@ -687,47 +612,69 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
             </g>
           ))}
 
-          {/* Was am Finger hängt: die Gruppe als Schild über dem Plan. */}
-          {zieht && gezogene && (
-            <g pointerEvents="none">
-              <rect
-                x={zieht.x - 34}
-                y={zieht.y - KANTE - 10}
-                width={68}
-                height={18}
-                rx={4}
-                fill="var(--gold-dunkel)"
-                opacity={0.92}
+          {/*
+            Der Weg jeder umgesetzten Gruppe: vom alten zum neuen Platz.
+            Damit sieht man auch später noch, wer von wo nach vorne kam.
+          */}
+          {gesetzt.map((x) => {
+            const g = gruppeZu(x.schluessel);
+            if (!g || g.quelleIds.length === 0) return null;
+            const alt = g.quelleIds
+              .map((id) => sitze.find((y) => y.id === id))
+              .filter((y): y is TafelSitz => Boolean(y));
+            const neu = x.zielIds
+              .map((id) => sitze.find((y) => y.id === id))
+              .filter((y): y is TafelSitz => Boolean(y));
+            if (alt.length === 0 || neu.length === 0) return null;
+            const von = {
+              x: alt.reduce((n, y) => n + y.x, 0) / alt.length,
+              y: alt.reduce((n, y) => n + y.y, 0) / alt.length,
+            };
+            const nach = {
+              x: neu.reduce((n, y) => n + y.x, 0) / neu.length,
+              y: neu.reduce((n, y) => n + y.y, 0) / neu.length,
+            };
+            const farbe = farbeVon.get(x.schluessel) ?? "var(--text)";
+            const aktiv = x.schluessel === inDerHand;
+            return (
+              <line
+                key={x.schluessel}
+                x1={von.x}
+                y1={von.y}
+                x2={nach.x}
+                y2={nach.y}
+                stroke={farbe}
+                strokeWidth={aktiv ? 2.4 : 1.4}
+                strokeDasharray="5 4"
+                opacity={aktiv ? 0.95 : 0.45}
+                pointerEvents="none"
               />
-              <text x={zieht.x} y={zieht.y - KANTE + 3} textAnchor="middle" fontSize={10} fill="#fff">
-                {gezogene.personen} {gezogene.personen === 1 ? "Gast" : "Gäste"}
-              </text>
-            </g>
-          )}
+            );
+          })}
         </svg>
 
         <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-leise">
-          <span>
-            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--text)" }} />
-            verkauft
-          </span>
+          <span>Jede Gruppe hat eine Farbe und einen Buchstaben.</span>
           <span>
             <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
-              style={{ background: "var(--gold-hell)", borderColor: "var(--gold-dunkel)" }}
+              className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
+              style={{ background: FARBEN[0] }}
             />
-            sitzt hinten, sollte nach vorne
+            sitzt hier
           </span>
           <span>
             <span
               className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
-              style={{ borderColor: "var(--gold)" }}
+              style={{ borderColor: FARBEN[0] }}
             />
-            Empfehlung: A gehört zu A
+            kam von hier, oder Empfehlung
           </span>
           <span>
-            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--gut)" }} />
-            umgesetzt
+            <span
+              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+              style={{ background: "var(--gut-hell)", borderColor: "var(--gut)" }}
+            />
+            freier Platz für die gewählte Gruppe
           </span>
           <span>
             <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
