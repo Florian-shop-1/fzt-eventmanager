@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { hinweisAendern, hinweisAnlegen, hinweisLoeschen } from "@/lib/db/abendhinweis";
+import { firmenmenueAendern, firmenmenueEintragen } from "@/lib/db/firmenmenue";
 
 const text = (f: FormData, k: string, max = 4000) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -24,7 +25,8 @@ function zurueck(f: FormData, meldung: string): never {
   revalidatePath("/foyer");
   const ziel = text(f, "zurueckZu", 200) || "/funktionsheet";
   const trenner = ziel.includes("?") ? "&" : "?";
-  redirect(`${ziel}${trenner}meldung=${encodeURIComponent(meldung)}#hinweise`);
+  const anker = text(f, "anker", 40) || "hinweise";
+  redirect(`${ziel}${trenner}meldung=${encodeURIComponent(meldung)}#${anker}`);
 }
 
 export async function hinweisSpeichern(f: FormData): Promise<void> {
@@ -48,4 +50,16 @@ export async function hinweisEntfernen(f: FormData): Promise<void> {
   await darf();
   await hinweisLoeschen(text(f, "id", 40));
   zurueck(f, "Hinweis gelöscht.");
+}
+
+/** Firmenmenüs eintragen, direkt aus dem Funktionsheet heraus. */
+export async function firmaEintragen(f: FormData): Promise<void> {
+  const e = await firmenmenueEintragen(f);
+  zurueck(f, e.meldung);
+}
+
+/** Gemeldete Menüzahlen einer Firma nachtragen oder korrigieren. */
+export async function firmaAendern(f: FormData): Promise<void> {
+  const e = await firmenmenueAendern(f);
+  zurueck(f, e.meldung);
 }

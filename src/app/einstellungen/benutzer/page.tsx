@@ -53,7 +53,7 @@ export default async function BenutzerSeite() {
               href="/einstellungen/mail"
               className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
             >
-              Mailversand
+              E-Mail-Versand
             </a>
             <a
               href="/einstellungen/whatsapp"

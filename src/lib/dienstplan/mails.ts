@@ -131,3 +131,56 @@ export async function eingeteiltMail(o: {
     link: `${appUrl()}/dienstplan`,
   }));
 }
+
+/**
+ * Florian oder Kevin fragen eine Person direkt. Nur sie bekommt die Mail,
+ * und sie entscheidet selbst: zusagen oder absagen.
+ */
+export async function anfrageMail(o: {
+  an: Person;
+  wer: string;
+  termin: Vorstellungstermin;
+  position: Position;
+  notiz?: string | null;
+}) {
+  const vorname = o.wer.split(" ")[0];
+  const link = `${appUrl()}/dienstplan?s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`;
+  return schicken([o.an], `Kannst du am ${datumMitWochentag(o.termin.datum)}?`, () => ({
+    absaetze: [
+      `${vorname} fragt, ob du diese Show übernehmen kannst:`,
+      ...(o.notiz ? [`Notiz von ${vorname}: ${o.notiz}`] : []),
+      "Im Dienstplan kannst du mit einem Klick zusagen oder absagen. Erst mit deiner Zusage bist du eingeteilt.",
+    ],
+    liste: [schichtText(o.termin, o.position)],
+    knopf: "Zusagen oder absagen",
+    link,
+  }));
+}
+
+/** Die Antwort auf eine direkte Anfrage geht zurück an den, der gefragt hat. */
+export async function anfrageAntwortMail(o: {
+  an: Person;
+  wer: string;
+  termin: Vorstellungstermin;
+  position: Position;
+  zugesagt: boolean;
+  grund?: string | null;
+}) {
+  return schicken(
+    [o.an],
+    o.zugesagt
+      ? `${o.wer} sagt zu: ${datumMitWochentag(o.termin.datum)}`
+      : `${o.wer} kann am ${datumMitWochentag(o.termin.datum)} nicht`,
+    () => ({
+      absaetze: o.zugesagt
+        ? [`${o.wer} hat zugesagt und ist eingeteilt.`]
+        : [
+            `${o.wer} kann diese Schicht nicht übernehmen${o.grund ? ` (${o.grund})` : ""}.`,
+            "Die Schicht steht wieder so da wie vorher. Du kannst jemand anderen fragen.",
+          ],
+      liste: [schichtText(o.termin, o.position)],
+      knopf: "Zum Dienstplan",
+      link: `${appUrl()}/dienstplan?s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`,
+    }),
+  );
+}

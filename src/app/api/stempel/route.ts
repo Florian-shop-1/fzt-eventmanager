@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { langeSchichtenPruefen } from "@/lib/stempel/wache";
+import { langeSchichtenPruefen, pausenPflichtPruefen } from "@/lib/stempel/wache";
 
 /**
  * Prüft regelmäßig, wer zu lange eingestempelt ist, und meldet das an
@@ -18,7 +18,9 @@ export async function GET(request: Request) {
   try {
     const e = await langeSchichtenPruefen();
     if (e.gemeldet > 0) console.log(`[stempel] ${e.gemeldet} lange Schicht(en) gemeldet`);
-    return NextResponse.json({ ok: true, ...e });
+    const p = await pausenPflichtPruefen();
+    if (p.erinnert > 0) console.log(`[stempel] ${p.erinnert} Pausenerinnerung(en)`);
+    return NextResponse.json({ ok: true, ...e, ...p });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     console.error("[stempel] Lauf fehlgeschlagen:", meldung);

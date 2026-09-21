@@ -17,7 +17,16 @@
 
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { einstellungLesen, meldungMerken, schonGemeldet, stunden, werIstDa } from "./db";
+import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stunden, werIstDa } from "./db";
+
+/**
+ * Nach so vielen Minuten Arbeit ohne Pause kommt die Erinnerung.
+ *
+ * § 4 Arbeitszeitgesetz: Wer länger als sechs Stunden arbeitet, muss eine
+ * Pause gemacht haben. Erinnert wird schon etwas davor, damit die Pause
+ * noch innerhalb der sechs Stunden beginnen kann.
+ */
+export const PAUSE_NACH_MINUTEN = 345;
 
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
@@ -52,7 +61,7 @@ export async function gelaendeVerlassen(o: {
   seit: string;
   entfernungM: number;
 }): Promise<boolean> {
-  if (await schonGemeldet(o.kommenId)) return false;
+  if (await schonGemeldet(o.kommenId, "gelaende_verlassen")) return false;
   await meldungMerken(o.kommenId, "gelaende_verlassen");
   await melden(`${o.name} hat das Gelände verlassen, ohne auszustempeln`, [
     `${o.name} ist seit ${zeit(o.seit)} eingestempelt.`,
@@ -74,7 +83,7 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
   for (const p of da) {
     const stundenOffen = p.minuten / 60;
     if (stundenOffen < e.maxStunden) continue;
-    if (await schonGemeldet(p.kommenId)) continue;
+    if (await schonGemeldet(p.kommenId, "zu_lange")) continue;
     await meldungMerken(p.kommenId, "zu_lange");
     await melden(`${p.name} ist seit ${stunden(p.minuten)} Stunden eingestempelt`, [
       `${p.name} hat am ${zeit(p.seit)} eingestempelt und seitdem nicht ausgestempelt.`,
@@ -87,6 +96,50 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
 }
 
 /**
+ * Die Pausenerinnerung: Wer lange ohne Pause arbeitet, bekommt eine Mail.
+ *
+ * Das Arbeitszeitgesetz erlaubt höchstens sechs Stunden am Stück ohne
+ * Pause. Daran müssen wir uns halten, deshalb erinnert das Programm kurz
+ * vorher. Wenn es an dem Tag wirklich nicht anders ging, kann der
+ * Mitarbeiter im Programm dazuschreiben, warum.
+ */
+export async function pausenPflichtPruefen(): Promise<{ erinnert: number }> {
+  const e = await einstellungLesen();
+  if (!e.aktiv) return { erinnert: 0 };
+  let erinnert = 0;
+  for (const p of await ohnePause()) {
+    if (p.minuten < PAUSE_NACH_MINUTEN) continue;
+    if (await schonGemeldet(p.kommenId, "pause_faellig")) continue;
+    await meldungMerken(p.kommenId, "pause_faellig");
+    try {
+      await mailVerschicken({
+        an: p.email,
+        betreff: "Bitte Pause machen",
+        text: [
+          `Hallo ${p.name.split(" ")[0]},`,
+          "",
+          `du arbeitest seit ${stunden(p.minuten)} Stunden ohne Pause.`,
+          "",
+          "In Deutschland darf man nicht länger als sechs Stunden ohne Pause arbeiten",
+          "(§ 4 Arbeitszeitgesetz). Daran müssen wir uns als Betrieb halten, sonst gibt",
+          "es Ärger mit dem Amt. Bitte stempel jetzt eine Pause.",
+          "",
+          "Wenn es heute nicht anders ging, schreib bitte im Eventmanager kurz dazu,",
+          "woran es lag. Ein Satz reicht:",
+          `${APP}/stempeluhr#pause`,
+          "",
+          "Danke dir!",
+        ].join("\n"),
+      });
+      erinnert++;
+    } catch (f) {
+      console.error("[stempel] Pausenerinnerung an", p.email, "fehlgeschlagen:", f);
+    }
+  }
+  return { erinnert };
+}
+
+/**
  * Dieselbe Prüfung, aber sparsam: höchstens alle zehn Minuten.
  *
  * Wird beim Aufruf einer Seite von Florian oder Kevin mitgemacht. So fällt
@@ -96,7 +149,8 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
 let zuletztGeprueft = 0;
 
 export async function nebenbeiPruefen(): Promise<void> {
-  if (Date.now() - zuletztGeprueft < 600000) return;
+  if (Date.now() - zuletztGeprueft < 300000) return;
   zuletztGeprueft = Date.now();
   await langeSchichtenPruefen().catch((f) => console.error("[stempel] Prüfung nebenbei:", f));
+  await pausenPflichtPruefen().catch((f) => console.error("[stempel] Pausenprüfung nebenbei:", f));
 }

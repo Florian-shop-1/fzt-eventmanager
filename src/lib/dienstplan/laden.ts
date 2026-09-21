@@ -5,6 +5,7 @@
 import { kommendeTermine } from "@/lib/ditix/spielplan";
 import { isoDatum } from "@/lib/zeit";
 import { offeneSchichtenMail } from "./mails";
+import { abwesenheiten, istAbwesend, type Abwesenheit } from "./abwesend";
 import {
   allePersonen,
   einstellungLesen,
@@ -23,13 +24,16 @@ import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 /** Wie weit der Dienstplan in die Zukunft reicht. */
 export const WOCHEN_VORAUS = 10;
 
-export async function planLaden(wochen = WOCHEN_VORAUS): Promise<{ schichten: Schicht[]; personen: Person[] }> {
+export async function planLaden(
+  wochen = WOCHEN_VORAUS,
+): Promise<{ schichten: Schicht[]; personen: Person[]; abwesend: Abwesenheit[] }> {
   const bis = Date.now() + wochen * 7 * 86400000;
-  const [termine, personen, fest, einsaetze] = await Promise.all([
+  const [termine, personen, fest, einsaetze, abwesend] = await Promise.all([
     kommendeTermine(400),
     allePersonen(),
     festeTage(),
     einsaetzeAb(isoDatum(new Date())),
+    abwesenheiten(),
   ]);
   const schichten = planBauen(
     termine.filter((t) => t.beginn.getTime() <= bis),
@@ -37,7 +41,7 @@ export async function planLaden(wochen = WOCHEN_VORAUS): Promise<{ schichten: Sc
     fest,
     einsaetze,
   );
-  return { schichten, personen };
+  return { schichten, personen, abwesend };
 }
 
 /** Tage bis zur Show, heute = 0. */
@@ -57,10 +61,17 @@ export function faelligeStufe(tage: number): number {
 }
 
 /** Offene Schichten, die diese Person übernehmen könnte (für die gelbe Leiste). */
-export function offenFuer(schichten: Schicht[], p: Person, tage = 14): Array<{ termin: Vorstellungstermin; position: Position }> {
+export function offenFuer(
+  schichten: Schicht[],
+  p: Person,
+  tage = 14,
+  abwesend: Abwesenheit[] = [],
+): Array<{ termin: Vorstellungstermin; position: Position }> {
   const liste: Array<{ termin: Vorstellungstermin; position: Position }> = [];
   for (const s of schichten) {
     if (tageBis(s.termin.datum) > tage) continue;
+    // Wer an dem Tag im Urlaub ist, wird gar nicht erst gefragt.
+    if (istAbwesend(abwesend, p.id, s.termin.datum)) continue;
     for (const slot of s.slots) {
       if (!slot.offen || slot.person?.id === p.id) continue;
       if (!werKann([p], slot.position).length) continue;
@@ -77,7 +88,7 @@ export function offenFuer(schichten: Schicht[], p: Person, tage = 14): Array<{ t
  * die Mail zusätzlich an die Chefs.
  */
 export async function taeglicheErinnerung(): Promise<{ mails: number; schichten: number; fehler: string[] }> {
-  const { schichten, personen } = await planLaden(2);
+  const { schichten, personen, abwesend } = await planLaden(2);
   // Vor der Einrichtung wäre alles offen. Dann schweigen, statt Florian zuzuschütten.
   if (personen.every((p) => p.kann.size === 0)) return { mails: 0, schichten: 0, fehler: [] };
   // Bis zum 02.10.2026 trägt sich das Showteam über den Einladungslink ein.
@@ -97,7 +108,7 @@ export async function taeglicheErinnerung(): Promise<{ mails: number; schichten:
     for (const slot of s.slots) {
       if (!slot.offen || slot.erinnertStufe >= stufe) continue;
       const an = werKann(personen, slot.position, slot.person?.id).filter(
-        (p) => !schonImDienst(schichten, p.id, s.termin),
+        (p) => !schonImDienst(schichten, p.id, s.termin) && !istAbwesend(abwesend, p.id, s.termin.datum),
       );
       if (stufe === 3) for (const c of chefs) if (!an.some((p) => p.id === c.id)) an.push(c);
       if (an.length === 0) continue;

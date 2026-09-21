@@ -6,9 +6,9 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 
 const WAHL = [
   { wert: "FOH", titel: "FOH", text: "Licht und Ton" },
-  { wert: "T2", titel: "Techniker 2", text: "ich kann die Show allein" },
-  { wert: "T2neu", titel: "Techniker 2, Rookie", text: "ich bin neu, jemand Erfahrenes geht als Shadow mit" },
-  { wert: "T1", titel: "Techniker 1", text: "" },
+  { wert: "T1", titel: "Techniker 1", text: "ich kann die Show allein" },
+  { wert: "T1neu", titel: "Techniker 1, Rookie", text: "ich bin neu, jemand Erfahrenes geht als Shadow mit" },
+  { wert: "T2", titel: "Techniker 2", text: "" },
 ];
 
 /**

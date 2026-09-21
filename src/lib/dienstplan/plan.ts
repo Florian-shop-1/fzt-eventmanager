@@ -4,7 +4,7 @@
  * Die Schichten werden nicht gespeichert, sondern jedes Mal aus drei
  * Dingen zusammengesetzt:
  *  1. dem Spielplan aus Ditix (welche Shows es gibt)
- *  2. den festen Tagen (Levi freitags FOH, Ben jeden Tag T1 ...)
+ *  2. den festen Tagen (Levi freitags FOH, Ben jeden Tag T2 ...)
  *  3. den Einträgen in dienst_einsatz (übernommen, Ersatz gesucht, eingeteilt)
  *
  * So muss niemand Schichten anlegen, und eine neue Show im Spielplan
@@ -17,7 +17,7 @@ import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 export type Position = "FOH" | "T2" | "T1" | "SHADOW";
 export type FestePosition = Exclude<Position, "SHADOW">;
 
-export const POSITIONEN: FestePosition[] = ["FOH", "T2", "T1"];
+export const POSITIONEN: FestePosition[] = ["FOH", "T1", "T2"];
 
 export const BEZEICHNUNG: Record<Position, string> = {
   FOH: "FOH",
@@ -28,9 +28,11 @@ export const BEZEICHNUNG: Record<Position, string> = {
 
 export const ERKLAERUNG: Record<Position, string> = {
   FOH: "Front of House, Licht und Ton",
+  // Im Haus heißt Bens Position T2, die Runde um Mario und Noel ist T1
+  // (Florian, 21.09.2026). Genau so stehen die Werte auch in der Datenbank.
   T2: "Techniker 2",
   T1: "Techniker 1",
-  SHADOW: "erfahrener T2, begleitet den Rookie",
+  SHADOW: "erfahrener T1, begleitet den Rookie",
 };
 
 export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -39,13 +41,13 @@ export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donners
  * Welche Positionen eine Show braucht.
  *
  * ULMFASSBAR und Magic Memories in allen Fassungen (Family Special, für
- * Schwaben, Silvester) brauchen FOH, T2 und T1. Den Flo-Zirkus macht Ben
- * allein. Was nicht unsere eigene Show ist (RegioTV), braucht keinen Dienst.
+ * Schwaben, Silvester) brauchen FOH, T1 und T2. Den Flo-Zirkus macht Ben
+ * allein (T2). Was nicht unsere eigene Show ist (RegioTV), braucht keinen Dienst.
  */
 export function positionenDerShow(name: string): FestePosition[] {
   if (/regio\s*tv/i.test(name)) return [];
-  if (/flo-?zirkus/i.test(name)) return ["T1"];
-  return ["FOH", "T2", "T1"];
+  if (/flo-?zirkus/i.test(name)) return ["T2"];
+  return ["FOH", "T1", "T2"];
 }
 
 /** Wochentag eines Datums JJJJ-MM-TT, 0 = Sonntag. */
@@ -81,6 +83,10 @@ export interface Einsatz {
   suchtErsatz: boolean;
   grund: string | null;
   erinnertStufe: number;
+  /** Direkt angefragt: Diese Person soll zusagen oder absagen. */
+  angefragtId: string | null;
+  angefragtVonId: string | null;
+  angefragtNotiz: string | null;
 }
 
 /** Alle aktiven Benutzer (außer dem Food-Kiosk), mit dem, was sie können. */
@@ -115,7 +121,8 @@ export async function festeTage(): Promise<FesterTag[]> {
 
 export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
-    select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe
+    select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
+           angefragt_id, angefragt_von_id, angefragt_notiz
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
   return z.map((r) => ({
@@ -126,7 +133,44 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     suchtErsatz: Boolean(r.sucht_ersatz),
     grund: (r.grund as string) ?? null,
     erinnertStufe: Number(r.erinnert_stufe ?? 0),
+    angefragtId: (r.angefragt_id as string) ?? null,
+    angefragtVonId: (r.angefragt_von_id as string) ?? null,
+    angefragtNotiz: (r.angefragt_notiz as string) ?? null,
   }));
+}
+
+/**
+ * Eine Person direkt anfragen. Die Schicht bleibt, wie sie ist, bis die
+ * Person zusagt. Nur sie bekommt eine Mail.
+ */
+export async function anfrageSetzen(e: {
+  termin: Vorstellungstermin;
+  position: Position;
+  /** Wer gerade eingeteilt ist, damit die Anzeige stehen bleibt. */
+  benutzerId: string | null;
+  angefragtId: string;
+  vonId: string;
+  von: string;
+  notiz: string | null;
+}): Promise<void> {
+  await db()`
+    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id, geaendert_von, geaendert_am,
+                                angefragt_id, angefragt_von_id, angefragt_notiz, angefragt_am)
+    values (${e.termin.ditixEventId}, ${e.position}, ${e.termin.datum}::date, ${e.termin.uhrzeit}, ${e.benutzerId},
+            ${e.von}, now(), ${e.angefragtId}, ${e.vonId}, ${e.notiz}, now())
+    on conflict (ditix_event_id, position) do update set
+      angefragt_id = excluded.angefragt_id, angefragt_von_id = excluded.angefragt_von_id,
+      angefragt_notiz = excluded.angefragt_notiz, angefragt_am = now(),
+      geaendert_von = excluded.geaendert_von, geaendert_am = now()
+  `;
+}
+
+/** Anfrage beenden: zugesagt, abgesagt oder zurückgenommen. */
+export async function anfrageLoeschen(ditixEventId: string, position: Position): Promise<void> {
+  await db()`
+    update dienst_einsatz set angefragt_id = null, angefragt_von_id = null, angefragt_notiz = null, angefragt_am = null
+     where ditix_event_id = ${ditixEventId} and position = ${position}
+  `;
 }
 
 /** Legt einen Eintrag an oder überschreibt ihn. */
@@ -146,7 +190,8 @@ export async function einsatzSetzen(e: {
     on conflict (ditix_event_id, position) do update set
       benutzer_id = excluded.benutzer_id, sucht_ersatz = excluded.sucht_ersatz, grund = excluded.grund,
       geaendert_von = excluded.geaendert_von, geaendert_am = now(), erinnert_stufe = excluded.erinnert_stufe,
-      datum = excluded.datum, uhrzeit = excluded.uhrzeit
+      datum = excluded.datum, uhrzeit = excluded.uhrzeit,
+      angefragt_id = null, angefragt_von_id = null, angefragt_notiz = null, angefragt_am = null
   `;
 }
 
@@ -178,6 +223,10 @@ export interface Slot {
   /** Hier wird jemand gebraucht: leer oder Ersatz gesucht. */
   offen: boolean;
   erinnertStufe: number;
+  /** Direkt angefragt und noch nicht beantwortet. */
+  angefragt: Person | null;
+  angefragtVon: Person | null;
+  angefragtNotiz: string | null;
 }
 
 export interface Schicht {
@@ -219,12 +268,15 @@ export function planBauen(
           grund: e?.grund ?? null,
           offen: !p || suchtErsatz,
           erinnertStufe: e?.erinnertStufe ?? 0,
+          angefragt: e?.angefragtId ? (person.get(e.angefragtId) ?? null) : null,
+          angefragtVon: e?.angefragtVonId ? (person.get(e.angefragtVonId) ?? null) : null,
+          angefragtNotiz: e?.angefragtNotiz ?? null,
         });
       }
       // Macht ein Rookie T2, braucht er einen Shadow: Mario oder Julian
       // gehen mit. Nur dann gibt es die Zeile, und dann ist sie Pflicht.
-      const t2 = slots.find((s) => s.position === "T2");
-      if (t2?.person && istRookie(t2.person)) {
+      const t1 = slots.find((s) => s.position === "T1");
+      if (t1?.person && istRookie(t1.person)) {
         const sh = eintrag.get(`${termin.ditixEventId}|SHADOW`);
         const shPerson = sh?.benutzerId ? (person.get(sh.benutzerId) ?? null) : null;
         const suchtErsatz = Boolean(sh?.suchtErsatz && shPerson);
@@ -236,6 +288,9 @@ export function planBauen(
           grund: sh?.grund ?? null,
           offen: !shPerson || suchtErsatz,
           erinnertStufe: sh?.erinnertStufe ?? 0,
+          angefragt: sh?.angefragtId ? (person.get(sh.angefragtId) ?? null) : null,
+          angefragtVon: sh?.angefragtVonId ? (person.get(sh.angefragtVonId) ?? null) : null,
+          angefragtNotiz: sh?.angefragtNotiz ?? null,
         });
       }
       return { termin, slots };
@@ -243,17 +298,17 @@ export function planBauen(
     .filter((s) => s.slots.length > 0);
 }
 
-/** Rookie: macht T2, kann die Show aber noch nicht allein (Spalte "lernt"). */
+/** Rookie: macht T1, kann die Show aber noch nicht allein (Spalte "lernt"). */
 export function istRookie(p: Person): boolean {
-  return p.kann.get("T2") === true;
+  return p.kann.get("T1") === true;
 }
 
 /**
  * Darf diese Person die Position übernehmen?
- * T2 dürfen alle mit T2, auch Rookies. Shadow nur, wer T2 schon allein kann.
+ * T1 dürfen alle mit T1, auch Rookies. Shadow nur, wer T1 schon allein kann.
  */
 export function darfUebernehmen(p: Person, position: Position): boolean {
-  if (position === "SHADOW") return p.kann.get("T2") === false;
+  if (position === "SHADOW") return p.kann.get("T1") === false;
   return p.kann.has(position);
 }
 
@@ -277,20 +332,20 @@ export const VORSCHLAG_KANN: Record<string, Array<[FestePosition, boolean]>> = {
   leeven: [["FOH", false]],
   sabah: [["FOH", false]],
   levi: [["FOH", false]],
-  mario: [["T2", false]],
-  julian: [["T2", false]],
-  noel: [["T2", true]],
-  sarah: [["T2", true]],
-  chris: [["T2", true]],
-  sammy: [["T2", true]],
-  ben: [["T1", false]],
+  mario: [["T1", false]],
+  julian: [["T1", false]],
+  noel: [["T1", true]],
+  sarah: [["T1", true]],
+  chris: [["T1", true]],
+  sammy: [["T1", true]],
+  ben: [["T2", false]],
 };
 
 export const VORSCHLAG_FEST: Array<{ position: FestePosition; wochentag: number | null; vorname: string }> = [
   { position: "FOH", wochentag: 5, vorname: "levi" },
   { position: "FOH", wochentag: 6, vorname: "leeven" },
   { position: "FOH", wochentag: 0, vorname: "sabah" },
-  { position: "T1", wochentag: null, vorname: "ben" },
+  { position: "T2", wochentag: null, vorname: "ben" },
 ];
 
 export async function einstellungLesen(): Promise<{ festeTageFragen: string | null; erledigt: boolean }> {

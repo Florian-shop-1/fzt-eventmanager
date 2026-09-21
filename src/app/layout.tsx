@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfSeite, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfSeite, darfStempeln, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/wein/db";
 import { BestellungPopup, type OffeneBestellung } from "@/components/BestellungPopup";
 import { nebenbeiPruefen } from "@/lib/stempel/wache";
+import { zustandVon } from "@/lib/stempel/db";
 import { Wortmarke } from "@/components/Logo";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -55,9 +56,8 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
   { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
   { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
-  { href: "/stempeluhr", label: "Stempeluhr", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
   { href: "/dienstplan", label: "Dienstplan", rollen: ["chef", "team", "showteam"] },
-  { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam"] },
+  { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
   { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
   { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
   { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
@@ -69,7 +69,7 @@ const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
   { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
   { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
   { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
-  { href: "/einstellungen/mail", label: "Mailversand", rollen: ["chef", "team"] },
+  { href: "/einstellungen/mail", label: "E-Mail-Versand", rollen: ["chef", "team"] },
   { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
 ];
 
@@ -136,6 +136,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       }
     }
   }
+  // Die Stempeluhr sitzt als eigener Knopf in der Leiste, nicht in der
+  // Navigation: Sie ist der Punkt, den die Mitarbeiter zuerst brauchen
+  // (Florian, 21.09.2026). Der Punkt daneben zeigt, ob die Zeit läuft.
+  const stempelZustand =
+    benutzer && !offen && darfStempeln(benutzer) ? await zustandVon(benutzer.id).catch(() => null) : null;
+
   const weinSichtbar = benutzer && !offen ? (await weinZugang(benutzer).catch(() => null))?.sehen === true : false;
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
@@ -194,6 +200,24 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </nav>
 
               <div className="flex items-center gap-3 text-xs">
+                {stempelZustand && (
+                  <Link
+                    href="/stempeluhr"
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm"
+                    style={{ background: stempelZustand === "aus" ? "var(--gut)" : "var(--blocker)" }}
+                    title="Stempeluhr"
+                  >
+                    <span
+                      className="inline-block h-2 w-2 rounded-full bg-white"
+                      style={{ opacity: stempelZustand === "aus" ? 0.5 : 1 }}
+                    />
+                    {stempelZustand === "aus"
+                      ? "EIN-stempeln"
+                      : stempelZustand === "pause"
+                        ? "In der Pause"
+                        : "AUS-stempeln"}
+                  </Link>
+                )}
                 <Link href="/konto" className="text-leise hover:text-text">
                   {benutzer.name}
                 </Link>

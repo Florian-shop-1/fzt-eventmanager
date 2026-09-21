@@ -38,6 +38,30 @@ export function darfBuchhaltung(b: { rolle: Rolle; email: string } | null | unde
   return b.rolle === "buchhaltung" || (b.rolle === "chef" && b.email.toLowerCase() === BUCHHALTUNG_CHEF);
 }
 
+/**
+ * Wer stempelt: nur eigene, interne Mitarbeiter (Florian, 21.09.2026).
+ *
+ * Die Gastronomie und der Food-Kiosk gehören zu einem anderen Betrieb,
+ * Freelancer schreiben Rechnungen statt Stunden. Beide stempeln nicht.
+ */
+export function darfStempeln(b: { rolle: Rolle; art?: "intern" | "extern" | null } | null | undefined): boolean {
+  if (!b) return false;
+  if (b.art === "extern") return false;
+  return !["kiosk", "gastro"].includes(b.rolle);
+}
+
+/**
+ * Wer Arbeitszeiten sehen und ändern darf: Werner (Buchhaltung), Kevin und
+ * Florian (Florian, 21.09.2026). Die Mitarbeiter selbst sehen ihre Stunden
+ * nicht, sie stempeln nur und können eine Korrektur beantragen.
+ */
+const ZEITEN_TEAM = ["kevin.steele@florianzimmer.com"];
+export function darfZeitenAendern(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  if (!b) return false;
+  if (b.rolle === "chef" || b.rolle === "buchhaltung") return true;
+  return ZEITEN_TEAM.includes(b.email.toLowerCase());
+}
+
 export interface AngemeldeterBenutzer {
   id: string;
   name: string;
@@ -191,7 +215,10 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
   // Stempeln darf jeder Mitarbeiter, auch das Foyer und das Showteam.
-  if (pfad.startsWith("/stempeluhr") && rolle !== "kiosk") return true;
+  // Stempeln ist nur für interne Mitarbeiter. Ob diese Person dazugehört,
+  // hängt nicht nur an der Rolle (siehe darfStempeln), deshalb prüft die
+  // Seite selbst; hier fallen schon einmal Gastro und Kiosk heraus.
+  if (pfad.startsWith("/stempeluhr") && !["kiosk", "gastro"].includes(rolle)) return true;
   // Den Dienstplan sieht jeder Mitarbeiter: Wer eine Position hat, trägt sich
   // ein, alle anderen sehen nur. Die Einrichtung prüft die Seite selbst.
   if (pfad.startsWith("/dienstplan") && rolle !== "kiosk") return true;
@@ -217,6 +244,9 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/scanner") ||
       pfad.startsWith("/einlassliste") ||
       pfad.startsWith("/sitzplan") ||
+      // Sarah macht seit 21.09.2026 auch im Showteam mit und braucht
+      // deshalb die Upgrades wie die anderen am Abend.
+      pfad.startsWith("/upgrades") ||
       pfad.startsWith("/shortcuts") ||
       pfad.startsWith("/parkplaetze") ||
       pfad.startsWith("/konto") ||

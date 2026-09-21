@@ -84,9 +84,9 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
         <h2 className="text-lg font-semibold">Einladungslink fürs Showteam</h2>
         <p className="text-sm text-leise">
           Schick diesen Link an alle vom Showteam. Jeder trägt sich selbst ein: Name, E-Mail, eigenes
-          Passwort und was er macht (FOH, T2, T2 Rookie, T1). Danach ist er angemeldet und sieht den
+          Passwort und was er macht (FOH, T1, T1 Rookie, T2). Danach ist er angemeldet und sieht den
           Dienstplan. Du bekommst bei jeder Anmeldung eine Mail. Die festen Tage (Levi Fr, Leeven Sa,
-          Sabah So, Ben T1) werden beim Eintragen automatisch gesetzt.
+          Sabah So, Ben T2) werden beim Eintragen automatisch gesetzt.
         </p>
         {link ? (
           <>
@@ -134,8 +134,8 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Wer macht was?</h2>
         <p className="text-sm text-leise">
-          „Rookie“ heißt: macht T2, kann die Show aber noch nicht allein. An seinen Abenden braucht er
-          einen Shadow, also jemanden mit T2 ohne Rookie-Haken (Mario, Julian). Sobald er es allein
+          „Rookie“ heißt: macht T1, kann die Show aber noch nicht allein. An seinen Abenden braucht er
+          einen Shadow, also jemanden mit T1 ohne Rookie-Haken (Mario, Julian). Sobald er es allein
           kann, den Haken rausnehmen.
           {nochNichts && " Vorausgefüllt nach deiner Liste, bitte prüfen und speichern."}
         </p>
@@ -254,7 +254,7 @@ function PersonZeile({ p, kann }: { p: Person; kann: Map<FestePosition, boolean>
         </td>
       ))}
       <td className="px-3 py-2">
-        <input type="checkbox" name={`lernt:${p.id}`} defaultChecked={kann.get("T2") === true} aria-label={`${p.name} ist Rookie`} />
+        <input type="checkbox" name={`lernt:${p.id}`} defaultChecked={kann.get("T1") === true} aria-label={`${p.name} ist Rookie`} />
       </td>
     </tr>
   );

@@ -4,6 +4,7 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { offenFuer, planLaden, tageBis } from "@/lib/dienstplan/laden";
+import { istAbwesend, type Abwesenheit } from "@/lib/dienstplan/abwesend";
 import {
   BEZEICHNUNG,
   ERKLAERUNG,
@@ -14,13 +15,24 @@ import {
   type Schicht,
   type Slot,
 } from "@/lib/dienstplan/plan";
-import { anfrageZuruecknehmen, einteilen, ersatzSuchen, uebernehmen } from "./aktionen";
+import {
+  anfrageAbbrechen,
+  anfrageAbsagen,
+  anfrageZusagen,
+  anfrageZuruecknehmen,
+  anfragen,
+  einteilen,
+  ersatzSuchen,
+  uebernehmen,
+  urlaubEintragen,
+  urlaubLoeschen,
+} from "./aktionen";
 
 export const metadata = { title: "Dienstplan | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 /**
- * Dienstplan des Showteams: FOH, T2, T1 und Shadow je Show.
+ * Dienstplan des Showteams: FOH, T1, T2 und Shadow je Show.
  *
  * So einfach wie möglich: Jeder sieht, wann er arbeitet. Offene Schichten
  * übernimmt man mit einem Klick. Wer nicht kann, fragt mit einem Klick
@@ -34,16 +46,28 @@ export default async function DienstplanSeite({
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/anmelden");
   const { meldung, nur, s: markiert } = await searchParams;
-  const { schichten, personen } = await planLaden();
+  const { schichten, personen, abwesend } = await planLaden();
   const ich = personen.find((p) => p.id === benutzer.id) ?? null;
   const planer = benutzer.rolle === "chef" || benutzer.rolle === "team";
   const hatPosition = Boolean(ich && ich.kann.size > 0);
   const nurMeine = nur === "meine" || (nur !== "alle" && hatPosition && !planer);
 
   const meine = ich ? schichten.filter((s) => s.slots.some((x) => x.person?.id === ich.id)) : [];
-  const gesucht = ich ? offenFuer(schichten, ich, 70) : [];
+  const gesucht = ich ? offenFuer(schichten, ich, 70, abwesend) : [];
+  const meineAbwesenheiten = ich ? abwesend.filter((a) => a.benutzerId === ich.id) : [];
   const offenGesamt = schichten.reduce((n, s) => n + s.slots.filter((x) => x.offen).length, 0);
-  const liste = nurMeine && ich ? meine : schichten;
+  // Anfragen an mich: Florian oder Kevin haben mich direkt gefragt.
+  const gefragt = ich
+    ? schichten.flatMap((s) =>
+        s.slots
+          .filter((x) => x.angefragt?.id === ich.id)
+          .map((x) => ({ termin: s.termin, position: x.position, von: x.angefragtVon?.vorname ?? null })),
+      )
+    : [];
+  const liste =
+    nurMeine && ich
+      ? schichten.filter((s) => s.slots.some((x) => x.person?.id === ich.id || x.angefragt?.id === ich.id))
+      : schichten;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -51,7 +75,7 @@ export default async function DienstplanSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dienstplan</h1>
           <p className="mt-1 text-sm text-leise">
-            FOH, T2 und T1 für jede Show. Offene Schichten übernimmst du mit einem Klick. Wenn du nicht
+            FOH, T1 und T2 für jede Show. Offene Schichten übernimmst du mit einem Klick. Wenn du nicht
             kannst, fragst du hier, dann bekommen die anderen deiner Position eine Mail.
           </p>
         </div>
@@ -70,7 +94,7 @@ export default async function DienstplanSeite({
 
       {!hatPosition && !planer && (
         <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
-          Dir ist noch keine Position zugeordnet. Florian trägt ein, ob du FOH, T2 oder T1 machst. Bis
+          Dir ist noch keine Position zugeordnet. Florian trägt ein, ob du FOH, T1 oder T2 machst. Bis
           dahin kannst du den Plan nur ansehen.
         </div>
       )}
@@ -83,6 +107,24 @@ export default async function DienstplanSeite({
           in den nächsten Wochen. Die Kollegen werden eine Woche, drei Tage und einen Tag vorher per
           Mail erinnert, am Vortag auch du.
         </p>
+      )}
+
+      {ich && gefragt.length > 0 && (
+        <section className="space-y-2 rounded-lg border p-4" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          <h2 className="font-semibold">Du bist gefragt worden</h2>
+          <ul className="space-y-1 text-sm">
+            {gefragt.map((g) => (
+              <li key={`${g.termin.ditixEventId}${g.position}`}>
+                <a href={`#s-${g.termin.ditixEventId}`} className="underline">
+                  {datumMitWochentag(g.termin.datum)}, {g.termin.uhrzeit} Uhr
+                </a>{" "}
+                · {BEZEICHNUNG[g.position]} · {g.termin.name}
+                {g.von && <span className="text-leise"> · gefragt von {g.von}</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-leise">Sag unten bei der Show zu oder ab. Eingeteilt bist du erst mit deiner Zusage.</p>
+        </section>
       )}
 
       {ich && gesucht.length > 0 && (
@@ -119,6 +161,10 @@ export default async function DienstplanSeite({
         </nav>
       )}
 
+      {ich && (
+        <Urlaub meine={meineAbwesenheiten} alle={planer ? abwesend : []} planer={planer} />
+      )}
+
       {liste.length === 0 ? (
         <p className="text-sm text-leise">
           {nurMeine ? "In den nächsten Wochen bist du noch nicht eingeteilt." : "Keine Shows im Spielplan."}
@@ -132,7 +178,7 @@ export default async function DienstplanSeite({
               schichten={schichten}
               ich={ich}
               planer={planer}
-              personen={personen}
+              personen={personen.filter((p) => !istAbwesend(abwesend, p.id, s.termin.datum))}
               markiert={markiert === s.termin.ditixEventId}
             />
           ))}
@@ -140,7 +186,7 @@ export default async function DienstplanSeite({
       )}
 
       <p className="text-xs text-leise">
-        Rookie: neu auf T2, kann die Show noch nicht allein. Macht ein Rookie T2, erscheint die Zeile
+        Rookie: neu auf T1, kann die Show noch nicht allein. Macht ein Rookie T1, erscheint die Zeile
         Shadow: Dann geht jemand mit, der die Show kann (Mario oder Julian).
       </p>
     </div>
@@ -210,6 +256,7 @@ function SlotZeile({
   schonDabei: boolean;
 }) {
   const meins = Boolean(ich && slot.person?.id === ich.id);
+  const michGefragt = Boolean(ich && slot.angefragt?.id === ich.id);
   const kannUebernehmen =
     ich &&
     !meins &&
@@ -236,7 +283,7 @@ function SlotZeile({
         {slot.person ? (
           <>
             <strong>{meins ? "Du" : slot.person.name}</strong>
-            {slot.position === "T2" && istRookie(slot.person) && (
+            {slot.position === "T1" && istRookie(slot.person) && (
               <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--info-hell)", color: "var(--info)" }}>
                 Rookie, mit Shadow
               </span>
@@ -247,16 +294,45 @@ function SlotZeile({
                 sucht Ersatz{slot.grund ? `: ${slot.grund}` : ""}
               </span>
             )}
+            {slot.angefragt && (planer || michGefragt) && (
+              <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">
+                {michGefragt ? "du bist gefragt" : `angefragt: ${slot.angefragt.vorname}`}
+              </span>
+            )}
           </>
         ) : (
-          <strong style={{ color: "var(--warnung)" }}>
-            {slot.position === "SHADOW" ? "offen, der Rookie braucht einen Shadow" : "offen, jemand gesucht"}
-          </strong>
+          <>
+            <strong style={{ color: "var(--warnung)" }}>
+              {slot.position === "SHADOW" ? "offen, der Rookie braucht einen Shadow" : "offen, jemand gesucht"}
+            </strong>
+            {slot.angefragt && (planer || michGefragt) && (
+              <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">
+                {michGefragt ? "du bist gefragt" : `angefragt: ${slot.angefragt.vorname}`}
+              </span>
+            )}
+          </>
         )}
       </span>
 
       <span className="flex flex-wrap items-center gap-2">
-        {kannUebernehmen && (
+        {michGefragt && (
+          <span className="flex flex-wrap items-center gap-2">
+            <form action={anfrageZusagen}>
+              {versteckt}
+              <Absendeknopf text="Ja, ich mache das" laeuftText="Moment..." />
+            </form>
+            <details className="text-sm">
+              <summary className="cursor-pointer text-leise underline">Leider nicht</summary>
+              <form action={anfrageAbsagen} className="mt-2 flex flex-wrap gap-2">
+                {versteckt}
+                <input name="grund" placeholder="Grund, freiwillig" className="w-48 text-sm" maxLength={120} />
+                <Absendeknopf text="Absagen" laeuftText="..." />
+              </form>
+            </details>
+          </span>
+        )}
+
+        {kannUebernehmen && !michGefragt && (
           <form action={uebernehmen}>
             {versteckt}
             <Absendeknopf text="Ich übernehme" laeuftText="Moment..." />
@@ -303,10 +379,103 @@ function SlotZeile({
               </select>
               <input name="notiz" placeholder="Notiz für die Mail, freiwillig" className="w-56 text-sm" maxLength={300} />
               <Absendeknopf text="Einteilen" laeuftText="..." />
+              <button formAction={anfragen} className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell">
+                Nur anfragen
+              </button>
             </form>
+            <p className="mt-1 text-xs text-leise">
+              „Einteilen“ trägt sofort ein. „Nur anfragen“ schickt die Mail an diese eine Person; eingeteilt ist sie
+              erst, wenn sie zusagt.
+            </p>
+            {slot.angefragt && (
+              <form action={anfrageAbbrechen} className="mt-1">
+                {versteckt}
+                <button type="submit" className="text-xs text-leise underline">
+                  Anfrage an {slot.angefragt.vorname} zurücknehmen
+                </button>
+              </form>
+            )}
           </details>
         )}
       </span>
     </li>
+  );
+}
+
+/**
+ * Urlaub und private Termine im Voraus eintragen.
+ *
+ * Florians Wunsch (21.09.2026): Die Nebenjobber wissen früh, wann sie weg
+ * sind. Wer es hier einträgt, dessen Schichten schreiben wir sofort aus.
+ */
+function Urlaub({ meine, alle, planer }: { meine: Abwesenheit[]; alle: Abwesenheit[]; planer: boolean }) {
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const tag = (d: string) => d.split("-").reverse().join(".");
+  return (
+    <details id="urlaub" className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm">
+      <summary className="cursor-pointer font-medium">Urlaub oder privat verplant? Hier eintragen</summary>
+      <p className="mt-2 text-leise">
+        Du weißt schon, wann du in Urlaub bist oder privat verplant? Schreib es einfach hier rein, dann schreiben
+        wir den Ersatz für dich gleich aus. In der Zeit fragen wir dich auch nicht mehr.
+      </p>
+      <form action={urlaubEintragen} className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Von</span>
+          <input type="date" name="von" min={heute} required />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Bis</span>
+          <input type="date" name="bis" min={heute} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Grund, freiwillig</span>
+          <input name="grund" maxLength={120} placeholder="Urlaub, Prüfung, Hochzeit" className="w-56" />
+        </label>
+        <Absendeknopf text="Eintragen" laeuftText="Wird eingetragen..." />
+      </form>
+
+      {meine.length > 0 && (
+        <ul className="mt-4 divide-y divide-linie border-t border-linie">
+          {meine.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-center gap-2 py-2">
+              <span className="flex-1">
+                {tag(a.von)}
+                {a.bis !== a.von && ` bis ${tag(a.bis)}`}
+                {a.grund && <span className="text-leise"> · {a.grund}</span>}
+              </span>
+              <form action={urlaubLoeschen}>
+                <input type="hidden" name="id" value={a.id} />
+                <button type="submit" className="text-xs text-leise underline">
+                  löschen
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {planer && alle.length > 0 && (
+        <div className="mt-4 border-t border-linie pt-3">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-leise">Wer ist wann weg</p>
+          <ul className="space-y-1">
+            {alle.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-2">
+                <span className="flex-1">
+                  <strong>{a.name}</strong>: {tag(a.von)}
+                  {a.bis !== a.von && ` bis ${tag(a.bis)}`}
+                  {a.grund && <span className="text-leise"> · {a.grund}</span>}
+                </span>
+                <form action={urlaubLoeschen}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <button type="submit" className="text-xs text-leise underline">
+                    löschen
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </details>
   );
 }

@@ -19,7 +19,7 @@ export async function dienstplanErinnerungen(b: AngemeldeterBenutzer): Promise<E
     if (!e.erledigt && e.festeTageFragen && isoDatum(new Date()) >= e.festeTageFragen) {
       aufgaben.push({
         href: "/dienstplan/einrichtung",
-        leiste: "Dienstplan: Welche Tage sind bei T2 und T1 fest vergeben?",
+        leiste: "Dienstplan: Welche Tage sind bei T1 und T2 fest vergeben?",
         knopf: "Feste Tage eintragen",
         hase: "Du wolltest nach zwei Wochen gefragt werden: Welche Tage sind im Showteam noch fest? Dann steht der Plan von allein.",
       });

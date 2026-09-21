@@ -4,20 +4,31 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
-import { findeTermin } from "@/lib/ditix/spielplan";
+import { findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
 import { planLaden } from "@/lib/dienstplan/laden";
-import { eingeteiltMail, ersatzGesuchtMail, uebernommenMail } from "@/lib/dienstplan/mails";
+import {
+  anfrageAntwortMail,
+  anfrageMail,
+  eingeteiltMail,
+  ersatzGesuchtMail,
+  offeneSchichtenMail,
+  uebernommenMail,
+} from "@/lib/dienstplan/mails";
+import { abwesendEintragen, abwesendLoeschen, istAbwesend } from "@/lib/dienstplan/abwesend";
 import { einladungAbschalten, neueEinladung } from "@/lib/dienstplan/einladung";
 import {
   BEZEICHNUNG,
   POSITIONEN,
+  anfrageLoeschen,
+  anfrageSetzen,
   darfUebernehmen,
   einsatzLoeschen,
   einsatzSetzen,
   schonImDienst,
   werKann,
   type FestePosition,
+  type Person,
   type Position,
 } from "@/lib/dienstplan/plan";
 
@@ -38,11 +49,11 @@ async function schichtLaden(f: FormData) {
   if (!GUELTIG.includes(position)) throw new Error("Unbekannte Position.");
   const termin = await findeTermin(eventId);
   if (!termin) zurueck(eventId, "Diese Vorstellung gibt es nicht mehr.");
-  const { schichten, personen } = await planLaden();
+  const { schichten, personen, abwesend } = await planLaden();
   const schicht = schichten.find((s) => s.termin.ditixEventId === eventId);
   const slot = schicht?.slots.find((s) => s.position === position);
   const ich = personen.find((p) => p.id === benutzer.id);
-  return { benutzer, eventId, position, termin, schichten, personen, slot, ich };
+  return { benutzer, eventId, position, termin, schichten, personen, slot, ich, abwesend };
 }
 
 /** "Ich übernehme": eine offene Schicht, oder als Shadow mitlaufen. */
@@ -70,12 +81,14 @@ export async function uebernehmen(f: FormData): Promise<void> {
  * Schicht bei der Person.
  */
 export async function ersatzSuchen(f: FormData): Promise<void> {
-  const { benutzer, eventId, position, termin, schichten, personen, slot, ich } = await schichtLaden(f);
+  const { benutzer, eventId, position, termin, schichten, personen, slot, ich, abwesend } = await schichtLaden(f);
   if (!slot || !ich || slot.person?.id !== ich.id) zurueck(eventId, "Das ist nicht deine Schicht.");
   const grund = text(f, "grund").slice(0, 120) || null;
 
   await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: true, grund, von: benutzer.name });
-  const an = werKann(personen, position, ich.id).filter((p) => !schonImDienst(schichten, p.id, termin));
+  const an = werKann(personen, position, ich.id).filter(
+    (p) => !schonImDienst(schichten, p.id, termin) && !istAbwesend(abwesend, p.id, termin.datum),
+  );
   await ersatzGesuchtMail({ an, wer: ich.name, termin, position, grund });
   zurueck(
     eventId,
@@ -99,7 +112,7 @@ export async function anfrageZuruecknehmen(f: FormData): Promise<void> {
  * wert: "fest" = zurück zum festen Plan, "offen" = jemand wird gesucht, sonst die Benutzer-ID.
  */
 export async function einteilen(f: FormData): Promise<void> {
-  const { benutzer, eventId, position, termin, schichten, personen, slot } = await schichtLaden(f);
+  const { benutzer, eventId, position, termin, schichten, personen, slot, abwesend } = await schichtLaden(f);
   if (benutzer.rolle !== "chef" && benutzer.rolle !== "team") throw new Error("Nicht erlaubt.");
   const wert = text(f, "wert");
   if (wert === "fest") {
@@ -108,7 +121,9 @@ export async function einteilen(f: FormData): Promise<void> {
   }
   if (wert === "offen") {
     await einsatzSetzen({ termin, position, benutzerId: null, suchtErsatz: false, grund: null, von: benutzer.name });
-    const an = werKann(personen, position, slot?.person?.id).filter((p) => !schonImDienst(schichten, p.id, termin));
+    const an = werKann(personen, position, slot?.person?.id).filter(
+      (p) => !schonImDienst(schichten, p.id, termin) && !istAbwesend(abwesend, p.id, termin.datum),
+    );
     await ersatzGesuchtMail({ an, wer: benutzer.name.split(" ")[0] + " (Büro)", termin, position, grund: "Schicht ist frei" });
     zurueck(eventId, `Offen. ${an.length} ${an.length === 1 ? "Person hat" : "Personen haben"} eine Mail bekommen.`);
   }
@@ -118,6 +133,136 @@ export async function einteilen(f: FormData): Promise<void> {
   const notiz = text(f, "notiz").slice(0, 300) || null;
   if (p.id !== benutzer.id) await eingeteiltMail({ an: p, wer: benutzer.name, termin, position, notiz });
   zurueck(eventId, `${p.name} ist eingeteilt und hat eine Mail bekommen.`);
+}
+
+/**
+ * Jemanden direkt anfragen: Nur diese Person bekommt eine Mail und
+ * entscheidet selbst. Bis zur Zusage bleibt die Schicht, wie sie ist
+ * (Florian, 21.09.2026).
+ */
+export async function anfragen(f: FormData): Promise<void> {
+  const { benutzer, eventId, position, termin, schichten, personen, slot, abwesend } = await schichtLaden(f);
+  if (benutzer.rolle !== "chef" && benutzer.rolle !== "team") throw new Error("Nicht erlaubt.");
+  const p = personen.find((x) => x.id === text(f, "wert"));
+  if (!p) zurueck(eventId, "Bitte erst eine Person auswählen, dann anfragen.");
+  if (slot?.person?.id === p.id) zurueck(eventId, `${p.vorname} ist hier schon eingeteilt.`);
+  if (schonImDienst(schichten, p.id, termin)) zurueck(eventId, `${p.vorname} ist an diesem Abend schon eingeteilt.`);
+  if (istAbwesend(abwesend, p.id, termin.datum)) zurueck(eventId, `${p.vorname} hat sich für diesen Tag abgemeldet.`);
+  const notiz = text(f, "notiz").slice(0, 300) || null;
+
+  await anfrageSetzen({
+    termin,
+    position,
+    benutzerId: slot?.person?.id ?? null,
+    angefragtId: p.id,
+    vonId: benutzer.id,
+    von: benutzer.name,
+    notiz,
+  });
+  await anfrageMail({ an: p, wer: benutzer.name, termin, position, notiz });
+  zurueck(eventId, `${p.name} ist gefragt und hat eine Mail bekommen. Eingeteilt ist er erst mit seiner Zusage.`);
+}
+
+/** "Ja, ich mache das": Die angefragte Person sagt zu. */
+export async function anfrageZusagen(f: FormData): Promise<void> {
+  const { benutzer, eventId, position, termin, slot, ich } = await schichtLaden(f);
+  if (!slot || !ich || slot.angefragt?.id !== ich.id) zurueck(eventId, "Diese Anfrage gibt es nicht mehr.");
+  const fragte = slot.angefragtVon;
+  await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: false, grund: null, von: benutzer.name });
+  if (fragte) await anfrageAntwortMail({ an: fragte, wer: ich.name, termin, position, zugesagt: true });
+  zurueck(eventId, `Danke, ${ich.vorname}! Du bist am ${datumMitWochentag(termin.datum)} als ${BEZEICHNUNG[position]} eingetragen.`);
+}
+
+/** "Leider nicht": Die Anfrage wird abgelehnt, der Fragende bekommt Bescheid. */
+export async function anfrageAbsagen(f: FormData): Promise<void> {
+  const { eventId, position, termin, slot, ich } = await schichtLaden(f);
+  if (!slot || !ich || slot.angefragt?.id !== ich.id) zurueck(eventId, "Diese Anfrage gibt es nicht mehr.");
+  const fragte = slot.angefragtVon;
+  const grund = text(f, "grund").slice(0, 120) || null;
+  await anfrageLoeschen(eventId, position);
+  if (fragte) await anfrageAntwortMail({ an: fragte, wer: ich.name, termin, position, zugesagt: false, grund });
+  zurueck(eventId, "Alles klar, abgesagt. Der Dienstplan bleibt wie vorher.");
+}
+
+/** Das Büro nimmt eine Anfrage zurück. */
+export async function anfrageAbbrechen(f: FormData): Promise<void> {
+  const { benutzer, eventId, position } = await schichtLaden(f);
+  if (benutzer.rolle !== "chef" && benutzer.rolle !== "team") throw new Error("Nicht erlaubt.");
+  await anfrageLoeschen(eventId, position);
+  zurueck(eventId, "Anfrage zurückgenommen.");
+}
+
+/* ------------------------------------------------------------------ *
+ * Urlaub und private Termine.
+ *
+ * Die meisten im Showteam haben den Dienst als Nebenjob und wissen früh,
+ * wann sie weg sind. Wer den Zeitraum hier eintraegt, dessen Schichten
+ * werden sofort ausgeschrieben, und er wird in der Zeit nicht gefragt.
+ * ------------------------------------------------------------------ */
+
+function zurueckZumPlan(meldung: string): never {
+  revalidatePath("/dienstplan");
+  redirect(`/dienstplan?meldung=${encodeURIComponent(meldung)}#urlaub`);
+}
+
+export async function urlaubEintragen(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) redirect("/anmelden");
+  const von = text(f, "von");
+  const bis = text(f, "bis") || von;
+  const grund = text(f, "grund").slice(0, 120);
+  const istDatum = (d: string) => /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(d);
+  if (!istDatum(von) || !istDatum(bis)) zurueckZumPlan("Bitte einen Zeitraum auswählen.");
+  if (bis < von) zurueckZumPlan("Das Ende liegt vor dem Anfang.");
+
+  await abwesendEintragen({ benutzerId: benutzer.id, von, bis, grund });
+
+  // Alle eigenen Schichten in dem Zeitraum ausschreiben.
+  const { schichten, personen } = await planLaden();
+  const betroffen: Array<{ termin: Vorstellungstermin; position: Position }> = [];
+  for (const s of schichten) {
+    if (s.termin.datum < von || s.termin.datum > bis) continue;
+    for (const slot of s.slots) {
+      if (slot.person?.id !== benutzer.id || slot.suchtErsatz) continue;
+      await einsatzSetzen({
+        termin: s.termin,
+        position: slot.position,
+        benutzerId: benutzer.id,
+        suchtErsatz: true,
+        grund: grund || "Urlaub",
+        von: benutzer.name,
+      });
+      betroffen.push({ termin: s.termin, position: slot.position });
+    }
+  }
+
+  // Je Kollege eine Mail mit allen Schichten, nicht eine Mail je Schicht.
+  const jePerson = new Map<string, { person: Person; liste: Array<{ termin: Vorstellungstermin; position: Position }> }>();
+  for (const b of betroffen) {
+    for (const p of werKann(personen, b.position, benutzer.id)) {
+      if (schonImDienst(schichten, p.id, b.termin)) continue;
+      const e = jePerson.get(p.id) ?? { person: p, liste: [] };
+      e.liste.push(b);
+      jePerson.set(p.id, e);
+    }
+  }
+  for (const e of jePerson.values()) {
+    await offeneSchichtenMail({ an: e.person, schichten: e.liste, dringend: false });
+  }
+
+  zurueckZumPlan(
+    betroffen.length === 0
+      ? "Eingetragen. In der Zeit bist du nicht eingeteilt, und wir fragen dich auch nicht."
+      : `Eingetragen. ${betroffen.length} ${betroffen.length === 1 ? "Schicht ist" : "Schichten sind"} ausgeschrieben, die Kollegen haben eine Mail bekommen.`,
+  );
+}
+
+export async function urlaubLoeschen(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) redirect("/anmelden");
+  const buero = benutzer.rolle === "chef" || benutzer.rolle === "team";
+  await abwesendLoeschen(text(f, "id"), buero ? undefined : benutzer.id);
+  zurueckZumPlan("Eintrag gelöscht. Schichten, die schon ausgeschrieben sind, bleiben ausgeschrieben.");
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +283,7 @@ export async function positionenSpeichern(f: FormData): Promise<void> {
     await sql`delete from dienst_quali where benutzer_id = ${id}`;
     for (const pos of POSITIONEN) {
       if (!f.get(`kann:${id}:${pos}`)) continue;
-      const lernt = pos === "T2" && Boolean(f.get(`lernt:${id}`));
+      const lernt = pos === "T1" && Boolean(f.get(`lernt:${id}`));
       await sql`insert into dienst_quali (benutzer_id, position, lernt) values (${id}, ${pos}, ${lernt})`;
     }
   }

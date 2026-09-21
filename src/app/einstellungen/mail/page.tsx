@@ -5,7 +5,7 @@ import { brevoPruefen } from "@/lib/mail/brevo";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { Probeknopf } from "@/components/Probeknopf";
 
-export const metadata = { title: "Mailversand | FZT Eventmanager" };
+export const metadata = { title: "E-Mail-Versand | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -29,7 +29,7 @@ export default async function MailSeite({
   return (
     <div className="max-w-3xl space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Mailversand</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">E-Mail-Versand</h1>
         <p className="mt-1 text-sm text-leise">
           Angebote und Anschreiben gehen über euer eigenes Postfach hinaus, nicht über einen
           fremden Dienst. Sie stehen danach unter Gesendete Elemente, und Antworten landen im

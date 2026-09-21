@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { einstellungLesen, imHaus, standVon } from "@/lib/stempel/db";
-import { gelaendeVerlassen } from "@/lib/stempel/wache";
+import { einstellungLesen, imHaus, minutenOhnePause, standVon } from "@/lib/stempel/db";
+import { PAUSE_NACH_MINUTEN, gelaendeVerlassen, pausenPflichtPruefen } from "@/lib/stempel/wache";
 
 /**
  * Der regelmäßige Standort-Ping, solange die Stempeluhr offen ist.
@@ -23,8 +23,18 @@ export async function POST(request: Request) {
   const stand = await standVon(b.id);
   const p = imHaus(e, { lat: d.lat, lon: d.lon, genauigkeit: d.genauigkeit ?? 9999 });
 
+  // Der Ping ist auch der Moment, in dem die Pausenpflicht auffaellt:
+  // Wer die Uhr offen hat, arbeitet gerade.
+  const ohnePause = minutenOhnePause(stand);
+  if (ohnePause >= PAUSE_NACH_MINUTEN) void pausenPflichtPruefen().catch(() => undefined);
+
   if (stand.zustand === "aus" || p.drin) {
-    return NextResponse.json({ ok: true, drin: p.drin, entfernung: p.entfernungM });
+    return NextResponse.json({
+      ok: true,
+      drin: p.drin,
+      entfernung: p.entfernungM,
+      pauseFaellig: ohnePause >= PAUSE_NACH_MINUTEN,
+    });
   }
 
   const kommen = stand.stempelHeute.find((s) => s.art === "kommen");
@@ -37,5 +47,11 @@ export async function POST(request: Request) {
       }).catch(() => false)
     : false;
 
-  return NextResponse.json({ ok: true, drin: false, entfernung: p.entfernungM, gemeldet });
+  return NextResponse.json({
+    ok: true,
+    drin: false,
+    entfernung: p.entfernungM,
+    gemeldet,
+    pauseFaellig: ohnePause >= PAUSE_NACH_MINUTEN,
+  });
 }

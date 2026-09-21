@@ -23,9 +23,9 @@ const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 const POSITIONEN: Record<string, { position: "FOH" | "T2" | "T1"; lernt: boolean; text: string }> = {
   FOH: { position: "FOH", lernt: false, text: "FOH (Licht und Ton)" },
-  T2: { position: "T2", lernt: false, text: "Techniker 2" },
-  T2neu: { position: "T2", lernt: true, text: "Techniker 2, Rookie (braucht noch einen Shadow)" },
   T1: { position: "T1", lernt: false, text: "Techniker 1" },
+  T1neu: { position: "T1", lernt: true, text: "Techniker 1, Rookie (braucht noch einen Shadow)" },
+  T2: { position: "T2", lernt: false, text: "Techniker 2" },
 };
 
 export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Promise<EinladungsErgebnis> {

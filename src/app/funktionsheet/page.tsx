@@ -16,6 +16,7 @@ import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { zeitpunkt } from "@/lib/zeit";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
+import { Firmenmenues } from "@/components/Firmenmenues";
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
 
@@ -222,6 +223,13 @@ export default async function FunktionsheetSeite({
               </tbody>
             </table>
           </div>
+
+          <Firmenmenues
+            blatt={blatt}
+            shows={blatt.shows.map((s) => ({ ditixEventId: s.ditixEventId, uhrzeit: s.uhrzeit, name: s.name }))}
+            darfBuchen={Boolean(benutzer && ["chef", "team"].includes(benutzer.rolle))}
+            zurueckZu={`/funktionsheet?abend=${gewaehlt}`}
+          />
 
           {blatt.menuesJeShow.filter((m) => m.menues > 0).length > 1 && (
             <div className="mt-6">
