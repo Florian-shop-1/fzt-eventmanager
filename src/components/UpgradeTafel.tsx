@@ -33,6 +33,10 @@ export interface TafelSitz {
   y: number;
   status: "frei" | "verkauft" | "gesperrt";
   inZone: boolean;
+  /** Darf jemand draufgesetzt werden? Gesperrte Plätze meist schon. */
+  nutzbar: boolean;
+  /** Der eine Platz, der wirklich leer bleibt: Reihe 4, Platz 3. */
+  freiLassen: boolean;
 }
 
 export interface TafelGruppe {
@@ -184,7 +188,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   }, [sitze]);
 
   const istFrei = (s: TafelSitz, fuer: string | null) =>
-    s.status === "frei" && (!belegt.has(s.id) || belegt.get(s.id) === fuer);
+    s.nutzbar && (!belegt.has(s.id) || belegt.get(s.id) === fuer);
 
   /** Plätze, auf die die Gruppe in der Hand passt: Start eines freien Blocks. */
   const starts = useMemo(() => {
@@ -449,8 +453,16 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                 let schrift = "var(--text-leise)";
                 let beschriftung = s.name;
 
-                if (s.status === "gesperrt") {
+                if (s.freiLassen) {
+                  // Muss leer bleiben, auch am Einlass.
+                  fuellung = "var(--blocker-hell)";
+                  rahmen = "var(--blocker)";
+                  schrift = "var(--blocker)";
+                  beschriftung = "×";
+                } else if (s.status === "gesperrt" && !zielVon) {
+                  // Sperre aus dem Verkauf: hier darf jemand sitzen.
                   fuellung = "var(--linie)";
+                  schrift = "var(--flaeche)";
                 } else if (zielVon) {
                   // Hier sitzt jetzt eine umgesetzte Gruppe.
                   fuellung = "var(--gut)";
@@ -582,6 +594,17 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               style={{ borderColor: "var(--gold)" }}
             />
             Empfehlung: A gehört zu A
+          </span>
+          <span>
+            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
+            im Shop gesperrt, hier trotzdem belegbar
+          </span>
+          <span>
+            <span
+              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+              style={{ background: "var(--blocker-hell)", borderColor: "var(--blocker)" }}
+            />
+            Reihe 4, Platz 3 bleibt frei
           </span>
           <span>
             <span

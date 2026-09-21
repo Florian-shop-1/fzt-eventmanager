@@ -3,7 +3,13 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { termineDesTages, findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { holeSaalplan, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
-import { empfehlung, gaestePlaetze, type Bereich, type Empfehlung } from "@/lib/seating/upgrade";
+import {
+  empfehlung,
+  gaestePlaetze,
+  mussFreiBleiben,
+  type Bereich,
+  type Empfehlung,
+} from "@/lib/seating/upgrade";
 import { gaesteDerVorstellung, type Gast } from "@/lib/db/gaesteliste";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { gastGesetzt } from "@/app/gaesteliste/aktionen";
@@ -774,18 +780,29 @@ function Zeichen({ farbe, rahmen, text }: { farbe: string; rahmen?: string; text
   );
 }
 
-/** Die Sitze, wie das Tablet sie braucht: flach und ohne Ditix-Eigenheiten. */
+/**
+ * Die Sitze, wie das Tablet sie braucht: flach und ohne Ditix-Eigenheiten.
+ *
+ * Gesperrte Plätze sind am Einlass benutzbar: Die Sperren im Ticketshop
+ * steuern den Verkauf, sie stehen nicht für kaputte Stühle. Die einzige
+ * Ausnahme ist Reihe 4, Platz 3, der bleibt leer (Florian, 21.09.2026).
+ */
 function tafelSitze(plan: Saalplan, rat: Empfehlung): TafelSitz[] {
-  return plan.sitze.map((s) => ({
-    id: s.id,
-    name: s.name,
-    reihe: s.reihe,
-    sektor: s.sektor,
-    x: s.x,
-    y: s.y,
-    status: s.status,
-    inZone: rat.zone.sitze.has(s.id),
-  }));
+  return plan.sitze.map((s) => {
+    const freiLassen = mussFreiBleiben(s);
+    return {
+      id: s.id,
+      name: s.name,
+      reihe: s.reihe,
+      sektor: s.sektor,
+      x: s.x,
+      y: s.y,
+      status: s.status,
+      inZone: rat.zone.sitze.has(s.id),
+      nutzbar: !freiLassen && s.status !== "verkauft",
+      freiLassen,
+    };
+  });
 }
 
 /**

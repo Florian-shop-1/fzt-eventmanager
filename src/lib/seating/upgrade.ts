@@ -86,6 +86,19 @@ export interface Reihe {
   sitze: Sitz[];
 }
 
+/**
+ * Der eine Platz, der wirklich frei bleiben muss: Reihe 4, Platz 3
+ * (Florian, 21.09.2026).
+ *
+ * Alle anderen Sperrungen im Ticketshop sind Verkaufssteuerung, keine
+ * echten Hindernisse: Am Einlass darf dort jemand sitzen. Dieser eine
+ * nicht, er bleibt leer. In allen kommenden Spielplänen gibt es Reihe 4
+ * nur einmal (Kat. 1), deshalb genügen Reihe und Platznummer.
+ */
+export function mussFreiBleiben(sitz: { reihe: string; name: string }): boolean {
+  return sitz.reihe.trim() === "4" && sitz.name.trim() === "3";
+}
+
 /** Ein Stück Reihe: eine Gruppe oder ein Zielblock. */
 export interface Bereich {
   reihe: Reihe;
