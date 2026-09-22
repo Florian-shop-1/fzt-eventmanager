@@ -21,7 +21,7 @@
  * In Ditix wird nichts geändert, das hier ist unsere Notiz für den Abend.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanHase } from "@/components/ScanHase";
 
@@ -45,6 +45,8 @@ export interface TafelSitz {
 export interface TafelGruppe {
   schluessel: string;
   art: "gruppe" | "gast";
+  /** A, B, C ... wie in der Liste darüber. Kommt vom Server. */
+  buchstabe?: string;
   /** Sitzt hinten und soll nach vorne. Nur diese werden farbig. */
   umzusetzen?: boolean;
   titel: string;
@@ -70,6 +72,10 @@ interface Props {
   gruppen: TafelGruppe[];
   umsetzungen: TafelUmsetzung[];
   zone: { links: number; rechts: number; oben: number; unten: number };
+  /** Ab wann umgesetzt werden darf: eine halbe Stunde vor der Show. */
+  abZeitpunkt?: string;
+  /** Beginn der Show, für den Hinweis. */
+  showBeginn?: string;
 }
 
 const KANTE = 22;
@@ -112,7 +118,15 @@ function schluesselVon(ids: number[]): string {
   return `g:${[...ids].sort((a, b) => a - b).join("-")}`;
 }
 
-export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Props) {
+export function UpgradeTafel({
+  eventId,
+  sitze,
+  gruppen,
+  umsetzungen,
+  zone,
+  abZeitpunkt,
+  showBeginn,
+}: Props) {
   const router = useRouter();
   const [inDerHand, setInDerHand] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
@@ -120,6 +134,31 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   const [laeuft, setLaeuft] = useState(false);
   /** Der Hase aus dem Zylinder, wenn eine Gruppe vorne sitzt. */
   const [lob, setLob] = useState<string | null>(null);
+
+  /*
+    Umgesetzt wird erst bei Saalöffnung, also eine halbe Stunde vor der
+    Show (Florian, 22.09.2026). Vorher ist der Plan zum Anschauen da: Wer
+    Tage vorher etwas verschiebt, hat am Abend einen Plan, der nicht zur
+    Wirklichkeit passt. Der Server hat schon gerechnet, ob es so weit ist;
+    der Timer schaltet die Seite frei, sobald es so weit wird.
+  */
+  const [offen, setOffen] = useState<boolean>(!abZeitpunkt);
+
+  useEffect(() => {
+    if (!abZeitpunkt) return;
+    const pruefen = () => setOffen(Date.now() >= Date.parse(abZeitpunkt));
+    pruefen();
+    const t = setInterval(pruefen, 20000);
+    return () => clearInterval(t);
+  }, [abZeitpunkt]);
+
+  const abUhr = abZeitpunkt
+    ? new Date(abZeitpunkt).toLocaleTimeString("de-DE", {
+        timeZone: "Europe/Berlin",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
   const umsetzungVon = useCallback(
     (k: string) => gesetzt.find((x) => x.schluessel === k) ?? null,
@@ -142,37 +181,42 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
       .sort((a, b) => a.y - b.y);
   }, [sitze]);
 
-  /** Jede zusammenhängende Kette verkaufter Plätze ist eine Gruppe. */
+  /**
+   * Die Gruppen des Abends.
+   *
+   * Maßgeblich ist, was der Plan vom Server sagt: Er kennt den Mittelgang
+   * und teilt dort, wo wirklich eine Gruppe endet. Seine Gruppen tragen
+   * auch die Buchstaben, die in der Liste darüber stehen. Alles andere,
+   * was am Stück verkauft ist und dort nicht vorkommt, sitzt schon gut
+   * und wird nur ergänzt, damit man es trotzdem verschieben kann.
+   */
   const alleGruppen = useMemo(() => {
-    const liste: TafelGruppe[] = [];
+    const liste: TafelGruppe[] = gruppen.map((g) => ({ ...g, umzusetzen: true }));
+    const schonVergeben = new Set(gruppen.flatMap((g) => g.quelleIds));
+
     for (const r of reihen) {
       let lauf: TafelSitz[] = [];
       const schliessen = () => {
         if (lauf.length === 0) return;
         const ids = lauf.map((s) => s.id);
-        const k = schluesselVon(ids);
-        const ausPlan = gruppen.find((g) => g.schluessel === k);
-        liste.push(
-          ausPlan ? { ...ausPlan, umzusetzen: true } : {
-            schluessel: k,
-            art: "gruppe",
-            titel: blockText(lauf),
-            zusatz: lauf[0].sektor,
-            personen: lauf.length,
-            quelleIds: ids,
-            vorschlagText: null,
-            vorschlagIds: [],
-          },
-        );
+        liste.push({
+          schluessel: schluesselVon(ids),
+          art: "gruppe",
+          titel: blockText(lauf),
+          zusatz: lauf[0].sektor,
+          personen: lauf.length,
+          quelleIds: ids,
+          vorschlagText: null,
+          vorschlagIds: [],
+        });
         lauf = [];
       };
       for (const s of r.sitze) {
-        if (s.status === "verkauft") lauf.push(s);
+        if (s.status === "verkauft" && !schonVergeben.has(s.id)) lauf.push(s);
         else schliessen();
       }
       schliessen();
     }
-    for (const g of gruppen) if (g.art === "gast") liste.push({ ...g, umzusetzen: true });
     return liste;
   }, [reihen, gruppen]);
 
@@ -273,7 +317,7 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
 
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
-    bunte.forEach((g, i) => m.set(g.schluessel, String.fromCharCode(65 + (i % 26))));
+    bunte.forEach((g, i) => m.set(g.schluessel, g.buchstabe ?? String.fromCharCode(65 + (i % 26))));
     return m;
   }, [bunte]);
 
@@ -307,6 +351,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
 
   async function setzen(g: TafelGruppe, block: TafelSitz[]) {
     if (laeuft) return;
+    if (!offen) {
+      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      return;
+    }
     setLaeuft(true);
     setHinweis("");
     const zielText = `${blockText(block)} (${block[0].sektor})`;
@@ -403,6 +451,10 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
   /** Ein Tipp im Plan: aufnehmen, setzen oder die Empfehlung annehmen. */
   function tippen(s: TafelSitz) {
     setHinweis("");
+    if (!offen) {
+      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      return;
+    }
     const start = starts.get(s.id);
     if (start && gruppe) {
       void setzen(gruppe, start);
@@ -443,10 +495,18 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
           background: gruppe ? "var(--gold-hell)" : "var(--flaeche)",
         }}
       >
-        {!gruppe ? (
+        {!offen ? (
+          <p className="text-sm">
+            <strong>Umsetzen geht ab {abUhr} Uhr</strong>, wenn der Saal öffnet
+            {showBeginn ? ` (Show um ${showBeginn} Uhr)` : ""}. Bis dahin ist das hier der Plan zum Anschauen: Die
+            Buchstaben zeigen, welche Gruppe wohin soll. Wer Tage vorher umsetzt, hat am Abend einen Plan, der nicht
+            mehr stimmt.
+          </p>
+        ) : !gruppe ? (
           <p className="text-sm">
             <strong>Erst die Gruppe antippen, dann ihren neuen Platz.</strong> Jede Gruppe hat eine eigene Farbe und
-            einen Buchstaben; nach dem Umsetzen zeigt ein Pfeil, wo sie hergekommen ist.
+            einen Buchstaben, dieselben wie in der Liste darüber; nach dem Umsetzen zeigt ein Pfeil, wo sie
+            hergekommen ist.
             {offeneVorschlaege.length > 0 &&
               " Das gestrichelte Feld in derselben Farbe ist die Empfehlung: ein Tipp darauf genügt."}
           </p>
@@ -632,15 +692,6 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   rahmen = "var(--blocker)";
                   schrift = "var(--blocker)";
                   beschriftung = "×";
-                } else if (s.nebenZuschauer && !zielVon && !heimat && s.status !== "verkauft") {
-                  // Neben dem Eingeweihten: freundlich markiert, damit
-                  // der Einlass den Platz gern zuerst vergibt.
-                  fuellung = "var(--warnung-hell)";
-                  rahmen = "var(--warnung)";
-                  schrift = "var(--warnung)";
-                } else if (s.status === "gesperrt" && !zielVon) {
-                  fuellung = "var(--linie)";
-                  schrift = "var(--flaeche)";
                 } else if (zielVon) {
                   // Hier sitzt die Gruppe jetzt: ihre Farbe, ausgefüllt.
                   fuellung = farbe;
@@ -664,6 +715,17 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
                   rahmen = farbe;
                   schrift = farbe;
                   beschriftung = zeichen;
+                } else if (s.status === "gesperrt") {
+                  fuellung = "var(--linie)";
+                  schrift = "var(--flaeche)";
+                } else if (s.nebenZuschauer) {
+                  // Neben dem Eingeweihten: freundlich markiert, damit
+                  // der Einlass den Platz gern zuerst vergibt. Steht
+                  // bewusst hinter allem anderen, sonst verdeckt der
+                  // Hinweis einen Buchstaben.
+                  fuellung = "var(--warnung-hell)";
+                  rahmen = "var(--warnung)";
+                  schrift = "var(--warnung)";
                 }
 
                 const anfassbar = Boolean(heimat ?? zielVon) || Boolean(start) || Boolean(vorlage);
@@ -759,14 +821,18 @@ export function UpgradeTafel({ eventId, sitze, gruppen, umsetzungen, zone }: Pro
               className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
               style={{ background: FARBEN[0] }}
             />
-            sitzt hier
+            sitzt jetzt hier
           </span>
           <span>
             <span
               className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
               style={{ borderColor: FARBEN[0] }}
             />
-            kam von hier, oder Empfehlung
+            soll hierhin (gleicher Buchstabe)
+          </span>
+          <span>
+            <span className="mr-1 align-middle">→</span>
+            von hier weggesetzt
           </span>
           <span>
             <span

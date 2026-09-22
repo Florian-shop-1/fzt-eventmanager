@@ -216,6 +216,8 @@ export default async function UpgradeSeite({
       {plan && rat && vorstellung && (
         <UpgradeTafel
           eventId={vorstellung.ditixEventId}
+          abZeitpunkt={new Date(vorstellung.beginn.getTime() - 30 * 60000).toISOString()}
+          showBeginn={vorstellung.uhrzeit}
           sitze={tafelSitze(plan, rat)}
           gruppen={tafelGruppen(rat, gaeste, vorschlaege)}
           umsetzungen={umsetzungen.map((u) => ({
@@ -826,9 +828,15 @@ function tafelGruppen(
 ): TafelGruppe[] {
   const ausBereich = (b: Bereich): string => `g:${b.sitze.map((s) => s.id).sort((x, y) => x - y).join("-")}`;
 
-  const umzuege: TafelGruppe[] = rat.umzuege.map((u) => ({
+  /*
+    Die Buchstaben vergibt der Server, damit Liste und Saalplan dasselbe
+    sagen. Vorher zählte jede Seite für sich, und im Plan hieß B, was in
+    der Liste A war (Mario am Einlass, 22.09.2026).
+  */
+  const umzuege: TafelGruppe[] = rat.umzuege.map((u, i) => ({
     schluessel: ausBereich(u.gruppe),
     art: "gruppe" as const,
+    buchstabe: buchstabe(i),
     titel: `Reihe ${u.gruppe.reihe.nummer}, ${plaetze(u.gruppe)}`,
     zusatz: u.gruppe.reihe.sektor,
     personen: u.gruppe.sitze.length,
@@ -839,9 +847,10 @@ function tafelGruppen(
     vorschlagIds: [...u.ziel.sitze, ...(u.ziel2?.sitze ?? [])].map((s) => s.id),
   }));
 
-  const bleiben: TafelGruppe[] = rat.bleiben.map((b) => ({
+  const bleiben: TafelGruppe[] = rat.bleiben.map((b, i) => ({
     schluessel: ausBereich(b),
     art: "gruppe" as const,
+    buchstabe: buchstabe(rat.umzuege.length + i),
     titel: `Reihe ${b.reihe.nummer}, ${plaetze(b)}`,
     zusatz: "kein Block am Stück frei",
     personen: b.sitze.length,
@@ -850,11 +859,12 @@ function tafelGruppen(
     vorschlagIds: [],
   }));
 
-  const gaesteliste: TafelGruppe[] = gaeste.map((g) => {
+  const gaesteliste: TafelGruppe[] = gaeste.map((g, i) => {
     const v = vorschlaege.get(g.id) ?? null;
     return {
       schluessel: `gast:${g.id}`,
       art: "gast" as const,
+      buchstabe: gastZeichen(i),
       titel: g.name,
       zusatz: g.notiz || "Gästeliste, ohne Ticket",
       personen: g.anzahl,
