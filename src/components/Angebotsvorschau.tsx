@@ -14,6 +14,7 @@ import {
   erzeugePositionen,
   gueltigBis,
   positionsSumme,
+  type Verpflegung,
 } from "@/lib/angebot/erstellen";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
 import { eur } from "@/lib/domain/pricing";
@@ -50,6 +51,7 @@ export function Angebotsvorschau({
   const showName = gewaehlteShow?.beschriftung.split(", ").slice(2).join(", ") || "ULMFASSBAR";
   const [personen, setPersonen] = useState(20);
   const [inLoge, setInLoge] = useState(true);
+  const [verpflegung, setVerpflegung] = useState<Verpflegung>("finedining");
   const [ticket, setTicket] = useState("TK2");
   const [rabatt, setRabatt] = useState(15);
   const [getraenke, setGetraenke] = useState<string[]>([]);
@@ -122,9 +124,10 @@ export function Angebotsvorschau({
         getraenkepauschalen: getraenke,
         mitEmpfang,
         mitUnterbelegung: true,
+        verpflegung,
         preise,
       }),
-    [vorgang, plan, ticket, rabatt, getraenke, mitEmpfang, preise],
+    [vorgang, plan, ticket, rabatt, getraenke, mitEmpfang, verpflegung, preise],
   );
 
   const summe = angebotssumme(positionen);
@@ -202,6 +205,34 @@ export function Angebotsvorschau({
           />
           In der Loge platzieren
         </label>
+
+        {/*
+          Fine Dining oder Fingerfood.
+
+          Die Firmenseite wirbt mit "schon ab 110 Euro pro Person, ohne
+          Fine Dining, aber inklusive Umtrunk und Fingerfood". Damit das
+          im Gespraech nicht ausgerechnet werden muss, steht der Preis je
+          Gast unten im Kasten (Florian, 25.09.2026).
+        */}
+        <Feld label="Was auf den Tisch kommt">
+          <select
+            value={verpflegung}
+            onChange={(e) => {
+              const gewaehlt = e.target.value as Verpflegung;
+              setVerpflegung(gewaehlt);
+              // Die sparsame Fassung rechnet sich nur mit Kat. 3 auf die
+              // beworbenen 110 Euro. Umstellen laesst es sich weiter.
+              if (gewaehlt === "fingerfood") {
+                setTicket("TK3");
+                setRabatt(0);
+                setMitEmpfang(true);
+              }
+            }}
+          >
+            <option value="finedining">Magic Menü by Osman Kavak (Fine Dining)</option>
+            <option value="fingerfood">Fingerfood und Umtrunk (sparsame Fassung)</option>
+          </select>
+        </Feld>
 
         <Feld label="Ticketkategorie">
           <select value={ticket} onChange={(e) => setTicket(e.target.value)}>
@@ -293,7 +324,7 @@ export function Angebotsvorschau({
         </h1>
 
         <pre className="mb-6 whitespace-pre-wrap font-sans text-xs leading-relaxed text-leise">
-          {einleitungstext(vorgang)}
+          {einleitungstext(vorgang, verpflegung)}
         </pre>
 
         <table className="mb-4 w-full text-xs">
@@ -345,6 +376,20 @@ export function Angebotsvorschau({
                 <td className="py-1 pr-6 font-semibold">Gesamtbetrag</td>
                 <td className="py-1 text-right font-semibold">{eur(summe.bruttoCent)}</td>
               </tr>
+              {/*
+                Der Preis je Gast ist die Zahl, um die es im Gespraech
+                geht. Auf der Firmenseite steht "schon ab 110 Euro pro
+                Person", und beim Telefonieren rechnet niemand im Kopf
+                (Florian, 25.09.2026).
+              */}
+              {personen > 0 && (
+                <tr>
+                  <td className="py-1 pr-6 font-medium">pro Gast</td>
+                  <td className="py-1 text-right font-medium">
+                    {eur(Math.round(summe.bruttoCent / personen))}
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="pr-6 text-leise">darin netto</td>
                 <td className="text-right text-leise">{eur(summe.nettoCent)}</td>

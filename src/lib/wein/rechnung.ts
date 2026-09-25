@@ -15,6 +15,10 @@
 import { db } from "@/lib/db/client";
 import { lexoffice, lexofficeEingerichtet } from "@/lib/lexoffice/client";
 import { mailVerschicken } from "@/lib/mail/versand";
+import {
+  rechnungAnlegen as offeneRechnungAnlegen,
+  versandMerken,
+} from "@/lib/rechnung/db";
 import { bestellungen, euro, leihen } from "./db";
 import { rechnungsPdfBauen, type Absender, type RechnungsPosition } from "./pdf";
 
@@ -277,15 +281,51 @@ ${daten.positionen.map((p) => `<tr><td style="padding:4px 0;border-bottom:1px so
 <p style="margin:18px 0 0">Vielen Dank und herzliche Grüße<br>Florian Zimmer Theater</p>
 </td></tr></table></td></tr></table></body></html>`;
 
-  await mailVerschicken({
-    an: e.an,
-    blindkopie: undefined,
-    betreff: `Rechnung ${nummer} vom Florian Zimmer Theater, ${monatsname(monat)}`,
-    text,
-    html,
-    antwortAn: "info@florianzimmer.com",
-    anhaenge: [{ name: `${nummer}.pdf`, typ: "application/pdf", base64: pdf.toString("base64") }],
+  // Die Rechnung taucht ab jetzt auch in der Rechnungsübersicht auf, damit
+  // der Zahlungsabgleich sie findet. Der Stand steht dort auf "Erstellt",
+  // bis die Mail wirklich draußen ist.
+  const offene = await offeneRechnungAnlegen({
+    nummer,
+    quelle: "wein",
+    weinRechnungId: r.id,
+    kunde: e.empfaenger.name,
+    kundeEmail: e.an[0] ?? "",
+    betragCent: daten.brutto,
+    rechnungsdatum: datum,
+    zahlungszielTage: e.zahlungszielTage,
+    leistung: `Magicuvée und Ware, ${monatsname(monat)}`,
+    von,
+  }).catch((f) => {
+    console.error("[wein] Rechnungsübersicht:", f);
+    return null;
   });
+
+  try {
+    await mailVerschicken({
+      an: e.an,
+      blindkopie: undefined,
+      betreff: `Rechnung ${nummer} vom Florian Zimmer Theater, ${monatsname(monat)}`,
+      text,
+      html,
+      antwortAn: "info@florianzimmer.com",
+      anhaenge: [{ name: `${nummer}.pdf`, typ: "application/pdf", base64: pdf.toString("base64") }],
+    });
+  } catch (f) {
+    // Gescheiterter Versand wird festgehalten, nicht verschwiegen: Die
+    // Rechnung gilt dann ausdrücklich als nicht versendet.
+    if (offene) {
+      await versandMerken({
+        rechnungId: offene.id,
+        an: e.an.join(", "),
+        fehler: f instanceof Error ? f.message : String(f),
+        wer: von,
+      });
+    }
+    throw f;
+  }
+  if (offene) {
+    await versandMerken({ rechnungId: offene.id, an: e.an.join(", "), wer: von });
+  }
   // Kopie getrennt, damit Osman nicht die internen Adressen sieht.
   if (e.kopie.length) {
     await mailVerschicken({

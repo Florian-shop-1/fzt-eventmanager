@@ -111,7 +111,7 @@ export async function angebotErzeugen(
   const angelegt = (await db()`
     insert into angebot (vorgang_id, nummer, gueltig_bis, einleitung, schlusstext, tracking_token)
     values (${vorgangId}, ${nummer}, ${gueltigBis(jetzt)},
-            ${einleitungstext(fuerRechnung)}, ${SCHLUSSTEXT},
+            ${einleitungstext(fuerRechnung, optionen.verpflegung)}, ${SCHLUSSTEXT},
             ${randomBytes(24).toString("base64url")})
     returning id
   `) as Array<{ id: string }>;

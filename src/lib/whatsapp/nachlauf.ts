@@ -53,31 +53,47 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
   const web = istWebseite(waId);
   let kontakt: string[] = [];
   let bewertung = false;
+  let abbrecher = false;
   if (web) {
     const [u] = (await db()`
       select kanal, email, telefon, rueckweg, seite from wa_unterhaltung where wa_id = ${waId}
     `) as Array<{ kanal: string; email: string | null; telefon: string | null; rueckweg: string | null; seite: string | null }>;
     bewertung = u?.kanal === "bewertung";
+    abbrecher = u?.kanal === "abbrecher";
     kontakt = [
       "",
       u?.rueckweg === "anruf" ? "Wünscht sich einen Rückruf." : "Wünscht sich eine Antwort per Mail.",
       ...(u?.telefon ? [`Telefon: ${u.telefon}`] : []),
       ...(u?.email ? [`E-Mail: ${u.email}`] : []),
       ...(u?.seite && !bewertung ? [`Geschrieben auf: shop.florianzimmertheater.de${u.seite}`] : []),
-      ...(u?.seite && bewertung ? [`Abend: ${u.seite}`] : []),
+      ...(u?.seite && (bewertung || abbrecher) ? [`Abend: ${u.seite}`] : []),
     ];
   }
 
+  /*
+    Die Antwort eines Abbrechers geht zusätzlich an tickets@: Dort sitzt
+    das Büro ohnehin den ganzen Tag, und die Nachricht braucht eine
+    Antwort wie jede andere Anfrage auch (Florian, 23.09.2026).
+  */
+  const an = empfaenger.map((e) => e.email);
+  if (abbrecher && !an.some((x) => x.toLowerCase() === "tickets@florianzimmer.com")) {
+    an.push("tickets@florianzimmer.com");
+  }
+
   await mailVerschicken({
-    an: empfaenger.map((e) => e.email),
+    an,
     betreff: bewertung
       ? `Schlechte Bewertung: ${name}. Bitte heute noch anrufen`
-      : web
+      : abbrecher
+        ? `Warenkorb liegen gelassen: ${name} schreibt uns`
+        : web
         ? `Anfrage über die Webseite von ${name}`
         : `WhatsApp von ${name}`,
     text: [
       bewertung
         ? `Ein Gast hat seinen Abend schlecht bewertet. Bitte ruft ihn an, bevor er es öffentlich macht:`
+        : abbrecher
+        ? `${name} hat eine Buchung abgebrochen und auf unsere Frage geantwortet:`
         : web
         ? `${name} hat über das Kontaktfenster im Shop geschrieben:`
         : `${name} (${kennungLesbar(waId)}) hat per WhatsApp geschrieben:`,

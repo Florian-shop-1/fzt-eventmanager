@@ -1,6 +1,8 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfStempeln, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { StempelUhr } from "@/components/StempelUhr";
+import { geraetPruefen } from "@/lib/stempel/geraet";
 import {
   antraege,
   antraegeVon,
@@ -64,6 +66,8 @@ export default async function StempeluhrSeite({
   const { monat, meldung, wer, tag } = await searchParams;
   const buero = darfZeitenAendern(b);
   const stempelt = darfStempeln(b);
+  // Gestempelt wird nur am Handy, siehe lib/stempel/geraet.ts.
+  const amHandy = geraetPruefen((await headers()).get("user-agent")).handy;
   if (!stempelt && !buero) redirect("/");
 
   const stand = stempelt ? await standVon(b.id) : null;
@@ -86,7 +90,27 @@ export default async function StempeluhrSeite({
         </p>
       )}
 
-      {stempelt && stand && <StempelUhr start={stand.zustand} pauseFaellig={pauseFaellig} />}
+      {stempelt && stand && amHandy && <StempelUhr start={stand.zustand} pauseFaellig={pauseFaellig} />}
+      {stempelt && stand && !amHandy && (
+        /*
+          Am Rechner und am Tablet wird nicht gestempelt: Dort koennte jemand
+          fuer einen anderen stempeln, und der Standort eines fest stehenden
+          Geraets sagt nichts darueber aus, wer da ist (Florian, 23.09.2026).
+        */
+        <div
+          className="rounded-lg border px-5 py-4"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>Stempeln geht nur am Handy.</strong>
+          <p className="mt-1 text-sm">
+            Am Rechner und am Tablet ist das Stempeln abgeschaltet. Nimm dein Handy, melde dich dort an und
+            stempel darüber ein und aus. Alles andere auf dieser Seite kannst du hier weiter benutzen.
+          </p>
+          <p className="mt-1 text-sm text-leise">
+            Du bist gerade {stand.zustand === "aus" ? "ausgestempelt" : stand.zustand === "pause" ? "in der Pause" : "eingestempelt"}.
+          </p>
+        </div>
+      )}
       {stempelt && <PausenGrund benutzerId={b.id} offen={pauseFaellig} />}
       {stempelt && <MeineAntraege benutzerId={b.id} />}
       {stempelt && <Automatik benutzerId={b.id} />}

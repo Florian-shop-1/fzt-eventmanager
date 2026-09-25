@@ -227,6 +227,20 @@ export default async function FunktionsheetSeite({
               Bar und Foyer laufen aber wie immer.
             </p>
           )}
+          {/*
+            Der Welcome Drink gehört zum Menü und wird oft vergessen.
+            Er steht in keiner Bestellzeile, weil er im Menüpreis steckt,
+            und dann fragt am Abend jemand nach (Florian, 25.09.2026).
+          */}
+          {blatt.gesamtMenues > 0 && (
+            <p
+              className="mb-3 border-l-4 pl-3 py-1 text-sm"
+              style={{ borderColor: "var(--gold)" }}
+            >
+              <strong>Zum Menü gehört ein Welcome Drink.</strong> Bitte den Gästen zur Begrüßung
+              überreichen, wahlweise mit oder ohne Alkohol.
+            </p>
+          )}
           <div className="flex flex-wrap items-end gap-8">
             <div>
               <div className="text-5xl font-semibold tabular-nums">{blatt.gesamtMenues}</div>

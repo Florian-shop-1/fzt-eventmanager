@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { stoerungMelden } from "@/lib/db/technik-stoerung";
+import { stoerungBehoben, stoerungMelden } from "@/lib/db/technik-stoerung";
 import { stoerungMailen } from "@/lib/stoerung/meldung";
 
 /**
@@ -10,10 +10,17 @@ import { stoerungMailen } from "@/lib/stoerung/meldung";
  * Magic Memories die Warteliste zu sehen bekommt, statt Plätze wählen zu
  * können. Siehe migrations/048_technik_stoerung.sql.
  *
- *   { art: "warteliste", showName, eventId, eventZeit, grund, quelle }
+ *   { art: "warteliste", showName, eventId, eventZeit, grund, quelle,
+ *     gesehen?: true, behoben?: "selbst" | "klick" }
  *
- * Gebündelt wird über art und Termin: Beim ersten Mal geht die Warnmail an
- * Florian, Kevin und Julian hinaus, danach wird nur noch mitgezählt.
+ * Gebündelt wird über art und Termin. Entscheidend ist "gesehen": Nur wenn
+ * ein Gast den Warteliste-Bildschirm wirklich vor sich hatte und der Shop
+ * ihn auch beim stillen zweiten Anlauf nicht wegbekommen hat, geht eine
+ * Mail hinaus, und auch dann nur beim ersten Mal je Termin. Alles andere
+ * wird nur gezählt (Florian, 23.09.2026).
+ *
+ * "behoben" ist die Entwarnung: Der Saalplan ist danach doch erschienen,
+ * von selbst oder nachdem der Gast neu geladen hat.
  */
 
 export const dynamic = "force-dynamic";
@@ -52,9 +59,17 @@ export async function POST(request: Request) {
   if (!eventId && !eventZeit) return NextResponse.json({ ok: false }, { status: 400 });
 
   const kennung = `${art}:${eventId ?? eventZeit}`;
+  const gesehen = daten.gesehen === true;
+  const behoben = kurz(daten.behoben, 20);
 
   try {
-    const { stoerung, neu } = await stoerungMelden({
+    // Entwarnung: Es geht wieder, es wird nur vermerkt.
+    if (behoben) {
+      await stoerungBehoben(kennung, behoben === "klick" ? "Gast hat neu geladen" : "von selbst");
+      return NextResponse.json({ ok: true, behoben: true });
+    }
+
+    const { stoerung, neu, erstmalsGesehen } = await stoerungMelden({
       art,
       kennung,
       showName,
@@ -62,9 +77,10 @@ export async function POST(request: Request) {
       eventZeit,
       grund,
       quelle,
+      gesehen,
     });
-    if (neu) after(() => stoerungMailen(stoerung));
-    return NextResponse.json({ ok: true, neu, anzahl: stoerung.anzahl });
+    if (erstmalsGesehen) after(() => stoerungMailen(stoerung));
+    return NextResponse.json({ ok: true, neu, anzahl: stoerung.anzahl, gesehen: stoerung.gesehenAnzahl });
   } catch (e) {
     console.error("[stoerung]", e instanceof Error ? e.message : e);
     return NextResponse.json({ ok: false }, { status: 500 });

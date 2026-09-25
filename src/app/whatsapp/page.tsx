@@ -43,7 +43,7 @@ export const dynamic = "force-dynamic";
 export default async function WhatsAppSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ mit?: string; fehler?: string }>;
+  searchParams: Promise<{ mit?: string; fehler?: string; suche?: string }>;
 }) {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) return null;
@@ -59,12 +59,13 @@ export default async function WhatsAppSeite({
     );
   }
 
-  const { mit, fehler } = await searchParams;
+  const { mit, fehler, suche } = await searchParams;
+  const gesucht = (suche ?? "").trim();
   const gewaehlt = istKennung(mit) ? mit : null;
 
   if (gewaehlt) await alsGelesenMarkieren(gewaehlt, benutzer.name);
 
-  const unterhaltungen = await holeUnterhaltungen();
+  const unterhaltungen = await holeUnterhaltungen(gesucht);
   const aktuell = unterhaltungen.find((u) => u.waId === gewaehlt) ?? null;
   const verlauf = aktuell ? await holeVerlauf(aktuell.waId) : [];
   const eingerichtet = istEingerichtet();
@@ -95,7 +96,7 @@ export default async function WhatsAppSeite({
       <Warnung unterhaltungen={unterhaltungen} />
 
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
-        <Liste unterhaltungen={unterhaltungen} gewaehlt={gewaehlt} versteckt={Boolean(aktuell)} />
+        <Liste unterhaltungen={unterhaltungen} gewaehlt={gewaehlt} versteckt={Boolean(aktuell)} gesucht={gesucht} />
 
         {aktuell ? (
           <Verlauf unterhaltung={aktuell} verlauf={verlauf} fehler={fehler ?? null} />
@@ -112,21 +113,26 @@ export default async function WhatsAppSeite({
 }
 
 /**
- * Kennzeichen für alles, was nicht per WhatsApp kam: Kontaktfenster im Shop
- * (gold) oder schlechte Bewertung nach der Show (rot).
+ * Kennzeichen für alles, was nicht per WhatsApp kam.
+ *
+ * Kontaktfenster im Shop gold, schlechte Bewertung rot, liegen gelassener
+ * Warenkorb rosa. Die Farbe muss sich unterscheiden lassen, ohne dass man
+ * liest: Im Posteingang überfliegt man die Liste (Florian, 24.09.2026).
  */
+const KANAL_FARBE: Record<string, { grund: string; schrift: string; text: string }> = {
+  bewertung: { grund: "var(--blocker-hell)", schrift: "var(--blocker)", text: "Bewertung" },
+  abbrecher: { grund: "#f7e4ec", schrift: "#a03a67", text: "Warenkorb" },
+  webseite: { grund: "var(--gold-hell)", schrift: "var(--gold-dunkel)", text: "Webseite" },
+};
+
 function Kanal({ kanal }: { kanal: Unterhaltung["kanal"] }) {
-  const bewertung = kanal === "bewertung";
+  const f = KANAL_FARBE[kanal] ?? KANAL_FARBE.webseite;
   return (
     <span
       className="ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide"
-      style={
-        bewertung
-          ? { background: "var(--blocker-hell)", color: "var(--blocker)" }
-          : { background: "var(--gold-hell)", color: "var(--gold-dunkel)" }
-      }
+      style={{ background: f.grund, color: f.schrift }}
     >
-      {bewertung ? "Bewertung" : "Webseite"}
+      {f.text}
     </span>
   );
 }
@@ -234,15 +240,44 @@ function Liste({
   unterhaltungen,
   gewaehlt,
   versteckt,
+  gesucht,
 }: {
   unterhaltungen: Unterhaltung[];
   gewaehlt: string | null;
   /** Auf dem Handy weicht die Liste dem Verlauf. */
   versteckt: boolean;
+  gesucht: string;
 }) {
   return (
+    <div className={versteckt ? "hidden md:block" : ""}>
+      {/* Die Suche geht über Name, Nummer, Adresse und den Text der
+          Nachrichten. Ein einfaches Formular, damit der Treffer auch
+          nach dem Neuladen noch dasteht. */}
+      <form className="mb-2 flex gap-2" action="/whatsapp">
+        <input
+          name="suche"
+          defaultValue={gesucht}
+          placeholder="Name, Nummer, Adresse oder Wort aus der Nachricht"
+          className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+        />
+        <button type="submit" className="rounded-md border border-linie px-3 py-2 text-sm">
+          Suchen
+        </button>
+        {gesucht && (
+          <Link href="/whatsapp" className="rounded-md border border-linie px-3 py-2 text-sm text-leise">
+            Zurück
+          </Link>
+        )}
+      </form>
+      {gesucht && (
+        <p className="mb-2 text-xs text-leise">
+          {unterhaltungen.length === 0
+            ? `Nichts gefunden zu „${gesucht}“.`
+            : `${unterhaltungen.length} ${unterhaltungen.length === 1 ? "Treffer" : "Treffer"} zu „${gesucht}“.`}
+        </p>
+      )}
     <nav
-      className={`${versteckt ? "hidden md:block" : ""} max-h-[70vh] overflow-y-auto rounded-lg border border-linie bg-flaeche`}
+      className="max-h-[70vh] overflow-y-auto rounded-lg border border-linie bg-flaeche"
       aria-label="Unterhaltungen"
     >
       {unterhaltungen.length === 0 && (
@@ -253,7 +288,13 @@ function Liste({
           key={u.waId}
           href={`/whatsapp?mit=${u.waId}`}
           className="block border-b border-linie px-4 py-3 last:border-0 hover:bg-gold-hell/40"
-          style={u.waId === gewaehlt ? { background: "var(--gold-hell)" } : undefined}
+          style={
+            u.waId === gewaehlt
+              ? { background: "var(--gold-hell)" }
+              : u.kanal === "abbrecher"
+                ? { background: "#fdf4f8" }
+                : undefined
+          }
         >
           <div className="flex items-baseline justify-between gap-2">
             <span className={`truncate ${u.ungelesen ? "font-semibold" : ""}`}>
@@ -285,6 +326,7 @@ function Liste({
         </Link>
       ))}
     </nav>
+    </div>
   );
 }
 
@@ -518,10 +560,19 @@ async function WebAntwort({ u }: { u: Unterhaltung }) {
     <div className="space-y-3">
       {buchung && link && (
         <div className="space-y-2 rounded-md border px-4 py-3 text-sm" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          {/*
+            Solange die Zahlung nicht bestätigt ist, wissen wir es nicht.
+
+            „Hat schon gebucht“ als Feststellung war irreführend: Es steht
+            ein Warenkorb da, aber ob daraus ein Kauf wurde, sagt erst die
+            Bestätigung des Shops. Deshalb hier eine Frage, dort eine
+            Aussage (Florian, 25.09.2026).
+          */}
           <p>
-            <strong>Hat schon gebucht:</strong> {tagKurz(buchung.datum)}
+            <strong>{buchung.bestaetigt ? "Hat gebucht:" : "Hat er schon gebucht?"}</strong>{" "}
+            {tagKurz(buchung.datum)}
             {buchung.uhrzeit ? `, ${buchung.uhrzeit} Uhr` : ""}
-            {buchung.plaetze ? `, ${buchung.plaetze} ${buchung.plaetze === 1 ? "Karte" : "Karten"}` : ""}
+            {buchung.plaetze ? `, ${buchung.plaetze} ${buchung.plaetze === 1 ? "Ticket" : "Tickets"}` : ""}
             {menueDabei ? ", Menü ist dabei" : ", noch ohne Menü"}
             {buchung.mailGesendetAm && (
               <span className="text-leise"> · Vorfreude-Mail schon am {zeitpunkt(buchung.mailGesendetAm)} raus</span>
@@ -529,8 +580,16 @@ async function WebAntwort({ u }: { u: Unterhaltung }) {
           </p>
           {!buchung.bestaetigt && (
             <p className="text-xs" style={{ color: "var(--warnung)" }}>
-              Der Shop hat die Zahlung zu dieser Buchung noch nicht bestätigt. Im täglichen Lauf bekäme sie deshalb
-              keine Mail. Von Hand geht sie trotzdem hinaus, wenn du sicher bist, dass die Karten bezahlt sind.
+              Der Shop hat die Zahlung dazu noch nicht bestätigt. Es kann also ein liegengebliebener Warenkorb
+              sein. Steht der Kauf fest, läuft alles von selbst: keine Abbrechermail mehr, aber die
+              Vorfreude-Mail fünf Tage vor der Show. Bis dahin geht sie nur von Hand hinaus, wenn du sicher
+              bist, dass die Tickets bezahlt sind.
+            </p>
+          )}
+          {buchung.bestaetigt && (
+            <p className="text-xs text-leise">
+              Bezahlt. Die Abbrecherstrecke ist damit beendet, die Vorfreude-Mail kommt fünf Tage vor der Show
+              von selbst.
             </p>
           )}
           <div className="flex flex-wrap items-center gap-3">

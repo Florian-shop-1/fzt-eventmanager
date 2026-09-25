@@ -2,10 +2,17 @@ import Link from "next/link";
 import { holeLeads, istStoerung, STOERUNG_STATUS, type Lead } from "@/lib/shop/leads";
 import { leadSpeichern, leadStaende, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
-import { technikStoerungen, type TechnikStoerung } from "@/lib/db/technik-stoerung";
-import { grundText } from "@/lib/stoerung/meldung";
+import {
+  stoerungEinstellung,
+  technikStoerungen,
+  type StoerungEinstellung,
+  type TechnikStoerung,
+} from "@/lib/db/technik-stoerung";
+import { grundText, wasDerGastSah } from "@/lib/stoerung/meldung";
 import { ditixTicketsLink, ditixVerkaufLink } from "@/lib/ditix/link";
-import { stoerungAbhaken } from "./aktionen";
+import { kommendeTermine, type Vorstellungstermin } from "@/lib/ditix/spielplan";
+import { datumMitWochentag } from "@/lib/zeit";
+import { mailSchalten, stoerungAbhaken } from "./aktionen";
 
 export const metadata = { title: "Störungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -51,6 +58,32 @@ export default async function StoerungenSeite({
     technikFehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }
   const technikOffen = technik.filter((t) => !t.erledigtAm);
+
+  /*
+    Der Shop meldet den Termin so, wie er ihn kennt. Bei "Termin nicht in
+    der Ditix-Liste" kennt er ihn aber gerade nicht, dann stand auf der
+    Karte nur die Show ohne Datum, und man musste raten, welcher Abend
+    gemeint ist (Florian, 23.09.2026). Deshalb hier gegen den Spielplan
+    nachschlagen und Datum und Uhrzeit ergänzen.
+  */
+  const spielplan = new Map<string, Vorstellungstermin>();
+  try {
+    for (const t of await kommendeTermine(400)) spielplan.set(t.ditixEventId, t);
+  } catch {
+    // Ohne Spielplan bleibt es bei dem, was der Shop gemeldet hat.
+  }
+
+  let einstellung: StoerungEinstellung = {
+    mailAn: false,
+    geaendertAm: new Date().toISOString(),
+    geaendertVon: null,
+    grund: null,
+  };
+  try {
+    einstellung = await stoerungEinstellung();
+  } catch {
+    // Ohne Einstellung bleibt die Seite lesbar, der Schalter zeigt dann "aus".
+  }
 
   const meldungen = leads
     .filter(istStoerung)
@@ -103,10 +136,33 @@ export default async function StoerungenSeite({
           <p className="mt-1 max-w-prose text-sm text-leise">
             Der Shop merkt selbst, wenn bei ULMFASSBAR, Flo-Zirkus oder Magic Memories die
             Warteliste erscheint, obwohl diese Shows bis zum Beginn im Verkauf sind. Dann steht
-            der Termin hier, und Florian, Kevin und Julian haben eine Mail. Die Ursache liegt
-            meistens in Ditix: Verkaufszeitraum, Preise auf den Kategorien, Ticketarten.
+            der Termin hier. Die Ursache liegt meistens in Ditix: Verkaufszeitraum, Preise auf
+            den Kategorien, Ticketarten.
           </p>
         </div>
+
+        <form
+          action={mailSchalten}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm"
+        >
+          <div className="max-w-prose">
+            <strong>Warnmails: {einstellung.mailAn ? "an" : "aus"}</strong>
+            <div className="text-leise">
+              {einstellung.mailAn
+                ? "Eine Mail geht nur hinaus, wenn ein Gast den Bildschirm wirklich gesehen hat und der Shop ihn auch beim stillen zweiten Anlauf nicht wegbekommen hat. Je Termin einmal."
+                : "Es wird weiter jede Meldung aufgezeichnet und hier angezeigt, aber keine Mail verschickt."}
+              {einstellung.grund && <div className="mt-1">{einstellung.grund}</div>}
+              <div className="mt-1 text-xs">
+                Zuletzt geändert {vorZeit(einstellung.geaendertAm)}
+                {einstellung.geaendertVon ? ` von ${einstellung.geaendertVon}` : ""}
+              </div>
+            </div>
+          </div>
+          <input type="hidden" name="an" value={einstellung.mailAn ? "aus" : "an"} />
+          <button type="submit" className="rounded-md border border-linie px-3 py-1.5 hover:bg-gold-hell">
+            {einstellung.mailAn ? "Warnmails abschalten" : "Warnmails wieder einschalten"}
+          </button>
+        </form>
 
         {technikFehler && (
           <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">
@@ -125,7 +181,9 @@ export default async function StoerungenSeite({
             </p>
           </div>
         ) : (
-          technik.map((t) => <TechnikKarte key={t.id} stoerung={t} />)
+          technik.map((t) => (
+            <TechnikKarte key={t.id} stoerung={t} termin={t.eventId ? (spielplan.get(t.eventId) ?? null) : null} />
+          ))
         )}
       </section>
 
@@ -314,7 +372,14 @@ function Karte({ meldung, stand }: { meldung: Lead; stand: LeadStand | undefined
  * Wichtig ist hier nicht eine Telefonnummer, sondern der Termin: Mit dem
  * geht Julian in Ditix und sieht nach, warum nichts zu verkaufen war.
  */
-function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
+function TechnikKarte({
+  stoerung,
+  termin,
+}: {
+  stoerung: TechnikStoerung;
+  /** Aus dem Spielplan nachgeschlagen, falls es den Termin dort gibt. */
+  termin: Vorstellungstermin | null;
+}) {
   const erledigt = Boolean(stoerung.erledigtAm);
   const farbe = erledigt ? "var(--text-leise)" : "var(--blocker)";
   // Der Weg zur Behebung führt immer über Ditix, also gleich dorthin verlinken:
@@ -345,14 +410,43 @@ function TechnikKarte({ stoerung }: { stoerung: TechnikStoerung }) {
                 ? `einmal, ${vorZeit(stoerung.zuletztAm)}`
                 : `${stoerung.anzahl} mal, zuletzt ${vorZeit(stoerung.zuletztAm)}`}
             </span>
+            {/* Das Entscheidende zuerst: Hat ein Gast das wirklich gesehen? */}
+            <span
+              className="rounded-full border px-2 py-px text-xs"
+              style={{
+                color: stoerung.gesehenAnzahl > 0 ? "var(--blocker)" : "var(--text-leise)",
+                borderColor: stoerung.gesehenAnzahl > 0 ? "var(--blocker)" : "var(--linie)",
+              }}
+            >
+              {stoerung.gesehenAnzahl === 0
+                ? "kein Gast hat es gesehen"
+                : stoerung.gesehenAnzahl === 1
+                  ? "ein Gast hat es gesehen"
+                  : `${stoerung.gesehenAnzahl} Gäste haben es gesehen`}
+            </span>
+            {stoerung.behobenAm && (
+              <span className="rounded-full border px-2 py-px text-xs" style={{ color: "var(--gut)", borderColor: "var(--gut)" }}>
+                ging danach wieder{stoerung.behobenWie ? `, ${stoerung.behobenWie}` : ""}
+              </span>
+            )}
           </div>
 
           <div className="mt-2 text-xl font-semibold tracking-tight">
-            {stoerung.showName ?? "Unbekannte Show"}
+            {termin
+              ? `${datumMitWochentag(termin.datum)}, ${termin.uhrzeit} Uhr`
+              : (stoerung.showName ?? "Unbekannte Show")}
           </div>
-          <div className="text-sm">{stoerung.eventZeit ?? "Termin unbekannt"}</div>
+          <div className="text-sm">
+            {termin ? termin.name : (stoerung.eventZeit ?? "Termin unbekannt")}
+            {termin && stoerung.eventZeit && !stoerung.eventZeit.includes(termin.uhrzeit) && (
+              <span className="text-leise"> · gemeldet als: {stoerung.eventZeit}</span>
+            )}
+          </div>
 
           <p className="mt-3 max-w-prose rounded border border-linie bg-white/40 px-3 py-2 text-sm text-leise">
+            {stoerung.gesehenAnzahl > 0 && (
+              <span className="mb-1 block text-text">{wasDerGastSah(stoerung)}</span>
+            )}
             {grundText(stoerung.grund)}
           </p>
 

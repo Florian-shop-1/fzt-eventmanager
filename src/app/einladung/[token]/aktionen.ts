@@ -26,7 +26,9 @@ export type EinladungsErgebnis = { fehler?: string; felder?: Record<string, stri
  */
 function standardArt(rolle: string): "intern" | "extern" | null {
   if (rolle === "buchhaltung") return null;
-  return ["gastro", "kiosk"].includes(rolle) ? "extern" : "intern";
+  // Eine Werbeagentur ist ein Dienstleister mit eigenem Vertrag, kein
+  // Mitarbeiter: kein Personalbogen fuers Lohnbuero (Florian, 23.09.2026).
+  return ["gastro", "kiosk", "agentur"].includes(rolle) ? "extern" : "intern";
 }
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();

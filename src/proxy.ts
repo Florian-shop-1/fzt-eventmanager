@@ -54,6 +54,18 @@ const OHNE_ANMELDUNG = [
   "/api/wein",
   "/api/stempel",
   "/api/whatsapp/eingang",
+  // Probemails der Abbrecher-Strecke, prueft selbst das CRON_SECRET.
+  "/api/abbrecher",
+  // Die Antwort auf "Was hat dich abgehalten?" kommt aus einer Mail an
+  // einen Gast. Der hat keinen Zugang und soll auch keinen brauchen.
+  "/warum",
+  // Die Angebotsseite mit der laufenden Uhr, aus der Mail an einen Gast.
+  "/angebot",
+  // Der Countdown in der Angebotsmail ist ein Bild fuer den Gast.
+  "/api/countdown",
+  // Der Bankabruf läuft auf einem Rechner im Haus und hat keinen Benutzer.
+  // Die Route lässt nur durch, wer das BANK_IMPORT_SECRET mitschickt.
+  "/api/bank",
 ];
 
 /**

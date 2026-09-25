@@ -184,3 +184,95 @@ export async function anfrageAntwortMail(o: {
     }),
   );
 }
+
+/**
+ * Jemand hat unter einer Show etwas geschrieben.
+ *
+ * Geht an alle, die unter dieser Show eingeteilt sind oder dort schon
+ * geschrieben haben, so wie man bei Facebook eine Benachrichtigung
+ * bekommt, wenn unter einem Beitrag weitergeredet wird, an dem man
+ * beteiligt ist. Nicht an den Schreiber selbst (Florian, 23.09.2026).
+ */
+export async function kommentarMail(o: {
+  an: Person[];
+  wer: string;
+  termin: Vorstellungstermin;
+  text: string;
+  antwort: boolean;
+}) {
+  const vorname = o.wer.split(" ")[0];
+  const link = `${appUrl()}/dienstplan?s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`;
+  const kurz = o.text.length > 300 ? `${o.text.slice(0, 300)}...` : o.text;
+  return schicken(
+    o.an,
+    `${vorname} schreibt zum ${datumMitWochentag(o.termin.datum)}`,
+    () => ({
+      absaetze: [
+        o.antwort
+          ? `${vorname} hat auf einen Kommentar zu dieser Show geantwortet:`
+          : `${vorname} hat etwas zu dieser Show geschrieben:`,
+        `"${kurz}"`,
+      ],
+      liste: [`${datumMitWochentag(o.termin.datum)}, ${o.termin.uhrzeit} Uhr, ${o.termin.name}`],
+      knopf: "Im Dienstplan antworten",
+      link,
+    }),
+  );
+}
+
+/**
+ * Ein Rookie lernt an einer schon besetzten Position mit.
+ *
+ * Die Mail geht an den, der die Position hatte: Er macht den Abend nicht
+ * mehr allein, sondern geht als Shadow mit. Das muss er vorher wissen.
+ *
+ * Bewusst eine Mitteilung und keine Frage: Einen Rookie mitzunehmen gehört
+ * zur Position, da hat der Techniker nicht zu widersprechen (Florian,
+ * 23.09.2026). Passt der Abend wirklich nicht, klärt das Florian.
+ */
+export async function mitlernenMail(o: {
+  an: Person;
+  rookie: string;
+  termin: Vorstellungstermin;
+  position: Position;
+}) {
+  const link = `${appUrl()}/dienstplan?s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`;
+  return schicken([o.an], `${o.rookie} lernt bei dir mit, ${datumMitWochentag(o.termin.datum)}`, () => ({
+    absaetze: [
+      `${o.rookie} lernt an diesem Abend ${BEZEICHNUNG[o.position]} und geht dafür auf deine Position.`,
+      "Du bist deshalb an dem Abend als Shadow eingetragen: Du gehst mit, springst ein, wenn es klemmt, und hast das letzte Wort.",
+      "Danke, dass du ihn mitnimmst. So lernt bei uns jeder die Position.",
+    ],
+    liste: [schichtText(o.termin, o.position)],
+    knopf: "Im Dienstplan ansehen",
+    link,
+  }));
+}
+
+/**
+ * Der Aufruf an alle: Wer spielt den eingeweihten Zuschauer?
+ *
+ * Diese Position kann jeder. Deshalb geht die Anfrage nicht nur an die
+ * Leute einer Position, sondern ans ganze Haus, und sie erklärt in zwei
+ * Sätzen, dass man nichts können muss (Florian, 23.09.2026).
+ */
+export async function zuschauerGesuchtMail(o: {
+  an: Person[];
+  termin: Vorstellungstermin;
+  wer: string;
+  notiz?: string | null;
+}) {
+  const link = `${appUrl()}/dienstplan?nur=alle&s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`;
+  return schicken(o.an, `Wer macht den Zuschauer am ${datumMitWochentag(o.termin.datum)}?`, () => ({
+    absaetze: [
+      "für diese Show fehlt uns noch der eingeweihte Zuschauer im Publikum.",
+      "Das kann jeder von euch: Wir zeigen es dir 30 Minuten vor Einlass, es ist wirklich einfach, und du bist nur in der ersten Hälfte dran.",
+      ...(o.notiz ? [`${o.wer} schreibt dazu: ${o.notiz}`] : []),
+      "Trag dich einfach im Dienstplan ein. Fragen dazu kannst du gern als Kommentar unter die Show schreiben, dann sehen es alle.",
+      "Wenn du an dem Abend als Rookie mitläufst: Du darfst wechseln. Deine bisherige Position wird dann automatisch wieder ausgeschrieben.",
+    ],
+    liste: [`${datumMitWochentag(o.termin.datum)}, ${o.termin.uhrzeit} Uhr, ${o.termin.name}`],
+    knopf: "Ich mache das",
+    link,
+  }));
+}

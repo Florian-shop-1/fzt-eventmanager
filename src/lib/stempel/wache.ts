@@ -52,6 +52,40 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
 }
 
 /**
+ * Die Mail an den, der das Ausstempeln vergessen hat.
+ *
+ * Absichtlich ohne Vorwurf: Meistens war einfach der Akku leer oder es
+ * wurde spaet. Gefragt wird nur, was los war, und der Weg zur Korrektur
+ * steht daneben.
+ */
+async function anMitarbeiter(benutzerId: string, name: string, seit: string, bis: string): Promise<void> {
+  const z = (await db()`select email from benutzer where id = ${benutzerId} and aktiv`) as Array<{ email: string }>;
+  const email = z[0]?.email;
+  if (!email) return;
+  const vorname = name.split(" ")[0];
+  try {
+    await mailVerschicken({
+      an: email,
+      betreff: "Du warst noch eingestempelt",
+      text: [
+        `Hallo ${vorname},`,
+        "",
+        `du hast am ${zeit(seit)} eingestempelt und gestern nicht mehr ausgestempelt.`,
+        `Damit die Zeit nicht endlos weiterläuft, hat das Programm um ${zeit(bis)} Schluss gemacht.`,
+        "",
+        "Was war los? Wenn du früher gegangen bist oder länger gearbeitet hast, beantrage bitte",
+        "kurz die richtige Zeit, dann trägt das Büro sie ein. Das dauert eine halbe Minute:",
+        `${APP}/stempeluhr`,
+        "",
+        "Wenn die Zeit so stimmt, musst du nichts tun.",
+      ].join("\n"),
+    });
+  } catch (f) {
+    console.error("[stempel] Mail an", email, "fehlgeschlagen:", f);
+  }
+}
+
+/**
  * Stempelt jemanden automatisch aus.
  *
  * Wer das Gelände verlässt, arbeitet nicht mehr. Bisher wurde das nur
@@ -274,9 +308,18 @@ export async function nachtabschluss(): Promise<{ beendet: number }> {
       new Date(schluss.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
     let zeitpunkt = new Date(schluss.getTime() - versatz);
 
-    // Wer nach der Feierabendzeit gekommen ist, bekommt wenigstens eine
-    // halbe Stunde. Und nie in der Zukunft stempeln.
+    /*
+      Die Feierabendzeit liegt seit dem 23.09.2026 nach Mitternacht (1 Uhr).
+      Damit gehoert sie zum FOLGETAG der Schicht: Wer um 20 Uhr anfaengt,
+      hoert um 1 Uhr in der Nacht darauf auf, nicht um 1 Uhr desselben
+      Morgens. Ohne diesen Schritt waere der Schluss vor dem Anfang.
+    */
+    if (zeitpunkt.getTime() <= start.getTime()) {
+      zeitpunkt = new Date(zeitpunkt.getTime() + 24 * 60 * 60000);
+    }
+    // Falls es dann immer noch nicht passt: wenigstens eine halbe Stunde.
     if (zeitpunkt.getTime() <= start.getTime()) zeitpunkt = new Date(start.getTime() + 30 * 60000);
+    // Und nie in der Zukunft stempeln.
     if (zeitpunkt.getTime() > Date.now()) zeitpunkt = new Date();
 
     await automatischAusstempeln({
@@ -290,6 +333,10 @@ export async function nachtabschluss(): Promise<{ beendet: number }> {
       `Das Programm hat den Feierabend auf ${zeit(zeitpunkt.toISOString())} gesetzt.`,
       "Wenn die Zeit nicht stimmt, in der Stempeluhr unter „Zeiten korrigieren“ ändern.",
     ]);
+    // Und der Mitarbeiter selbst erfaehrt es auch. Er ist der Einzige, der
+    // weiss, was los war, und er kann die Korrektur gleich beantragen
+    // (Florian, 23.09.2026).
+    await anMitarbeiter(p.benutzerId, p.name, p.seit, zeitpunkt.toISOString());
     beendet++;
   }
   return { beendet };

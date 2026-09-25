@@ -66,6 +66,18 @@ export const CODEVORLAGEN: Codevorlage[] = [
       "Ticket, das zweite geht auf uns. Hier ist dein Code:",
     ),
     schluss: z(
+      /*
+        Der Abriss muss mit.
+
+        Wir rechnen die Freikarte mit dem Schlemmerblock ab, und dafür
+        brauchen wir den Abschnitt aus dem Heft. Steht das erst am
+        Eingang, diskutiert dort jemand, der es nicht wissen konnte.
+        Deshalb schon hier, beim Code (Florian, 25.09.2026).
+      */
+      "Bitte bring den Abriss aus deinem Schlemmerblock zur Show mit und gib",
+      "ihn beim Einlass ab. Ohne ihn können wir die Freikarte leider nicht",
+      "anerkennen.",
+      "",
       "Noch eine Sache, damit ihr beide etwas zu essen habt:",
       "",
       "Im Shop lässt sich pro Ticket nur ein Menü dazubuchen. Zur Freikarte",

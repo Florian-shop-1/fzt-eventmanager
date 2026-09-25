@@ -18,6 +18,8 @@ import { revalidatePath } from "next/cache";
 import { holeAngebot } from "./lesen";
 import { angebotVersendet } from "./speichern";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { angebotsPdf } from "./pdf";
+import { pdfDatenAusAngebot, pdfDateiname } from "./pdfdaten";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 
 /**
@@ -52,7 +54,32 @@ export async function angebotPerMail(
     if (!betreff) throw new Error("Der Betreff fehlt.");
     if (!text) throw new Error("Der Text fehlt.");
 
-    await mailVerschicken({ an, betreff, text });
+    /*
+      Das Angebot geht als Anhang mit, nicht nur als Link.
+
+      Ein Link allein reicht nicht: Wer im Einkauf sitzt, leitet ein
+      Angebot weiter, druckt es aus und legt es zur Freigabe vor. Dafuer
+      braucht er eine Datei in der Hand. Der Link bleibt trotzdem drin,
+      denn nur dort kann der Kunde zusagen, und nur dort sehen wir, dass
+      er es angesehen hat (Florian, 25.09.2026).
+
+      Scheitert das PDF, geht die Mail trotzdem hinaus. Ein Angebot ohne
+      Anhang ist besser als kein Angebot.
+    */
+    const anhaenge = await angebotsPdf(await pdfDatenAusAngebot(angebot))
+      .then((pdf) => [
+        {
+          name: pdfDateiname(angebot.nummer),
+          base64: pdf.toString("base64"),
+          typ: "application/pdf",
+        },
+      ])
+      .catch((f) => {
+        console.error("[angebot] PDF nicht erzeugt:", f);
+        return undefined;
+      });
+
+    await mailVerschicken({ an, betreff, text, anhaenge });
 
     // Erst nach dem erfolgreichen Versand vermerken. Andersherum stünde
     // "versendet" auch dann da, wenn die Mail nie rausging.

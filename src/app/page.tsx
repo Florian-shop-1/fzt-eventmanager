@@ -2,14 +2,22 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LOGEN, EVENTGALERIE_TISCHE, FOYER_STEHTISCHE, kapazitaet } from "@/lib/domain/venue";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { heutigeGeburtstage } from "@/lib/db/geburtstag";
 
 export default async function Startseite() {
   // Der Food-Kiosk hat genau eine Seite. Nach dem Anmelden direkt dorthin.
   const rolle = (await angemeldeterBenutzer())?.rolle;
   if (rolle === "kiosk") redirect("/kiosk");
+  // Eine Werbeagentur hat auf der Uebersicht nichts zu suchen: Dort stehen
+  // Gaestezahlen und Vorgaenge. Sie landet direkt bei ihrer Auswertung.
+  if (rolle === "agentur") redirect("/marketing");
   if (rolle === "buchhaltung") redirect("/bewirtung");
   // Das Showteam braucht keine Übersicht mit Restaurant und Vorgängen, nur seinen Plan.
   if (rolle === "showteam") redirect("/dienstplan");
+
+  // Der Hase gratuliert einmal und verschwindet. Hier bleibt es den
+  // ganzen Tag stehen, damit es im Büro niemand verpasst.
+  const geburtstage = await heutigeGeburtstage().catch(() => []);
 
   return (
     <div className="space-y-10">
@@ -19,6 +27,20 @@ export default async function Startseite() {
           Internes Programm für Firmenevents, Angebote und die Platzierung in der Magicuisine.
         </p>
       </header>
+
+      {geburtstage.length > 0 && (
+        <section
+          className="rounded-lg border px-5 py-4"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <strong>
+            {geburtstage.length === 1
+              ? `${geburtstage[0].name} hat heute Geburtstag.`
+              : `${geburtstage.map((g) => g.name).join(", ")} haben heute Geburtstag.`}
+          </strong>
+          <p className="mt-1 text-sm">Ein Glückwunsch im Vorbeigehen macht den Tag.</p>
+        </section>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Kachel

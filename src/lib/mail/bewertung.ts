@@ -85,22 +85,24 @@ export function baueBewertungsmail(buchung: ShopBuchung, heute = new Date()): Be
   const wann = wannWarDerAbend(buchung.datum, zeit, heute);
   const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
 
-  const betreff = vn ? `${vn}, wie war dein ${zeit} bei uns?` : `Wie war dein ${zeit} bei uns?`;
+  // Wortlaut von Florian, 23.09.2026. Bewusst übernommen wie diktiert: die
+  // Frage im Betreff, die Bitte als eigener Satz, kein "sag es zuerst uns"
+  // mehr. Wer wenige Sterne gibt, landet ohnehin im Textfeld statt bei Google.
+  const betreff = `Wie hat dir dein ${zeit} bei uns gefallen?`;
 
   const text = [
     anrede,
     "",
-    `${wann[0].toUpperCase() + wann.slice(1)} warst du bei uns im Theater, und ich hoffe von Herzen, dass du mit`,
-    "einem Lächeln nach Hause gegangen bist.",
+    `${wann[0].toUpperCase() + wann.slice(1)} warst du bei uns im Theater und ich hoffe, du bist mit`,
+    "vielen schönen und magischen Momenten nach Hause gegangen. ✨",
     "",
-    "Darf ich dich um einen kleinen Gefallen bitten? Sag mir ehrlich, wie es dir",
-    "gefallen hat. Jede Show bei uns ist Handarbeit, und nichts hilft meinem",
-    "Team und mir mehr als deine Rückmeldung.",
+    "Darf ich dich um einen kleinen Gefallen bitten?",
     "",
-    "Und falls irgendetwas nicht so war, wie du es dir gewünscht hast: Bitte sag",
-    "es zuerst uns. Wir möchten es wieder gutmachen.",
+    `Sag uns, wie dir dein ${zeit} gefallen hat. Jede Show entsteht mit viel`,
+    "Leidenschaft und Liebe zum Detail und deine Rückmeldung bedeutet meinem",
+    "Team und mir sehr viel.",
     "",
-    `Wie viele Sterne gibst du deinem ${zeit}? Ein Klick genügt:`,
+    `Wie viele Sterne gibst du deinem ${zeit} bei uns? Ein Klick genügt:`,
     "",
     ...[5, 4, 3, 2, 1].map((s) => `${"★".repeat(s)}${"☆".repeat(5 - s)}  ${sterneLink(buchung.zugangToken, s)}`),
     "",
@@ -208,9 +210,9 @@ function baueHtml(d: { anrede: string; wann: string; zeit: string; token: string
 
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
       ${absatz(h(d.anrede), "color:" + WEISS + ";font-size:17px;")}
-      ${absatz(`${h(d.wann[0].toUpperCase() + d.wann.slice(1))} warst du bei uns im Theater, und ich hoffe von Herzen, dass du mit einem Lächeln nach Hause gegangen bist.`)}
-      ${absatz(`Darf ich dich um einen kleinen Gefallen bitten? Sag mir ehrlich, wie es dir gefallen hat. Jede Show bei uns ist Handarbeit, und nichts hilft <strong style="color:${WEISS};font-weight:600;">meinem Team und mir</strong> mehr als deine Rückmeldung.`)}
-      ${absatz("Und falls irgendetwas nicht so war, wie du es dir gewünscht hast: Bitte sag es zuerst uns. Wir möchten es wieder gutmachen.")}
+      ${absatz(`${h(d.wann[0].toUpperCase() + d.wann.slice(1))} warst du bei uns im Theater und ich hoffe, du bist mit vielen schönen und magischen Momenten nach Hause gegangen. &#10024;`)}
+      ${absatz("Darf ich dich um einen kleinen Gefallen bitten?")}
+      ${absatz(`Sag uns, wie dir dein ${h(d.zeit)} gefallen hat. Jede Show entsteht mit viel Leidenschaft und Liebe zum Detail und deine Rückmeldung bedeutet <strong style="color:${WEISS};font-weight:600;">meinem Team und mir</strong> sehr viel.`)}
     </td></tr>
 
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:4px 40px 0;">

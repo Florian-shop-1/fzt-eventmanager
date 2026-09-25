@@ -53,6 +53,11 @@ export const BEREICHE: Array<{ rolle: string; titel: string; text: string; achtu
     achtung: "Das Büro sieht Preise, Kundendaten und Zahlungen. Diesen Link nur an Leute geben, die das dürfen.",
   },
   {
+    rolle: "agentur",
+    titel: "Werbeagentur",
+    text: "Sieht nur die Auswertung, woher die Verkäufe kommen: Anteile, Karten und Umsatz je Kanal und Kampagne. Keine Gästedaten, keine Vorgänge, keine Preise im Einkauf.",
+  },
+  {
     rolle: "buchhaltung",
     titel: "Buchhaltung",
     text: "Nur die Belege und die Buchhaltung, nichts aus dem Tagesgeschäft.",

@@ -26,7 +26,17 @@ const GUELTIG_TAGE = 30;
  *            Einlass und die Upgrades. Sieht keine Preise.
  *  kiosk  Externer Food-Kiosk. Sieht nur die Stehtische je Abend, sonst nichts.
  */
-export type Rolle = "chef" | "team" | "gastro" | "foyer" | "showteam" | "kiosk" | "buchhaltung";
+export type Rolle =
+  | "chef"
+  | "team"
+  | "gastro"
+  | "foyer"
+  | "showteam"
+  | "kiosk"
+  // Werbeagentur: sieht ausschliesslich, was ihre Kampagnen einbringen,
+  // keine Gaeste, keine Vorgaenge (Florian, 23.09.2026).
+  | "agentur"
+  | "buchhaltung";
 
 /**
  * Buchhaltung: Florian und sein Vater (Rolle buchhaltung). Die anderen
@@ -56,6 +66,19 @@ export function darfStempeln(b: { rolle: Rolle; art?: "intern" | "extern" | null
  * nicht, sie stempeln nur und können eine Korrektur beantragen.
  */
 const ZEITEN_TEAM = ["kevin.steele@florianzimmer.com"];
+/**
+ * Darf diese Person Gäste anschreiben?
+ *
+ * Die Agentur sieht die abgebrochenen Buchungen, damit sie ihre
+ * Kampagnen beurteilen kann. Eine Mail an einen Gast kommt aber immer
+ * vom Haus: Wer im Namen des Theaters schreibt, gehört zum Theater
+ * (Florian, 25.09.2026).
+ */
+export function darfAnschreiben(b: { rolle: Rolle } | null | undefined): boolean {
+  if (!b) return false;
+  return b.rolle !== "agentur";
+}
+
 export function darfZeitenAendern(b: { rolle: Rolle; email: string } | null | undefined): boolean {
   if (!b) return false;
   if (b.rolle === "chef" || b.rolle === "buchhaltung") return true;
@@ -246,9 +269,34 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   // Magicuvée-Bestellungen: Die Seite prüft selbst, wer bestellen oder
   // übergeben darf und ob der Bereich schon freigeschaltet ist.
   if (pfad.startsWith("/bestellungen") && ["gastro", "foyer"].includes(rolle)) return true;
+  if (rolle === "agentur") {
+    /*
+      Die Agentur sieht, was ihre Arbeit einbringt, und wo sie verloren
+      geht: die abgebrochenen Buchungen. Dort steht, an welcher Stelle
+      Gäste aussteigen, und das ist für die Kampagnen so wichtig wie die
+      Verkäufe selbst (Florian, 25.09.2026).
+
+      Schreiben darf sie dort nichts. Eine Mail an einen Gast kommt von
+      uns, nicht von der Agentur; das sperrt darfAnschreiben().
+    */
+    return (
+      pfad === "/" ||
+      pfad.startsWith("/marketing") ||
+      pfad.startsWith("/abbrueche") ||
+      pfad.startsWith("/konto")
+    );
+  }
   if (rolle === "buchhaltung") {
     // Florians Vater: nur die Buchhaltung, sonst nichts aus dem Tagesgeschäft.
-    return pfad === "/" || pfad.startsWith("/bewirtung") || pfad.startsWith("/buchhaltung") || pfad.startsWith("/konto");
+    return (
+      pfad === "/" ||
+      pfad.startsWith("/bewirtung") ||
+      pfad.startsWith("/buchhaltung") ||
+      // Rechnungen und der Abgleich mit dem Konto gehören zur Buchhaltung.
+      pfad.startsWith("/rechnungen") ||
+      pfad.startsWith("/zahlungseingaenge") ||
+      pfad.startsWith("/konto")
+    );
   }
   if (rolle === "kiosk") {
     // Ein externer Partner, kein Mitarbeiter: nur die Stehtische, keine
@@ -264,6 +312,9 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       // Glücks-Moji-Karten scannen und prüfen.
       pfad.startsWith("/scanner") ||
       pfad.startsWith("/einlassliste") ||
+      // Geschenke fuer Gaeste, deren Buchung erst abgebrochen war: Die
+      // gibt das Foyer an der Magic-Bar aus (Florian, 23.09.2026).
+      pfad.startsWith("/geschenke") ||
       pfad.startsWith("/sitzplan") ||
       // Sarah macht seit 21.09.2026 auch im Showteam mit und braucht
       // deshalb die Upgrades wie die anderen am Abend.

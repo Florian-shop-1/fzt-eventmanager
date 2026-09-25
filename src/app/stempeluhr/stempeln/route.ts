@@ -9,6 +9,7 @@ import {
   type StempelArt,
 } from "@/lib/stempel/db";
 import { gelaendeVerlassen } from "@/lib/stempel/wache";
+import { geraetPruefen } from "@/lib/stempel/geraet";
 
 /**
  * Ein Stempel vom Handy: Art plus Position.
@@ -26,6 +27,13 @@ const ERLAUBT: StempelArt[] = ["kommen", "pause_start", "pause_ende", "gehen"];
 export async function POST(request: Request) {
   const b = await angemeldeterBenutzer();
   if (!b) return NextResponse.json({ ok: false, fehler: "Bitte neu anmelden." }, { status: 401 });
+
+  // Nur am Handy. Geprueft auf dem Server, damit es nicht reicht, im
+  // Browser einen Knopf sichtbar zu machen (Florian, 23.09.2026).
+  const geraet = geraetPruefen(request.headers.get("user-agent"));
+  if (!geraet.handy) {
+    return NextResponse.json({ ok: false, fehler: geraet.grund }, { status: 403 });
+  }
 
   const daten = (await request.json().catch(() => null)) as
     | { art?: string; lat?: number; lon?: number; genauigkeit?: number }

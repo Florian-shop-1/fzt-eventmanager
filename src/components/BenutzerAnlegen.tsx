@@ -65,6 +65,7 @@ export function BenutzerAnlegen() {
             <option value="foyer">Foyer, Stehtische und Bändchen, ohne Preise</option>
             <option value="showteam">Showteam, Saalplan, Belegung, Upgrades und Einlass, ohne Preise und Küche</option>
             <option value="kiosk">Food-Kiosk, nur Stehtische je Abend, keine Gäste- oder Kundendaten</option>
+            <option value="agentur">Werbeagentur, nur die Auswertung „Woher die Verkäufe kommen“</option>
             <option value="buchhaltung">Buchhaltung, nur Bewirtungsbelege und was zur Buchhaltung gehört</option>
             <option value="chef">Geschäftsführung, darf auch Zugänge verwalten</option>
           </select>

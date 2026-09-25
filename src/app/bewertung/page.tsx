@@ -20,12 +20,14 @@ export const dynamic = "force-dynamic";
 export default async function BewertungSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ meldung?: string; tag?: string }>;
+  searchParams: Promise<{ meldung?: string; tag?: string; zeit?: string }>;
 }) {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) return null;
-  const { meldung, tag: tagWahl } = await searchParams;
+  const { meldung, tag: tagWahl, zeit: zeitWahl } = await searchParams;
   const tag = tagWahl && /^\d{4}-\d{2}-\d{2}$/.test(tagWahl) ? tagWahl : gestern();
+  // Abend oder Nachmittag bleibt stehen, auch nach einer Probemail.
+  const zeit = zeitWahl === "nachmittag" ? "nachmittag" : "abend";
 
   const schalter = await bewertungAktiv();
   const team = await probeEmpfaenger();
@@ -68,8 +70,9 @@ export default async function BewertungSeite({
               {schalter.aktiv ? "Eingeschaltet" : "Ausgeschaltet"}
               {schalter.geaendertVon &&
                 `, zuletzt von ${schalter.geaendertVon} ${vorZeit(schalter.geaendertAm)}`}
-              . Vor dem Einschalten in Brevo das Szenario „Danke für deinen Besuch“ abschalten,
-              sonst bekommen Gäste zwei Mails.
+              . In Brevo ist die Automatisierung „Bewertung - 1. Einladung zur Bewertung“ seit dem
+              15.09.2026 pausiert. Solange das so bleibt, fragt nur noch der Eventmanager nach einer
+              Bewertung und niemand bekommt zwei Mails.
             </p>
           </div>
           {benutzer.rolle === "chef" && (
@@ -92,6 +95,8 @@ export default async function BewertungSeite({
                 defaultValue={tag}
                 className="rounded-md border border-linie px-3 py-1.5"
               />
+              {/* Beim Tagwechsel die Wahl Abend/Nachmittag behalten. */}
+              <input type="hidden" name="zeit" value={zeit} />
               <button type="submit" className="rounded-md border border-linie px-3 py-1.5 hover:bg-gold-hell">
                 Anzeigen
               </button>
@@ -107,7 +112,7 @@ export default async function BewertungSeite({
                   </option>
                 ))}
               </select>
-              <select name="zeit" defaultValue="abend" className="rounded border px-2 py-1 text-sm">
+              <select name="zeit" defaultValue={zeit} className="rounded border px-2 py-1 text-sm">
                 <option value="abend">Abendshow</option>
                 <option value="nachmittag">Mittagsshow</option>
               </select>

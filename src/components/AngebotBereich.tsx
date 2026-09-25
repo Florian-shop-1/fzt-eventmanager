@@ -14,6 +14,7 @@ import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { angebotErzeugen, angebotLoeschen, angebotVersendet } from "@/lib/angebot/speichern";
 import { angebotPerMail } from "@/lib/angebot/mailversand";
+import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
@@ -161,10 +162,11 @@ function AngebotKarte({
     "",
     "vielen Dank für euer Interesse an einem Abend im Florian Zimmer Theater.",
     "",
-    "Euer persönliches Angebot findet ihr hier:",
+    "Euer persönliches Angebot hängt an dieser Mail als PDF.",
+    "",
+    "Online ansehen und mit einem Klick zusagen könnt ihr es hier:",
     link,
     "",
-    "Dort könnt ihr es in Ruhe ansehen und mit einem Klick zusagen.",
     `Das Angebot gilt bis zum ${new Date(angebot.gueltigBis).toLocaleDateString("de-DE")}.`,
     "",
     "Bei Fragen sind wir gerne für euch da.",
@@ -218,6 +220,39 @@ function AngebotKarte({
       <div className="mb-3 rounded bg-hintergrund p-2">
         <div className="mb-1 text-xs text-leise">Persönlicher Link für den Kunden</div>
         <div className="break-all font-mono text-xs">{link}</div>
+      </div>
+
+      {/*
+        Das PDF, so wie der Kunde es bekommt. Vor dem Verschicken einmal
+        selbst ansehen ist die beste Kontrolle (Florian, 25.09.2026).
+      */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <a
+          href={`/api/angebot/pdf?id=${angebot.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-hintergrund"
+        >
+          Angebot als PDF ansehen
+        </a>
+
+        {/*
+          Der Schritt danach: Man ist sich einig, die Rechnung geht raus.
+
+          Der Knopf steht auch bei einem noch nicht zugesagten Angebot da,
+          weil man sich oft am Telefon einig wird und niemand vorher auf
+          den Zusageknopf im Kundenlink drückt. Eine zweite Rechnung legt
+          er nicht an, er fuehrt dann zur vorhandenen
+          (Florian, 25.09.2026).
+        */}
+        <form action={rechnungErzeugen.bind(null, angebot.id, vorgangId)}>
+          <button
+            type="submit"
+            className="rounded-md border border-gold bg-gold-hell/40 px-3 py-1.5 text-sm font-medium text-gold-dunkel"
+          >
+            {angebot.angenommenAm ? "Rechnung erstellen" : "Einig geworden? Rechnung erstellen"}
+          </button>
+        </form>
       </div>
 
       {/*

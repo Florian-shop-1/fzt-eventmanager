@@ -55,8 +55,10 @@ export const ARTIKEL: Artikel[] = [
   // Menüs
   {
     nummer: "4GANG",
-    bezeichnung: "4-Gang-Menü (Classic, Vegan oder Sea)",
-    beschreibung: "Wundervolles Menü by Osman Kavak",
+    bezeichnung: "Magic Menü by Osman Kavak (Classic, Sea oder Veggy)",
+    beschreibung:
+      "Vier Gänge Fine Dining inklusive Welcome-Drink. Suppe, Salat, Hauptgang nach Wahl " +
+      "und Dessert. Sonderpreis in Verbindung mit der Show.",
     einheit: "Stück",
     bruttoCent: 6900,
     ust: 0.07,
@@ -65,10 +67,33 @@ export const ARTIKEL: Artikel[] = [
   },
   {
     nummer: "4GANGLOGE",
-    bezeichnung: "4-Gang-Menü LOGE",
-    beschreibung: "Wundervolles Menü by Osman Kavak",
+    bezeichnung: "Magic Menü by Osman Kavak, serviert in der Loge",
+    beschreibung:
+      "Vier Gänge Fine Dining inklusive Welcome-Drink, serviert an eurem Tisch in der Loge.",
     einheit: "Stück",
     bruttoCent: 7900,
+    ust: 0.07,
+    gruppe: "menue",
+    proPerson: true,
+  },
+
+  /*
+    Die sparsame Fassung: Umtrunk und Fingerfood statt Fine Dining.
+
+    Auf der Firmenseite steht "schon ab 110 Euro pro Person, ohne Fine
+    Dining, aber inklusive Umtrunk und Fingerfood". Die Rechnung dahinter:
+    Ticket Kat. 3 (49) plus Fingerfood (49) plus Empfang (12) sind genau
+    110 Euro brutto. Wer mehr Budget hat, nimmt eine bessere Kategorie
+    oder gleich das Magic Menü (Florian, 25.09.2026).
+  */
+  {
+    nummer: "FINGERFOOD",
+    bezeichnung: "Fingerfood by Osman Kavak",
+    beschreibung:
+      "Herzhafte und süße Kleinigkeiten aus unserer Küche, auf Etageren zum Teilen. " +
+      "Vegetarisches ist immer dabei, Allergien berücksichtigen wir selbstverständlich.",
+    einheit: "Stück",
+    bruttoCent: 4900,
     ust: 0.07,
     gruppe: "menue",
     proPerson: true,

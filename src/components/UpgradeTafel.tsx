@@ -871,10 +871,30 @@ export function UpgradeTafel({
           <strong>Ich setze euch kostenfrei weiter nach vorne.</strong> Von dort seht ihr die Show noch besser, kommt
           einfach mit.“
         </p>
+        {/*
+          Der wichtigste Satz steht bewusst hervorgehoben und nicht im
+          Kleingedruckten: Wer erst im Saal angesprochen wird, sitzt schon,
+          und die Nachbarn hören mit. Dann kommt die Frage, warum die
+          umsonst weiter vorne sitzen als man selbst (Florian, 23.09.2026).
+        */}
+        <p className="mt-2 rounded border px-3 py-2 text-sm" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
+          <strong>Nur am Einlass ansprechen, bevor die Gäste sich hinsetzen.</strong> Wer schon sitzt, wird nicht mehr
+          umgesetzt: Die Nachbarn bekommen es mit und ärgern sich, dass sie für weiter vorne mehr bezahlt haben.
+          <span className="mt-1 block">
+            {/*
+              Der Vorhang an der Saaltür ist der einfachste Sichtschutz, den
+              wir haben: halb zugezogen sieht niemand im Saal, wer draußen
+              gerade weiter nach vorne gesetzt wird (Florian, 23.09.2026).
+            */}
+            Dafür den <strong>Vorhang an der Tür zur Hälfte zuziehen</strong>. Dann sieht vom Saal aus niemand, was
+            am Einlass besprochen wird.
+          </span>
+        </p>
         <p className="mt-2 text-xs text-leise">
           Nicht nachfragen, ob es recht ist: Das wird angeboten, nicht erbeten. Wer lieber sitzen bleiben will, sagt
           es von selbst, und dann heißt es: „Kein Problem, dann bleibt ihr natürlich auf euren Plätzen.“ Nie sagen,
-          dass hinten schlecht ist, nur dass vorne etwas frei geworden ist.
+          dass hinten schlecht ist, nur dass vorne etwas frei geworden ist. Und leise: Das ist ein Gespräch mit
+          dieser Gruppe, keine Ansage für den halben Saal.
         </p>
       </div>
     </section>

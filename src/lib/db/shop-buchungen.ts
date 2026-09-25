@@ -59,7 +59,21 @@ export interface NeueBuchung {
   plaetze?: number | null;
   gesamtCent?: number | null;
   hinweis?: string;
+  /** Woher der Gast kam, letzter Kontakt vor dem Kauf. */
+  herkunft?: Herkunft;
+  /** Einwilligung, bei Abbruch erinnert zu werden. */
+  werbeOk?: boolean;
   posten?: BuchungsPosten[];
+}
+
+export interface Herkunft {
+  /** google, meta, swp, regiotv, bruecke ... */
+  quelle: string;
+  /** cpc, qr, tv, ooh, organic ... */
+  medium: string;
+  kampagne: string;
+  inhalt: string;
+  landing: string;
 }
 
 /**
@@ -74,11 +88,13 @@ export async function speichereBuchung(neu: NeueBuchung): Promise<void> {
   const zeilen = (await db()`
     insert into shop_buchung
       (cart_id, ditix_event_id, datum, uhrzeit, show, name, email, telefon, plaetze,
-       gesamt_cent, hinweis)
+       gesamt_cent, hinweis, werbe_ok, quelle, medium, kampagne, inhalt, landing)
     values
       (${neu.cartId ?? null}, ${neu.ditixEventId}, ${neu.datum}, ${neu.uhrzeit ?? null},
        ${neu.show ?? ""}, ${neu.name ?? ""}, ${neu.email ?? ""}, ${neu.telefon ?? ""},
-       ${neu.plaetze ?? null}, ${neu.gesamtCent ?? null}, ${neu.hinweis ?? ""})
+       ${neu.plaetze ?? null}, ${neu.gesamtCent ?? null}, ${neu.hinweis ?? ""}, ${neu.werbeOk === true},
+       ${neu.herkunft?.quelle ?? ""}, ${neu.herkunft?.medium ?? ""}, ${neu.herkunft?.kampagne ?? ""},
+       ${neu.herkunft?.inhalt ?? ""}, ${neu.herkunft?.landing ?? ""})
     on conflict (cart_id) do update set
       uhrzeit     = excluded.uhrzeit,
       show        = excluded.show,
@@ -90,7 +106,17 @@ export async function speichereBuchung(neu: NeueBuchung): Promise<void> {
       telefon     = excluded.telefon,
       plaetze     = excluded.plaetze,
       gesamt_cent = excluded.gesamt_cent,
-      hinweis     = excluded.hinweis
+      hinweis     = excluded.hinweis,
+      -- Einmal zugestimmt bleibt zugestimmt, auch wenn ein spaeterer
+      -- Anlauf das Haekchen nicht mitschickt.
+      werbe_ok    = shop_buchung.werbe_ok or excluded.werbe_ok,
+      -- Die Herkunft nur setzen, solange keine bekannt ist: Wer zwischendurch
+      -- den Warenkorb neu laedt, soll die Kampagne nicht ueberschreiben.
+      quelle      = case when shop_buchung.quelle = '' then excluded.quelle else shop_buchung.quelle end,
+      medium      = case when shop_buchung.medium = '' then excluded.medium else shop_buchung.medium end,
+      kampagne    = case when shop_buchung.kampagne = '' then excluded.kampagne else shop_buchung.kampagne end,
+      inhalt      = case when shop_buchung.inhalt = '' then excluded.inhalt else shop_buchung.inhalt end,
+      landing     = case when shop_buchung.landing = '' then excluded.landing else shop_buchung.landing end
     returning id
   `) as Record<string, unknown>[];
 
@@ -306,4 +332,91 @@ export async function buchungPerToken(token: string): Promise<ShopBuchung | null
     console.warn("[shop-buchungen] Token-Abfrage fehlgeschlagen:", e);
     return null;
   }
+}
+
+/**
+ * Fragt beim Shop nach, welche offenen Körbe inzwischen bezahlt sind.
+ *
+ * Nötig geworden, weil die Abbrecherliste sonst Leute zeigt, die längst
+ * gekauft haben: Der Zahlungsstand wurde bisher nur nachgeführt, wenn
+ * jemand die Buchungsliste eines Showtags öffnete. Corinna Hagel stand so
+ * als Abbrecherin da, obwohl ihre Karten in Ditix bezahlt waren
+ * (Florian, 23.09.2026).
+ *
+ * Geprüft wird in kleinen Schritten: nur Körbe, die noch nie oder länger
+ * nicht geprüft wurden, höchstens so viele wie angegeben, und immer zu
+ * zehnt nebeneinander. Ein Seitenaufruf soll daran nicht hängen bleiben.
+ *
+ * Gibt zurück, wie viele dabei als bezahlt erkannt wurden.
+ */
+export async function offeneNachfuehren(o: {
+  tage?: number;
+  hoechstens?: number;
+  /** Frühestens nach so vielen Minuten noch einmal nachfragen. */
+  abstandMinuten?: number;
+} = {}): Promise<number> {
+  const tage = o.tage ?? 30;
+  const hoechstens = o.hoechstens ?? 40;
+  const abstand = o.abstandMinuten ?? 180;
+
+  const offen = (await db()`
+    select id, cart_id from shop_buchung
+     where not bestaetigt and cart_id is not null and cart_id <> ''
+       and eingegangen_am >= now() - (${tage} || ' days')::interval
+       and (zuletzt_geprueft is null or zuletzt_geprueft < now() - (${abstand} || ' minutes')::interval)
+     order by eingegangen_am desc
+     limit ${hoechstens}
+  `) as Array<{ id: string; cart_id: string }>;
+
+  let bezahlte = 0;
+  for (let i = 0; i < offen.length; i += 10) {
+    const teil = offen.slice(i, i + 10);
+    const ergebnisse = await Promise.all(
+      teil.map(async (z) => ({ z, ...(await pruefeBezahlt(String(z.cart_id))) })),
+    );
+    for (const { z, bezahlt, accessCode } of ergebnisse) {
+      if (bezahlt) bezahlte += 1;
+      try {
+        await db()`
+          update shop_buchung
+             set bestaetigt = ${bezahlt}, access_code = ${accessCode}, zuletzt_geprueft = now()
+           where id = ${String(z.id)}
+        `;
+      } catch (e) {
+        console.warn("[shop-buchungen] Stand nicht gemerkt:", e);
+      }
+    }
+  }
+  return bezahlte;
+}
+
+/** Gezielt einzelne Buchungen prüfen, etwa direkt vor dem Mailversand. */
+export async function statusNachfuehren(ids: string[]): Promise<Set<string>> {
+  const bezahlteIds = new Set<string>();
+  if (ids.length === 0) return bezahlteIds;
+
+  const zeilen = (await db()`
+    select id, cart_id from shop_buchung
+     where id = any(${ids}::uuid[]) and not bestaetigt and cart_id is not null and cart_id <> ''
+  `) as Array<{ id: string; cart_id: string }>;
+
+  for (let i = 0; i < zeilen.length; i += 10) {
+    const teil = zeilen.slice(i, i + 10);
+    const ergebnisse = await Promise.all(
+      teil.map(async (z) => ({ z, ...(await pruefeBezahlt(String(z.cart_id))) })),
+    );
+    for (const { z, bezahlt, accessCode } of ergebnisse) {
+      if (bezahlt) bezahlteIds.add(String(z.id));
+      try {
+        await db()`
+          update shop_buchung
+             set bestaetigt = ${bezahlt}, access_code = ${accessCode}, zuletzt_geprueft = now()
+           where id = ${String(z.id)}
+        `;
+      } catch (e) {
+        console.warn("[shop-buchungen] Stand nicht gemerkt:", e);
+      }
+    }
+  }
+  return bezahlteIds;
 }

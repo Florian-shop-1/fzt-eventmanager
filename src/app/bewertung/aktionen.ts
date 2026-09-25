@@ -21,9 +21,14 @@ async function berechtigt(): Promise<AngemeldeterBenutzer> {
   return benutzer;
 }
 
-function zurueck(meldung: string, tag?: string): never {
+function zurueck(meldung: string, tag?: string, zeit?: string): never {
   revalidatePath("/bewertung");
-  redirect(`/bewertung?meldung=${encodeURIComponent(meldung)}${tag ? `&tag=${tag}` : ""}`);
+  redirect(
+    `/bewertung?meldung=${encodeURIComponent(meldung)}${tag ? `&tag=${tag}` : ""}` +
+      // Die Wahl Abend/Nachmittag mitnehmen, sonst steht nach jeder Probemail
+      // wieder "Abendshow" da und man wählt dreimal dasselbe (Florian, 23.09.2026).
+      (zeit ? `&zeit=${zeit}` : ""),
+  );
 }
 
 /** Einschalten darf nur der Inhaber: Ab dann gehen jeden Morgen Mails an Gäste. */
@@ -53,8 +58,9 @@ export async function probeSchicken(formular: FormData): Promise<void> {
   // Empfänger nur aus dem Team, damit die Probe nie bei einem Gast landet.
   const gewuenscht = String(formular.get("an") ?? benutzer.email).toLowerCase();
   const empfaenger = (await probeEmpfaenger()).find((e) => e.email.toLowerCase() === gewuenscht);
-  if (!empfaenger) zurueck("Probemails gehen nur an Leute aus dem Team.", tag);
-  const uhrzeit = formular.get("zeit") === "nachmittag" ? "15:00" : "20:00";
+  const zeit = formular.get("zeit") === "nachmittag" ? "nachmittag" : "abend";
+  if (!empfaenger) zurueck("Probemails gehen nur an Leute aus dem Team.", tag, zeit);
+  const uhrzeit = zeit === "nachmittag" ? "15:00" : "20:00";
   const erfunden: ShopBuchung = {
     id: "probe",
     zugangToken: "0".repeat(32),
@@ -90,7 +96,7 @@ export async function probeSchicken(formular: FormData): Promise<void> {
   } catch (f) {
     meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
   }
-  zurueck(meldung, tag);
+  zurueck(meldung, tag, zeit);
 }
 
 /** Versand für einen Tag von Hand, etwa zum Nachholen. Geht auch bei ausgeschaltetem Schalter. */

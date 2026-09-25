@@ -69,8 +69,24 @@ export interface Person {
   vorname: string;
   email: string;
   rolle: string;
+  /** "extern" = Gast im Haus, wird nie um Dienste gebeten. */
+  art: "intern" | "extern";
   /** Position -> lernt noch. */
   kann: Map<FestePosition, boolean>;
+}
+
+/**
+ * Darf diese Person um einen Dienst gebeten werden?
+ *
+ * Externe nie. Osman, Giusi und die anderen arbeiten bei uns, stehen im
+ * Plan und sollen dort auch sichtbar bleiben, aber eine Dienstanfrage
+ * bekommen sie nicht: Sie sind nicht angestellt und koennen nicht
+ * einspringen (Florian, 24.09.2026).
+ *
+ * Diese Pruefung gehoert an jede Stelle, die Dienstmails verschickt.
+ */
+export function darfGefragtWerden(p: Person): boolean {
+  return p.art !== "extern";
 }
 
 export interface FesterTag {
@@ -92,25 +108,29 @@ export interface Einsatz {
   angefragtId: string | null;
   angefragtVonId: string | null;
   angefragtNotiz: string | null;
+  /** Wann die Kollegen gefragt wurden, und wie viele. */
+  ersatzGefragtAm: string | null;
+  ersatzGefragtAnzahl: number;
 }
 
 /** Alle aktiven Benutzer (außer dem Food-Kiosk), mit dem, was sie können. */
 export async function allePersonen(): Promise<Person[]> {
   const z = (await db()`
-    select b.id, b.name, b.email, b.rolle,
+    select b.id, b.name, b.email, b.rolle, b.art,
            coalesce(json_agg(json_build_object('p', q.position, 'l', q.lernt)) filter (where q.position is not null), '[]') as quali
       from benutzer b
       left join dienst_quali q on q.benutzer_id = b.id
      where b.aktiv and b.rolle <> 'kiosk'
      group by b.id
      order by b.name
-  `) as Array<{ id: string; name: string; email: string; rolle: string; quali: Array<{ p: FestePosition; l: boolean }> }>;
+  `) as Array<{ id: string; name: string; email: string; rolle: string; art: string | null; quali: Array<{ p: FestePosition; l: boolean }> }>;
   return z.map((r) => ({
     id: r.id,
     name: r.name,
     vorname: r.name.split(" ")[0],
     email: r.email,
     rolle: r.rolle,
+    art: r.art === "extern" ? "extern" : "intern",
     kann: new Map(r.quali.map((q) => [q.p, q.l])),
   }));
 }
@@ -127,7 +147,7 @@ export async function festeTage(): Promise<FesterTag[]> {
 export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
     select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
-           angefragt_id, angefragt_von_id, angefragt_notiz
+           angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
   return z.map((r) => ({
@@ -141,7 +161,31 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     angefragtId: (r.angefragt_id as string) ?? null,
     angefragtVonId: (r.angefragt_von_id as string) ?? null,
     angefragtNotiz: (r.angefragt_notiz as string) ?? null,
+    ersatzGefragtAm: r.ersatz_gefragt_am ? new Date(r.ersatz_gefragt_am as string).toISOString() : null,
+    ersatzGefragtAnzahl: Number(r.ersatz_gefragt_anzahl ?? 0),
   }));
+}
+
+/**
+ * Festhalten, dass die Kollegen gefragt wurden.
+ *
+ * Als Upsert, weil es zu einer nie besetzten Position (typisch: der
+ * Zuschauer) noch gar keine Zeile gibt. Ohne das bliebe der Aufruf
+ * unsichtbar, und der nächste schickt ihn gleich nochmal.
+ */
+export async function ersatzGefragtMerken(
+  termin: Vorstellungstermin,
+  position: Position,
+  anzahl: number,
+): Promise<void> {
+  await db()`
+    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id,
+                                ersatz_gefragt_am, ersatz_gefragt_anzahl, geaendert_von, geaendert_am)
+    values (${termin.ditixEventId}, ${position}, ${termin.datum}::date, ${termin.uhrzeit}, null,
+            now(), ${anzahl}, 'Aufruf', now())
+    on conflict (ditix_event_id, position) do update set
+      ersatz_gefragt_am = now(), ersatz_gefragt_anzahl = ${anzahl}
+  `;
 }
 
 /**
@@ -230,6 +274,15 @@ export interface Slot {
   erinnertStufe: number;
   /** Nur beim Shadow: Welche Position er begleitet. */
   fuer?: FestePosition;
+  /**
+   * Nur bei einer Position mit Rookie: Wer an dem Abend mit ihm mitgeht.
+   * Steht auf derselben Zeile, damit man beide Namen zusammen sieht
+   * (Florian, 23.09.2026).
+   */
+  shadow?: Person | null;
+  /** Wann die Kollegen wegen Ersatz gefragt wurden, und wie viele. */
+  ersatzGefragtAm: string | null;
+  ersatzGefragtAnzahl: number;
   /** Direkt angefragt und noch nicht beantwortet. */
   angefragt: Person | null;
   angefragtVon: Person | null;
@@ -275,6 +328,8 @@ export function planBauen(
           grund: e?.grund ?? null,
           offen: !p || suchtErsatz,
           erinnertStufe: e?.erinnertStufe ?? 0,
+          ersatzGefragtAm: e?.ersatzGefragtAm ?? null,
+          ersatzGefragtAnzahl: e?.ersatzGefragtAnzahl ?? 0,
           angefragt: e?.angefragtId ? (person.get(e.angefragtId) ?? null) : null,
           angefragtVon: e?.angefragtVonId ? (person.get(e.angefragtVonId) ?? null) : null,
           angefragtNotiz: e?.angefragtNotiz ?? null,
@@ -284,7 +339,13 @@ export function planBauen(
       // allein kann. Nur dann gibt es die Shadow-Zeile, und dann ist sie
       // Pflicht. Gilt fuer FOH, T1 und T2 gleichermassen.
       const mitRookie = slots.find(
-        (s) => s.person && s.position !== "SHADOW" && istRookieFuer(s.person, s.position as FestePosition),
+        (s) =>
+          s.person &&
+          s.position !== "SHADOW" &&
+          // Der eingeweihte Zuschauer braucht keinen Shadow: Er sitzt im
+          // Publikum und hat nichts zu bedienen (Florian, 23.09.2026).
+          s.position !== "ZUSCHAUER" &&
+          istRookieFuer(s.person, s.position as FestePosition),
       );
       if (mitRookie) {
         const sh = eintrag.get(`${termin.ditixEventId}|SHADOW`);
@@ -299,10 +360,15 @@ export function planBauen(
           grund: sh?.grund ?? null,
           offen: !shPerson || suchtErsatz,
           erinnertStufe: sh?.erinnertStufe ?? 0,
+          ersatzGefragtAm: sh?.ersatzGefragtAm ?? null,
+          ersatzGefragtAnzahl: sh?.ersatzGefragtAnzahl ?? 0,
           angefragt: sh?.angefragtId ? (person.get(sh.angefragtId) ?? null) : null,
           angefragtVon: sh?.angefragtVonId ? (person.get(sh.angefragtVonId) ?? null) : null,
           angefragtNotiz: sh?.angefragtNotiz ?? null,
         });
+        // Den Shadow auch auf der Zeile des Rookies nennen: Wer den Plan
+        // überfliegt, soll beide Namen beieinander sehen.
+        mitRookie.shadow = shPerson;
       }
       return { termin, slots };
     })
@@ -336,6 +402,14 @@ export function istVollwertig(p: Person, position: FestePosition): boolean {
  */
 export function darfUebernehmen(p: Person, position: Position, fuer: FestePosition = "T1"): boolean {
   if (position === "SHADOW") return istVollwertig(p, fuer);
+  /*
+    Den eingeweihten Zuschauer kann jeder aus dem Haus: Man sitzt im
+    Publikum, bekommt es 30 Minuten vor Einlass gezeigt, und das war es
+    (Florian, 23.09.2026). Deshalb keine Qualifikation noetig. In dieser
+    Liste stehen ohnehin nur aktive interne Leute, der Food-Kiosk ist
+    schon in allePersonen() heraus.
+  */
+  if (position === "ZUSCHAUER") return true;
   return p.kann.has(position);
 }
 
@@ -346,7 +420,9 @@ export function werKann(
   ausser?: string | null,
   fuer: FestePosition = "T1",
 ): Person[] {
-  return personen.filter((p) => p.id !== ausser && darfUebernehmen(p, position, fuer));
+  // Externe fallen hier schon heraus: werKann ist die Quelle fuer jede
+  // Anfrage, damit kann niemand versehentlich doch eine Mail bekommen.
+  return personen.filter((p) => p.id !== ausser && darfGefragtWerden(p) && darfUebernehmen(p, position, fuer));
 }
 
 /** Arbeitet diese Person an diesem Tag schon (auf einer anderen Position)? */
@@ -354,6 +430,33 @@ export function schonImDienst(schichten: Schicht[], personId: string, termin: Vo
   return schichten.some(
     (s) => s.termin.ditixEventId === termin.ditixEventId && s.slots.some((x) => x.person?.id === personId),
   );
+}
+
+/**
+ * Auf welcher Position jemand an diesem Abend steht, falls überhaupt.
+ *
+ * Gebraucht für den Zuschauer: Wer schon eingeteilt ist, wird dafür nicht
+ * gefragt, mit einer Ausnahme. Rookies darf man abziehen, sie lernen an
+ * dem Abend ohnehin nur mit (Florian, 23.09.2026).
+ */
+export function dienstAn(
+  schichten: Schicht[],
+  personId: string,
+  termin: Vorstellungstermin,
+): Slot | null {
+  const schicht = schichten.find((s) => s.termin.ditixEventId === termin.ditixEventId);
+  return schicht?.slots.find((x) => x.person?.id === personId) ?? null;
+}
+
+/**
+ * Darf diese Person für den Zuschauer von ihrer Position abgezogen werden?
+ *
+ * Nur Rookies, und der Shadow nie: Der begleitet den Rookie, ohne ihn
+ * steht der Abend.
+ */
+export function darfAbgezogenWerden(p: Person, slot: Slot | null): boolean {
+  if (!slot || slot.position === "SHADOW" || slot.position === "ZUSCHAUER") return false;
+  return istRookieFuer(p, slot.position as FestePosition);
 }
 
 // ---------------------------------------------------------------------------

@@ -3,14 +3,18 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
+import { vorZeit } from "@/components/Status";
 import { offenFuer, planLaden, tageBis } from "@/lib/dienstplan/laden";
 import { istAbwesend, type Abwesenheit } from "@/lib/dienstplan/abwesend";
+import { kommentareFuer, type Kommentar } from "@/lib/dienstplan/kommentar";
+import { ShowKommentare } from "@/components/ShowKommentare";
 import {
   BEZEICHNUNG,
   ERKLAERUNG,
   darfUebernehmen,
   istRookieFuer,
   schonImDienst,
+  type FestePosition,
   type Person,
   type Schicht,
   type Slot,
@@ -22,7 +26,10 @@ import {
   anfrageZuruecknehmen,
   anfragen,
   einteilen,
+  alleFragen,
   ersatzSuchen,
+  mitlernen,
+  nochmalFragen,
   uebernehmen,
   urlaubEintragen,
   urlaubLoeschen,
@@ -56,6 +63,11 @@ export default async function DienstplanSeite({
   const gesucht = ich ? offenFuer(schichten, ich, 70, abwesend) : [];
   const meineAbwesenheiten = ich ? abwesend.filter((a) => a.benutzerId === ich.id) : [];
   const offenGesamt = schichten.reduce((n, s) => n + s.slots.filter((x) => x.offen).length, 0);
+  // Alle Kommentare der angezeigten Shows in einer Abfrage.
+  const kommentare = await kommentareFuer(
+    schichten.map((s) => s.termin.ditixEventId),
+    benutzer.id,
+  );
   // Anfragen an mich: Florian oder Kevin haben mich direkt gefragt.
   const gefragt = ich
     ? schichten.flatMap((s) =>
@@ -115,9 +127,19 @@ export default async function DienstplanSeite({
           <ul className="space-y-1 text-sm">
             {gefragt.map((g) => (
               <li key={`${g.termin.ditixEventId}${g.position}`}>
-                <a href={`#s-${g.termin.ditixEventId}`} className="underline">
+                {/*
+                  Nicht nur eine Sprungmarke: Wer "Meine Schichten" sieht,
+                  hat die Show gar nicht auf dem Schirm, und ein Klick lief
+                  ins Leere. Roman konnte deshalb nichts anklicken
+                  (Florian, 23.09.2026). Der Link wechselt jetzt auf alle
+                  Shows und markiert die richtige.
+                */}
+                <Link
+                  href={`/dienstplan?nur=alle&s=${g.termin.ditixEventId}#s-${g.termin.ditixEventId}`}
+                  className="underline"
+                >
                   {datumMitWochentag(g.termin.datum)}, {g.termin.uhrzeit} Uhr
-                </a>{" "}
+                </Link>{" "}
                 · {BEZEICHNUNG[g.position]} · {g.termin.name}
                 {g.von && <span className="text-leise"> · gefragt von {g.von}</span>}
               </li>
@@ -133,9 +155,19 @@ export default async function DienstplanSeite({
           <ul className="space-y-1 text-sm">
             {gesucht.slice(0, 6).map((g) => (
               <li key={`${g.termin.ditixEventId}${g.position}`}>
-                <a href={`#s-${g.termin.ditixEventId}`} className="underline">
+                {/*
+                  Nicht nur eine Sprungmarke: Wer "Meine Schichten" sieht,
+                  hat die Show gar nicht auf dem Schirm, und ein Klick lief
+                  ins Leere. Roman konnte deshalb nichts anklicken
+                  (Florian, 23.09.2026). Der Link wechselt jetzt auf alle
+                  Shows und markiert die richtige.
+                */}
+                <Link
+                  href={`/dienstplan?nur=alle&s=${g.termin.ditixEventId}#s-${g.termin.ditixEventId}`}
+                  className="underline"
+                >
                   {datumMitWochentag(g.termin.datum)}, {g.termin.uhrzeit} Uhr
-                </a>{" "}
+                </Link>{" "}
                 · {BEZEICHNUNG[g.position]} · {g.termin.name}
               </li>
             ))}
@@ -181,6 +213,8 @@ export default async function DienstplanSeite({
               personen={personen}
               abgemeldet={new Set(personen.filter((p) => istAbwesend(abwesend, p.id, s.termin.datum)).map((p) => p.id))}
               markiert={markiert === s.termin.ditixEventId}
+              kommentare={kommentare.get(s.termin.ditixEventId) ?? []}
+              ichId={benutzer.id}
             />
           ))}
         </ul>
@@ -203,6 +237,8 @@ function ShowKarte({
   personen,
   abgemeldet,
   markiert,
+  kommentare,
+  ichId,
 }: {
   schicht: Schicht;
   schichten: Schicht[];
@@ -212,6 +248,8 @@ function ShowKarte({
   /** Wer sich für diesen Tag abgemeldet hat (Urlaub, privat). */
   abgemeldet: Set<string>;
   markiert: boolean;
+  kommentare: Kommentar[];
+  ichId: string;
 }) {
   const t = schicht.termin;
   const tage = tageBis(t.datum);
@@ -242,6 +280,15 @@ function ShowKarte({
           />
         ))}
       </ul>
+
+      {/* Reden über die Show, nicht über eine Zeile: wer später kommt, wer
+          die Requisite mitbringt, was am Abend ansteht. */}
+      <ShowKommentare
+        eventId={t.ditixEventId}
+        kommentare={kommentare}
+        ichId={ichId}
+        darfLoeschen={planer}
+      />
     </li>
   );
 }
@@ -271,6 +318,22 @@ function SlotZeile({
     darfUebernehmen(ich, slot.position, slot.fuer) &&
     slot.offen &&
     !schonDabei;
+  /*
+    Die Position ist besetzt, ich bin dort Rookie und will an dem Abend
+    lernen. Geht nur, wenn der Bisherige die Position allein kann und
+    noch kein Shadow mitgeht (Florian, 23.09.2026).
+  */
+  const kannMitlernen = Boolean(
+    ich &&
+      !meins &&
+      !schonDabei &&
+      slot.position !== "SHADOW" &&
+      slot.person &&
+      !slot.offen &&
+      !slot.shadow &&
+      istRookieFuer(ich, slot.position as FestePosition) &&
+      !istRookieFuer(slot.person, slot.position),
+  );
   const versteckt = (
     <>
       <input type="hidden" name="vorstellung" value={eventId} />
@@ -296,14 +359,25 @@ function SlotZeile({
             <strong>{meins ? "Du" : slot.person.name}</strong>
             {slot.position !== "SHADOW" && istRookieFuer(slot.person, slot.position) && (
               <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--info-hell)", color: "var(--info)" }}>
-                Rookie, mit Shadow
+                {/* Beide Namen beieinander: wer lernt und wer mitgeht. */}
+                Rookie{slot.shadow ? `, ${slot.shadow.vorname} geht als Shadow mit` : ", Shadow noch offen"}
               </span>
             )}
             {slot.fest && <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">fester Tag</span>}
             {slot.suchtErsatz && (
-              <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}>
-                sucht Ersatz{slot.grund ? `: ${slot.grund}` : ""}
-              </span>
+              <>
+                <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}>
+                  sucht Ersatz{slot.grund ? `: ${slot.grund}` : ""}
+                </span>
+                {/* Damit man sieht, dass wirklich jemand gefragt wurde. */}
+                {slot.ersatzGefragtAm && (
+                  <span className="ml-2 text-xs text-leise">
+                    {slot.ersatzGefragtAnzahl}{" "}
+                    {slot.ersatzGefragtAnzahl === 1 ? "Kollege gefragt" : "Kollegen gefragt"},{" "}
+                    {vorZeit(slot.ersatzGefragtAm)}
+                  </span>
+                )}
+              </>
             )}
             {slot.angefragt && (planer || michGefragt) && (
               <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">
@@ -316,6 +390,14 @@ function SlotZeile({
             <strong style={{ color: "var(--warnung)" }}>
               {slot.position === "SHADOW" ? "offen, der Rookie braucht einen Shadow" : "offen, jemand gesucht"}
             </strong>
+            {/* Damit niemand zum zweiten Mal denselben Aufruf losschickt. */}
+            {slot.ersatzGefragtAm && (
+              <span className="ml-2 text-xs text-leise">
+                {slot.ersatzGefragtAnzahl}{" "}
+                {slot.ersatzGefragtAnzahl === 1 ? "Kollege gefragt" : "Kollegen gefragt"},{" "}
+                {vorZeit(slot.ersatzGefragtAm)}
+              </span>
+            )}
             {slot.angefragt && (planer || michGefragt) && (
               <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">
                 {michGefragt ? "du bist gefragt" : `angefragt: ${slot.angefragt.vorname}`}
@@ -343,10 +425,54 @@ function SlotZeile({
           </span>
         )}
 
+        {/* Den Zuschauer kann jeder. Deshalb hier der Aufruf ans ganze Haus. */}
+        {planer && slot.position === "ZUSCHAUER" && slot.offen && (
+          <details className="text-sm">
+            <summary className="cursor-pointer text-leise underline">
+              {slot.ersatzGefragtAm ? "Nochmal alle fragen" : "Alle fragen"}
+            </summary>
+            <div className="mt-2 flex flex-col gap-2">
+              {/* Ein zweiter Aufruf am selben Tag liest sich wie Drängeln.
+                  Deshalb steht hier, wann und an wie viele der letzte ging. */}
+              {slot.ersatzGefragtAm && (
+                <p className="max-w-sm text-xs" style={{ color: "var(--warnung)" }}>
+                  Der Aufruf ging schon an {slot.ersatzGefragtAnzahl}{" "}
+                  {slot.ersatzGefragtAnzahl === 1 ? "Kollegen" : "Kollegen"}, {vorZeit(slot.ersatzGefragtAm)}. Gib den
+                  Leuten einen Tag Zeit, bevor du nochmal schickst.
+                </p>
+              )}
+              <form action={alleFragen} className="flex flex-wrap gap-2">
+                {versteckt}
+                <input name="notiz" placeholder="Notiz, freiwillig" className="w-48 text-sm" maxLength={200} />
+                <Absendeknopf
+                  text={slot.ersatzGefragtAm ? "Trotzdem nochmal schicken" : "Aufruf schicken"}
+                  laeuftText="Wird verschickt..."
+                />
+              </form>
+            </div>
+          </details>
+        )}
+
+        {planer && slot.suchtErsatz && (
+          <form action={nochmalFragen}>
+            {versteckt}
+            <Absendeknopf text="Nochmal fragen" laeuftText="..." />
+          </form>
+        )}
+
         {kannUebernehmen && !michGefragt && (
           <form action={uebernehmen}>
             {versteckt}
             <Absendeknopf text="Ich übernehme" laeuftText="Moment..." />
+          </form>
+        )}
+
+        {/* Besetzt, aber ein Rookie will hier lernen: Er geht auf die
+            Position, der bisherige geht als Shadow mit. */}
+        {kannMitlernen && (
+          <form action={mitlernen}>
+            {versteckt}
+            <Absendeknopf text="Ich lerne mit" laeuftText="Moment..." />
           </form>
         )}
 

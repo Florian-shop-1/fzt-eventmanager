@@ -18,6 +18,10 @@ export interface TechnikStoerung {
   grund: string | null;
   quelle: string | null;
   anzahl: number;
+  /** Wie oft ein Gast den Bildschirm wirklich gesehen hat. */
+  gesehenAnzahl: number;
+  behobenAm: string | null;
+  behobenWie: string | null;
   erstmalsAm: string;
   zuletztAm: string;
   mailAm: string | null;
@@ -38,6 +42,9 @@ function baue(z: Record<string, unknown>): TechnikStoerung {
     grund: (z.grund as string) ?? null,
     quelle: (z.quelle as string) ?? null,
     anzahl: Number(z.anzahl ?? 1),
+    gesehenAnzahl: Number(z.gesehen_anzahl ?? 0),
+    behobenAm: zeit(z.behoben_am),
+    behobenWie: (z.behoben_wie as string) ?? null,
     erstmalsAm: zeit(z.erstmals_am) ?? new Date().toISOString(),
     zuletztAm: zeit(z.zuletzt_am) ?? new Date().toISOString(),
     mailAm: zeit(z.mail_am),
@@ -55,6 +62,8 @@ export interface NeueStoerung {
   eventZeit?: string | null;
   grund?: string | null;
   quelle?: string | null;
+  /** Hat ein Gast den Bildschirm wirklich zu sehen bekommen? */
+  gesehen?: boolean;
 }
 
 /**
@@ -64,24 +73,87 @@ export interface NeueStoerung {
  * hinaus, sonst würde ein Ausfall an einem Samstagabend hundert Mails
  * auslösen und niemand liest mehr eine davon.
  */
-export async function stoerungMelden(s: NeueStoerung): Promise<{ stoerung: TechnikStoerung; neu: boolean }> {
+export async function stoerungMelden(
+  s: NeueStoerung,
+): Promise<{ stoerung: TechnikStoerung; neu: boolean; erstmalsGesehen: boolean }> {
+  const gesehen = s.gesehen === true;
   const zeilen = (await db()`
-    insert into technik_stoerung (art, kennung, show_name, event_id, event_zeit, grund, quelle)
+    insert into technik_stoerung (art, kennung, show_name, event_id, event_zeit, grund, quelle, gesehen_anzahl)
     values (${s.art}, ${s.kennung}, ${s.showName ?? null}, ${s.eventId ?? null},
-            ${s.eventZeit ?? null}, ${s.grund ?? null}, ${s.quelle ?? null})
+            ${s.eventZeit ?? null}, ${s.grund ?? null}, ${s.quelle ?? null}, ${gesehen ? 1 : 0})
     on conflict (kennung) where erledigt_am is null do update
       set anzahl = technik_stoerung.anzahl + 1,
+          gesehen_anzahl = technik_stoerung.gesehen_anzahl + ${gesehen ? 1 : 0},
           zuletzt_am = now(),
-          grund = coalesce(excluded.grund, technik_stoerung.grund)
+          grund = coalesce(excluded.grund, technik_stoerung.grund),
+          -- Tritt es nach einer Entwarnung wieder auf, ist es nicht mehr behoben.
+          behoben_am = case when ${gesehen} then null else technik_stoerung.behoben_am end,
+          behoben_wie = case when ${gesehen} then null else technik_stoerung.behoben_wie end
     returning *, (technik_stoerung.anzahl = 1) as ist_neu
   `) as Array<Record<string, unknown>>;
   const z = zeilen[0];
-  return { stoerung: baue(z), neu: z.ist_neu === true };
+  const stoerung = baue(z);
+  return {
+    stoerung,
+    neu: z.ist_neu === true,
+    // Gemailt wird beim ersten Mal, das ein Gast wirklich gesehen hat.
+    erstmalsGesehen: gesehen && stoerung.gesehenAnzahl === 1,
+  };
+}
+
+/**
+ * Der Shop meldet, dass es beim selben Termin wieder geht.
+ *
+ * Kommt, wenn der Saalplan beim stillen Nachladen oder nach einem Klick
+ * des Gastes doch erschienen ist. Die Meldung bleibt stehen, bekommt aber
+ * den Vermerk, dass sie sich erledigt hat.
+ */
+export async function stoerungBehoben(kennung: string, wie: string): Promise<void> {
+  await db()`
+    update technik_stoerung
+       set behoben_am = now(), behoben_wie = ${wie}, zuletzt_am = now()
+     where kennung = ${kennung} and erledigt_am is null and behoben_am is null
+  `;
 }
 
 /** Vermerkt, dass die Warnmail hinausgegangen ist. */
 export async function stoerungMailVermerken(id: string): Promise<void> {
   await db()`update technik_stoerung set mail_am = now() where id = ${id}`;
+}
+
+export interface StoerungEinstellung {
+  mailAn: boolean;
+  geaendertAm: string;
+  geaendertVon: string | null;
+  grund: string | null;
+}
+
+/**
+ * Ob die Warnmail überhaupt hinausgehen soll.
+ *
+ * Steht seit dem 22.09.2026 auf aus, siehe migrations/068. Aufgezeichnet
+ * wird trotzdem alles: Die Seite zeigt jede Meldung, nur der Briefkasten
+ * bleibt ruhig.
+ */
+export async function stoerungEinstellung(): Promise<StoerungEinstellung> {
+  const z = (await db()`select * from stoerung_einstellung where id = 1`) as Array<Record<string, unknown>>;
+  const r = z[0];
+  return {
+    mailAn: Boolean(r?.mail_an),
+    geaendertAm: r?.geaendert_am ? new Date(r.geaendert_am as string).toISOString() : new Date().toISOString(),
+    geaendertVon: (r?.geaendert_von as string) ?? null,
+    grund: (r?.grund as string) ?? null,
+  };
+}
+
+export async function stoerungMailSchalten(an: boolean, von: string, grund: string | null): Promise<void> {
+  await db()`
+    insert into stoerung_einstellung (id, mail_an, geaendert_von, grund)
+    values (1, ${an}, ${von}, ${grund})
+    on conflict (id) do update
+      set mail_an = excluded.mail_an, geaendert_am = now(),
+          geaendert_von = excluded.geaendert_von, grund = excluded.grund
+  `;
 }
 
 export async function technikStoerungen(alle: boolean): Promise<TechnikStoerung[]> {

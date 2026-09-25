@@ -2,6 +2,8 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { PasswortFormular } from "@/components/PasswortFormular";
 import { NameFormular } from "@/components/NameFormular";
 import { abmelden } from "@/lib/auth/aktionen";
+import { GeburtstagFormular } from "@/components/GeburtstagFormular";
+import { db } from "@/lib/db/client";
 
 export const metadata = { title: "Mein Zugang | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -18,6 +20,11 @@ const ROLLE_TEXT: Record<string, string> = {
 export default async function KontoSeite() {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) return null;
+
+  const g = (await db()`select geburtstag from benutzer where id = ${benutzer.id}`.catch(() => [])) as Array<{
+    geburtstag: string | null;
+  }>;
+  const geburtstag = g[0]?.geburtstag ?? null;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -40,6 +47,28 @@ export default async function KontoSeite() {
             <dd className="text-right">{ROLLE_TEXT[benutzer.rolle] ?? benutzer.rolle}</dd>
           </div>
         </dl>
+      </section>
+
+      {/*
+        Der Geburtstag steht bewusst weit oben: Wer ihn noch nicht
+        hinterlegt hat, wird hierher geschickt, und dann soll er nicht
+        suchen muessen (Florian, 23.09.2026).
+      */}
+      <section
+        className="rounded-lg border p-5"
+        style={
+          geburtstag
+            ? { borderColor: "var(--linie)", background: "var(--flaeche)" }
+            : { borderColor: "var(--gold)", background: "var(--gold-hell)" }
+        }
+      >
+        <h2 className="mb-1 text-sm font-semibold">Dein Geburtstag</h2>
+        <p className="mb-3 text-sm text-leise">
+          {geburtstag
+            ? "Wir sagen den Kollegen an dem Tag Bescheid. Nur der Tag, nie das Alter."
+            : "Damit wir dich nicht vergessen. Nur Tag und Monat, kein Jahr, und dein Alter sieht niemand."}
+        </p>
+        <GeburtstagFormular vorhanden={geburtstag} />
       </section>
 
       <section className="rounded-lg border border-linie bg-flaeche p-5">

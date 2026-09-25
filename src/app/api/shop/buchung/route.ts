@@ -84,6 +84,20 @@ export async function POST(request: Request) {
       plaetze: zahl(daten.plaetze),
       gesamtCent: zahl(daten.gesamtCent),
       hinweis: text(daten.hinweis).slice(0, 1000),
+      // Das Haekchen aus dem Shop: Duerfen wir erinnern, wenn es abbricht?
+      werbeOk: daten.werbeOk === true,
+      // Woher der Gast kam. Fehlt bei alten Fassungen des Shops, dann
+      // bleibt es leer und zaehlt spaeter als "direkt".
+      herkunft: (() => {
+        const h = (daten.herkunft ?? {}) as Record<string, unknown>;
+        return {
+          quelle: text(h.quelle).slice(0, 80).toLowerCase(),
+          medium: text(h.medium).slice(0, 80).toLowerCase(),
+          kampagne: text(h.kampagne).slice(0, 120),
+          inhalt: text(h.inhalt).slice(0, 120),
+          landing: text(h.landing).slice(0, 200),
+        };
+      })(),
       posten,
     });
     return NextResponse.json({ ok: true });

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
@@ -11,7 +11,6 @@ import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
 import { dienstplanErinnerungen } from "@/lib/dienstplan/erinnerung";
 import { faelligeMerker } from "@/lib/db/merker";
-import { offeneFreigaben } from "@/lib/foyer/dienstplan";
 import {
   ABSTELLORT,
   bestellungen as weinBestellungen,
@@ -24,6 +23,11 @@ import { nebenbeiPruefen } from "@/lib/stempel/wache";
 import { zustandVon } from "@/lib/stempel/db";
 import { StempelWache } from "@/components/StempelWache";
 import { Wortmarke } from "@/components/Logo";
+import { Navigation } from "@/components/Navigation";
+import { istHandy } from "@/lib/stempel/geraet";
+import { geburtstagsText, heutigeGeburtstage } from "@/lib/db/geburtstag";
+import { GeburtstagsHase } from "@/components/GeburtstagsHase";
+import { VersandMelder } from "@/components/VersandMelder";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
 
@@ -43,41 +47,90 @@ export const metadata: Metadata = {
 };
 
 /**
- * Was welche Rolle sieht. Die Gastronomie bekommt bewusst nur
- * Funktionsheet und Küchenblatt: dort stehen keine Preise, keine
- * Kundendaten und keine Zahlungen.
+ * Die Navigation, nach Bereichen sortiert (Florian, 23.09.2026).
+ *
+ * Aus zwei Dutzend Punkten nebeneinander wurde eine Zeile mit sechs
+ * Reitern: SHOW, SHOP, EVENTS, FOYER, MAGICUISINE, SONSTIGES. Florian und
+ * Kevin sehen fast alles, für sie war die alte Leiste nicht mehr zu
+ * überblicken.
+ *
+ * Wer nur wenige Punkte sieht, bekommt sie weiterhin flach nebeneinander:
+ * Das Showteam hat drei Punkte, die muss man nicht erst aufklappen.
+ *
+ * Die Gastronomie bekommt bewusst nur Funktionsheet und Küchenblatt: dort
+ * stehen keine Preise, keine Kundendaten und keine Zahlungen.
  */
-const NAVIGATION: Array<{ href: string; label: string; rollen: Rolle[] }> = [
-  { href: "/", label: "Übersicht", rollen: ["chef", "team", "gastro"] },
-  { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
-  { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
-  { href: "/stoerungen", label: "Störungen", rollen: ["chef", "team"] },
-  { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
-  { href: "/versand", label: "Versand", rollen: ["chef", "team"] },
-  { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
-  { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
-  { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
-  { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
-  { href: "/dienstplan", label: "Dienstplan", rollen: ["chef", "team", "showteam"] },
-  { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
-  { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
-  { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
-  { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
-  { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
-  { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
-  { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
-  { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
-  { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
-  { href: "/kueche", label: "Küche", rollen: ["chef", "team", "gastro"] },
-  { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
-  { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
-  { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
-  { href: "/einstellungen/mail", label: "E-Mail-Versand", rollen: ["chef", "team"] },
-  { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
+interface Punkt {
+  href: string;
+  label: string;
+  rollen: Rolle[];
+}
+
+const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
+  {
+    titel: "Show",
+    punkte: [
+      { href: "/dienstplan", label: "Dienstplan", rollen: ["chef", "team", "showteam"] },
+      { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
+      { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
+      { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
+      { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
+    ],
+  },
+  {
+    titel: "Shop",
+    punkte: [
+      { href: "/marketing", label: "Woher die Verkäufe kommen", rollen: ["chef", "team", "agentur"] },
+      { href: "/abbrueche", label: "Abgebrochene Buchungen", rollen: ["chef", "team"] },
+      { href: "/stoerungen", label: "Störungen", rollen: ["chef", "team"] },
+      { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
+      { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
+      { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
+    ],
+  },
+  {
+    titel: "Events",
+    punkte: [
+      { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
+      { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
+      { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
+      { href: "/rechnungen", label: "Rechnungen", rollen: ["chef", "team", "buchhaltung"] },
+      { href: "/zahlungseingaenge", label: "Zahlungseingänge", rollen: ["chef", "team", "buchhaltung"] },
+    ],
+  },
+  {
+    titel: "Foyer",
+    punkte: [
+      { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
+      { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
+      { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
+      { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
+      { href: "/geschenke", label: "Abbrecher-Geschenke", rollen: ["chef", "team", "foyer"] },
+    ],
+  },
+  {
+    titel: "Magicuisine",
+    punkte: [
+      { href: "/kueche", label: "Küche", rollen: ["chef", "team", "gastro"] },
+      { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
+      { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
+      { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
+    ],
+  },
+  {
+    titel: "Sonstiges",
+    punkte: [
+      { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
+      { href: "/merker", label: "Merkzettel", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"] },
+      { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+      { href: "/einstellungen/mail", label: "E-Mail-Versand", rollen: ["chef", "team"] },
+      { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
+    ],
+  },
 ];
 
 /** Seiten, die ohne Anmeldung erreichbar sein müssen. */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung"];
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot"];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.
@@ -98,7 +151,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Für das Pop-up: die offenen Bestellungen der Gastro, kurz gefasst.
   let offeneBestellungen: OffeneBestellung[] = [];
   if (benutzer && !offen) {
-    if (benutzer.art === "intern" && !benutzer.personalbogenAm) {
+    // Kevin hat beides längst erledigt, das Programm weiß es nur nicht mehr.
+    const istKevin = benutzer.email.toLowerCase() === "kevin.steele@florianzimmer.com";
+    if (benutzer.art === "intern" && !benutzer.personalbogenAm && !istKevin) {
       aufgaben.push({
         href: "/personalbogen",
         leiste: "Dein Personalbogen ist noch nicht ausgefüllt.",
@@ -106,7 +161,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Dein Personalbogen fürs Lohnbüro fehlt noch. Dauert nur fünf Minuten.",
       });
     }
-    if (!["chef", "kiosk", "buchhaltung"].includes(benutzer.rolle) && !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))) {
+    if (
+      !istKevin &&
+      !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle) &&
+      !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))
+    ) {
       aufgaben.push({
         href: "/geheimhaltung",
         leiste: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben.",
@@ -124,20 +183,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         knopf: "Merkzettel",
         hase: `${m.titel}${m.text ? ` ${m.text}` : ""}`,
       });
-    }
-
-    // Aushilfen im Foyer warten auf Freigabe: Kevin und Florian sehen das
-    // in der Leiste, sonst bliebe Sarah hängen (Florian, 22.09.2026).
-    if (["chef", "team"].includes(benutzer.rolle)) {
-      const warten = await offeneFreigaben().catch(() => []);
-      if (warten.length > 0) {
-        aufgaben.push({
-          href: "/foyer/plan",
-          leiste: `${warten.length === 1 ? "Eine Aushilfe im Foyer wartet" : `${warten.length} Aushilfen im Foyer warten`} auf deine Freigabe.`,
-          knopf: "Ansehen",
-          hase: "Sarah möchte eine Aushilfe fürs Foyer einteilen. Ein Klick, und sie weiß Bescheid.",
-        });
-      }
     }
 
     // Nebenbei prüfen, ob jemand das Ausstempeln vergessen hat.
@@ -166,10 +211,62 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Die Stempeluhr sitzt als eigener Knopf in der Leiste, nicht in der
   // Navigation: Sie ist der Punkt, den die Mitarbeiter zuerst brauchen
   // (Florian, 21.09.2026). Der Punkt daneben zeigt, ob die Zeit läuft.
+  // Der Stempelknopf erscheint nur am Handy: Am Rechner und am Tablet
+  // wird nicht gestempelt (Florian, 23.09.2026).
+  const amHandy = istHandy(kopf.get("user-agent"));
   const stempelZustand =
-    benutzer && !offen && darfStempeln(benutzer) ? await zustandVon(benutzer.id).catch(() => null) : null;
+    benutzer && !offen && amHandy && darfStempeln(benutzer)
+      ? await zustandVon(benutzer.id).catch(() => null)
+      : null;
 
   const weinSichtbar = benutzer && !offen ? (await weinZugang(benutzer).catch(() => null))?.sehen === true : false;
+
+  /*
+    Die Reiter für diese Person zusammenstellen.
+
+    Drei Punkte hängen nicht an der Rolle, sondern an einer Freigabe für
+    die einzelne Person, deshalb kommen sie hier dazu: die Bestellungen
+    der Gastro, die Einladungslinks (Florian und Kevin) und die Belege
+    (Buchhaltung).
+  */
+  const gruppen = benutzer
+    ? GRUPPEN.map((g) => {
+        const punkte = g.punkte.filter((p) => p.rollen.includes(benutzer.rolle));
+        if (g.titel === "Magicuisine" && weinSichtbar) {
+          punkte.push({ href: "/bestellungen", label: "Bestellungen", rollen: [] });
+        }
+        /*
+          Der Weg zu den Arbeitszeiten für das Büro.
+
+          Gestempelt wird ausschließlich am Handy, dabei bleibt es
+          (Florian, 24.09.2026). Deshalb steht der Stempelknopf weiter nur
+          in der Handy-Leiste, und dieser Menüpunkt ist nicht zum
+          Stempeln da: Er führt Florian, Kevin und die Buchhaltung zu den
+          Stunden, die sie ansehen und korrigieren. Die Mitarbeiter
+          bekommen ihn nicht zu sehen, damit am Rechner niemand glaubt,
+          er könne hier stempeln.
+        */
+        if (g.titel === "Sonstiges" && darfZeitenAendern(benutzer)) {
+          punkte.unshift({ href: "/stempeluhr", label: "Zeiterfassung", rollen: [] });
+        }
+        if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
+          punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });
+        }
+        if (g.titel === "Sonstiges" && darfBuchhaltung(benutzer)) {
+          punkte.push({ href: "/bewirtung", label: "Belege", rollen: [] });
+        }
+        return { titel: g.titel, punkte };
+      }).filter((g) => g.punkte.length > 0)
+    : [];
+
+  /*
+    Hat heute jemand Geburtstag? Das sieht jeder, der das Programm
+    benutzt, und der Hase sagt es einmal am Tag (Florian, 23.09.2026).
+    Nur dass jemand Geburtstag hat, nie wie alt er wird.
+  */
+  const geburtstage = benutzer && !offen ? await heutigeGeburtstage().catch(() => []) : [];
+  const geburtstagSatz =
+    benutzer && geburtstage.length > 0 ? geburtstagsText(geburtstage, benutzer.id) : null;
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
@@ -196,42 +293,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <span className="text-sm text-leise">Eventmanager</span>
               </Link>
 
-              <nav className="flex flex-1 flex-wrap gap-1 text-sm">
-                {NAVIGATION.filter((n) => n.rollen.includes(benutzer.rolle)).map((n) => (
-                  <Link
-                    key={n.href}
-                    href={n.href}
-                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
-                  >
-                    {n.label}
-                  </Link>
-                ))}
-                {/* Nicht in NAVIGATION: Die Freigabe hängt an der Person, nicht an der Rolle. */}
-                {weinSichtbar && (
-                  <Link
-                    href="/bestellungen"
-                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
-                  >
-                    Bestellungen
-                  </Link>
-                )}
-                {/* Einladungslinks: Florian und Kevin, unabhängig von der Rolle. */}
-                {darfEinladen(benutzer) && benutzer.rolle !== "chef" && (
-                  <Link
-                    href="/einstellungen/einladungen"
-                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
-                  >
-                    Einladungen
-                  </Link>
-                )}
-                {darfBuchhaltung(benutzer) && (
-                  <Link
-                    href="/bewirtung"
-                    className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
-                  >
-                    Belege
-                  </Link>
-                )}
+              <nav className="flex flex-1 flex-wrap items-center gap-1 text-sm">
+                <Link
+                  href="/"
+                  className="rounded px-3 py-1.5 text-leise transition-colors hover:bg-gold-hell hover:text-text"
+                >
+                  Übersicht
+                </Link>
+                <Navigation gruppen={gruppen} />
+                {/*
+                  Versand und WhatsApp stehen als eigene Knoepfe da, weil
+                  beide etwas melden, das liegen bleibt, wenn niemand
+                  hinsieht (Florian, 25.09.2026).
+                */}
+                {["chef", "team"].includes(benutzer.rolle) && <VersandMelder />}
                 {benutzer.whatsapp && <WhatsAppMelder />}
               </nav>
 
@@ -311,6 +386,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <footer className="border-t border-linie px-6 py-4 text-center text-xs text-leise print:hidden">
             Florian Zimmer Theater GmbH, Neu-Ulm
           </footer>
+        )}
+
+        {geburtstagSatz && (
+          <GeburtstagsHase
+            text={geburtstagSatz}
+            konfetti={geburtstage.some((g) => g.id === benutzer?.id)}
+          />
         )}
 
         {benutzer && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (

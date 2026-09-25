@@ -1,8 +1,8 @@
 /**
  * Der Foyerdienst. Siehe migrations/065_foyer_dienstplan.sql.
  *
- * Sarah plant, wer im Foyer steht. Zwei Leute je Showtag, die Zeiten
- * stehen in ihrer Aufstellung vom 22.09.2026:
+ * Sarah plant, wer im Foyer steht. Bis zu drei Leute je Showtag, die
+ * Zeiten stehen in ihrer Aufstellung vom 22.09.2026:
  *
  *   Freitag (eine Abendshow)      1. Person 18:00, 2. Person 18:45, bis ~23:00
  *   Samstag (Nachmittag + Abend)  1. Person 13:00, 2. Person 14:00,
@@ -15,9 +15,15 @@
  * Schluss ist rund drei Stunden nach Beginn der letzten Show. Die Zeiten
  * sind ein Vorschlag, Sarah kann sie je Tag überschreiben.
  *
- * Fest angestellt ist nur eine Mitarbeiterin. Wen Sarah sonst einteilt,
- * ist eine Aushilfe, und die muss Kevin oder Florian freigeben. Ohne
- * Freigabe gilt niemand als eingeteilt.
+ * Wie viele Leute es braucht, ist Sarahs Einschätzung. Als Faustregel gilt
+ * eine Person je 50 Gäste: bis 50 eine, über 50 zwei, über 100 drei
+ * (Florian, 25.09.2026). Deshalb steht der dritte Platz immer zur
+ * Verfügung, auch wenn er meist leer bleibt.
+ *
+ * Olena und Sarah sind fest angestellt und ohne Rückfrage einteilbar.
+ * Wen Sarah sonst einteilt, ist eine Aushilfe. Eine Freigabe braucht es
+ * dafür nicht mehr, Kevin und Florian werden nur noch informiert
+ * (Florian, 25.09.2026).
  */
 
 import { db } from "@/lib/db/client";
@@ -57,7 +63,7 @@ export interface FoyerTag {
   pause: string | null;
 }
 
-const PLAETZE = [1, 2];
+const PLAETZE = [1, 2, 3];
 
 /** "18:45" aus "20:00" minus 75 Minuten. */
 function minus(uhrzeit: string, minuten: number): string {
@@ -79,6 +85,9 @@ function plus(uhrzeit: string, minuten: number): string {
  * später, Schluss rund drei Stunden nach Beginn der letzten Show. An
  * Tagen, die schon mittags anfangen (Flo-Zirkus), reichen anderthalb
  * Stunden Vorlauf, sonst stünde jemand um halb elf im leeren Haus.
+ *
+ * Die dritte Person, falls es bei vielen Gästen eine braucht, bekommt
+ * denselben Vorschlag wie die zweite: sie kommt dazu, nicht später.
  */
 export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   vorschlag: Array<{ von: string; bis: string }>;
@@ -89,10 +98,8 @@ export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   const letzte = shows[shows.length - 1].uhrzeit;
   const ende = plus(letzte, 180);
   const vorlauf = erste < "14:00" ? 90 : 120;
-  const vorschlag = [
-    { von: minus(erste, vorlauf), bis: ende },
-    { von: minus(erste, vorlauf - 45), bis: ende },
-  ];
+  const zweitePerson = { von: minus(erste, vorlauf - 45), bis: ende };
+  const vorschlag = [{ von: minus(erste, vorlauf), bis: ende }, zweitePerson, zweitePerson];
   // Zwei Shows an einem Tag: dazwischen ist Pause, meist eine Dreiviertelstunde.
   const pause =
     shows.length > 1 ? `${minus(letzte, 120)} bis ${minus(letzte, 75)}` : null;
@@ -221,48 +228,3 @@ export async function zeitenSetzen(o: {
   `;
 }
 
-export async function freigabeSetzen(id: string, frei: boolean, von: string): Promise<FoyerDienst | null> {
-  const z = (await db()`
-    update foyer_dienst
-       set freigabe = ${frei ? "frei" : "abgelehnt"}, freigabe_von = ${von}, freigabe_am = now()
-     where id = ${id}
-    returning id, datum::text as datum, nummer, benutzer_id, von, bis, freigabe, freigabe_von, notiz
-  `) as Array<Record<string, unknown>>;
-  if (!z[0]) return null;
-  const r = z[0];
-  return {
-    id: String(r.id),
-    datum: String(r.datum),
-    nummer: Number(r.nummer),
-    benutzerId: (r.benutzer_id as string) ?? null,
-    name: null,
-    von: String(r.von ?? ""),
-    bis: String(r.bis ?? ""),
-    freigabe: r.freigabe as Freigabe,
-    freigabeVon: (r.freigabe_von as string) ?? null,
-    notiz: String(r.notiz ?? ""),
-  };
-}
-
-/** Offene Freigaben, für Kevin und Florian. */
-export async function offeneFreigaben(): Promise<FoyerDienst[]> {
-  const z = (await db()`
-    select d.id, d.datum::text as datum, d.nummer, d.benutzer_id, b.name,
-           coalesce(d.von, '') as von, coalesce(d.bis, '') as bis, d.freigabe, d.freigabe_von, d.notiz
-      from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
-     where d.freigabe = 'angefragt' and d.datum >= (now() at time zone 'Europe/Berlin')::date
-     order by d.datum, d.nummer
-  `) as Array<Record<string, unknown>>;
-  return z.map((r) => ({
-    id: String(r.id),
-    datum: String(r.datum),
-    nummer: Number(r.nummer),
-    benutzerId: (r.benutzer_id as string) ?? null,
-    name: (r.name as string) ?? null,
-    von: String(r.von ?? ""),
-    bis: String(r.bis ?? ""),
-    freigabe: r.freigabe as Freigabe,
-    freigabeVon: (r.freigabe_von as string) ?? null,
-    notiz: String(r.notiz ?? ""),
-  }));
-}

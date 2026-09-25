@@ -18,7 +18,21 @@ import type { Position, Vorgang } from "@/lib/domain/vorgang";
 import type { Plan } from "@/lib/seating/types";
 import { datumLang } from "@/lib/zeit";
 
+/**
+ * Was auf den Tisch kommt.
+ *
+ * "finedining" ist der Normalfall: das Magic Menü by Osman Kavak.
+ * "fingerfood" ist die sparsame Fassung für Gruppen, die auf ein Budget
+ * von etwa 110 Euro pro Gast kommen wollen (Florian, 25.09.2026).
+ */
+export type Verpflegung = "finedining" | "fingerfood";
+
 export interface AngebotsOptionen {
+  /**
+   * Fine Dining oder Fingerfood. Ohne Angabe Fine Dining, das ist der
+   * Normalfall und war es auch, bevor es die Wahl gab.
+   */
+  verpflegung?: Verpflegung;
   /** Ticketkategorie als Hauptposition. Standard ist Kat. 2. */
   ticket: string;
   /** Rabatt auf die Tickets in Prozent, wie die 15 Prozent in AG-0826-1168. */
@@ -50,10 +64,47 @@ export const STANDARD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
   getraenkepauschalen: [],
   mitEmpfang: true,
   mitUnterbelegung: true,
+  verpflegung: "finedining",
+};
+
+/**
+ * Die sparsame Fassung, wie sie auf der Firmenseite beworben wird.
+ *
+ * Ticket Kat. 3 statt Kat. 2, Fingerfood statt Menü, Empfang bleibt:
+ * zusammen 110 Euro brutto pro Gast.
+ */
+export const FINGERFOOD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
+  ...STANDARD_ANGEBOTSOPTIONEN,
+  ticket: "TK3",
+  verpflegung: "fingerfood",
 };
 
 /** Der Ablaufplan, der in beiden Musterangeboten als Einleitung steht. */
-export function einleitungstext(vorgang: Vorgang): string {
+export function einleitungstext(
+  vorgang: Vorgang,
+  verpflegung: Verpflegung = "finedining",
+): string {
+  if (verpflegung === "fingerfood") {
+    return [
+      `Euer Event am ${datumLang(vorgang.vorstellung.datum)} im Florian Zimmer Theater, ` +
+        "ein Erlebnis für alle Sinne",
+      "",
+      "17:20 UHR",
+      "Empfang auf unserer Eventgalerie mit einem Glas Magicuvée",
+      "",
+      "17:50 UHR",
+      "Fingerfood by Osman Kavak auf unserer Eventgalerie. Herzhafte und süße Kleinigkeiten " +
+        "auf Etageren zum Teilen, in Ruhe und im Stehen, so wie ihr mögt.",
+      "",
+      "20:00 UHR",
+      `Das Highlight des Abends, die Magieshow "${vorgang.vorstellung.show}", live, hautnah und ` +
+        "mit bestem Blick zur Bühne.",
+      "",
+      "22:30 UHR",
+      "Ausklang an der Foyerbar",
+    ].join("\n");
+  }
+
   return [
     `Euer Event am ${datumLang(vorgang.vorstellung.datum)} im Florian Zimmer Theater, ein Erlebnis für alle Sinne`,
     "",
@@ -123,12 +174,18 @@ export function erzeugePositionen(
   const gesamt = vorgang.gruppen.reduce((s, g) => s + g.personen, 0);
   const inGalerie = gesamt - inLoge;
 
-  // 1. Menü
-  if (inGalerie > 0) {
-    positionen.push(zuPosition(preise, "4GANG", inGalerie));
-  }
-  if (inLoge > 0) {
-    positionen.push(zuPosition(preise, "4GANGLOGE", inLoge));
+  // 1. Was auf den Tisch kommt
+  if (optionen.verpflegung === "fingerfood") {
+    // Fingerfood steht auf Etageren zum Teilen, deshalb keine
+    // Unterscheidung zwischen Loge und Galerie.
+    if (gesamt > 0) positionen.push(zuPosition(preise, "FINGERFOOD", gesamt));
+  } else {
+    if (inGalerie > 0) {
+      positionen.push(zuPosition(preise, "4GANG", inGalerie));
+    }
+    if (inLoge > 0) {
+      positionen.push(zuPosition(preise, "4GANGLOGE", inLoge));
+    }
   }
 
   // 2. Showticket als Hauptposition, darunter die Alternativen

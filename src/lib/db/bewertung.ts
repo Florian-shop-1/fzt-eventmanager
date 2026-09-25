@@ -55,12 +55,26 @@ function baue(z: Record<string, unknown>): BewerteteBuchung {
   };
 }
 
+/*
+  Ein Token kann zu zwei Dingen gehoeren.
+
+  Die meisten stammen aus dem Shop und stehen in shop_buchung. Seit dem
+  25.09.2026 bekommen auch Firmenkunden nach ihrer Veranstaltung eine
+  Bewertungsmail, und deren Token stehen in firmen_bewertung. Die
+  Bewertungsseite im Shop muss davon nichts wissen: Sie schickt ihren
+  Token, und hier wird nachgesehen, erst dort, dann hier.
+*/
 export async function buchungZurBewertung(token: string): Promise<BewerteteBuchung | null> {
   if (!/^[0-9a-f]{32}$/.test(token)) return null;
   const [z] = (await db()`
     select *, datum::text as datum_text from shop_buchung where zugang_token = ${token} limit 1
   `) as Array<Record<string, unknown>>;
-  return z ? baue(z) : null;
+  if (z) return baue(z);
+
+  const [f] = (await db()`
+    select *, datum::text as datum_text from firmen_bewertung where zugang_token = ${token} limit 1
+  `) as Array<Record<string, unknown>>;
+  return f ? baue(f) : null;
 }
 
 /** Speichert die Sterne. Ein späterer Klick überschreibt einen früheren. */
@@ -70,7 +84,14 @@ export async function sterneSpeichern(token: string, sterne: number): Promise<Be
      where zugang_token = ${token}
     returning *, datum::text as datum_text
   `) as Array<Record<string, unknown>>;
-  return z ? baue(z) : null;
+  if (z) return baue(z);
+
+  const [f] = (await db()`
+    update firmen_bewertung set sterne = ${sterne}, sterne_am = now()
+     where zugang_token = ${token}
+    returning *, datum::text as datum_text
+  `) as Array<Record<string, unknown>>;
+  return f ? baue(f) : null;
 }
 
 export async function kritikSpeichern(token: string, kritik: string): Promise<BewerteteBuchung | null> {
@@ -79,7 +100,14 @@ export async function kritikSpeichern(token: string, kritik: string): Promise<Be
      where zugang_token = ${token}
     returning *, datum::text as datum_text
   `) as Array<Record<string, unknown>>;
-  return z ? baue(z) : null;
+  if (z) return baue(z);
+
+  const [f] = (await db()`
+    update firmen_bewertung set kritik = ${kritik}, kritik_am = now()
+     where zugang_token = ${token}
+    returning *, datum::text as datum_text
+  `) as Array<Record<string, unknown>>;
+  return f ? baue(f) : null;
 }
 
 export async function unterhaltungMerken(id: string, waId: string): Promise<void> {

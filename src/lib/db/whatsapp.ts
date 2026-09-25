@@ -32,7 +32,7 @@ export interface Unterhaltung {
   restMinuten: number | null;
   erledigtVon: string | null;
   /** whatsapp oder webseite, siehe migrations/032_kontakt_webseite.sql. */
-  kanal: "whatsapp" | "webseite" | "bewertung";
+  kanal: "whatsapp" | "webseite" | "bewertung" | "abbrecher";
   /** Nur bei Anfragen von der Webseite. */
   email: string | null;
   telefon: string | null;
@@ -153,8 +153,18 @@ export async function ereignisseSpeichern(ereignisse: Ereignis[]): Promise<Neuer
   return neu;
 }
 
-export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
+/**
+ * Der Posteingang, auf Wunsch gefiltert.
+ *
+ * Die Suche geht über Name, Telefonnummer, Mailadresse und den Inhalt
+ * der Nachrichten. Gesucht wird in der Datenbank und nicht erst im
+ * Browser, sonst findet man nur, was ohnehin gerade auf dem Schirm steht
+ * (Florian, 24.09.2026).
+ */
+export async function holeUnterhaltungen(suche = ""): Promise<Unterhaltung[]> {
   await verlangeWhatsApp();
+  const wonach = suche.trim();
+  const muster = wonach ? `%${wonach.replace(/[%_]/g, "")}%` : null;
   const zeilen = (await db()`
     select u.wa_id, u.profilname, u.letzte_nachricht_am, u.letzte_eingang_am, u.gelesen_am,
            n.text as letzter_text, n.richtung as letzte_richtung, u.erledigt_von,
@@ -171,6 +181,15 @@ export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
         select text, richtung from wa_nachricht
          where wa_id = u.wa_id order by zeitpunkt desc limit 1
       ) n on true
+     where ${muster}::text is null
+        or u.profilname ilike ${muster}
+        or u.telefon ilike ${muster}
+        or u.email ilike ${muster}
+        or u.wa_id ilike ${muster}
+        or exists (
+             select 1 from wa_nachricht t
+              where t.wa_id = u.wa_id and t.text ilike ${muster}
+           )
      order by u.letzte_nachricht_am desc nulls last
      limit 200
   `) as Array<Record<string, unknown>>;
@@ -194,7 +213,7 @@ export async function holeUnterhaltungen(): Promise<Unterhaltung[]> {
       dringlichkeit: eile.stufe,
       restMinuten: eile.restMinuten,
       erledigtVon: z.anderweitig === true ? ((z.erledigt_von as string) ?? null) : null,
-      kanal: z.kanal === "webseite" || z.kanal === "bewertung" ? z.kanal : "whatsapp",
+      kanal: z.kanal === "webseite" || z.kanal === "bewertung" || z.kanal === "abbrecher" ? z.kanal : "whatsapp",
       email: (z.email as string) ?? null,
       telefon: (z.telefon as string) ?? null,
       rueckweg: z.rueckweg === "anruf" || z.rueckweg === "mail" ? z.rueckweg : null,
@@ -461,7 +480,7 @@ export async function alsErledigtMarkieren(waId: string, von: string): Promise<v
 
 export interface NeueWebanfrage {
   /** webseite: Kontaktfenster. bewertung: schlechte Bewertung nach der Show. */
-  kanal?: "webseite" | "bewertung";
+  kanal?: "webseite" | "bewertung" | "abbrecher";
   name: string;
   nachricht: string;
   email: string | null;

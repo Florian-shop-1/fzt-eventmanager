@@ -135,7 +135,7 @@ export async function benutzerAnlegen(
   const rolle = text(formData, "rolle") as Rolle;
 
   if (!name || !email) return { fehler: "Name und E-Mail werden gebraucht." };
-  if (!["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"].includes(rolle))
+  if (!["chef", "team", "gastro", "foyer", "showteam", "kiosk", "agentur", "buchhaltung"].includes(rolle))
     return { fehler: "Unbekannte Rolle." };
   const art = text(formData, "art") === "extern" ? "extern" : "intern";
 
