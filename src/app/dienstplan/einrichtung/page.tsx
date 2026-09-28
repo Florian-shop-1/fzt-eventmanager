@@ -151,6 +151,12 @@ export default async function DienstplanEinrichtung({ searchParams }: { searchPa
                     {pos}
                   </th>
                 ))}
+                <th
+                  className="px-3 py-2 font-normal"
+                  title="Braucht eine Freigabe von dir oder Kevin, bevor jemand die Schicht übernehmen darf."
+                >
+                  Fest
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -265,6 +271,9 @@ function PersonZeile({ p, kann }: { p: Person; kann: Map<FestePosition, boolean>
           </span>
         </td>
       ))}
+      <td className="px-3 py-2">
+        <input type="checkbox" name={`fest:${p.id}`} defaultChecked={p.fest} aria-label={`${p.name} ist fest angestellt`} />
+      </td>
     </tr>
   );
 }

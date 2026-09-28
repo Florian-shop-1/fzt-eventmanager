@@ -71,6 +71,11 @@ export interface Person {
   rolle: string;
   /** "extern" = Gast im Haus, wird nie um Dienste gebeten. */
   art: "intern" | "extern";
+  /**
+   * Festangestellt statt Aushilfe. Braucht Florian oder Kevin, um deren
+   * Schicht an jemand anderen zu übertragen (Florian, 28.09.2026).
+   */
+  fest: boolean;
   /** Position -> lernt noch. */
   kann: Map<FestePosition, boolean>;
 }
@@ -116,14 +121,14 @@ export interface Einsatz {
 /** Alle aktiven Benutzer (außer dem Food-Kiosk), mit dem, was sie können. */
 export async function allePersonen(): Promise<Person[]> {
   const z = (await db()`
-    select b.id, b.name, b.email, b.rolle, b.art,
+    select b.id, b.name, b.email, b.rolle, b.art, b.fest,
            coalesce(json_agg(json_build_object('p', q.position, 'l', q.lernt)) filter (where q.position is not null), '[]') as quali
       from benutzer b
       left join dienst_quali q on q.benutzer_id = b.id
      where b.aktiv and b.rolle <> 'kiosk'
      group by b.id
      order by b.name
-  `) as Array<{ id: string; name: string; email: string; rolle: string; art: string | null; quali: Array<{ p: FestePosition; l: boolean }> }>;
+  `) as Array<{ id: string; name: string; email: string; rolle: string; art: string | null; fest: boolean; quali: Array<{ p: FestePosition; l: boolean }> }>;
   return z.map((r) => ({
     id: r.id,
     name: r.name,
@@ -131,6 +136,7 @@ export async function allePersonen(): Promise<Person[]> {
     email: r.email,
     rolle: r.rolle,
     art: r.art === "extern" ? "extern" : "intern",
+    fest: Boolean(r.fest),
     kann: new Map(r.quali.map((q) => [q.p, q.l])),
   }));
 }

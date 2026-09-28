@@ -49,6 +49,11 @@ const TEXTE: Record<Zustand, { titel: string; unter: string; knopf: string; art:
 export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaellig?: boolean }) {
   const router = useRouter();
   const [zustand, setZustand] = useState<Zustand>(start);
+  // Merkt sich, ob in dieser Sitzung tatsächlich ausgestempelt wurde: "Schönen
+  // Dienst!" passt vor der Schicht, "Schönen Feierabend!" danach. Ohne diese
+  // Unterscheidung wüsste die Seite beim Zustand "aus" nicht, welcher der
+  // beiden Fälle gerade zutrifft (Florian, 28.09.2026).
+  const [feierabend, setFeierabend] = useState(false);
   const [meldung, setMeldung] = useState("");
   const [fehler, setFehler] = useState("");
   const [standortHinweis, setStandortHinweis] = useState("");
@@ -98,14 +103,16 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       }
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
+      if (art === "gehen") setFeierabend(true);
+      if (art === "kommen") setFeierabend(false);
       setMeldung(
         art === "kommen"
           ? "Eingestempelt. Schön, dass du da bist!"
           : art === "gehen"
-            ? "Ausgestempelt. Deine Zeit ist gespeichert."
+            ? "Ausgestempelt. Schönen Feierabend!"
             : art === "pause_start"
-              ? "Pause läuft."
-              : "Weiter geht's.",
+              ? "Pause läuft. Lass es dir schmecken!"
+              : "Weiter geht's, schön dass du zurück bist!",
       );
       // Kein Fehler: gestempelt wurde trotzdem. Aber bitte Ortungsdienste
       // einschalten, sonst muss das Büro jede Zeit von Hand prüfen.
@@ -161,6 +168,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   }, [zustand, position]);
 
   const t = TEXTE[zustand];
+  const unter = zustand === "aus" && feierabend ? "Schönen Feierabend!" : t.unter;
   const laeuftGerade = zustand !== "aus";
 
   return (
@@ -187,7 +195,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           />
           {t.titel}
         </p>
-        <p className="mt-1 text-sm text-leise">{t.unter}</p>
+        <p className="mt-1 text-sm text-leise">{unter}</p>
 
         <button
           type="button"

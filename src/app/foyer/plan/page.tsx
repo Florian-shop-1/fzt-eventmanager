@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { foyerLeute, foyerPlan, type FoyerDienst, type FoyerPerson } from "@/lib/foyer/dienstplan";
+import { offeneUebernahmen, type UebernahmeAntrag } from "@/lib/dienstplan/uebernahme";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { ShowKommentare } from "@/components/ShowKommentare";
 import { kommentareFuer } from "@/lib/dienstplan/kommentar";
-import { festMarkieren, tagEintragen, zeiten } from "./aktionen";
+import { festMarkieren, foyerUebernahmeEntscheiden, foyerUebernehmenAnbieten, tagEintragen, zeiten } from "./aktionen";
 
 export const metadata = { title: "Foyer-Dienstplan | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -30,6 +31,9 @@ export default async function FoyerPlanSeite({
 
   const [tage, leute] = await Promise.all([foyerPlan(), foyerLeute()]);
   const buero = darfKaufmaennisches(b.rolle);
+  const darfFreigeben = b.rolle === "chef" || darfEinladen(b);
+  const uebernahmeAnfragen = darfFreigeben ? await offeneUebernahmen("foyer") : [];
+  const ichArbeiteImFoyer = leute.some((p) => p.id === b.id);
 
   /*
     Die Kommentare unter jedem Tag, wie im Dienstplan des Showteams.
@@ -55,7 +59,7 @@ export default async function FoyerPlanSeite({
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Faustregel für die Anzahl: eine Person je 50 Gäste, also bis 50 eine, über 50 zwei, über 100 drei. Reichen
-          zwei nicht, holst du über "+ weitere Person" einen dritten Platz dazu.
+          zwei nicht, holst du über &quot;+ weitere Person&quot; einen dritten Platz dazu.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Feste Mitarbeiterinnen und Aushilfen trägst du gleich ein, eine Freigabe braucht es nicht mehr. Bei einer
@@ -67,6 +71,39 @@ export default async function FoyerPlanSeite({
         <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
           {meldung}
         </p>
+      )}
+
+      {darfFreigeben && uebernahmeAnfragen.length > 0 && (
+        <section
+          id="uebernahme"
+          className="scroll-mt-24 space-y-2 rounded-lg border p-4"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <h2 className="font-semibold">Übernahme-Anfragen warten auf Freigabe</h2>
+          <ul className="space-y-2 text-sm">
+            {uebernahmeAnfragen.map((a: UebernahmeAntrag) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-flaeche px-3 py-2">
+                <span className="flex-1">
+                  <strong>{a.anbieterName}</strong> möchte {a.bisherigerName}s Foyerdienst übernehmen
+                </span>
+                <span className="flex gap-2">
+                  <form action={foyerUebernahmeEntscheiden}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <input type="hidden" name="status" value="angenommen" />
+                    <Absendeknopf text="Freigeben" laeuftText="..." />
+                  </form>
+                  <form action={foyerUebernahmeEntscheiden}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <input type="hidden" name="status" value="abgelehnt" />
+                    <button type="submit" className="text-sm text-leise underline">
+                      Ablehnen
+                    </button>
+                  </form>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {tage.length === 0 ? (
@@ -137,6 +174,13 @@ export default async function FoyerPlanSeite({
                 ))}
               </details>
 
+              {ichArbeiteImFoyer && (
+                <VertretungAnbieten
+                  dienste={t.dienste.filter((d) => d.benutzerId && d.benutzerId !== b.id)}
+                  leute={leute}
+                />
+              )}
+
               <ShowKommentare
                 eventId={kommentarSchluessel(t.datum)}
                 kommentare={kommentare.get(kommentarSchluessel(t.datum)) ?? []}
@@ -203,5 +247,29 @@ function PlatzZeile({ d, leute }: { d: FoyerDienst; leute: FoyerPerson[] }) {
 
       {d.notiz && <span className="text-leise">· {d.notiz}</span>}
     </li>
+  );
+}
+
+/**
+ * Zur Entlastung eine besetzte Schicht anbieten, außerhalb des großen
+ * Formulars oben: Ein eigenes, kleines Formular je Platz, sonst gäbe es
+ * ein Formular im Formular (Florian, 28.09.2026).
+ */
+function VertretungAnbieten({ dienste, leute }: { dienste: FoyerDienst[]; leute: FoyerPerson[] }) {
+  if (dienste.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-2 text-sm">
+      {dienste.map((d) => {
+        const person = leute.find((p) => p.id === d.benutzerId);
+        return (
+          <form key={d.nummer} action={foyerUebernehmenAnbieten}>
+            <input type="hidden" name="id" value={d.id} />
+            <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-xs hover:bg-gold-hell">
+              {person?.name.split(" ")[0]} entlasten{person?.fest ? " (Freigabe nötig)" : ""}
+            </button>
+          </form>
+        );
+      })}
+    </div>
   );
 }

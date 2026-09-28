@@ -125,6 +125,31 @@ export async function festSetzen(benutzerId: string, fest: boolean): Promise<voi
   `;
 }
 
+/** Ein einzelner Dienst über seine id, fürs Übernehmen-Anbieten. */
+export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> {
+  const z = (await db()`
+    select d.id, d.datum::text as datum, d.nummer, d.benutzer_id, b.name,
+           coalesce(d.von, '') as von, coalesce(d.bis, '') as bis,
+           d.freigabe, d.freigabe_von, d.notiz
+      from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
+     where d.id = ${id}
+  `) as Array<Record<string, unknown>>;
+  const r = z[0];
+  if (!r) return null;
+  return {
+    id: String(r.id),
+    datum: String(r.datum),
+    nummer: Number(r.nummer),
+    benutzerId: (r.benutzer_id as string) ?? null,
+    name: (r.name as string) ?? null,
+    von: String(r.von ?? ""),
+    bis: String(r.bis ?? ""),
+    freigabe: (r.freigabe as Freigabe) ?? "nicht_noetig",
+    freigabeVon: (r.freigabe_von as string) ?? null,
+    notiz: String(r.notiz ?? ""),
+  };
+}
+
 /** Alle Einträge ab heute, für die Planung. */
 async function diensteAb(datum: string): Promise<FoyerDienst[]> {
   const z = (await db()`

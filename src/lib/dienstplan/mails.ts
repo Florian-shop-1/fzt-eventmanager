@@ -250,6 +250,54 @@ export async function mitlernenMail(o: {
 }
 
 /**
+ * Ein Kollege will eine fremde Schicht übernehmen, um jemanden zu
+ * entlasten. Gehört sie jemand Festangestelltem, geht diese Mail an
+ * Florian und Kevin: Erst ihre Freigabe macht die Übernahme wirksam.
+ */
+export async function uebernahmeAngefragtMail(o: {
+  an: Person[];
+  anbieter: string;
+  bisheriger: string;
+  termin: Vorstellungstermin;
+  position: Position;
+}) {
+  const link = `${appUrl()}/dienstplan?s=${o.termin.ditixEventId}#s-${o.termin.ditixEventId}`;
+  return schicken(o.an, `Freigabe nötig: ${o.anbieter} will ${o.bisheriger}s Schicht übernehmen`, () => ({
+    absaetze: [
+      `${o.anbieter} möchte ${o.bisheriger}s Schicht übernehmen, um ihn oder sie zu entlasten.`,
+      `${o.bisheriger} ist fest angestellt, deshalb braucht die Übernahme erst eure Freigabe.`,
+    ],
+    liste: [schichtText(o.termin, o.position)],
+    knopf: "Im Dienstplan entscheiden",
+    link,
+  }));
+}
+
+/** Antwort an den, der eine fremde Schicht übernehmen wollte. */
+export async function uebernahmeEntschiedenMail(o: {
+  an: Person;
+  bisheriger: string;
+  termin: Vorstellungstermin;
+  position: Position;
+  angenommen: boolean;
+}) {
+  return schicken(
+    [o.an],
+    o.angenommen
+      ? `Angenommen: Du übernimmst ${datumMitWochentag(o.termin.datum)}`
+      : `Abgelehnt: ${datumMitWochentag(o.termin.datum)}`,
+    () => ({
+      absaetze: o.angenommen
+        ? [`Deine Anfrage ist angenommen, du bist jetzt für ${o.bisheriger}s Schicht eingeteilt.`]
+        : [`Deine Anfrage, ${o.bisheriger}s Schicht zu übernehmen, wurde abgelehnt.`],
+      liste: [schichtText(o.termin, o.position)],
+      knopf: "Zum Dienstplan",
+      link: `${appUrl()}/dienstplan`,
+    }),
+  );
+}
+
+/**
  * Der Aufruf an alle: Wer spielt den eingeweihten Zuschauer?
  *
  * Diese Position kann jeder. Deshalb geht die Anfrage nicht nur an die

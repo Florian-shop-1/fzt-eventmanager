@@ -112,6 +112,12 @@ export function darfSelbstauskunftUebernehmen(b: { rolle: Rolle; email: string }
   return darfEinladen(b);
 }
 
+/** Tipps & Tricks: dieselben Leute wie beim Rest des Show-Bereichs. */
+export function darfTipps(b: { rolle: Rolle } | null | undefined): boolean {
+  if (!b) return false;
+  return b.rolle === "chef" || b.rolle === "team" || b.rolle === "showteam";
+}
+
 export interface AngemeldeterBenutzer {
   id: string;
   name: string;
@@ -343,6 +349,7 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad === "/" ||
       pfad.startsWith("/upgrades") ||
       pfad.startsWith("/hoerezu") ||
+      pfad.startsWith("/tipps") ||
       pfad.startsWith("/konto") ||
       pfad.startsWith("/geheimhaltung")
     );

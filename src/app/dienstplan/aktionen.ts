@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen, type Rolle } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
 import { findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
@@ -17,7 +17,14 @@ import {
   ersatzGesuchtMail,
   offeneSchichtenMail,
   uebernommenMail,
+  uebernahmeAngefragtMail,
+  uebernahmeEntschiedenMail,
 } from "@/lib/dienstplan/mails";
+import {
+  uebernahmeAnbieten,
+  uebernahmeEntscheiden,
+  uebernahmeLesen,
+} from "@/lib/dienstplan/uebernahme";
 import { abwesendEintragen, abwesendLoeschen, istAbwesend } from "@/lib/dienstplan/abwesend";
 import {
   beteiligte,
@@ -143,6 +150,106 @@ export async function uebernehmen(f: FormData): Promise<void> {
     `Danke, ${ich.vorname}! Du bist am ${datumMitWochentag(termin.datum)} als ${BEZEICHNUNG[position]} eingetragen.` +
       (freigeworden ? ` ${BEZEICHNUNG[freigeworden]} ist dadurch wieder offen und wird ausgeschrieben.` : ""),
   );
+}
+
+/**
+ * Ein Kollege bietet an, eine fremde, schon besetzte Schicht zu
+ * übernehmen, um jemanden zu entlasten. Gehört sie einer Aushilfe, gilt
+ * das sofort. Gehört sie jemand Festangestelltem, entscheiden erst
+ * Florian oder Kevin (Florian, 28.09.2026).
+ */
+export async function schichtUebernehmenAnbieten(f: FormData): Promise<void> {
+  const { benutzer, eventId, position, termin, schichten, personen, slot, ich } = await schichtLaden(f);
+  if (!slot || !ich || !slot.person) zurueck(eventId, "Diese Schicht gibt es nicht.");
+  if (slot.person.id === ich.id) zurueck(eventId, "Das ist schon deine Schicht.");
+  if (!darfUebernehmen(ich, position, slot.fuer)) {
+    zurueck(eventId, `${BEZEICHNUNG[position]} ist nicht bei deinen Positionen eingetragen. Florian kann das ändern.`);
+  }
+  if (schonImDienst(schichten, ich.id, termin)) {
+    zurueck(eventId, "An diesem Abend bist du schon eingeteilt.");
+  }
+
+  const bisheriger = slot.person;
+
+  if (!bisheriger.fest) {
+    await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: false, grund: null, von: benutzer.name });
+    await uebernahmeAnbieten({
+      bereich: "show",
+      ditixEventId: eventId,
+      position,
+      bisherigerId: bisheriger.id,
+      bisherigerName: bisheriger.name,
+      anbieterId: ich.id,
+      anbieterName: ich.name,
+      sofortAngenommen: true,
+    });
+    await uebernommenMail({ an: bisheriger, wer: ich.name, termin, position });
+    zurueck(
+      eventId,
+      `Danke, ${ich.vorname}! Du hast ${BEZEICHNUNG[position]} am ${datumMitWochentag(termin.datum)} übernommen, ${bisheriger.vorname} ist entlastet.`,
+    );
+  }
+
+  await uebernahmeAnbieten({
+    bereich: "show",
+    ditixEventId: eventId,
+    position,
+    bisherigerId: bisheriger.id,
+    bisherigerName: bisheriger.name,
+    anbieterId: ich.id,
+    anbieterName: ich.name,
+    sofortAngenommen: false,
+  });
+  const chefUndKevin = personen.filter((p) => darfEinladen({ rolle: p.rolle as Rolle, email: p.email }));
+  await uebernahmeAngefragtMail({ an: chefUndKevin, anbieter: ich.name, bisheriger: bisheriger.name, termin, position });
+  zurueck(
+    eventId,
+    `Angefragt. ${bisheriger.vorname} ist fest angestellt, deshalb entscheiden erst Florian oder Kevin, dann bist du eingetragen.`,
+  );
+}
+
+/**
+ * Florian oder Kevin entscheiden über eine Übernahme-Anfrage einer festen
+ * Schicht.
+ */
+export async function schichtUebernahmeEntscheiden(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) redirect("/anmelden");
+  if (benutzer.rolle !== "chef" && !darfEinladen(benutzer)) throw new Error("Das dürfen nur Florian und Kevin.");
+
+  const id = text(f, "id");
+  const angenommen = text(f, "status") === "angenommen";
+  const antrag = await uebernahmeLesen(id);
+  if (!antrag || antrag.status !== "offen" || antrag.bereich !== "show" || !antrag.ditixEventId || !antrag.position) {
+    zurueck("", "Diese Anfrage ist nicht mehr offen.");
+  }
+
+  const { personen } = await planLaden();
+  const anbieter = personen.find((p) => p.id === antrag.anbieterId);
+  const termin = await findeTermin(antrag.ditixEventId);
+
+  if (angenommen && termin) {
+    await einsatzSetzen({
+      termin,
+      position: antrag.position as Position,
+      benutzerId: antrag.anbieterId,
+      suchtErsatz: false,
+      grund: null,
+      von: benutzer.name,
+    });
+  }
+  if (termin && anbieter) {
+    await uebernahmeEntschiedenMail({
+      an: anbieter,
+      bisheriger: antrag.bisherigerName,
+      termin,
+      position: antrag.position as Position,
+      angenommen,
+    });
+  }
+
+  await uebernahmeEntscheiden(id, angenommen ? "angenommen" : "abgelehnt", "", benutzer.name);
+  zurueck(antrag.ditixEventId, angenommen ? "Übernahme freigegeben." : "Übernahme abgelehnt.");
 }
 
 /**
@@ -393,7 +500,12 @@ async function nurChef() {
   return b;
 }
 
-/** Wer welche Position kann. Checkboxen "kann:<id>:<Position>" und "lernt:<id>". */
+/**
+ * Wer welche Position kann. Checkboxen "kann:<id>:<Position>" und
+ * "lernt:<id>", dazu "fest:<id>" fürs Übernehmen fremder Schichten: Nur
+ * bei Festangestellten braucht ein Übernahme-Angebot erst eine Freigabe
+ * von Florian oder Kevin (Florian, 28.09.2026).
+ */
 export async function positionenSpeichern(f: FormData): Promise<void> {
   await nurChef();
   const ids = f.getAll("person").map(String);
@@ -407,6 +519,7 @@ export async function positionenSpeichern(f: FormData): Promise<void> {
       const lernt = Boolean(f.get(`lernt:${id}:${pos}`));
       await sql`insert into dienst_quali (benutzer_id, position, lernt) values (${id}, ${pos}, ${lernt})`;
     }
+    await sql`update benutzer set fest = ${Boolean(f.get(`fest:${id}`))} where id = ${id}`;
   }
   revalidatePath("/dienstplan");
   redirect(`/dienstplan/einrichtung?meldung=${encodeURIComponent("Positionen gespeichert.")}`);

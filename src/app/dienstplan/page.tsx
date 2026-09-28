@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
+import { offeneUebernahmen, type UebernahmeAntrag } from "@/lib/dienstplan/uebernahme";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
@@ -16,6 +17,7 @@ import {
   schonImDienst,
   type FestePosition,
   type Person,
+  type Position,
   type Schicht,
   type Slot,
 } from "@/lib/dienstplan/plan";
@@ -30,6 +32,8 @@ import {
   ersatzSuchen,
   mitlernen,
   nochmalFragen,
+  schichtUebernehmenAnbieten,
+  schichtUebernahmeEntscheiden,
   uebernehmen,
   urlaubEintragen,
   urlaubLoeschen,
@@ -54,6 +58,8 @@ export default async function DienstplanSeite({
   if (!benutzer) redirect("/anmelden");
   const { meldung, nur, s: markiert } = await searchParams;
   const { schichten, personen, abwesend } = await planLaden();
+  const darfFreigeben = darfEinladen(benutzer);
+  const uebernahmeAnfragen = darfFreigeben ? await offeneUebernahmen("show") : [];
   const ich = personen.find((p) => p.id === benutzer.id) ?? null;
   const planer = benutzer.rolle === "chef" || benutzer.rolle === "team";
   const hatPosition = Boolean(ich && ich.kann.size > 0);
@@ -146,6 +152,17 @@ export default async function DienstplanSeite({
             ))}
           </ul>
           <p className="text-xs text-leise">Sag unten bei der Show zu oder ab. Eingeteilt bist du erst mit deiner Zusage.</p>
+        </section>
+      )}
+
+      {darfFreigeben && uebernahmeAnfragen.length > 0 && (
+        <section className="space-y-2 rounded-lg border p-4" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          <h2 className="font-semibold">Übernahme-Anfragen warten auf Freigabe</h2>
+          <ul className="space-y-2 text-sm">
+            {uebernahmeAnfragen.map((a) => (
+              <UebernahmeZeile key={a.id} antrag={a} />
+            ))}
+          </ul>
         </section>
       )}
 
@@ -334,6 +351,21 @@ function SlotZeile({
       istRookieFuer(ich, slot.position as FestePosition) &&
       !istRookieFuer(slot.person, slot.position),
   );
+  /*
+    Zur Entlastung anbieten: Die Schicht ist schon besetzt (sonst gilt
+    "Ich übernehme" oben) und nicht meine. Bei einer Aushilfe gilt das
+    sofort, bei jemand Festangestelltem erst nach Freigabe durch Florian
+    oder Kevin (Florian, 28.09.2026).
+  */
+  const kannUebernahmeAnbieten = Boolean(
+    ich &&
+      !meins &&
+      !michGefragt &&
+      !schonDabei &&
+      slot.person &&
+      !slot.offen &&
+      darfUebernehmen(ich, slot.position, slot.fuer),
+  );
   const versteckt = (
     <>
       <input type="hidden" name="vorstellung" value={eventId} />
@@ -467,6 +499,20 @@ function SlotZeile({
           </form>
         )}
 
+        {kannUebernahmeAnbieten && (
+          <form action={schichtUebernehmenAnbieten}>
+            {versteckt}
+            <Absendeknopf
+              text={
+                slot.person?.fest
+                  ? `${slot.person.vorname} entlasten (Freigabe nötig)`
+                  : `${slot.person?.vorname} entlasten`
+              }
+              laeuftText="Moment..."
+            />
+          </form>
+        )}
+
         {/* Besetzt, aber ein Rookie will hier lernen: Er geht auf die
             Position, der bisherige geht als Shadow mit. */}
         {kannMitlernen && (
@@ -542,6 +588,42 @@ function SlotZeile({
             )}
           </details>
         )}
+      </span>
+    </li>
+  );
+}
+
+/** Eine Zeile in der Liste der Übernahme-Anfragen, für Florian und Kevin. */
+function UebernahmeZeile({ antrag }: { antrag: UebernahmeAntrag }) {
+  const versteckt = <input type="hidden" name="id" value={antrag.id} />;
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-flaeche px-3 py-2">
+      <span className="flex-1">
+        <strong>{antrag.anbieterName}</strong> möchte {antrag.bisherigerName}s Schicht übernehmen
+        {antrag.position && <> · {BEZEICHNUNG[antrag.position as Position]}</>}
+        {antrag.ditixEventId && (
+          <>
+            {" "}
+            ·{" "}
+            <Link href={`/dienstplan?nur=alle&s=${antrag.ditixEventId}#s-${antrag.ditixEventId}`} className="underline">
+              zur Show
+            </Link>
+          </>
+        )}
+      </span>
+      <span className="flex gap-2">
+        <form action={schichtUebernahmeEntscheiden}>
+          {versteckt}
+          <input type="hidden" name="status" value="angenommen" />
+          <Absendeknopf text="Freigeben" laeuftText="..." />
+        </form>
+        <form action={schichtUebernahmeEntscheiden}>
+          {versteckt}
+          <input type="hidden" name="status" value="abgelehnt" />
+          <button type="submit" className="text-sm text-leise underline">
+            Ablehnen
+          </button>
+        </form>
       </span>
     </li>
   );
