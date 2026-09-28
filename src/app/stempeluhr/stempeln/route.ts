@@ -71,6 +71,11 @@ export async function POST(request: Request) {
   */
   const mussImHaus = art !== "gehen";
   const standortUnklar = e.aktiv && mussImHaus && !pruefung.drin;
+  // Beim Ausstempeln außerhalb des Geländes bekommt der Mitarbeiter eine
+  // eigene, passende Meldung statt der GPS-Meldung fürs Einstempeln: Hier
+  // geht es nicht um ein Ortungsproblem, sondern darum, dass er das Haus
+  // schon verlassen hat (Florian, 28.09.2026).
+  const drausenBeimGehen = art === "gehen" && hatOrt && !pruefung.drin;
 
   const stempel = await stempelSetzen({
     benutzerId: b.id,
@@ -83,8 +88,8 @@ export async function POST(request: Request) {
     imHaus: pruefung.drin,
     notiz: standortUnklar
       ? `Standort beim Stempeln unklar: ${pruefung.grund}`
-      : !pruefung.drin && art === "gehen"
-        ? "Ausgestempelt außerhalb des Geländes"
+      : drausenBeimGehen
+        ? `Ausgestempelt außerhalb des Geländes (rund ${pruefung.entfernungM} Meter entfernt)`
         : "",
   });
 
@@ -120,6 +125,14 @@ export async function POST(request: Request) {
     pause: stunden(neu.pausenMinutenHeute),
     entfernung: pruefung.entfernungM,
     // Kein Fehler, aber ein Hinweis: gestempelt wurde trotzdem.
-    standortHinweis: standortUnklar ? pruefung.grund : null,
+    standortHinweis: standortUnklar
+      ? pruefung.grund
+      : drausenBeimGehen
+        ? "Du befindest dich nicht auf dem Grundstück."
+        : null,
+    // Sagt der Oberfläche, welchen der beiden Hinweise sie zeigen soll:
+    // beim Einstempeln geht es um ein GPS-Problem, beim Ausstempeln
+    // draußen darum, wann die Arbeitszeit wirklich endete.
+    standortHinweisArt: standortUnklar ? "unklar" : drausenBeimGehen ? "verlassen" : null,
   });
 }

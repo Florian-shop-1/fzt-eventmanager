@@ -57,6 +57,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [meldung, setMeldung] = useState("");
   const [fehler, setFehler] = useState("");
   const [standortHinweis, setStandortHinweis] = useState("");
+  const [standortHinweisArt, setStandortHinweisArt] = useState<"unklar" | "verlassen" | null>(null);
   const [pause, setPause] = useState(Boolean(pauseFaellig));
   const [laeuft, setLaeuft] = useState(false);
   const letzterPing = useRef(0);
@@ -79,6 +80,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     setFehler("");
     setMeldung("");
     setStandortHinweis("");
+    setStandortHinweisArt(null);
     try {
       const p = await position().catch(() => null);
       const antwort = await fetch("/stempeluhr/stempeln", {
@@ -96,6 +98,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         fehler?: string;
         zustand?: Zustand;
         standortHinweis?: string | null;
+        standortHinweisArt?: "unklar" | "verlassen" | null;
       };
       if (!e.ok) {
         setFehler(e.fehler ?? "Das hat nicht geklappt.");
@@ -116,7 +119,10 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       );
       // Kein Fehler: gestempelt wurde trotzdem. Aber bitte Ortungsdienste
       // einschalten, sonst muss das Büro jede Zeit von Hand prüfen.
-      if (e.standortHinweis) setStandortHinweis(e.standortHinweis);
+      if (e.standortHinweis) {
+        setStandortHinweis(e.standortHinweis);
+        setStandortHinweisArt(e.standortHinweisArt ?? "unklar");
+      }
       router.refresh();
     } catch {
       setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
@@ -245,7 +251,20 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           {meldung}
         </p>
       )}
-      {standortHinweis && (
+      {standortHinweis && standortHinweisArt === "verlassen" && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>{standortHinweis}</strong> Ausgestempelt ist trotzdem, das ist so gespeichert. Bitte trag unten
+          bei{" "}
+          <a href="#nachmelden" className="underline">
+            „Nachmelden“
+          </a>{" "}
+          ein, wann deine Arbeitszeit wirklich zu Ende war, dann prüfen wir das.
+        </p>
+      )}
+      {standortHinweis && standortHinweisArt === "unklar" && (
         <p
           className="rounded-lg border px-4 py-3 text-sm"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
