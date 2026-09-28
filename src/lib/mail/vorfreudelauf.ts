@@ -32,6 +32,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 import { isoDatum } from "@/lib/zeit";
 import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
+import { abgesagteEventIds } from "@/lib/absage/db";
 
 // Weitergereicht, damit Aufrufer nicht wissen muessen, wo die Zahl steht.
 export { VORLAUF_TAGE };
@@ -62,7 +63,7 @@ export function zieldatum(heute: Date = new Date()): string {
   return tag.toISOString().slice(0, 10);
 }
 
-function grundZumUeberspringen(b: ShopBuchung, abgemeldet: Set<string>): string | null {
+function grundZumUeberspringen(b: ShopBuchung, abgemeldet: Set<string>, abgesagt: Set<string>): string | null {
   // Notbremse gegen einen Fehler, den es schon einmal gab: Ein Datum, das aus
   // der Datenbank falsch ankommt, stand als "Am Invalid Date" mitten im Text.
   // Lieber gar keine Mail als eine, in der der Termin unleserlich ist.
@@ -71,6 +72,10 @@ function grundZumUeberspringen(b: ShopBuchung, abgemeldet: Set<string>): string 
   if (!b.email || !b.email.includes("@")) return "keine Adresse";
   if (b.mailGesendetAm) return "schon geschrieben";
   if (abgemeldet.has(adresse(b.email))) return "abgemeldet";
+  // Die Show ist abgesagt: Diese Gäste bekommen statt der Vorfreude-Mail
+  // den Ausweichtermin-Entwurf aus /absagen, siehe lib/absage
+  // (Florian, 29.09.2026).
+  if (abgesagt.has(b.ditixEventId)) return "Show abgesagt";
   return null;
 }
 
@@ -97,6 +102,7 @@ export async function vorfreudeVerschicken(
   if (buchungen.length === 0) return ergebnis;
 
   const abgemeldet = await widersprochene(buchungen.map((b) => b.email));
+  const abgesagt = await abgesagteEventIds();
 
   // Einmal je Termin fragen, nicht je Gast: An einem Abend gibt es fuer alle
   // dasselbe. Bei zwei Vorstellungen am selben Tag koennen sich die Angebote
@@ -107,7 +113,7 @@ export async function vorfreudeVerschicken(
   }
 
   for (const b of buchungen) {
-    const grund = grundZumUeberspringen(b, abgemeldet);
+    const grund = grundZumUeberspringen(b, abgemeldet, abgesagt);
     if (grund) {
       ergebnis.uebersprungen.push({ email: b.email || "(ohne Adresse)", grund });
       continue;

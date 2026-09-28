@@ -154,9 +154,15 @@ export async function geschenkZurBuchung(buchungId: string): Promise<Geschenk | 
 export async function geschenke(alle = false): Promise<Geschenk[]> {
   const z = (await db()`
     select g.*,
-           k.show as gebucht_show, k.datum::text as gebucht_datum, k.uhrzeit as gebucht_uhrzeit,
-           k.plaetze as gebucht_plaetze
+           coalesce(direkt.show, k.show) as gebucht_show,
+           coalesce(direkt.datum, k.datum)::text as gebucht_datum,
+           coalesce(direkt.uhrzeit, k.uhrzeit) as gebucht_uhrzeit,
+           coalesce(direkt.plaetze, k.plaetze) as gebucht_plaetze
       from abbruch_geschenk g
+      -- Bei Show-Absagen (siehe lib/absage) steht die Buchung schon fest,
+      -- bevor das Geschenk versprochen wird: dann direkt verknuepfen statt
+      -- ueber die E-Mail zu suchen (Florian, 29.09.2026).
+      left join shop_buchung direkt on direkt.id = g.buchung_id and direkt.bestaetigt
       left join lateral (
         select b.show, b.datum, b.uhrzeit, b.plaetze
           from shop_buchung b
@@ -164,11 +170,11 @@ export async function geschenke(alle = false): Promise<Geschenk[]> {
            and b.eingegangen_am >= g.versprochen_am - interval '1 hour'
          order by b.eingegangen_am desc
          limit 1
-      ) k on true
+      ) k on direkt.id is null
      where g.versprochen_am >= now() - interval '180 days'
-       and k.show is not null
+       and coalesce(direkt.show, k.show) is not null
        and (${alle} or g.eingeloest_am is null)
-     order by k.datum nulls last, g.versprochen_am desc
+     order by coalesce(direkt.datum, k.datum) nulls last, g.versprochen_am desc
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
 }

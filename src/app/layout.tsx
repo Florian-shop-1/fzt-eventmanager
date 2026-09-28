@@ -87,6 +87,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/stoerungen", label: "Störungen", rollen: ["chef", "team"] },
       { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
       { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
+      { href: "/absagen", label: "Show absagen", rollen: ["chef", "team"] },
       { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
     ],
   },
@@ -138,7 +139,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
 ];
 
 /** Seiten, die ohne Anmeldung erreichbar sein müssen. */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot"];
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot", "/alternative"];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.
