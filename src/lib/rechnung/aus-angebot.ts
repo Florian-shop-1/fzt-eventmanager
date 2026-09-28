@@ -32,9 +32,16 @@ export const RESERVIERUNGSHINWEIS =
   "dann ist eure Veranstaltung fest gebucht. Bis zum Zahlungseingang bleibt die Reservierung " +
   "unverbindlich.";
 
-/** Nächste freie Rechnungsnummer im Format RE-MMJJ-NNNN. */
+/**
+ * Nächste freie Rechnungsnummer im Format EV-MMJJ-NNNN.
+ *
+ * EV für Events, weil der Ticketshop seine eigenen Rechnungen schreibt
+ * und dort RE-MMJJ-NNNNN gilt. Zwei Nummernkreise im selben Haus dürfen
+ * sich nicht überschneiden, sonst steht dieselbe Nummer zweimal in den
+ * Büchern (Florian, 25.09.2026).
+ */
 export async function naechsteRechnungsnummer(heute = new Date()): Promise<string> {
-  const praefix = `RE-${String(heute.getMonth() + 1).padStart(2, "0")}${String(
+  const praefix = `EV-${String(heute.getMonth() + 1).padStart(2, "0")}${String(
     heute.getFullYear(),
   ).slice(-2)}-`;
   const zeilen = (await db()`

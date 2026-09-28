@@ -12,7 +12,7 @@ import {
   type Empfehlung,
 } from "@/lib/seating/upgrade";
 import { gaesteDerVorstellung, type Gast } from "@/lib/db/gaesteliste";
-import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { gastGesetzt } from "@/app/gaesteliste/aktionen";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -20,6 +20,7 @@ import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
 import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
 import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
+import { eingecheckteSitze } from "@/lib/db/sitzeinchecken";
 
 export const metadata = { title: "Upgrades | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -52,9 +53,9 @@ function plaetze(b: Bereich): string {
 export default async function UpgradeSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string; show?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; show?: string; test?: string }>;
 }) {
-  const { abend, monat, show } = await searchParams;
+  const { abend, monat, show, test } = await searchParams;
 
   const termine = await alleShowtage();
   const { gewaehlt, monat: aufgeschlagenerMonat, heute } = await waehleAbend(termine, {
@@ -98,12 +99,35 @@ export default async function UpgradeSeite({
   const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich | null>();
   const benutzer = await angemeldeterBenutzer();
   const darfEintragen = benutzer?.rolle === "chef" || benutzer?.rolle === "team";
+  /*
+    Testmodus: Umsetzen und Durch-x-en gehen sonst erst ab Saalöffnung.
+    Damit Florian und Kevin das Antippen auch dann ausprobieren können,
+    wenn gerade keine Show läuft, schaltet dieser Schalter die Zeitsperre
+    aus. Was dabei eingetragen wird, ist echt, deshalb nur für die beiden
+    und deutlich sichtbar (Florian, 29.09.2026).
+  */
+  const testModusMoeglich = darfEinladen(benutzer);
+  const testModus = testModusMoeglich && test === "1";
   // Was am Einlass schon gesetzt wurde. Steht ueber dem Vorschlag: Der Plan
   // ist eine Empfehlung, gezaehlt wird, was der Einlass eingetippt hat.
   const umsetzungen = vorstellung ? await umsetzungenDerVorstellung(vorstellung.ditixEventId) : [];
+  // Von Hand durch-x-t, wer sitzt: die Vorstufe zum späteren Scanner.
+  const eingecheckt = vorstellung ? await eingecheckteSitze(vorstellung.ditixEventId) : [];
 
   return (
-    <div className="space-y-6">
+    /*
+      Der ganze Upgrade-Plan wird farbig gedruckt.
+
+      Browser lassen Hintergruende beim Drucken normalerweise weg. Fuer
+      diesen Plan ist die Farbe aber die Information: die Buchstaben der
+      Gruppen, die Kategorien im Saalplan, die Hinweise. Am iPad sieht
+      man sie, auf Papier sollen sie genauso aussehen (Florian,
+      27.09.2026).
+
+      Im Druckdialog muss dafuer "Hintergrundgrafiken" angehakt sein,
+      das laesst sich von hier aus nicht erzwingen.
+    */
+    <div className="druckt-farbe space-y-6">
       <Druckkopf
         titel="Upgrades"
         untertitel={
@@ -122,10 +146,41 @@ export default async function UpgradeSeite({
             niemand wird nach hinten gesetzt. Ausdrucken, am Einlass ansprechen, abhaken.
           </p>
         </div>
-        {((rat && rat.umzuege.length > 0) || gaeste.length > 0) && (
-          <DruckKnopf text="Plan drucken" hinweis="mit Liste zum Abhaken" />
-        )}
+        <div className="flex items-center gap-2">
+          {testModusMoeglich && (
+            <Link
+              href={`/upgrades?${new URLSearchParams({
+                ...(gewaehlt ? { abend: gewaehlt } : {}),
+                ...(aufgeschlagenerMonat ? { monat: aufgeschlagenerMonat } : {}),
+                ...(show ? { show } : {}),
+                ...(testModus ? {} : { test: "1" }),
+              }).toString()}`}
+              className="rounded-lg border-2 px-3 py-1.5 text-xs font-medium"
+              style={{
+                borderColor: testModus ? "var(--warnung)" : "var(--linie)",
+                background: testModus ? "var(--warnung-hell)" : "var(--flaeche)",
+              }}
+            >
+              {testModus ? "Testmodus an — ausschalten" : "Testmodus: jetzt umsetzen/durch-x-en dürfen"}
+            </Link>
+          )}
+          {((rat && rat.umzuege.length > 0) || gaeste.length > 0) && (
+            <DruckKnopf text="Plan drucken" hinweis="mit Liste zum Abhaken" />
+          )}
+        </div>
       </header>
+
+      {testModus && (
+        <div
+          className="rounded-lg border-2 px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>Testmodus:</strong> Umsetzen und Durch-x-en sind unabhängig von der Uhrzeit freigeschaltet, auch
+          wenn gerade keine Show läuft. Was du hier antippst, wird echt gespeichert — nach dem Test oben rechts auf
+          „ausschalten“ tippen und die Testeinträge über „alle Umsetzungen zurücknehmen“ bzw. erneutes Antippen
+          wieder entfernen.
+        </div>
+      )}
 
       <div className="print:hidden">
         <AbendAuswahl
@@ -227,7 +282,9 @@ export default async function UpgradeSeite({
             gastName: u.gastName,
             gesetztVon: u.gesetztVon,
           }))}
+          eingecheckteIds={eingecheckt}
           zone={{ links: rat.zone.links, rechts: rat.zone.rechts, oben: rat.zone.oben, unten: rat.zone.unten }}
+          erzwingeOffen={testModus}
         />
       )}
 

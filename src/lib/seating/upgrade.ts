@@ -64,17 +64,17 @@ const ROLLSTUHL = /rollstuhl|rolli/i;
  * REIHEN_TIEF  Wie viele Reihen von der Bühne aus dazugehören.
  * AUSSEN_FREI  Wie viele Plätze an jedem Ende einer Reihe wegfallen.
  *
- * Am Saal abgenommen: fünf Reihen tief, je zwei Plätze aussen. Bei
- * sechzehn Plätzen je Reihe bleiben die Plätze 3 bis 14. Wer die Zone
- * ändern will, ändert diese beiden Zahlen.
+ * Am Saal abgenommen: fünf Reihen tief, je vier Plätze aussen (Florian,
+ * 29.09.2026, vorher zwei). Bei sechzehn Plätzen je Reihe bleiben die
+ * Plätze 5 bis 12. Wer die Zone ändern will, ändert diese beiden Zahlen.
  *
- * Bewusst eng gewählt. Das Ziel ist ein Block mittig vor der Bühne, nicht
- * ein moeglichst weit verteiltes Publikum. Eine grosszügigere Zone würde
- * zwar mehr Gruppen unterbringen, aber genau den Eindruck zerstören, um
- * den es geht.
+ * Bewusst eng gewählt, und noch enger als zuvor: Das Ziel ist ein Block
+ * mittig vor der Bühne, nicht ein moeglichst weit verteiltes Publikum.
+ * Eine grosszügigere Zone würde zwar mehr Gruppen unterbringen, aber
+ * genau den Eindruck zerstören, um den es geht.
  */
 const REIHEN_TIEF = 5;
-const AUSSEN_FREI = 2;
+const AUSSEN_FREI = 4;
 
 export interface Reihe {
   /** "Kat. 1", "Golden Seats" und so weiter. */

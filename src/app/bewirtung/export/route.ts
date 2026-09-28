@@ -1,4 +1,5 @@
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
+import { gesellschaftName } from "@/lib/bewirtung/gesellschaft";
 import { belegeDesMonats, monatLesen } from "@/lib/bewirtung/monat";
 
 /**
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
   const belege = await belegeDesMonats(mo.jahr, mo.monat);
 
   const kopf = [
-    "Beleg-Nr.", "Art", "Kategorie", "Datum", "Geschäft", "Anschrift", "Anlass bzw. Zweck", "Teilnehmer", "Brutto",
+    // Die Firma steht vorn: Das Steuerbuero sortiert danach, bevor es
+    // irgendetwas anderes ansieht (Florian, 28.09.2026).
+    "Gesellschaft", "Beleg-Nr.", "Art", "Kategorie", "Datum", "Geschäft", "Anschrift", "Anlass bzw. Zweck", "Teilnehmer", "Brutto",
     "USt 7 %", "USt 19 %", "Netto", "Trinkgeld", "Abziehbar", "Nicht abziehbar", "Bezahlt", "Privat ausgelegt",
     "Zahlart laut Beleg", "Status", "Storno-Grund", "SHA-256 Foto",
   ];
@@ -28,7 +31,8 @@ export async function GET(request: Request) {
     // Bewirtungen zu 70 %, Einkäufe voll.
     const abziehbar = b.art === "bewirtung" ? Math.round(netto * 0.7) : netto;
     return [
-      feld(b.nummer ?? ""), b.art === "einkauf" ? "Einkauf" : "Bewirtung", feld(b.kategorie),
+      feld(gesellschaftName(b.gesellschaft)), feld(b.nummer ?? ""),
+      b.art === "einkauf" ? "Einkauf" : "Bewirtung", feld(b.kategorie),
       b.datum?.split("-").reverse().join(".") ?? "", feld(b.restaurant), feld(b.anschrift),
       feld(b.art === "einkauf" ? b.zweck : b.anlass), feld(b.teilnehmer), betrag(b.bruttoCent), betrag(b.mwst7Cent),
       betrag(b.mwst19Cent), betrag(netto - b.trinkgeldCent), betrag(b.trinkgeldCent), betrag(abziehbar),

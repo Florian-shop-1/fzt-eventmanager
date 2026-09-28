@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { umsetzungEntfernen, umsetzungSpeichern } from "@/lib/db/upgradeumsetzung";
 import { platzEintragen } from "@/lib/db/gaesteliste";
 import { findeTermin } from "@/lib/ditix/spielplan";
@@ -26,6 +26,8 @@ interface Anfrage {
   personen?: number;
   gastId?: string;
   gastName?: string;
+  /** Testmodus, siehe components/UpgradeTafel.tsx. Nur für den Chef. */
+  test?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -41,8 +43,13 @@ export async function POST(request: Request) {
     Umgesetzt wird erst bei Saalöffnung, eine halbe Stunde vor der Show
     (Florian, 22.09.2026). Geprüft wird hier und nicht nur im Browser:
     Sonst hätte ein Tablet mit falscher Uhr wieder Tage vorher verschoben.
+
+    Ausnahme: der Testmodus auf der Upgrades-Seite, und den dürfen
+    serverseitig nur Florian und Kevin auslösen, nicht bloß, wer im
+    Browser "test" mitschickt (Florian, 29.09.2026).
   */
-  const termin = await findeTermin(d.eventId).catch(() => null);
+  const testErlaubt = Boolean(d.test) && darfEinladen(b);
+  const termin = testErlaubt ? null : await findeTermin(d.eventId).catch(() => null);
   if (termin && Date.now() < termin.beginn.getTime() - 30 * 60000) {
     const ab = new Date(termin.beginn.getTime() - 30 * 60000).toLocaleTimeString("de-DE", {
       timeZone: "Europe/Berlin",

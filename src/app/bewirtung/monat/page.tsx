@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { euro, nachZahlweg, summen } from "@/lib/bewirtung/db";
+import { euro, nachZahlweg, summen, vorkommendeGesellschaften } from "@/lib/bewirtung/db";
+import { gesellschaftKurz, gesellschaftName } from "@/lib/bewirtung/gesellschaft";
 import { belegeDesMonats, monatLesen } from "@/lib/bewirtung/monat";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
 import { DruckKnopf } from "@/components/DruckKnopf";

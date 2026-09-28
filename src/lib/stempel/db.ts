@@ -38,8 +38,6 @@ export interface StempelEinstellung {
   meldenAn: string[];
   maxStunden: number;
   aktiv: boolean;
-  /** Spätestens zu dieser Uhrzeit ist Schluss, "23:45". */
-  feierabend: string;
 }
 
 /** Zustand einer Person: was als Nächstes dran ist. */
@@ -74,7 +72,7 @@ function baue(z: Record<string, unknown>): Stempel {
 
 export async function einstellungLesen(): Promise<StempelEinstellung> {
   const z = (await db()`
-    select lat, lon, radius_m, melden_an, max_stunden, aktiv, feierabend
+    select lat, lon, radius_m, melden_an, max_stunden, aktiv
       from stempel_einstellung where id = 1
   `) as Array<Record<string, unknown>>;
   return {
@@ -84,7 +82,6 @@ export async function einstellungLesen(): Promise<StempelEinstellung> {
     meldenAn: (z[0].melden_an as string[]) ?? [],
     maxStunden: Number(z[0].max_stunden),
     aktiv: Boolean(z[0].aktiv),
-    feierabend: String(z[0].feierabend ?? "23:45").slice(0, 5),
   };
 }
 
@@ -145,17 +142,22 @@ export function entfernung(lat1: number, lon1: number, lat2: number, lon2: numbe
  *
  * Die gemeldete Genauigkeit wird abgezogen: Wer 180 Meter entfernt gemessen
  * wird, aber nur auf 100 Meter genau, könnte im Haus stehen. Ein völlig
- * unbrauchbares Signal (über 300 Meter Unsicherheit) zählt aber nicht.
+ * unbrauchbares Signal (über 500 Meter Unsicherheit) zählt aber nicht.
+ *
+ * Bewusst großzügig gerechnet (Florian, 28.09.2026): Bei manchen Handys ist
+ * das GPS in Gebäuden einfach schlecht. Wer draußen wirklich nicht ist,
+ * fällt trotzdem auf, nur eben erst beim Prüfen hinterher und nicht schon
+ * beim Stempeln selbst (siehe stempeln/route.ts: eingestempelt wird immer).
  */
 export function imHaus(
   e: StempelEinstellung,
   p: { lat: number; lon: number; genauigkeit: number },
 ): { drin: boolean; entfernungM: number; grund: string } {
   const d = entfernung(e.lat, e.lon, p.lat, p.lon);
-  if (p.genauigkeit > 300) {
-    return { drin: false, entfernungM: d, grund: "Das GPS-Signal ist zu ungenau. Bitte kurz ans Fenster oder vor die Tür." };
+  if (p.genauigkeit > 500) {
+    return { drin: false, entfernungM: d, grund: "Das GPS-Signal ist zu ungenau. Bitte Ortungsdienste einschalten und kurz ans Fenster oder vor die Tür." };
   }
-  const spielraum = Math.min(p.genauigkeit, 150);
+  const spielraum = Math.min(p.genauigkeit, 200);
   const drin = d - spielraum <= e.radiusM;
   return {
     drin,
@@ -436,9 +438,22 @@ export interface Antrag {
   antwort: string;
   erstelltAm: string;
   entschiedenVon: string | null;
+  /**
+   * Die tatsächlichen Zeiten, wenn der Mitarbeiter sie strukturiert
+   * angegeben hat (etwa nach einem vergessenen Ausstempeln). Alle vier
+   * optional: meist fehlt nur "gehen".
+   */
+  vorschlagKommen: string | null;
+  vorschlagPauseStart: string | null;
+  vorschlagPauseEnde: string | null;
+  vorschlagGehen: string | null;
 }
 
+const ANTRAG_SPALTEN = `id, benutzer_id, name, art, to_char(tag, 'YYYY-MM-DD') as tag, text, status, antwort,
+  erstellt_am, entschieden_von, vorschlag_kommen, vorschlag_pause_start, vorschlag_pause_ende, vorschlag_gehen`;
+
 function bauAntrag(z: Record<string, unknown>): Antrag {
+  const zeit = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
   return {
     id: String(z.id),
     benutzerId: String(z.benutzer_id),
@@ -450,6 +465,10 @@ function bauAntrag(z: Record<string, unknown>): Antrag {
     antwort: String(z.antwort ?? ""),
     erstelltAm: new Date(z.erstellt_am as string).toISOString(),
     entschiedenVon: z.entschieden_von === null ? null : String(z.entschieden_von),
+    vorschlagKommen: zeit(z.vorschlag_kommen),
+    vorschlagPauseStart: zeit(z.vorschlag_pause_start),
+    vorschlagPauseEnde: zeit(z.vorschlag_pause_ende),
+    vorschlagGehen: zeit(z.vorschlag_gehen),
   };
 }
 
@@ -459,11 +478,18 @@ export async function antragStellen(o: {
   art: Antrag["art"];
   tag: string;
   text: string;
+  vorschlagKommen?: string | null;
+  vorschlagPauseStart?: string | null;
+  vorschlagPauseEnde?: string | null;
+  vorschlagGehen?: string | null;
 }): Promise<void> {
   await db()`
-    insert into stempel_antrag (benutzer_id, name, art, tag, text, status)
+    insert into stempel_antrag
+      (benutzer_id, name, art, tag, text, status, vorschlag_kommen, vorschlag_pause_start, vorschlag_pause_ende, vorschlag_gehen)
     values (${o.benutzerId}, ${o.name}, ${o.art}, ${o.tag}::date, ${o.text},
-            ${o.art === "pausengrund" ? "notiert" : "offen"})
+            ${o.art === "pausengrund" ? "notiert" : "offen"},
+            ${o.vorschlagKommen ?? null}, ${o.vorschlagPauseStart ?? null},
+            ${o.vorschlagPauseEnde ?? null}, ${o.vorschlagGehen ?? null})
   `;
 }
 
@@ -471,15 +497,15 @@ export async function antragStellen(o: {
 export async function antraege(nur?: "offen"): Promise<Antrag[]> {
   const z = (
     nur === "offen"
-      ? await db()`select id, benutzer_id, name, art, to_char(tag, 'YYYY-MM-DD') as tag, text, status, antwort, erstellt_am, entschieden_von from stempel_antrag where status = 'offen' order by erstellt_am`
-      : await db()`select id, benutzer_id, name, art, to_char(tag, 'YYYY-MM-DD') as tag, text, status, antwort, erstellt_am, entschieden_von from stempel_antrag order by erstellt_am desc limit 60`
+      ? await db()`select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag where status = 'offen' order by erstellt_am`
+      : await db()`select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag order by erstellt_am desc limit 60`
   ) as Array<Record<string, unknown>>;
   return z.map(bauAntrag);
 }
 
 export async function antraegeVon(benutzerId: string, anzahl = 10): Promise<Antrag[]> {
   const z = (await db()`
-    select id, benutzer_id, name, art, to_char(tag, 'YYYY-MM-DD') as tag, text, status, antwort, erstellt_am, entschieden_von from stempel_antrag
+    select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag
      where benutzer_id = ${benutzerId} order by erstellt_am desc limit ${anzahl}
   `) as Array<Record<string, unknown>>;
   return z.map(bauAntrag);
@@ -495,9 +521,52 @@ export async function antragEntscheiden(
     update stempel_antrag
        set status = ${status}, antwort = ${antwort}, entschieden_von = ${von}, entschieden_am = now()
      where id = ${id}
-    returning id, benutzer_id, name, art, to_char(tag, 'YYYY-MM-DD') as tag, text, status, antwort, erstellt_am, entschieden_von
+    returning ${db().unsafe(ANTRAG_SPALTEN)}
   `) as Array<Record<string, unknown>>;
   return z[0] ? bauAntrag(z[0]) : null;
+}
+
+/** Nur den Antrag lesen, um vor dem Übernehmen zu wissen, was drinsteht. */
+export async function antragLesen(id: string): Promise<Antrag | null> {
+  const z = (await db()`
+    select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag where id = ${id}
+  `) as Array<Record<string, unknown>>;
+  return z[0] ? bauAntrag(z[0]) : null;
+}
+
+/**
+ * Übernimmt die vom Mitarbeiter angegebenen Zeiten direkt in die Stempeluhr.
+ *
+ * Für "gehen" und "kommen" wird der bestehende Stempel des Tages
+ * verschoben, falls es einen gibt (meist der automatische), sonst wird
+ * einer angelegt. Für die Pause wird nachgetragen, wenn an dem Tag noch
+ * keine Pause steht. Jede Zeile bekommt in "geändert von" den Hinweis,
+ * dass die Angabe vom Mitarbeiter selbst stammt und wer sie bestätigt hat.
+ */
+export async function antragUebernehmen(id: string, von: string): Promise<Antrag | null> {
+  const a = await antragLesen(id);
+  if (!a) return null;
+  const bereitsAmTag = await stempelAmTag(a.benutzerId, a.tag);
+  const vermerk = `Selbstauskunft von ${a.name}, bestätigt von ${von}`;
+
+  const uebernehmen = async (art: StempelArt, zeitpunkt: string | null) => {
+    if (!zeitpunkt) return;
+    const bestehend = [...bereitsAmTag].reverse().find((s) => s.art === art);
+    if (bestehend) await zeitAendern(bestehend.id, zeitpunkt, vermerk);
+    else {
+      await db()`
+        insert into stempel (benutzer_id, name, art, zeitpunkt, im_haus, quelle, notiz, geaendert_von, geaendert_am)
+        values (${a.benutzerId}, ${a.name}, ${art}, ${zeitpunkt}::timestamptz, true, 'korrektur', ${vermerk}, ${von}, now())
+      `;
+    }
+  };
+
+  await uebernehmen("kommen", a.vorschlagKommen);
+  await uebernehmen("pause_start", a.vorschlagPauseStart);
+  await uebernehmen("pause_ende", a.vorschlagPauseEnde);
+  await uebernehmen("gehen", a.vorschlagGehen);
+
+  return antragEntscheiden(id, "angenommen", `Übernommen: ${vermerk}`, von);
 }
 
 /** Hat diese Person heute schon geschrieben, warum die Pause ausfiel? */

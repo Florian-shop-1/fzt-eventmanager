@@ -75,6 +75,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
+      { href: "/hoerezu", label: "🎤 Höre zu", rollen: ["chef", "team", "showteam"] },
     ],
   },
   {
@@ -91,6 +92,12 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
   {
     titel: "Events",
     punkte: [
+      /*
+        Ganz oben, weil es der erste Gedanke ist: Wer auf Events klickt,
+        will oft einen Abend aufmachen, den es im Ticketshop nicht gibt
+        (Florian, 28.09.2026). Wer ihn anlegen darf, prüft die Seite.
+      */
+      { href: "/termin-anlegen", label: "Termin anlegen", rollen: ["chef", "team"] },
       { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
       { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
       { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },

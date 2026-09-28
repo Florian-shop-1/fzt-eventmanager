@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { darfGesellschaftWaehlen, istGesellschaft } from "@/lib/bewirtung/gesellschaft";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import {
@@ -37,8 +38,15 @@ function zurueck(id: string, meldung: string): never {
   redirect(`/bewirtung/${id}?meldung=${encodeURIComponent(meldung)}`);
 }
 
-function angabenAus(f: FormData): Angaben | string {
+function angabenAus(f: FormData, darfFirma: boolean): Angaben | string {
+  const gewaehlt = f.get("gesellschaft");
   const a: Angaben = {
+    /*
+      Die Firma nur uebernehmen, wenn diese Person sie aendern darf.
+      Sonst bleibt sie so, wie sie beim Scannen gesetzt wurde
+      (Florian, 28.09.2026).
+    */
+    gesellschaft: darfFirma && istGesellschaft(gewaehlt) ? gewaehlt : undefined,
     datum: text(f, "datum", 10),
     restaurant: text(f, "restaurant", 150),
     anschrift: text(f, "anschrift", 200),
@@ -71,7 +79,7 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   const alt = await bewirtungLesen(id);
   if (!alt || alt.status !== "entwurf") zurueck(id, "Dieser Beleg ist schon festgeschrieben.");
 
-  const a = angabenAus(f);
+  const a = angabenAus(f, darfGesellschaftWaehlen(b));
   if (typeof a === "string") zurueck(id, a);
   await entwurfSpeichern(id, a);
   const png = String(f.get("unterschrift") ?? "");

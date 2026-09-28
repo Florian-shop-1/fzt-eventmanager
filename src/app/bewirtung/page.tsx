@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { bewirtungenDesJahres, euro, nachZahlweg, summen, type Bewirtung } from "@/lib/bewirtung/db";
 import { BelegScanner } from "@/components/BelegScanner";
+import { darfGesellschaftWaehlen, GESELLSCHAFTEN } from "@/lib/bewirtung/gesellschaft";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
 import { unterschriftSpeichern } from "./aktionen";
@@ -63,7 +64,17 @@ export default async function BewirtungSeite({
             nur, was fehlt, und schreibst fest. Alles wird aufaddiert und steht fürs Steuerbüro bereit.
           </p>
         </div>
-        <BelegScanner />
+        {/*
+          Die Auswahl der Firma sieht nur, wer sie treffen darf. Für alle
+          anderen bleibt der Knopf wie bisher (Florian, 28.09.2026).
+        */}
+        <BelegScanner
+          gesellschaften={
+            darfGesellschaftWaehlen(b)
+              ? GESELLSCHAFTEN.map((g) => ({ wert: g.wert, name: g.name }))
+              : undefined
+          }
+        />
       </header>
 
       {meldung && (

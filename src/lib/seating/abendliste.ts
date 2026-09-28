@@ -14,7 +14,7 @@
 
 import { db } from "@/lib/db/client";
 import {
-  kommendeTermine,
+  showtageAbHeute,
   type Vorstellungstermin,
 } from "@/lib/ditix/spielplan";
 import { holeShopGruppen } from "@/lib/shop/rohdaten";
@@ -74,7 +74,7 @@ export async function planbareAbende(
 }
 
 async function abendeAufbauen(maxAnzahl: number): Promise<PlanbarerAbend[]> {
-  const termine = await kommendeTermine(maxAnzahl);
+  const termine = await showtageAbHeute(maxAnzahl);
 
   // Menügäste aus dem Shop, einmal geholt und nach Vorstellung gezählt.
   const shopJeEvent = new Map<string, number>();

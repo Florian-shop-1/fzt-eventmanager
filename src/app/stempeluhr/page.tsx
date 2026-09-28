@@ -1,8 +1,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfStempeln, darfZeitenAendern } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfSelbstauskunftUebernehmen, darfStempeln, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { StempelUhr } from "@/components/StempelUhr";
 import { geraetPruefen } from "@/lib/stempel/geraet";
+import { NurAmHandy } from "@/components/NurAmHandy";
+import { WerIstDaLive } from "@/components/WerIstDaLive";
 import {
   antraege,
   antraegeVon,
@@ -21,7 +23,9 @@ import {
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import {
   antragBeantworten,
+  antragUebernehmenAktion,
   korrekturBeantragen,
+  nachmeldungSenden,
   pausengrundSenden,
   schluesselAbschalten,
   schluesselErzeugen,
@@ -67,7 +71,15 @@ export default async function StempeluhrSeite({
   const buero = darfZeitenAendern(b);
   const stempelt = darfStempeln(b);
   // Gestempelt wird nur am Handy, siehe lib/stempel/geraet.ts.
-  const amHandy = geraetPruefen((await headers()).get("user-agent")).handy;
+  const kennung = (await headers()).get("user-agent");
+  const amHandy = geraetPruefen(kennung).handy;
+  /*
+    Die Gerätekennung steht im Hinweis, gekürzt.
+
+    Ohne sie ist "geht nicht" nicht zu klären: Am Telefon kann niemand
+    sagen, als was sich sein Browser meldet (Florian, 27.09.2026).
+  */
+  const geraetekennung = (kennung ?? "unbekannt").slice(0, 120);
   if (!stempelt && !buero) redirect("/");
 
   const stand = stempelt ? await standVon(b.id) : null;
@@ -90,33 +102,50 @@ export default async function StempeluhrSeite({
         </p>
       )}
 
-      {stempelt && stand && amHandy && <StempelUhr start={stand.zustand} pauseFaellig={pauseFaellig} />}
-      {stempelt && stand && !amHandy && (
+      {stempelt && stand && (
         /*
           Am Rechner und am Tablet wird nicht gestempelt: Dort koennte jemand
           fuer einen anderen stempeln, und der Standort eines fest stehenden
           Geraets sagt nichts darueber aus, wer da ist (Florian, 23.09.2026).
+
+          Ob es ein Handy ist, entscheidet zuerst der Server an der
+          Browserkennung. Wo die danebenliegt, etwa beim iPhone mit
+          eingeschalteter Desktop-Ansicht, sieht der Browser selbst nach
+          (Florian, 27.09.2026).
         */
-        <div
-          className="rounded-lg border px-5 py-4"
-          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        <NurAmHandy
+          vomServer={amHandy}
+          sonst={
+            <div
+              className="rounded-lg border px-5 py-4"
+              style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+            >
+              <strong>Stempeln geht nur am Handy.</strong>
+              <p className="mt-1 text-sm">
+                Am Rechner und am Tablet ist das Stempeln abgeschaltet. Nimm dein Handy, melde dich dort an und
+                stempel darüber ein und aus. Alles andere auf dieser Seite kannst du hier weiter benutzen.
+              </p>
+              <p className="mt-1 text-sm">
+                Du bist am Handy und liest das trotzdem? Dann steht dein Browser auf Desktop-Ansicht. In Safari
+                tippst du oben links auf &bdquo;AA&ldquo; und dann auf &bdquo;Mobile Website anfordern&ldquo;.
+              </p>
+              <p className="mt-1 text-sm text-leise">
+                Du bist gerade {stand.zustand === "aus" ? "ausgestempelt" : stand.zustand === "pause" ? "in der Pause" : "eingestempelt"}.
+              </p>
+              <p className="mt-2 text-xs text-leise">Erkanntes Gerät: {geraetekennung}</p>
+            </div>
+          }
         >
-          <strong>Stempeln geht nur am Handy.</strong>
-          <p className="mt-1 text-sm">
-            Am Rechner und am Tablet ist das Stempeln abgeschaltet. Nimm dein Handy, melde dich dort an und
-            stempel darüber ein und aus. Alles andere auf dieser Seite kannst du hier weiter benutzen.
-          </p>
-          <p className="mt-1 text-sm text-leise">
-            Du bist gerade {stand.zustand === "aus" ? "ausgestempelt" : stand.zustand === "pause" ? "in der Pause" : "eingestempelt"}.
-          </p>
-        </div>
+          <StempelUhr start={stand.zustand} pauseFaellig={pauseFaellig} />
+        </NurAmHandy>
       )}
       {stempelt && <PausenGrund benutzerId={b.id} offen={pauseFaellig} />}
+      {stempelt && <Nachmeldung benutzerId={b.id} tag={tag} />}
       {stempelt && <MeineAntraege benutzerId={b.id} />}
       {stempelt && <Automatik benutzerId={b.id} />}
 
-      {buero && <WerIstDa />}
-      {buero && <Antraege />}
+      {buero && <WerIstDaLive start={await werIstDa()} />}
+      {buero && <Antraege duerfenUebernehmen={darfSelbstauskunftUebernehmen(b)} />}
       {buero && <Korrektur wer={wer} tag={tag} />}
       {buero && <Monatsuebersicht monat={monat} />}
       {b.rolle === "chef" && <Einrichtung />}
@@ -137,6 +166,59 @@ async function PausenGrund({ benutzerId, offen }: { benutzerId: string; offen: b
       {schonGeschrieben && <p className="mt-2 text-leise">Für heute hast du schon etwas eingetragen. Danke!</p>}
       <form action={pausengrundSenden} className="mt-3 space-y-2">
         <textarea name="text" rows={3} maxLength={1000} placeholder="Zum Beispiel: Aufbau für die Firmenfeier, wir waren zu zweit." />
+        <Absendeknopf text="Abschicken" laeuftText="..." />
+      </form>
+    </details>
+  );
+}
+
+/** Wie ein Tag wirklich lief, nach einem vergessenen Ausstempeln. */
+async function Nachmeldung({ benutzerId, tag }: { benutzerId: string; tag?: string }) {
+  const derTag = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? tag! : heuteBerlin();
+  const stempelDesTages = await stempelAmTag(benutzerId, derTag);
+  const kommen = stempelDesTages.find((s) => s.art === "kommen");
+  const gehen = [...stempelDesTages].reverse().find((s) => s.art === "gehen");
+
+  return (
+    <details
+      id="nachmelden"
+      open={Boolean(tag)}
+      className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm"
+    >
+      <summary className="cursor-pointer font-medium">Ausstempeln vergessen? Eintragen, wie es wirklich war</summary>
+      <p className="mt-2 text-leise">
+        Trag ein, wann du wirklich gegangen bist und ob du eine Pause gemacht hast. Florian oder Kevin übernehmen
+        das dann mit einem Klick, ohne dass du lange schreiben musst.
+      </p>
+      <form action={nachmeldungSenden} className="mt-3 space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Um welchen Tag geht es?</span>
+          <input type="date" name="tag" defaultValue={derTag} required />
+        </label>
+        <p className="text-xs text-leise">
+          {kommen
+            ? `Eingestempelt hast du an dem Tag um ${uhr(kommen.zeitpunkt)} Uhr.`
+            : "Für diesen Tag steht noch kein Einstempeln."}
+          {gehen && ` Zuletzt (automatisch) ausgestempelt um ${uhr(gehen.zeitpunkt)} Uhr.`}
+        </p>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Wann bist du tatsächlich gegangen?</span>
+          <input type="time" name="gehen" defaultValue={gehen ? uhr(gehen.zeitpunkt) : ""} required />
+        </label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Pause von (falls gemacht)</span>
+            <input type="time" name="pauseVon" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Pause bis</span>
+            <input type="time" name="pauseBis" />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Noch etwas dazu? (freiwillig)</span>
+          <textarea name="text" rows={2} maxLength={500} placeholder="Zum Beispiel: Akku war leer." />
+        </label>
         <Absendeknopf text="Abschicken" laeuftText="..." />
       </form>
     </details>
@@ -255,41 +337,15 @@ async function Automatik({ benutzerId }: { benutzerId: string }) {
       )}
 
       <p className="mt-3 text-xs text-leise">
-        Klappt das nicht oder hast du kein passendes Handy: Das Programm stempelt dich abends trotzdem aus, spätestens
-        zur hinterlegten Feierabendzeit. Stimmt die Zeit dann nicht, sag kurz Bescheid.
+        Klappt das nicht oder hast du kein passendes Handy: Bist du abends noch eingestempelt, meldet sich das
+        Programm bei dir. Trag dann kurz nach, wann du wirklich gegangen bist.
       </p>
     </details>
   );
 }
 
-/** Wer gerade im Haus ist. Nur fürs Büro. */
-async function WerIstDa() {
-  const da = await werIstDa();
-  return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">Gerade eingestempelt</h2>
-      {da.length === 0 ? (
-        <p className="text-sm text-leise">Im Moment ist niemand eingestempelt.</p>
-      ) : (
-        <ul className="divide-y divide-linie rounded-lg border border-linie bg-flaeche text-sm">
-          {da.map((p) => (
-            <li key={p.benutzerId} className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
-              <span className="flex-1 font-medium">{p.name}</span>
-              <span className="text-leise">
-                seit {uhr(p.seit)}
-                {p.zustand === "pause" && ", in der Pause"}
-              </span>
-              <span className="tabular-nums">{stunden(p.minuten)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 /** Offene Änderungswünsche und die Begründungen zu fehlenden Pausen. */
-async function Antraege() {
+async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean }) {
   const alle = await antraege();
   const offen = alle.filter((a) => a.status === "offen");
   const gruende = alle.filter((a) => a.art === "pausengrund").slice(0, 8);
@@ -303,27 +359,58 @@ async function Antraege() {
         <p className="text-sm text-leise">Nichts offen.</p>
       ) : (
         <div className="space-y-3">
-          {offen.map((a) => (
-            <form key={a.id} action={antragBeantworten} className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
-              <input type="hidden" name="id" value={a.id} />
-              <p className="font-medium">
-                {a.name} · {a.tag.split("-").reverse().join(".")}
-              </p>
-              <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
-              <input name="antwort" maxLength={500} placeholder="Antwort (freiwillig)" className="mt-3" />
-              <div className="mt-2 flex gap-2">
-                <button name="status" value="angenommen" className="rounded-lg px-4 py-2 font-medium text-white" style={{ background: "var(--gut)" }}>
-                  Annehmen
-                </button>
-                <button name="status" value="abgelehnt" className="rounded-lg border border-linie px-4 py-2 font-medium">
-                  Ablehnen
-                </button>
+          {offen.map((a) => {
+            // Hat der Mitarbeiter Uhrzeiten angegeben (Nachmeldung), statt
+            // nur einen freien Text zu schreiben?
+            const zeiten = [
+              a.vorschlagKommen && `Kommen ${uhr(a.vorschlagKommen)}`,
+              a.vorschlagPauseStart && a.vorschlagPauseEnde && `Pause ${uhr(a.vorschlagPauseStart)}–${uhr(a.vorschlagPauseEnde)}`,
+              a.vorschlagGehen && `Gehen ${uhr(a.vorschlagGehen)}`,
+            ].filter(Boolean);
+
+            return (
+              <div key={a.id} className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
+                <p className="font-medium">
+                  {a.name} · {a.tag.split("-").reverse().join(".")}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
+
+                {zeiten.length > 0 && (
+                  <p className="mt-2 rounded-md px-3 py-2 text-sm font-medium" style={{ background: "var(--gold-hell)" }}>
+                    Angegeben: {zeiten.join(" · ")}
+                  </p>
+                )}
+
+                {zeiten.length > 0 && duerfenUebernehmen && (
+                  <form action={antragUebernehmenAktion} className="mt-3">
+                    <input type="hidden" name="id" value={a.id} />
+                    <button className="rounded-lg px-4 py-2 font-medium text-white" style={{ background: "var(--gut)" }}>
+                      Übernehmen und bestätigen
+                    </button>
+                    <span className="ml-2 text-xs text-leise">Trägt die Zeiten direkt ein, mit Vermerk „Selbstauskunft“.</span>
+                  </form>
+                )}
+
+                <form action={antragBeantworten} className="mt-3">
+                  <input type="hidden" name="id" value={a.id} />
+                  <input name="antwort" maxLength={500} placeholder="Antwort (freiwillig)" className="mt-1" />
+                  <div className="mt-2 flex gap-2">
+                    <button name="status" value="angenommen" className="rounded-lg border border-linie px-4 py-2 font-medium">
+                      Nur annehmen
+                    </button>
+                    <button name="status" value="abgelehnt" className="rounded-lg border border-linie px-4 py-2 font-medium">
+                      Ablehnen
+                    </button>
+                  </div>
+                  {zeiten.length === 0 && (
+                    <p className="mt-2 text-xs text-leise">
+                      Nach dem Annehmen die Zeit unten unter „Zeiten korrigieren“ eintragen.
+                    </p>
+                  )}
+                </form>
               </div>
-              <p className="mt-2 text-xs text-leise">
-                Nach dem Annehmen die Zeit unten unter „Zeiten korrigieren“ eintragen.
-              </p>
-            </form>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -532,15 +619,18 @@ async function Einrichtung() {
       <summary className="cursor-pointer font-medium">Einrichtung der Stempeluhr</summary>
       <form action={standortSpeichern} className="mt-3 space-y-3">
         <p className="text-leise">
-          Der Mittelpunkt ist die Grethe-Weiser-Straße 2. Wer weiter als der Umkreis entfernt ist, kann nicht
-          stempeln. Meldet das Handy während der Arbeitszeit, dass jemand das Gelände verlassen hat, stempelt das
-          Programm ihn automatisch aus und schickt ihm und euch eine Mail.
+          Der Mittelpunkt ist die Grethe-Weiser-Straße 2. Passt der Standort beim Einstempeln nicht zum Umkreis oder
+          fehlt er ganz (kein GPS-Signal), wird trotzdem eingestempelt: Ihr bekommt eine Mail und prüft die Zeit
+          später in „Zeiten korrigieren“. Blockiert wird niemand mehr, das war zu oft der Grund, warum jemand am
+          Einlass hängen blieb (Florian, 28.09.2026).
         </p>
         <p className="text-leise">
-          Das geht nur, solange der Eventmanager auf dem Handy offen ist und der Standort halbwegs genau ist: Am
-          Rechner oder mit ausgeschaltetem GPS ist die Position schnell zweihundert Meter daneben, dann merkt das
-          Programm den Heimweg nicht. Dafür gibt es die Stundengrenze darunter: Danach wird auf jeden Fall
-          ausgestempelt.
+          Wer eingestempelt bleibt, obwohl er vermutlich nicht mehr arbeitet, wird nur noch gemeldet, nicht mehr
+          selbst ausgestempelt (Florian, 29.09.2026): Meldet das Handy, dass jemand das Gelände verlassen hat, oder
+          ist jemand nach der Stundengrenze unten oder über Nacht noch offen, bekommt er eine Erinnerung und ihr
+          eine Kopie. Die Zeit zählt erst, wenn der Mitarbeiter über die Nachmeldung sagt, wann er wirklich gegangen
+          ist, oder ihr sie einträgt. So wird niemandem eine Zeit gutgeschrieben, die nicht stimmt, etwa weil noch
+          jemand auf einen Drink dablieb.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="block">
@@ -556,12 +646,8 @@ async function Einrichtung() {
             <input name="radius" type="number" min={30} max={2000} defaultValue={e.radiusM} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-leise">Automatisch ausstempeln nach wie vielen Stunden</span>
+            <span className="mb-1 block text-xs text-leise">Erinnern, wenn länger als so viele Stunden eingestempelt</span>
             <input name="maxStunden" type="number" min={1} max={24} defaultValue={e.maxStunden} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-leise">Spätester Feierabend (Schlussstrich in der Nacht)</span>
-            <input name="feierabend" type="time" defaultValue={e.feierabend} />
           </label>
         </div>
         <label className="flex items-center gap-2">

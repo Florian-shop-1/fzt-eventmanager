@@ -35,7 +35,7 @@ async function ausstempeln(token: string) {
     return NextResponse.json({ ok: true, gestempelt: false, text: "Du warst nicht eingestempelt." });
   }
 
-  await automatischAusstempeln({ benutzerId: b.id, name: b.name, grund: "kurzbefehl" });
+  await automatischAusstempeln({ benutzerId: b.id, name: b.name });
   const uhr = new Date().toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
     hour: "2-digit",

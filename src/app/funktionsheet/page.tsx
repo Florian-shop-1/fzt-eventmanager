@@ -68,7 +68,15 @@ export default async function FunktionsheetSeite({
             Programm nicht, an welchen Tagen gespielt wird.
           </p>
         </div>
-        {darfTermine && <EigeneTermine termine={eigene} zurueckZu="/funktionsheet" />}
+        {darfTermine && (
+          <p className="text-sm text-leise">
+            Einen Abend ohne Ticketshop legst du unter{" "}
+            <Link href="/termin-anlegen" className="underline">
+              Events, Termin anlegen
+            </Link>{" "}
+            an.
+          </p>
+        )}
       </div>
     );
   }
@@ -136,7 +144,15 @@ export default async function FunktionsheetSeite({
         </div>
       )}
 
-      {darfTermine && <EigeneTermine termine={eigene} zurueckZu={`/funktionsheet?abend=${gewaehlt}`} />}
+      {darfTermine && (
+        <p className="text-sm text-leise print:hidden">
+          Einen Abend ohne Ticketshop legst du unter{" "}
+          <Link href="/termin-anlegen" className="underline">
+            Events, Termin anlegen
+          </Link>{" "}
+          an.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <DruckKnopf

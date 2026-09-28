@@ -3,6 +3,8 @@ import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { foyerLeute, foyerPlan, type FoyerDienst, type FoyerPerson } from "@/lib/foyer/dienstplan";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
+import { ShowKommentare } from "@/components/ShowKommentare";
+import { kommentareFuer } from "@/lib/dienstplan/kommentar";
 import { festMarkieren, tagEintragen, zeiten } from "./aktionen";
 
 export const metadata = { title: "Foyer-Dienstplan | FZT Eventmanager" };
@@ -28,6 +30,18 @@ export default async function FoyerPlanSeite({
 
   const [tage, leute] = await Promise.all([foyerPlan(), foyerLeute()]);
   const buero = darfKaufmaennisches(b.rolle);
+
+  /*
+    Die Kommentare unter jedem Tag, wie im Dienstplan des Showteams.
+
+    Das Foyer redet über den Abend, nicht über eine Zeile: wer später
+    kommt, wo die Schlüssel liegen, dass eine große Gruppe erwartet wird.
+    Gespeichert in derselben Tabelle wie die Kommentare zur Show, mit
+    "foyer:" plus Datum als Schlüssel. So bleiben beide getrennt, ohne
+    dass es eine zweite Tabelle braucht (Florian, 25.09.2026).
+  */
+  const kommentarSchluessel = (datum: string) => `foyer:${datum}`;
+  const kommentare = await kommentareFuer(tage.map((t) => kommentarSchluessel(t.datum)), b.id);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -62,7 +76,7 @@ export default async function FoyerPlanSeite({
       ) : (
         <ul className="space-y-3">
           {tage.map((t) => (
-            <li key={t.datum} className="rounded-lg border border-linie bg-flaeche p-4">
+            <li key={t.datum} id={`t-${t.datum}`} className="rounded-lg border border-linie bg-flaeche p-4">
               <div className="flex flex-wrap items-baseline gap-x-3">
                 <strong>{datumMitWochentag(t.datum)}</strong>
                 <span className="text-sm text-leise">
@@ -122,6 +136,15 @@ export default async function FoyerPlanSeite({
                   </form>
                 ))}
               </details>
+
+              <ShowKommentare
+                eventId={kommentarSchluessel(t.datum)}
+                kommentare={kommentare.get(kommentarSchluessel(t.datum)) ?? []}
+                ichId={b.id}
+                darfLoeschen={buero}
+                ziel="foyer"
+                einladung="Etwas zu diesem Abend schreiben"
+              />
             </li>
           ))}
         </ul>

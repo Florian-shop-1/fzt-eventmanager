@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+/** Eine Firma zur Auswahl. */
+interface Auswahl {
+  wert: string;
+  name: string;
+}
+
 /**
  * Beleg fotografieren. Bewusst die Kamera des Handys statt einer eigenen:
  * Sie stellt scharf, blitzt bei Bedarf und ist bei langen Kassenbons
@@ -11,11 +17,20 @@ import { useRef, useState } from "react";
  * Vor dem Hochladen wird verkleinert (längste Seite 2200 Pixel). Das reicht
  * zum Lesen und fürs Finanzamt und geht auch im Restaurant-WLAN schnell.
  */
-export function BelegScanner() {
+export function BelegScanner({ gesellschaften }: { gesellschaften?: Auswahl[] }) {
   const router = useRouter();
   const eingabe = useRef<HTMLInputElement>(null);
   const [lage, setLage] = useState<"bereit" | "laedt" | "fehler">("bereit");
   const [meldung, setMeldung] = useState("");
+  /*
+    Fuer welche Firma der naechste Beleg gilt.
+
+    Steht oben, nicht im Beleg danach: Wer im Restaurant steht, hat die
+    Firma im Kopf, bevor er fotografiert. Die Wahl bleibt stehen, bis sie
+    jemand aendert, denn meistens kommen mehrere Belege derselben Firma
+    hintereinander (Florian, 28.09.2026).
+  */
+  const [gesellschaft, setGesellschaft] = useState("fzt");
 
   async function verkleinern(datei: File): Promise<Blob> {
     const bild = await createImageBitmap(datei);
@@ -36,6 +51,7 @@ export function BelegScanner() {
     try {
       const form = new FormData();
       form.append("foto", await verkleinern(datei), "beleg.jpg");
+      form.append("gesellschaft", gesellschaft);
       const antwort = await fetch("/bewirtung/hochladen", { method: "POST", body: form });
       const e = (await antwort.json()) as { ok: boolean; id?: string; doppelt?: boolean; hinweis?: string; fehler?: string };
       if (!e.ok || !e.id) throw new Error(e.fehler ?? "Hochladen hat nicht geklappt.");
@@ -51,6 +67,23 @@ export function BelegScanner() {
 
   return (
     <div className="space-y-2">
+      {gesellschaften && gesellschaften.length > 1 && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs text-leise">Beleg gehört zu</span>
+          <select
+            value={gesellschaft}
+            onChange={(e) => setGesellschaft(e.target.value)}
+            className="w-full sm:w-auto"
+          >
+            {gesellschaften.map((g) => (
+              <option key={g.wert} value={g.wert}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <input
         ref={eingabe}
         type="file"

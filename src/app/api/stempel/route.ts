@@ -20,9 +20,9 @@ export async function GET(request: Request) {
     if (e.gemeldet > 0) console.log(`[stempel] ${e.gemeldet} lange Schicht(en) gemeldet`);
     const p = await pausenPflichtPruefen();
     if (p.erinnert > 0) console.log(`[stempel] ${p.erinnert} Pausenerinnerung(en)`);
-    // Der Schlussstrich: Wer jetzt noch eingestempelt ist, hat es vergessen.
+    // Der nächtliche Rundgang: Wer jetzt noch eingestempelt ist, wird gemeldet, nicht selbst ausgestempelt.
     const n = await nachtabschluss();
-    if (n.beendet > 0) console.log(`[stempel] ${n.beendet} Schicht(en) zum Feierabend beendet`);
+    if (n.gemeldet > 0) console.log(`[stempel] ${n.gemeldet} offene Schicht(en) über Nacht gemeldet`);
     return NextResponse.json({ ok: true, ...e, ...p, ...n });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";

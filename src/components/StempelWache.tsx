@@ -4,18 +4,19 @@
  * Die stille Wache: Wer eingestempelt ist, meldet alle paar Minuten, wo er ist.
  *
  * Bisher tat das nur die Stempeluhr, solange sie offen war. Wer sie zumachte
- * und nach Hause ging, blieb eingestempelt (Florian, 21.09.2026). Diese
- * Wache hängt deshalb im Rahmen des ganzen Programms: Solange irgendeine
- * Seite offen ist, merkt der Server, wenn jemand das Gelände verlässt, und
- * stempelt ihn aus.
+ * und nach Hause ging, blieb unbemerkt eingestempelt (Florian, 21.09.2026).
+ * Diese Wache hängt deshalb im Rahmen des ganzen Programms: Solange
+ * irgendeine Seite offen ist, merkt der Server, wenn jemand das Gelände
+ * verlässt.
  *
- * Ohne Anzeige, ohne Knopf. Sichtbar wird sie nur im Ergebnis: Die Seite
- * lädt sich neu, und in der Leiste steht wieder „EIN-stempeln“.
+ * Ausgestempelt wird dabei niemand mehr automatisch (Florian, 29.09.2026):
+ * Es geht nur eine Erinnerung raus, an die Person und ans Büro. Ohne
+ * Anzeige, ohne Knopf hier.
  *
  * Was NICHT geht, und zwar an keinem Browser: Standort im Hintergrund. Ist
  * das Handy gesperrt oder der Eventmanager geschlossen, weiß niemand, wo
- * jemand ist. Dafür gibt es den Lauf auf dem Server, der nach der
- * eingestellten Stundenzahl ausstempelt (siehe lib/stempel/wache.ts).
+ * jemand ist. Dafür gibt es den nächtlichen Lauf auf dem Server, der genauso
+ * nur erinnert (siehe lib/stempel/wache.ts).
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -53,7 +54,8 @@ export function StempelWache() {
         }),
       });
       const e = (await antwort.json()) as { gemeldet?: boolean };
-      // Wurde ausgestempelt: Die Leiste soll das sofort zeigen.
+      // Es wurde erinnert (Mail an Person und Büro): Seite neu laden, damit
+      // ein sichtbarer Hinweis sofort erscheint, falls es einen gibt.
       if (e.gemeldet) router.refresh();
     } catch {
       // Kein Netz oder kein Signal: dann eben beim nächsten Mal.

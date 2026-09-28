@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { darfGesellschaftWaehlen, GESELLSCHAFTEN } from "@/lib/bewirtung/gesellschaft";
 import { notFound, redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { bewirtungLesen, hinterlegteUnterschrift, moeglicheDubletten } from "@/lib/bewirtung/db";
@@ -21,7 +22,8 @@ export default async function BelegSeite({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ meldung?: string }>;
 }) {
-  if (!darfBuchhaltung(await angemeldeterBenutzer())) redirect("/");
+  const benutzer = await angemeldeterBenutzer();
+  if (!darfBuchhaltung(benutzer)) redirect("/");
   const { id } = await params;
   const { meldung } = await searchParams;
   const b = await bewirtungLesen(id);
@@ -94,6 +96,24 @@ export default async function BelegSeite({
                   Das ist ein anderer Beleg, trotzdem festschreiben
                 </label>
               </div>
+            )}
+
+            {/*
+              Für welche Firma. Sieht nur, wer sie ändern darf; alle
+              anderen bekommen den Beleg so, wie er gescannt wurde
+              (Florian, 28.09.2026).
+            */}
+            {darfGesellschaftWaehlen(benutzer) && (
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Diese Ausgabe gehört zu</span>
+                <select name="gesellschaft" defaultValue={b.gesellschaft}>
+                  {GESELLSCHAFTEN.map((g) => (
+                    <option key={g.wert} value={g.wert}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
 
             <fieldset className="flex flex-wrap gap-2">

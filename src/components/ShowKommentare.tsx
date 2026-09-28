@@ -21,6 +21,8 @@ export function ShowKommentare({
   ichId,
   darfLoeschen,
   offen,
+  ziel = "dienstplan",
+  einladung = "Etwas zu dieser Show schreiben",
 }: {
   eventId: string;
   kommentare: Kommentar[];
@@ -29,19 +31,30 @@ export function ShowKommentare({
   darfLoeschen: boolean;
   /** Aufgeklappt anzeigen, etwa wenn gerade jemand geschrieben hat. */
   offen?: boolean;
+  /**
+   * Wohin es nach dem Abschicken zurückgeht.
+   *
+   * Dieselben Kommentare hängen unter der Show im Dienstplan und unter
+   * dem Tag im Foyer-Dienstplan. Der Text im Formular sagt der Aktion,
+   * welche Seite gemeint ist (Florian, 25.09.2026).
+   */
+  ziel?: "dienstplan" | "foyer";
+  /** Was dasteht, wenn noch nichts geschrieben wurde. */
+  einladung?: string;
 }) {
   const anzahl = kommentare.reduce((n, k) => n + 1 + k.antworten.length, 0);
 
   return (
     <details open={offen || anzahl > 0} className="border-t border-linie px-4 py-2 text-sm">
       <summary className="cursor-pointer list-none text-leise hover:text-text">
-        {anzahl === 0 ? "Etwas zu dieser Show schreiben" : anzahl === 1 ? "1 Kommentar" : `${anzahl} Kommentare`}
+        {anzahl === 0 ? einladung : anzahl === 1 ? "1 Kommentar" : `${anzahl} Kommentare`}
       </summary>
 
       <div className="mt-3 space-y-3">
         {kommentare.map((k) => (
           <Beitrag
             key={k.id}
+            ziel={ziel}
             k={k}
             eventId={eventId}
             ichId={ichId}
@@ -51,6 +64,7 @@ export function ShowKommentare({
 
         <form action={kommentieren} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="vorstellung" value={eventId} />
+              <input type="hidden" name="ziel" value={ziel} />
           <input
             name="text"
             maxLength={2000}
@@ -70,12 +84,15 @@ function Beitrag({
   ichId,
   darfLoeschen,
   antwort,
+  ziel,
 }: {
   k: Kommentar;
   eventId: string;
   ichId: string | null;
   darfLoeschen: boolean;
   antwort?: boolean;
+  /** Wohin es nach dem Abschicken zurückgeht. */
+  ziel: "dienstplan" | "foyer";
 }) {
   const meiner = ichId !== null && k.benutzerId === ichId;
 
@@ -95,6 +112,7 @@ function Beitrag({
         {!k.geloescht && (
           <form action={herzGeben}>
             <input type="hidden" name="vorstellung" value={eventId} />
+              <input type="hidden" name="ziel" value={ziel} />
             <input type="hidden" name="kommentar" value={k.id} />
             <button
               type="submit"
@@ -112,6 +130,7 @@ function Beitrag({
             <summary className="cursor-pointer list-none hover:text-text">Antworten</summary>
             <form action={kommentieren} className="mt-2 flex flex-wrap items-center gap-2">
               <input type="hidden" name="vorstellung" value={eventId} />
+              <input type="hidden" name="ziel" value={ziel} />
               <input type="hidden" name="antwortAuf" value={k.id} />
               <input
                 name="text"
@@ -127,6 +146,7 @@ function Beitrag({
         {(meiner || darfLoeschen) && !k.geloescht && (
           <form action={kommentarWeg}>
             <input type="hidden" name="vorstellung" value={eventId} />
+              <input type="hidden" name="ziel" value={ziel} />
             <input type="hidden" name="kommentar" value={k.id} />
             <button type="submit" className="hover:text-text">
               Löschen
@@ -138,7 +158,7 @@ function Beitrag({
       {k.antworten.length > 0 && (
         <div className="mt-2 space-y-2">
           {k.antworten.map((a) => (
-            <Beitrag key={a.id} k={a} eventId={eventId} ichId={ichId} darfLoeschen={darfLoeschen} antwort />
+            <Beitrag key={a.id} k={a} eventId={eventId} ichId={ichId} darfLoeschen={darfLoeschen} ziel={ziel} antwort />
           ))}
         </div>
       )}

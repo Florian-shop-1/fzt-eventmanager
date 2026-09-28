@@ -57,6 +57,29 @@ function zurueck(eventId: string, meldung: string): never {
   redirect(`/dienstplan?s=${eventId}&meldung=${encodeURIComponent(meldung)}#s-${eventId}`);
 }
 
+/*
+  Kommentare gibt es an zwei Stellen: unter der Show im Dienstplan und
+  unter dem Tag im Foyer-Dienstplan. Dieselben Aktionen, nur ein anderes
+  Ziel. Das Formular sagt, wohin es zurückgeht; fehlt die Angabe, ist es
+  der Dienstplan wie bisher (Florian, 25.09.2026).
+
+  Erlaubt sind nur unsere eigenen Seiten. Ein Ziel aus dem Formular
+  ungeprüft in ein redirect zu geben, wäre eine offene Weiterleitung.
+*/
+const KOMMENTARSEITEN: Record<string, (id: string, meldung: string) => string> = {
+  dienstplan: (id, meldung) =>
+    `/dienstplan?s=${id}&meldung=${encodeURIComponent(meldung)}#s-${id}`,
+  foyer: (id, meldung) =>
+    `/foyer/plan?meldung=${encodeURIComponent(meldung)}#t-${id.replace("foyer:", "")}`,
+};
+
+function zurueckZuKommentar(f: FormData, eventId: string, meldung: string): never {
+  const ziel = String(f.get("ziel") ?? "dienstplan");
+  const baue = KOMMENTARSEITEN[ziel] ?? KOMMENTARSEITEN.dienstplan;
+  revalidatePath(ziel === "foyer" ? "/foyer/plan" : "/dienstplan");
+  redirect(baue(eventId, meldung));
+}
+
 /** Lädt alles, was eine Aktion an einer Schicht braucht. */
 async function schichtLaden(f: FormData) {
   const benutzer = await angemeldeterBenutzer();
@@ -437,7 +460,7 @@ export async function kommentieren(f: FormData): Promise<void> {
   const eventId = text(f, "vorstellung");
   const inhalt = text(f, "text");
   const antwortAuf = text(f, "antwortAuf") || null;
-  if (!inhalt) zurueck(eventId, "Da stand nichts drin.");
+  if (!inhalt) zurueckZuKommentar(f, eventId, "Da stand nichts drin.");
 
   const neu = await kommentarSchreiben({
     ditixEventId: eventId,
@@ -445,11 +468,14 @@ export async function kommentieren(f: FormData): Promise<void> {
     text: inhalt,
     antwortAuf,
   });
-  if (!neu) zurueck(eventId, "Da stand nichts drin.");
+  if (!neu) zurueckZuKommentar(f, eventId, "Da stand nichts drin.");
 
   // Benachrichtigen, sonst schreibt jemand ins Leere. Fehler beim Mailen
   // dürfen den Kommentar nicht verschlucken, er steht ja schon da.
   try {
+    // Nur für Shows: Ein Foyer-Tag hat keinen Ditix-Termin, zu dem sich
+    // Beteiligte nachschlagen liessen.
+    if (eventId.startsWith("foyer:")) throw new Error("keine Mail für Foyer-Tage");
     const termin = await findeTermin(eventId);
     const wer = await beteiligte(eventId, benutzer.id);
     if (termin && wer.length > 0) {
@@ -463,7 +489,7 @@ export async function kommentieren(f: FormData): Promise<void> {
     console.error("[dienstplan] Kommentarmail:", fehler instanceof Error ? fehler.message : fehler);
   }
 
-  zurueck(eventId, antwortAuf ? "Antwort steht drunter." : "Dein Kommentar steht drunter.");
+  zurueckZuKommentar(f, eventId, antwortAuf ? "Antwort steht drunter." : "Dein Kommentar steht drunter.");
 }
 
 export async function kommentarWeg(f: FormData): Promise<void> {
@@ -471,7 +497,7 @@ export async function kommentarWeg(f: FormData): Promise<void> {
   if (!benutzer) redirect("/anmelden");
   const eventId = text(f, "vorstellung");
   await kommentarLoeschen(text(f, "kommentar"), benutzer.id, benutzer.rolle === "chef" || benutzer.rolle === "team");
-  zurueck(eventId, "Kommentar gelöscht.");
+  zurueckZuKommentar(f, eventId, "Kommentar gelöscht.");
 }
 
 /** Herz geben oder wieder wegnehmen. */
@@ -480,8 +506,7 @@ export async function herzGeben(f: FormData): Promise<void> {
   if (!benutzer) redirect("/anmelden");
   const eventId = text(f, "vorstellung");
   await herzUmlegen(text(f, "kommentar"), benutzer.id);
-  revalidatePath("/dienstplan");
-  redirect(`/dienstplan?s=${eventId}#s-${eventId}`);
+  zurueckZuKommentar(f, eventId, "");
 }
 
 /**

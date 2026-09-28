@@ -51,6 +51,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [zustand, setZustand] = useState<Zustand>(start);
   const [meldung, setMeldung] = useState("");
   const [fehler, setFehler] = useState("");
+  const [standortHinweis, setStandortHinweis] = useState("");
   const [pause, setPause] = useState(Boolean(pauseFaellig));
   const [laeuft, setLaeuft] = useState(false);
   const letzterPing = useRef(0);
@@ -72,6 +73,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     setLaeuft(true);
     setFehler("");
     setMeldung("");
+    setStandortHinweis("");
     try {
       const p = await position().catch(() => null);
       const antwort = await fetch("/stempeluhr/stempeln", {
@@ -84,7 +86,12 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           genauigkeit: p?.coords.accuracy,
         }),
       });
-      const e = (await antwort.json()) as { ok: boolean; fehler?: string; zustand?: Zustand };
+      const e = (await antwort.json()) as {
+        ok: boolean;
+        fehler?: string;
+        zustand?: Zustand;
+        standortHinweis?: string | null;
+      };
       if (!e.ok) {
         setFehler(e.fehler ?? "Das hat nicht geklappt.");
         return;
@@ -100,9 +107,12 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
               ? "Pause läuft."
               : "Weiter geht's.",
       );
+      // Kein Fehler: gestempelt wurde trotzdem. Aber bitte Ortungsdienste
+      // einschalten, sonst muss das Büro jede Zeit von Hand prüfen.
+      if (e.standortHinweis) setStandortHinweis(e.standortHinweis);
       router.refresh();
     } catch {
-      setFehler("Der Standort ließ sich nicht abfragen. Bitte den Zugriff erlauben.");
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
     } finally {
       setLaeuft(false);
     }
@@ -225,6 +235,16 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       {meldung && (
         <p className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--gut-hell)", color: "var(--gut)" }}>
           {meldung}
+        </p>
+      )}
+      {standortHinweis && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>Gestempelt, aber der Standort passt nicht:</strong> {standortHinweis} Das Büro prüft die Zeit
+          später. Bitte in den Handy-Einstellungen die Ortungsdienste für den Browser einschalten, dann klappt es
+          beim nächsten Mal von allein.
         </p>
       )}
       {fehler && (

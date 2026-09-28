@@ -71,12 +71,22 @@ interface Props {
   sitze: TafelSitz[];
   gruppen: TafelGruppe[];
   umsetzungen: TafelUmsetzung[];
+  /** Von Hand durch-x-te Sitz-Kennungen: die Vorstufe zum späteren Scanner. */
+  eingecheckteIds: number[];
   zone: { links: number; rechts: number; oben: number; unten: number };
   /** Ab wann umgesetzt werden darf: eine halbe Stunde vor der Show. */
   abZeitpunkt?: string;
   /** Beginn der Show, für den Hinweis. */
   showBeginn?: string;
+  /**
+   * Testmodus: Umsetzen und Durch-x-en gehen sofort, unabhängig von der
+   * Uhrzeit. Nur für den Chef, damit sich die Tafel auch ohne laufende
+   * Show ausprobieren lässt (Florian, 29.09.2026).
+   */
+  erzwingeOffen?: boolean;
 }
+
+type Modus = "umsetzen" | "einchecken";
 
 const KANTE = 22;
 
@@ -123,13 +133,17 @@ export function UpgradeTafel({
   sitze,
   gruppen,
   umsetzungen,
+  eingecheckteIds,
   zone,
   abZeitpunkt,
   showBeginn,
+  erzwingeOffen,
 }: Props) {
   const router = useRouter();
+  const [modus, setModus] = useState<Modus>("umsetzen");
   const [inDerHand, setInDerHand] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
+  const [eingecheckt, setEingecheckt] = useState<Set<number>>(() => new Set(eingecheckteIds));
   const [hinweis, setHinweis] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   /** Der Hase aus dem Zylinder, wenn eine Gruppe vorne sitzt. */
@@ -142,15 +156,15 @@ export function UpgradeTafel({
     Wirklichkeit passt. Der Server hat schon gerechnet, ob es so weit ist;
     der Timer schaltet die Seite frei, sobald es so weit wird.
   */
-  const [offen, setOffen] = useState<boolean>(!abZeitpunkt);
+  const [offen, setOffen] = useState<boolean>(Boolean(erzwingeOffen) || !abZeitpunkt);
 
   useEffect(() => {
-    if (!abZeitpunkt) return;
+    if (erzwingeOffen || !abZeitpunkt) return;
     const pruefen = () => setOffen(Date.now() >= Date.parse(abZeitpunkt));
     pruefen();
     const t = setInterval(pruefen, 20000);
     return () => clearInterval(t);
-  }, [abZeitpunkt]);
+  }, [abZeitpunkt, erzwingeOffen]);
 
   const abUhr = abZeitpunkt
     ? new Date(abZeitpunkt).toLocaleTimeString("de-DE", {
@@ -371,6 +385,7 @@ export function UpgradeTafel({
           zielText,
           zielIds: block.map((s) => s.id),
           personen: g.personen,
+          test: erzwingeOffen,
         }),
       });
       const e = (await antwort.json()) as { ok: boolean; fehler?: string };
@@ -448,9 +463,58 @@ export function UpgradeTafel({
     }
   }
 
-  /** Ein Tipp im Plan: aufnehmen, setzen oder die Empfehlung annehmen. */
+  /**
+   * Ein Platz von Hand durch-x-en oder das X zurücknehmen.
+   *
+   * Jeder Platz zählt für sich, unabhängig von Gruppen oder Vorschlägen:
+   * Das ist die Handarbeit-Vorstufe zu einem späteren Scanner, und bis
+   * der da ist, soll sich jeder Platz einzeln markieren lassen, auch
+   * gesperrte oder scheinbar freie (Florian, 28.09.2026).
+   */
+  async function toggleEinchecken(sitzId: number) {
+    if (laeuft) return;
+    if (!offen) {
+      setHinweis(`Eingecheckt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      return;
+    }
+    const drin = eingecheckt.has(sitzId);
+    setEingecheckt((alt) => {
+      const neu = new Set(alt);
+      if (drin) neu.delete(sitzId);
+      else neu.add(sitzId);
+      return neu;
+    });
+    setLaeuft(true);
+    setHinweis("");
+    try {
+      const antwort = await fetch("/upgrades/einchecken", {
+        method: drin ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, sitzId }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) throw new Error(e.fehler ?? "");
+    } catch {
+      // Fehlgeschlagen: den Stand vor dem Tipp wiederherstellen.
+      setEingecheckt((alt) => {
+        const neu = new Set(alt);
+        if (drin) neu.add(sitzId);
+        else neu.delete(sitzId);
+        return neu;
+      });
+      setHinweis("Keine Verbindung. Bitte noch einmal versuchen.");
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
+  /** Ein Tipp im Plan: aufnehmen, setzen, die Empfehlung annehmen oder durch-x-en. */
   function tippen(s: TafelSitz) {
     setHinweis("");
+    if (modus === "einchecken") {
+      void toggleEinchecken(s.id);
+      return;
+    }
     if (!offen) {
       setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
       return;
@@ -481,11 +545,52 @@ export function UpgradeTafel({
   return (
     <section className="space-y-3 print:hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Saalplan: umsetzen</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          Saalplan: {modus === "umsetzen" ? "umsetzen" : "durch-x-en"}
+        </h2>
         <span className="text-sm text-leise">
-          {gesetzt.length} umgesetzt
-          {offeneVorschlaege.length > 0 && `, ${offeneVorschlaege.length} noch vorgeschlagen`}
+          {modus === "umsetzen"
+            ? `${gesetzt.length} umgesetzt${offeneVorschlaege.length > 0 ? `, ${offeneVorschlaege.length} noch vorgeschlagen` : ""}`
+            : `${eingecheckt.size} von ${sitze.length} durch-x-t`}
         </span>
+      </div>
+
+      {/*
+        Zwei Werkzeuge an derselben Zeichnung: erst umsetzen, danach
+        durch-x-en, wer wirklich da ist. Ein Tipp bedeutet je nach
+        Werkzeug etwas anderes, deshalb ist immer nur eins aktiv
+        (Florian, 28.09.2026).
+      */}
+      <div className="flex gap-2" role="tablist" aria-label="Werkzeug">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={modus === "umsetzen"}
+          onClick={() => setModus("umsetzen")}
+          className="rounded-lg border-2 px-3 py-1.5 text-sm font-medium"
+          style={{
+            borderColor: modus === "umsetzen" ? "var(--gold)" : "var(--linie)",
+            background: modus === "umsetzen" ? "var(--gold-hell)" : "var(--flaeche)",
+          }}
+        >
+          Umsetzen
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={modus === "einchecken"}
+          onClick={() => {
+            setModus("einchecken");
+            setInDerHand(null);
+          }}
+          className="rounded-lg border-2 px-3 py-1.5 text-sm font-medium"
+          style={{
+            borderColor: modus === "einchecken" ? "var(--gold)" : "var(--linie)",
+            background: modus === "einchecken" ? "var(--gold-hell)" : "var(--flaeche)",
+          }}
+        >
+          Durch-x-en
+        </button>
       </div>
 
       <div
@@ -495,7 +600,13 @@ export function UpgradeTafel({
           background: gruppe ? "var(--gold-hell)" : "var(--flaeche)",
         }}
       >
-        {!offen ? (
+        {modus === "einchecken" ? (
+          <p className="text-sm">
+            <strong>Auf einen Platz tippen markiert ihn mit einem X: hier sitzt jemand.</strong> Nochmal tippen nimmt
+            das X zurück. Das geht bei jedem Platz, auch bei einem gesperrten. Später übernimmt das ein Scanner,
+            bis dahin von Hand.
+          </p>
+        ) : !offen ? (
           <p className="text-sm">
             <strong>Umsetzen geht ab {abUhr} Uhr</strong>, wenn der Saal öffnet
             {showBeginn ? ` (Show um ${showBeginn} Uhr)` : ""}. Bis dahin ist das hier der Plan zum Anschauen: Die
@@ -568,7 +679,7 @@ export function UpgradeTafel({
         einem Tipp, und wenn alles durcheinandergeraten ist, der ganze
         Abend auf Anfang (Florian, 22.09.2026).
       */}
-      {gesetzt.length > 0 && (
+      {modus === "umsetzen" && gesetzt.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-linie bg-flaeche px-4 py-2 text-sm">
           <span className="text-leise">
             Zuletzt: {gruppeZu(gesetzt[gesetzt.length - 1].schluessel)?.titel ?? "Gruppe"} →{" "}
@@ -597,7 +708,7 @@ export function UpgradeTafel({
       )}
 
       {/* Gäste von der Gästeliste haben keinen Platz im Saal: hier aufnehmen. */}
-      {gaeste.length > 0 && (
+      {modus === "umsetzen" && gaeste.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-leise">Gästeliste:</span>
           {gaeste.map((g) => {
@@ -728,7 +839,36 @@ export function UpgradeTafel({
                   schrift = "var(--warnung)";
                 }
 
-                const anfassbar = Boolean(heimat ?? zielVon) || Boolean(start) || Boolean(vorlage);
+                /*
+                  Im Einchecken-Modus zählt nur das X, nicht Gruppe oder
+                  Vorschlag: eigene, einfachere Farbgebung statt der
+                  Umsetz-Logik oben (Florian, 28.09.2026).
+                */
+                const durchgext = eingecheckt.has(s.id);
+                if (modus === "einchecken") {
+                  if (durchgext) {
+                    fuellung = "var(--gut)";
+                    rahmen = "var(--gut)";
+                    schrift = "#fff";
+                  } else if (s.status === "gesperrt") {
+                    fuellung = "var(--linie)";
+                    rahmen = "var(--linie)";
+                    schrift = "var(--flaeche)";
+                  } else if (s.status === "verkauft") {
+                    fuellung = "var(--text)";
+                    rahmen = "var(--text)";
+                    schrift = "#fff";
+                  } else {
+                    fuellung = "var(--flaeche)";
+                    rahmen = "var(--linie)";
+                    schrift = "var(--text-leise)";
+                  }
+                  beschriftung = durchgext ? "×" : s.name;
+                }
+
+                const anfassbar =
+                  modus === "einchecken" || Boolean(heimat ?? zielVon) || Boolean(start) || Boolean(vorlage);
+                const hervorgehoben = modus === "umsetzen" && empfohlen;
 
                 return (
                   <g
@@ -737,15 +877,17 @@ export function UpgradeTafel({
                     style={{ cursor: anfassbar ? "pointer" : "default" }}
                   >
                     <title>
-                      {zielVon
-                        ? `${gruppeZu(zielVon)?.titel ?? ""} sitzt jetzt hier`
-                        : heimat
-                          ? `${heimat.personen} Gäste, ${heimat.titel}`
-                          : s.freiLassen
-                            ? "Reihe 4, Platz 3: bleibt frei für den eingeweihten Zuschauer"
-                            : s.nebenZuschauer
-                              ? `Reihe ${s.reihe}, Platz ${s.name}: direkt neben dem Eingeweihten, hier sitzt gern jemand`
-                              : `Reihe ${s.reihe}, Platz ${s.name}`}
+                      {modus === "einchecken"
+                        ? `Reihe ${s.reihe}, Platz ${s.name}${durchgext ? ": durch-x-t" : ""}`
+                        : zielVon
+                          ? `${gruppeZu(zielVon)?.titel ?? ""} sitzt jetzt hier`
+                          : heimat
+                            ? `${heimat.personen} Gäste, ${heimat.titel}`
+                            : s.freiLassen
+                              ? "Reihe 4, Platz 3: bleibt frei für den eingeweihten Zuschauer"
+                              : s.nebenZuschauer
+                                ? `Reihe ${s.reihe}, Platz ${s.name}: direkt neben dem Eingeweihten, hier sitzt gern jemand`
+                                : `Reihe ${s.reihe}, Platz ${s.name}`}
                     </title>
                     <rect
                       x={s.x - KANTE / 2}
@@ -753,19 +895,19 @@ export function UpgradeTafel({
                       width={KANTE}
                       height={KANTE}
                       rx={3.5}
-                      fill={empfohlen ? "var(--gut-hell)" : fuellung}
-                      stroke={empfohlen ? "var(--gut)" : inDerHandHier ? "var(--text)" : rahmen}
-                      strokeWidth={empfohlen || inDerHandHier ? 2.4 : vorlage || heimatUmsetzung ? 1.8 : 1}
-                      strokeDasharray={(vorlage || (heimat && heimatUmsetzung)) && !empfohlen ? "4 2" : undefined}
+                      fill={hervorgehoben ? "var(--gut-hell)" : fuellung}
+                      stroke={hervorgehoben ? "var(--gut)" : inDerHandHier ? "var(--text)" : rahmen}
+                      strokeWidth={hervorgehoben || inDerHandHier ? 2.4 : vorlage || heimatUmsetzung ? 1.8 : 1}
+                      strokeDasharray={(vorlage || (heimat && heimatUmsetzung)) && !hervorgehoben ? "4 2" : undefined}
                     />
                     <text
                       x={s.x}
                       y={s.y + 3.2}
                       textAnchor="middle"
                       fontSize={9}
-                      fill={empfohlen ? "var(--gut)" : schrift}
+                      fill={hervorgehoben ? "var(--gut)" : schrift}
                     >
-                      {empfohlen ? "＋" : beschriftung}
+                      {hervorgehoben ? "＋" : beschriftung}
                     </text>
                   </g>
                 );
@@ -776,8 +918,9 @@ export function UpgradeTafel({
           {/*
             Der Weg jeder umgesetzten Gruppe: vom alten zum neuen Platz.
             Damit sieht man auch später noch, wer von wo nach vorne kam.
+            Im Einchecken-Modus nur Ablenkung, deshalb aus.
           */}
-          {gesetzt.map((x) => {
+          {modus === "umsetzen" && gesetzt.map((x) => {
             const g = gruppeZu(x.schluessel);
             if (!g || g.quelleIds.length === 0) return null;
             const alt = g.quelleIds
@@ -814,52 +957,79 @@ export function UpgradeTafel({
           })}
         </svg>
 
-        <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-leise">
-          <span>Jede Gruppe hat eine Farbe und einen Buchstaben.</span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
-              style={{ background: FARBEN[0] }}
-            />
-            sitzt jetzt hier
-          </span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
-              style={{ borderColor: FARBEN[0] }}
-            />
-            soll hierhin (gleicher Buchstabe)
-          </span>
-          <span>
-            <span className="mr-1 align-middle">→</span>
-            von hier weggesetzt
-          </span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
-              style={{ background: "var(--gut-hell)", borderColor: "var(--gut)" }}
-            />
-            freier Platz für die gewählte Gruppe
-          </span>
-          <span>
-            <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
-            im Shop gesperrt, hier trotzdem belegbar
-          </span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
-              style={{ background: "var(--blocker-hell)", borderColor: "var(--blocker)" }}
-            />
-            Reihe 4, Platz 3 bleibt frei
-          </span>
-          <span>
-            <span
-              className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
-              style={{ background: "var(--warnung-hell)", borderColor: "var(--warnung)" }}
-            />
-            daneben: gern besetzen
-          </span>
-        </figcaption>
+        {modus === "einchecken" ? (
+          <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-leise">
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
+                style={{ background: "var(--gut)" }}
+              />
+              durch-x-t: hier sitzt jemand
+            </span>
+            <span>
+              <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--text)" }} />
+              verkauft, noch nicht durch-x-t
+            </span>
+            <span>
+              <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
+              im Shop gesperrt, trotzdem markierbar
+            </span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+                style={{ background: "var(--flaeche)", borderColor: "var(--linie)" }}
+              />
+              frei
+            </span>
+          </figcaption>
+        ) : (
+          <figcaption className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-leise">
+            <span>Jede Gruppe hat eine Farbe und einen Buchstaben.</span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
+                style={{ background: FARBEN[0] }}
+              />
+              sitzt jetzt hier
+            </span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm border border-dashed align-middle"
+                style={{ borderColor: FARBEN[0] }}
+              />
+              soll hierhin (gleicher Buchstabe)
+            </span>
+            <span>
+              <span className="mr-1 align-middle">→</span>
+              von hier weggesetzt
+            </span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+                style={{ background: "var(--gut-hell)", borderColor: "var(--gut)" }}
+              />
+              freier Platz für die gewählte Gruppe
+            </span>
+            <span>
+              <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
+              im Shop gesperrt, hier trotzdem belegbar
+            </span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+                style={{ background: "var(--blocker-hell)", borderColor: "var(--blocker)" }}
+              />
+              Reihe 4, Platz 3 bleibt frei
+            </span>
+            <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
+                style={{ background: "var(--warnung-hell)", borderColor: "var(--warnung)" }}
+              />
+              daneben: gern besetzen
+            </span>
+          </figcaption>
+        )}
       </figure>
 
       {lob && <ScanHase stimmung="lob" text={lob} dauer={4000} onWeg={() => setLob(null)} />}

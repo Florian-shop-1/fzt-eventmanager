@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db/client";
 import type { BelegLesung } from "./lesen";
+import { GESELLSCHAFTEN, gesellschaftPraefix, type Gesellschaft } from "./gesellschaft";
 
 export interface Bewirtung {
   id: string;
@@ -21,6 +22,8 @@ export interface Bewirtung {
   trinkgeldCent: number;
   zahlart: string;
   art: "bewirtung" | "einkauf";
+  /** Für welche Firma die Ausgabe gilt. Standard ist das Theater. */
+  gesellschaft: Gesellschaft;
   kategorie: string;
   zweck: string;
   /** karte oder bar, leer solange unbekannt. */
@@ -43,7 +46,7 @@ export interface Bewirtung {
   stornoGrund: string | null;
 }
 
-const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, datum::text as datum, restaurant, anschrift,
+const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, datum::text as datum, restaurant, anschrift, gesellschaft,
   brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, art, kategorie, zweck, zahlweg,
   privat_ausgelegt, anlass, teilnehmer, bewirtender,
   ort_der_bewirtung, lesung, notiz, unterschrift, unterschrieben_am, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
@@ -54,6 +57,7 @@ function baue(z: Record<string, unknown>): Bewirtung {
   return {
     id: String(z.id),
     nummer: (z.nummer as string) ?? null,
+    gesellschaft: ((z.gesellschaft as string) ?? "fzt") as Gesellschaft,
     erstelltAm: t(z.erstellt_am)!,
     erstelltVon: String(z.erstellt_von),
     fotoHash: String(z.foto_hash),
@@ -95,6 +99,7 @@ export async function entwurfAnlegen(
   typ: string,
   lesung: BelegLesung | null,
   von: string,
+  gesellschaft: Gesellschaft = "fzt",
 ): Promise<{ id: string; doppelt: boolean }> {
   const hash = createHash("sha256").update(Buffer.from(fotoBase64, "base64")).digest("hex");
   const da = (await db()`
@@ -106,14 +111,14 @@ export async function entwurfAnlegen(
   const z = (await db()`
     insert into bewirtung (foto, foto_typ, foto_hash, erstellt_von, datum, restaurant, anschrift, brutto_cent,
                            mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, ort_der_bewirtung, lesung,
-                           art, kategorie, zweck, zahlweg)
+                           art, kategorie, zweck, zahlweg, gesellschaft)
     values (decode(${fotoBase64}, 'base64'), ${typ}, ${hash}, ${von}, ${datum}::date,
             ${lesung?.restaurant ?? ""}, ${lesung?.anschrift ?? ""},
             ${lesung && lesung.brutto > 0 ? cent(lesung.brutto) : null},
             ${cent(lesung?.mwst7 ?? 0)}, ${cent(lesung?.mwst19 ?? 0)}, ${cent(lesung?.trinkgeld ?? 0)},
             ${lesung?.zahlart ?? ""}, ${lesung?.anschrift ?? ""}, ${lesung ? JSON.stringify(lesung) : null}::jsonb,
             ${lesung?.art ?? "bewirtung"}, ${lesung?.kategorie ?? ""}, ${lesung?.zweck ?? ""},
-            ${lesung && lesung.zahlweg !== "unbekannt" ? lesung.zahlweg : ""})
+            ${lesung && lesung.zahlweg !== "unbekannt" ? lesung.zahlweg : ""}, ${gesellschaft})
     returning id
   `) as Array<{ id: string }>;
   return { id: z[0].id, doppelt: false };
@@ -145,6 +150,11 @@ export async function fotoLesen(id: string): Promise<{ bytes: Buffer; typ: strin
 }
 
 export interface Angaben {
+  /**
+   * Für welche Firma. Wer sie nicht wählen darf, schickt nichts, und
+   * dann bleibt sie, wie sie beim Scannen war.
+   */
+  gesellschaft?: Gesellschaft;
   datum: string;
   restaurant: string;
   anschrift: string;
@@ -174,7 +184,8 @@ export async function entwurfSpeichern(id: string, a: Angaben): Promise<void> {
       trinkgeld_cent = ${a.trinkgeldCent}, zahlart = ${a.zahlart}, anlass = ${a.anlass},
       teilnehmer = ${a.teilnehmer}, bewirtender = ${a.bewirtender}, ort_der_bewirtung = ${a.ortDerBewirtung},
       notiz = ${a.notiz}, art = ${a.art}, kategorie = ${a.kategorie}, zweck = ${a.zweck},
-      zahlweg = ${a.zahlweg}, privat_ausgelegt = ${a.privatAusgelegt}
+      zahlweg = ${a.zahlweg}, privat_ausgelegt = ${a.privatAusgelegt},
+      gesellschaft = coalesce(${a.gesellschaft ?? null}, gesellschaft)
     where id = ${id} and status = 'entwurf'
   `;
 }
@@ -222,17 +233,35 @@ export async function unterschriftSetzen(id: string, png: string): Promise<void>
 }
 
 export async function festschreiben(id: string, von: string): Promise<string> {
+  /*
+    Jede Gesellschaft zaehlt fuer sich.
+
+    Das Theater behaelt seine Nummern ohne Vorsatz (B-2026-001), die
+    anderen beiden bekommen einen (ME-B-2026-001). Ohne getrennte Kreise
+    haette das Theater Luecken in seiner Zaehlung, sobald ein Beleg fuer
+    eine andere Firma dazwischenkommt, und das faellt beim Pruefen auf
+    (Florian, 28.09.2026).
+
+    Die letzte Stelle der Nummer ist der Zaehler, deshalb wird von
+    hinten getrennt (split_part mit -1 gibt es nicht, also ueber die
+    Laenge).
+  */
+  const [zeile] = (await db()`
+    select gesellschaft, case when art = 'einkauf' then 'E' else 'B' end as k,
+           extract(year from coalesce(datum, now()::date))::int as j
+      from bewirtung where id = ${id}
+  `) as Array<{ gesellschaft: string; k: string; j: number }>;
+  if (!zeile) return "";
+
+  const praefix = `${gesellschaftPraefix(zeile.gesellschaft)}${zeile.k}-${zeile.j}-`;
+
   const z = (await db()`
-    with jahr as (
-      select extract(year from coalesce(datum, now()::date))::int as j,
-             case when art = 'einkauf' then 'E' else 'B' end as k
-        from bewirtung where id = ${id}
-    ), naechste as (
-      select coalesce(max(split_part(nummer, '-', 3)::int), 0) + 1 as n
-        from bewirtung, jahr where nummer like jahr.k || '-' || jahr.j || '-%'
+    with naechste as (
+      select coalesce(max(substring(nummer from '[0-9]+$')::int), 0) + 1 as n
+        from bewirtung where nummer like ${praefix + "%"}
     )
     update bewirtung set status = 'fertig', festgeschrieben_am = now(), festgeschrieben_von = ${von},
-           nummer = (select k from jahr) || '-' || (select j from jahr) || '-' || lpad((select n from naechste)::text, 3, '0')
+           nummer = ${praefix} || lpad((select n from naechste)::text, 3, '0')
      where id = ${id} and status = 'entwurf'
     returning nummer
   `) as Array<{ nummer: string }>;
@@ -264,8 +293,15 @@ export interface Summen {
   nichtAbziehbarCent: number;
 }
 
-export function summen(liste: Bewirtung[], art: Bewirtung["art"] = "bewirtung"): Summen {
-  const fertig = liste.filter((b) => b.status === "fertig" && b.art === art);
+export function summen(
+  liste: Bewirtung[],
+  art: Bewirtung["art"] = "bewirtung",
+  /** Nur diese Firma zählen. Ohne Angabe alle zusammen. */
+  gesellschaft?: Gesellschaft,
+): Summen {
+  const fertig = liste.filter(
+    (b) => b.status === "fertig" && b.art === art && (!gesellschaft || b.gesellschaft === gesellschaft),
+  );
   const brutto = fertig.reduce((n, b) => n + (b.bruttoCent ?? 0), 0);
   const trinkgeld = fertig.reduce((n, b) => n + b.trinkgeldCent, 0);
   const vorsteuer = fertig.reduce((n, b) => n + b.mwst7Cent + b.mwst19Cent, 0);
@@ -296,4 +332,17 @@ export function nachZahlweg(liste: Bewirtung[]): { bar: number; karte: number; p
     karte: fertig.filter((b) => b.zahlweg === "karte").reduce((n, b) => n + gesamt(b), 0),
     privat: fertig.filter((b) => b.privatAusgelegt).reduce((n, b) => n + gesamt(b), 0),
   };
+}
+
+/**
+ * Welche Firmen in dieser Liste vorkommen, in der Reihenfolge der
+ * Stammdaten.
+ *
+ * Damit zeigt eine Auswertung nur die Abschnitte, zu denen es auch
+ * Belege gibt: Wer nie für die Magic-Expert GbR einkauft, sieht sie
+ * auch nirgends (Florian, 28.09.2026).
+ */
+export function vorkommendeGesellschaften(liste: Bewirtung[]): Gesellschaft[] {
+  const da = new Set(liste.filter((b) => b.status === "fertig").map((b) => b.gesellschaft));
+  return GESELLSCHAFTEN.map((g) => g.wert).filter((w) => da.has(w));
 }

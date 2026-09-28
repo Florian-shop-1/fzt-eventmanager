@@ -1,5 +1,6 @@
 /**
- * Meldet, wenn jemand eingestempelt bleibt, obwohl er weg ist.
+ * Meldet, wenn jemand eingestempelt bleibt, obwohl er vermutlich nicht
+ * mehr arbeitet.
  *
  * Wichtig zum Verständnis, was technisch geht: Eine Webseite darf im
  * Hintergrund nicht auf das GPS zugreifen. Sobald das Handy gesperrt ist
@@ -12,11 +13,24 @@
  *  2. Ein Lauf auf dem Server prüft regelmäßig, wer zu lange eingestempelt
  *     ist. Das fängt den Fall ab, dass jemand einfach das Handy weglegt.
  *
- * Gemeldet wird einmal je Schicht, nicht im Minutentakt.
+ * Wichtig, und anders als früher (Florian, 29.09.2026): Das Programm setzt
+ * dabei selbst KEINEN Feierabendstempel mehr. Vorher tat es das, und das
+ * klang zu sehr danach, dem Programm die Schuld zu geben, wenn jemand das
+ * Ausstempeln vergisst – und wer nach der Schicht noch auf einen Drink im
+ * Haus blieb, bekam diese Zeit als Arbeitszeit gutgeschrieben, ohne dass
+ * es stimmte. Jetzt wird nur noch gemeldet: an den Mitarbeiter und ans
+ * Büro. Als Arbeitszeit zählt erst, was der Mitarbeiter selbst über die
+ * Nachmeldung angibt (siehe stempeluhr/aktionen.ts) oder was das Büro von
+ * Hand einträgt. Bis dahin bleibt die Schicht offen, absichtlich: Eine
+ * auffällig lange offene Schicht in der Monatsübersicht fällt auf, eine
+ * plausibel aussehende falsche Zeit fällt niemandem auf.
+ *
+ * Gemeldet wird höchstens einmal je Tag und Grund, nicht im Minutentakt.
  */
 
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { isoDatum } from "@/lib/zeit";
 import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stempelSetzen, stunden, werIstDa } from "./db";
 
 /**
@@ -52,105 +66,108 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
 }
 
 /**
- * Die Mail an den, der das Ausstempeln vergessen hat.
+ * Stempelt jemanden aus, wenn sein eigenes Handy es meldet.
  *
- * Absichtlich ohne Vorwurf: Meistens war einfach der Akku leer oder es
- * wurde spaet. Gefragt wird nur, was los war, und der Weg zur Korrektur
- * steht daneben.
+ * Der einzige Fall, in dem das Programm noch selbst einen Stempel setzt:
+ * Der Mitarbeiter hat sich das mit dem persönlichen Kurzbefehl-Link selbst
+ * eingerichtet (siehe /api/stempel/aus). Das ist sein eigenes Handy, das
+ * seinen eigenen Weggang meldet, kein Raten des Servers.
  */
-async function anMitarbeiter(benutzerId: string, name: string, seit: string, bis: string): Promise<void> {
-  const z = (await db()`select email from benutzer where id = ${benutzerId} and aktiv`) as Array<{ email: string }>;
-  const email = z[0]?.email;
-  if (!email) return;
-  const vorname = name.split(" ")[0];
-  try {
-    await mailVerschicken({
-      an: email,
-      betreff: "Du warst noch eingestempelt",
-      text: [
-        `Hallo ${vorname},`,
-        "",
-        `du hast am ${zeit(seit)} eingestempelt und gestern nicht mehr ausgestempelt.`,
-        `Damit die Zeit nicht endlos weiterläuft, hat das Programm um ${zeit(bis)} Schluss gemacht.`,
-        "",
-        "Was war los? Wenn du früher gegangen bist oder länger gearbeitet hast, beantrage bitte",
-        "kurz die richtige Zeit, dann trägt das Büro sie ein. Das dauert eine halbe Minute:",
-        `${APP}/stempeluhr`,
-        "",
-        "Wenn die Zeit so stimmt, musst du nichts tun.",
-      ].join("\n"),
-    });
-  } catch (f) {
-    console.error("[stempel] Mail an", email, "fehlgeschlagen:", f);
-  }
-}
-
-/**
- * Stempelt jemanden automatisch aus.
- *
- * Wer das Gelände verlässt, arbeitet nicht mehr. Bisher wurde das nur
- * gemeldet, die Zeit lief weiter (Florian, 21.09.2026). Jetzt setzt das
- * Programm selbst den Feierabendstempel und schreibt dazu, warum. Die
- * Zeit lässt sich hinterher korrigieren, dafür gibt es die Anträge und
- * die Korrektur in der Stempeluhr.
- */
-export async function automatischAusstempeln(o: {
-  benutzerId: string;
-  name: string;
-  grund: "gelaende" | "zu_lange" | "feierabend" | "kurzbefehl";
-  entfernungM?: number;
-  /** Abweichende Uhrzeit, etwa der Feierabend statt der Nachtstunde. */
-  zeitpunkt?: string;
-}): Promise<void> {
-  const notiz =
-    o.grund === "gelaende"
-      ? `Automatisch ausgestempelt: Gelände verlassen${o.entfernungM ? `, rund ${o.entfernungM} m entfernt` : ""}`
-      : o.grund === "zu_lange"
-        ? "Automatisch ausgestempelt: zu lange eingestempelt"
-        : o.grund === "feierabend"
-          ? "Automatisch ausgestempelt: Feierabend, es war niemand mehr im Haus"
-          : "Ausgestempelt über den Kurzbefehl am Handy";
-
+export async function automatischAusstempeln(o: { benutzerId: string; name: string }): Promise<void> {
   await stempelSetzen({
     benutzerId: o.benutzerId,
     name: o.name,
     art: "gehen",
     imHaus: false,
-    quelle: o.grund === "kurzbefehl" ? "kurzbefehl" : "auto",
-    notiz,
-    zeitpunkt: o.zeitpunkt,
+    quelle: "kurzbefehl",
+    notiz: "Ausgestempelt über den Kurzbefehl am Handy",
   });
+}
 
-  const p = (await db()`select email from benutzer where id = ${o.benutzerId}`) as Array<{ email: string }>;
+/**
+ * Jemand hat gestempelt, aber der Standort passt nicht oder fehlt ganz.
+ *
+ * Blockiert wird deswegen nicht mehr (Florian, 28.09.2026): Lieber einmal
+ * zu viel einstempeln als jemanden vor der Tür stehen lassen, weil das
+ * Handy kein GPS bekommt. Stattdessen erfährt das Büro davon und prüft
+ * später, ob die Zeit stimmt.
+ */
+export async function standortUnklarMelden(o: {
+  name: string;
+  art: string;
+  grund: string;
+}): Promise<void> {
+  await melden(`${o.name}: Standort beim Stempeln unklar`, [
+    `${o.name} hat "${o.art}" gestempelt, der Standort passt aber nicht: ${o.grund}`,
+    "Eingestempelt wurde trotzdem, damit niemand draußen warten muss.",
+    "Bitte später kurz prüfen, ob die Zeit stimmt (Stempeluhr, „Zeiten korrigieren“).",
+  ]);
+}
+
+/**
+ * Meldet eine Schicht, die vermutlich zu Ende ist, aber noch offen steht.
+ *
+ * Setzt bewusst keinen Stempel: Das Programm entscheidet nicht, wann
+ * jemand gegangen ist. Der Mitarbeiter bekommt eine Erinnerung mit dem
+ * Weg zur Nachmeldung, das Büro eine Kopie. Wiederholt wird höchstens
+ * einmal am Tag je Grund, damit niemand mit Mails zugeschüttet wird, auch
+ * wenn die Schicht tagelang offen bleibt.
+ */
+async function schichtOffenMelden(o: {
+  benutzerId: string;
+  name: string;
+  seit: string;
+  grund: "gelaende" | "zu_lange" | "feierabend";
+  entfernungM?: number;
+}): Promise<void> {
+  const tag = isoDatum(new Date(o.seit));
+
+  await melden(
+    o.grund === "gelaende"
+      ? `${o.name} hat das Gelände verlassen, ist aber noch eingestempelt`
+      : o.grund === "zu_lange"
+        ? `${o.name} ist ungewöhnlich lange eingestempelt`
+        : `${o.name} war über Nacht noch eingestempelt`,
+    [
+      `${o.name} hat am ${zeit(o.seit)} eingestempelt und bisher nicht ausgestempelt.`,
+      o.grund === "gelaende" && o.entfernungM
+        ? `Das Handy hat rund ${o.entfernungM} Meter Entfernung vom Haus gemeldet.`
+        : "",
+      "Das Programm hat die Zeit nicht selbst beendet, damit niemand eine Zeit gutgeschrieben bekommt, die nicht",
+      "stimmt. Der Mitarbeiter bekommt ebenfalls eine Erinnerung. Bis er selbst nachträgt oder ihr die Zeit",
+      "eintragt, zählt der offene Teil nicht als Arbeitszeit.",
+    ].filter(Boolean),
+  );
+
+  const p = (await db()`select email from benutzer where id = ${o.benutzerId} and aktiv`) as Array<{ email: string }>;
   if (!p[0]?.email) return;
   try {
     await mailVerschicken({
       an: p[0].email,
-      betreff: "Du wurdest automatisch ausgestempelt",
+      betreff: "Du bist noch eingestempelt",
       text: [
         `Hallo ${o.name.split(" ")[0]},`,
         "",
+        `du hast am ${zeit(o.seit)} eingestempelt und bist laut Programm immer noch nicht ausgestempelt.`,
+        "",
         o.grund === "gelaende"
-          ? "dein Handy hat gemeldet, dass du nicht mehr auf dem Gelände bist, du warst aber noch eingestempelt."
-          : o.grund === "kurzbefehl"
-            ? "dein Handy hat gemeldet, dass du das Gelände verlassen hast."
-            : o.grund === "feierabend"
-              ? "du warst am Ende des Tages noch eingestempelt."
-              : "du warst ungewöhnlich lange eingestempelt, ohne Feierabend zu stempeln.",
+          ? "Dein Handy hat gemeldet, dass du nicht mehr auf dem Gelände bist."
+          : o.grund === "zu_lange"
+            ? "Das ist ungewöhnlich lange."
+            : "Das war auch am Ende des Tages noch so.",
         "",
-        `Das Programm hat dich deshalb um ${new Date(o.zeitpunkt ?? Date.now()).toLocaleTimeString("de-DE", {
-          timeZone: "Europe/Berlin",
-          hour: "2-digit",
-          minute: "2-digit",
-        })} Uhr ausgestempelt.`,
+        "Bist du noch da, zum Beispiel auf einen Drink? Dann ist das kein Problem, aber bitte stempel trotzdem",
+        "AUS, sobald du wirklich gehst. Die Zeit danach läuft sonst weiter mit, als würdest du noch arbeiten.",
         "",
-        "Stimmt die Zeit nicht? Dann stell in der Stempeluhr kurz einen Änderungswunsch,",
-        "das Büro trägt die richtige Zeit ein:",
-        `${APP}/stempeluhr#antrag`,
+        "Bist du schon weg? Dann trag kurz ein, wann du tatsächlich gegangen bist, und ob du eine Pause gemacht",
+        "hast. Florian oder Kevin übernehmen die Zeit dann direkt:",
+        `${APP}/stempeluhr?tag=${tag}#nachmelden`,
+        "",
+        "Bis dahin zählt die Zeit nicht als Arbeitszeit, das trägt erst das Büro ein.",
       ].join("\n"),
     });
   } catch (f) {
-    console.error("[stempel] Hinweis auf das automatische Ausstempeln fehlgeschlagen:", f);
+    console.error("[stempel] Erinnerung an", p[0].email, "fehlgeschlagen:", f);
   }
 }
 
@@ -167,29 +184,28 @@ export async function gelaendeVerlassen(o: {
   /** Wahr, wenn die Person gerade selbst von unterwegs ausgestempelt hat. */
   schonGestempelt?: boolean;
 }): Promise<boolean> {
-  if (await schonGemeldet(o.kommenId, "gelaende_verlassen")) return false;
-  await meldungMerken(o.kommenId, "gelaende_verlassen");
-  if (!o.schonGestempelt) {
-    await automatischAusstempeln({
-      benutzerId: o.benutzerId,
-      name: o.name,
-      grund: "gelaende",
-      entfernungM: o.entfernungM,
-    });
-  }
-  await melden(
-    o.schonGestempelt
-      ? `${o.name} hat von außerhalb ausgestempelt`
-      : `${o.name} hat das Gelände verlassen und wurde ausgestempelt`,
-    [
-      `${o.name} war seit ${zeit(o.seit)} eingestempelt.`,
+  const grundHeute = `gelaende_verlassen:${isoDatum(new Date())}`;
+  if (await schonGemeldet(o.kommenId, grundHeute)) return false;
+  await meldungMerken(o.kommenId, grundHeute);
+
+  if (o.schonGestempelt) {
+    // Hat sich gerade selbst ausgestempelt, nur eben nicht im Haus. Das
+    // Büro erfährt es zur Info, es gibt nichts zu erinnern.
+    await melden(`${o.name} hat von außerhalb ausgestempelt`, [
+      `${o.name} war seit ${zeit(o.seit)} eingestempelt und hat sich gerade selbst ausgestempelt.`,
       `Das Handy hat rund ${o.entfernungM} Meter Entfernung vom Haus gemeldet.`,
-      o.schonGestempelt
-        ? "Der Feierabendstempel kam von ihm selbst, nur eben nicht im Haus."
-        : "Das Programm hat den Feierabend automatisch gestempelt.",
       "Wenn die Zeit nicht stimmt, in der Stempeluhr unter „Zeiten korrigieren“ ändern.",
-    ],
-  );
+    ]);
+    return true;
+  }
+
+  await schichtOffenMelden({
+    benutzerId: o.benutzerId,
+    name: o.name,
+    seit: o.seit,
+    grund: "gelaende",
+    entfernungM: o.entfernungM,
+  });
   return true;
 }
 
@@ -205,14 +221,10 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
   for (const p of da) {
     const stundenOffen = p.minuten / 60;
     if (stundenOffen < e.maxStunden) continue;
-    if (await schonGemeldet(p.kommenId, "zu_lange")) continue;
-    await meldungMerken(p.kommenId, "zu_lange");
-    await automatischAusstempeln({ benutzerId: p.benutzerId, name: p.name, grund: "zu_lange" });
-    await melden(`${p.name} war ${stunden(p.minuten)} Stunden eingestempelt und wurde ausgestempelt`, [
-      `${p.name} hat am ${zeit(p.seit)} eingestempelt und seitdem nicht ausgestempelt.`,
-      "Das Programm hat den Feierabend automatisch gestempelt.",
-      "Vermutlich wurde das Ausstempeln vergessen. Die Zeit lässt sich in der Stempeluhr korrigieren.",
-    ]);
+    const grundHeute = `zu_lange:${isoDatum(new Date())}`;
+    if (await schonGemeldet(p.kommenId, grundHeute)) continue;
+    await meldungMerken(p.kommenId, grundHeute);
+    await schichtOffenMelden({ benutzerId: p.benutzerId, name: p.name, seit: p.seit, grund: "zu_lange" });
     gemeldet++;
   }
   return { gemeldet };
@@ -279,65 +291,24 @@ export async function nebenbeiPruefen(): Promise<void> {
 }
 
 /**
- * Der Schlussstrich am Ende des Tages.
+ * Der nächtliche Rundgang: Wer ist noch eingestempelt?
  *
- * Wer jetzt noch eingestempelt ist, hat es vergessen: Nachts ist niemand
- * mehr im Haus. Ausgestempelt wird nicht zur Laufzeit dieses Laufs,
- * sondern zur hinterlegten Feierabendzeit, damit in der Monatsliste eine
- * plausible Zeit steht und nicht halb zwei.
- *
- * Das ist die Absicherung für den Fall, den kein Browser abfangen kann:
- * Handy in der Tasche, Programm zu, Heimweg. Stimmt die Zeit nicht, wird
- * sie am nächsten Tag korrigiert, dafür gibt es die Änderungswünsche.
+ * Nachts ist niemand mehr im Haus. Wer jetzt noch offen steht, hat das
+ * Ausstempeln vermutlich vergessen, oder ist noch da (Drink an der Bar).
+ * Beides klärt das Programm nicht selbst, das war früher anders und ist
+ * genau das, was hier nicht mehr passieren soll (Florian, 29.09.2026).
+ * Es meldet nur, jede Nacht neu, bis die Schicht geschlossen wird.
  */
-export async function nachtabschluss(): Promise<{ beendet: number }> {
-  const e = await einstellungLesen();
+export async function nachtabschluss(): Promise<{ gemeldet: number }> {
   const da = await werIstDa();
-  let beendet = 0;
+  let gemeldet = 0;
 
   for (const p of da) {
-    // Die Feierabendzeit des Tages, an dem die Schicht begonnen hat.
-    const start = new Date(p.seit);
-    const tag = start.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-    const [h, m] = e.feierabend.split(":").map(Number);
-    const schluss = new Date(`${tag}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
-    // Der Browser des Servers rechnet in UTC, deshalb den Abstand zu
-    // Europe/Berlin herausrechnen.
-    const versatz =
-      new Date(schluss.toLocaleString("en-US", { timeZone: "Europe/Berlin" })).getTime() -
-      new Date(schluss.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-    let zeitpunkt = new Date(schluss.getTime() - versatz);
-
-    /*
-      Die Feierabendzeit liegt seit dem 23.09.2026 nach Mitternacht (1 Uhr).
-      Damit gehoert sie zum FOLGETAG der Schicht: Wer um 20 Uhr anfaengt,
-      hoert um 1 Uhr in der Nacht darauf auf, nicht um 1 Uhr desselben
-      Morgens. Ohne diesen Schritt waere der Schluss vor dem Anfang.
-    */
-    if (zeitpunkt.getTime() <= start.getTime()) {
-      zeitpunkt = new Date(zeitpunkt.getTime() + 24 * 60 * 60000);
-    }
-    // Falls es dann immer noch nicht passt: wenigstens eine halbe Stunde.
-    if (zeitpunkt.getTime() <= start.getTime()) zeitpunkt = new Date(start.getTime() + 30 * 60000);
-    // Und nie in der Zukunft stempeln.
-    if (zeitpunkt.getTime() > Date.now()) zeitpunkt = new Date();
-
-    await automatischAusstempeln({
-      benutzerId: p.benutzerId,
-      name: p.name,
-      grund: "feierabend",
-      zeitpunkt: zeitpunkt.toISOString(),
-    });
-    await melden(`${p.name} war noch eingestempelt und wurde zum Feierabend ausgestempelt`, [
-      `${p.name} hat am ${zeit(p.seit)} eingestempelt und nicht ausgestempelt.`,
-      `Das Programm hat den Feierabend auf ${zeit(zeitpunkt.toISOString())} gesetzt.`,
-      "Wenn die Zeit nicht stimmt, in der Stempeluhr unter „Zeiten korrigieren“ ändern.",
-    ]);
-    // Und der Mitarbeiter selbst erfaehrt es auch. Er ist der Einzige, der
-    // weiss, was los war, und er kann die Korrektur gleich beantragen
-    // (Florian, 23.09.2026).
-    await anMitarbeiter(p.benutzerId, p.name, p.seit, zeitpunkt.toISOString());
-    beendet++;
+    const grundHeute = `feierabend:${isoDatum(new Date())}`;
+    if (await schonGemeldet(p.kommenId, grundHeute)) continue;
+    await meldungMerken(p.kommenId, grundHeute);
+    await schichtOffenMelden({ benutzerId: p.benutzerId, name: p.name, seit: p.seit, grund: "feierabend" });
+    gemeldet++;
   }
-  return { beendet };
+  return { gemeldet };
 }

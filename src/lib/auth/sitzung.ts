@@ -102,6 +102,16 @@ export function darfTermineAnlegen(b: { rolle: Rolle; email: string } | null | u
   return darfEinladen(b);
 }
 
+/**
+ * Wer die Selbstauskunft eines Mitarbeiters mit einem Klick übernehmen
+ * darf: nur Florian und Kevin, bewusst enger als darfZeitenAendern
+ * (Florian, 28.09.2026). Werner darf Zeiten weiterhin von Hand ändern,
+ * aber nicht die eigene Angabe eines Mitarbeiters ungeprüft freigeben.
+ */
+export function darfSelbstauskunftUebernehmen(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  return darfEinladen(b);
+}
+
 export interface AngemeldeterBenutzer {
   id: string;
   name: string;
@@ -332,6 +342,7 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
     return (
       pfad === "/" ||
       pfad.startsWith("/upgrades") ||
+      pfad.startsWith("/hoerezu") ||
       pfad.startsWith("/konto") ||
       pfad.startsWith("/geheimhaltung")
     );

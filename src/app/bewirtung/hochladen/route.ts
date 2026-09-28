@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { belegLesen, leserEingerichtet, type BelegLesung } from "@/lib/bewirtung/lesen";
 import { bewirtungLesen, entwurfAnlegen, moeglicheDubletten } from "@/lib/bewirtung/db";
+import { darfGesellschaftWaehlen, istGesellschaft } from "@/lib/bewirtung/gesellschaft";
 
 /**
  * Nimmt das Belegfoto vom Handy entgegen, lässt es von Claude lesen und legt
@@ -25,6 +26,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, fehler: "Bitte ein Foto (JPEG oder PNG)." }, { status: 415 });
   }
 
+  /*
+    Die Firma nimmt nur an, wer sie auch waehlen darf. Sonst gilt das
+    Theater, egal was im Formular steht (Florian, 28.09.2026).
+  */
+  const gewaehlt = form?.get("gesellschaft");
+  const gesellschaft =
+    darfGesellschaftWaehlen(b) && istGesellschaft(gewaehlt) ? gewaehlt : "fzt";
+
   const b64 = Buffer.from(await datei.arrayBuffer()).toString("base64");
 
   // Lesen darf scheitern: Dann gibt Florian die Zahlen eben selbst ein.
@@ -42,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const e = await entwurfAnlegen(b64, datei.type, lesung, b!.name);
+    const e = await entwurfAnlegen(b64, datei.type, lesung, b!.name, gesellschaft);
     if (!e.doppelt) {
       const neu = await bewirtungLesen(e.id);
       const gleich = neu ? await moeglicheDubletten(neu) : [];

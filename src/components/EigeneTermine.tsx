@@ -12,18 +12,47 @@ import type { EigenerTermin } from "@/lib/db/eigenertermin";
  *
  * Nur für Florian und Kevin (siehe darfTermineAnlegen).
  */
-export function EigeneTermine({ termine, zurueckZu }: { termine: EigenerTermin[]; zurueckZu: string }) {
+export function EigeneTermine({
+  termine,
+  zurueckZu,
+  offen,
+}: {
+  termine: EigenerTermin[];
+  zurueckZu: string;
+  /**
+   * Aufgeklappt anzeigen.
+   *
+   * Auf der eigenen Seite unter "Events" ist das Formular der Inhalt,
+   * dort muss niemand erst aufklappen. Eingebettet in eine andere Seite
+   * bleibt es zugeklappt (Florian, 28.09.2026).
+   */
+  offen?: boolean;
+}) {
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const tag = (d: string) => d.split("-").reverse().join(".");
 
   return (
-    <details id="termin" className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm print:hidden">
-      <summary className="cursor-pointer font-medium">Termin ohne Ticketshop anlegen</summary>
-      <p className="mt-2 text-leise">
-        Für Abende, die nicht über den Ticketshop laufen: Das Haus ist exklusiv gebucht, die Firma bringt ihre Gäste
-        selbst mit. Der Tag taucht danach überall auf, wo auch die anderen Vorstellungen stehen: Funktionsheet,
-        Küchenblatt, Sitzplan, Einlass und Dienstplan. Menüs und Gruppen trägst du wie gewohnt weiter unten ein.
-      </p>
+    <details
+      id="termin"
+      open={offen}
+      className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm print:hidden"
+    >
+      <summary className={`cursor-pointer font-medium${offen ? " sr-only" : ""}`}>
+        Termin ohne Ticketshop anlegen
+      </summary>
+      {!offen && (
+        <p className="mt-2 text-leise">
+          Für Abende, die nicht über den Ticketshop laufen: Das Haus ist exklusiv gebucht, die Firma bringt ihre Gäste
+          selbst mit. Der Tag taucht danach überall auf, wo auch die anderen Vorstellungen stehen: Funktionsheet,
+          Küchenblatt, Sitzplan, Einlass und Dienstplan. Menüs und Gruppen trägst du wie gewohnt weiter unten ein.
+        </p>
+      )}
+      {offen && (
+        <p className="text-leise">
+          Der Tag steht danach im Funktionsheet, auf dem Küchenblatt, im Sitzplan, am Einlass und im Dienstplan.
+          Menüs und Gruppen trägst du wie gewohnt im Funktionsheet ein.
+        </p>
+      )}
 
       <form action={terminAnlegen} className="mt-3 space-y-3">
         <input type="hidden" name="zurueckZu" value={zurueckZu} />

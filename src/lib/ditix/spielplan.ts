@@ -108,6 +108,26 @@ export async function kommendeTermine(maxAnzahl = 200): Promise<Vorstellungsterm
     .map(zuTermin);
 }
 
+/**
+ * Wie kommendeTermine, nur bleibt der heutige Spieltag den ganzen Tag
+ * stehen, auch nachdem die Show begonnen hat.
+ *
+ * Upgrades, Funktionsheet, Küchenblatt, Foyer, Parkplätze und
+ * Einlassliste drehen sich um den ganzen Abend, nicht nur um den Moment
+ * vor Showbeginn: Wer nach Beginn noch Gäste umsetzt oder den Saalplan
+ * braucht, soll ihn weiter sehen (Florian, 28.09.2026).
+ */
+export async function showtageAbHeute(maxAnzahl = 400): Promise<Vorstellungstermin[]> {
+  const heute = isoDatum(new Date());
+  const alle = await holeSpielplan();
+
+  return alle
+    .map(zuTermin)
+    .filter((t) => t.datum >= heute)
+    .sort((a, b) => a.beginn.getTime() - b.beginn.getTime())
+    .slice(0, maxAnzahl);
+}
+
 function zuTermin(v: ShopVorstellung): Vorstellungstermin {
   const beginn = new Date(v.timestampStart);
   return {
