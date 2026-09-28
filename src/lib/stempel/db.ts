@@ -9,7 +9,6 @@
  * ums Ablehnen geht, und streng, wenn es ums Melden geht.
  */
 
-import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db/client";
 
 export type StempelArt = "kommen" | "pause_start" | "pause_ende" | "gehen";
@@ -83,47 +82,6 @@ export async function einstellungLesen(): Promise<StempelEinstellung> {
     maxStunden: Number(z[0].max_stunden),
     aktiv: Boolean(z[0].aktiv),
   };
-}
-
-/* ------------------------------------------------------------------ *
- * Der persönliche Schlüssel fürs Ausstempeln ohne offenes Programm.
- *
- * Er hängt am Handy in einem Kurzbefehl: "Wenn ich diesen Ort verlasse,
- * ruf diese Adresse auf." Mehr kann er nicht, einstempeln geht damit
- * ausdrücklich nicht: Dafür braucht es den geprüften Standort.
- * ------------------------------------------------------------------ */
-
-export async function schluesselVon(benutzerId: string): Promise<string | null> {
-  const z = (await db()`select token from stempel_token where benutzer_id = ${benutzerId}`) as Array<{ token: string }>;
-  return z[0]?.token ?? null;
-}
-
-export async function schluesselNeu(benutzerId: string): Promise<string> {
-  const token = randomBytes(24).toString("base64url");
-  await db()`
-    insert into stempel_token (benutzer_id, token) values (${benutzerId}, ${token})
-    on conflict (benutzer_id) do update set token = excluded.token, erstellt_am = now(), benutzt_am = null
-  `;
-  return token;
-}
-
-export async function schluesselLoeschen(benutzerId: string): Promise<void> {
-  await db()`delete from stempel_token where benutzer_id = ${benutzerId}`;
-}
-
-/** Wem gehört dieser Schlüssel? Null, wenn er nicht (mehr) gilt. */
-export async function benutzerZuSchluessel(
-  token: string,
-): Promise<{ id: string; name: string; email: string } | null> {
-  if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
-  const z = (await db()`
-    select b.id, b.name, b.email
-      from stempel_token t join benutzer b on b.id = t.benutzer_id
-     where t.token = ${token} and b.aktiv
-  `) as Array<{ id: string; name: string; email: string }>;
-  if (!z[0]) return null;
-  await db()`update stempel_token set benutzt_am = now() where token = ${token}`;
-  return z[0];
 }
 
 /** Luftlinie in Metern zwischen zwei Punkten (Haversine). */

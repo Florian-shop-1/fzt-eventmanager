@@ -14,7 +14,6 @@ import {
   standVon,
   stempelAmTag,
   stempelDesMonats,
-  schluesselVon,
   stempelnde,
   stunden,
   werIstDa,
@@ -27,14 +26,11 @@ import {
   korrekturBeantragen,
   nachmeldungSenden,
   pausengrundSenden,
-  schluesselAbschalten,
-  schluesselErzeugen,
   standortSpeichern,
   stempelLoeschen,
   stempelNachtragen,
   zeitKorrigieren,
 } from "./aktionen";
-import { LinkKopieren } from "@/components/LinkKopieren";
 import { Absendeknopf } from "@/components/Absendeknopf";
 
 export const metadata = { title: "Stempeluhr | FZT Eventmanager" };
@@ -142,7 +138,6 @@ export default async function StempeluhrSeite({
       {stempelt && <PausenGrund benutzerId={b.id} offen={pauseFaellig} />}
       {stempelt && <Nachmeldung benutzerId={b.id} tag={tag} />}
       {stempelt && <MeineAntraege benutzerId={b.id} />}
-      {stempelt && <Automatik benutzerId={b.id} />}
 
       {buero && <WerIstDaLive start={await werIstDa()} />}
       {buero && <Antraege duerfenUebernehmen={darfSelbstauskunftUebernehmen(b)} />}
@@ -275,74 +270,6 @@ async function MeineAntraege({ benutzerId }: { benutzerId: string }) {
   );
 }
 
-/**
- * Ausstempeln, auch wenn der Eventmanager zu ist.
- *
- * Eine Webseite darf im Hintergrund nicht auf den Standort zugreifen,
- * das Betriebssystem schon. Deshalb dieser Umweg: Das Handy ruft beim
- * Verlassen des Geländes von selbst eine Adresse auf, und die stempelt
- * aus (Florian, 21.09.2026).
- */
-async function Automatik({ benutzerId }: { benutzerId: string }) {
-  const token = await schluesselVon(benutzerId);
-  const app = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
-  const link = token ? `${app}/api/stempel/aus?t=${token}` : null;
-
-  return (
-    <details id="automatik" className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm">
-      <summary className="cursor-pointer font-medium">Automatisch ausstempeln, wenn du gehst</summary>
-      <p className="mt-2 text-leise">
-        Einmal eingerichtet, stempelt dich dein Handy selbst aus, sobald du das Theater verlässt, auch wenn der
-        Eventmanager längst zu ist. Dafür bekommst du einen persönlichen Link, den dein Handy dann von allein
-        aufruft. Mit dem Link kann man nur ausstempeln, sonst nichts.
-      </p>
-
-      {link ? (
-        <>
-          <div className="mt-3">
-            <LinkKopieren link={link} />
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div>
-              <p className="font-medium">iPhone</p>
-              <ol className="ml-4 list-decimal space-y-1 text-leise">
-                <li>App „Kurzbefehle“ öffnen, unten auf „Automation“.</li>
-                <li>„Neue Automation“, dann „Ort“ auswählen.</li>
-                <li>Theater als Ort eintragen und „Verlasse ich“ wählen, „Sofort ausführen“ anhaken.</li>
-                <li>Als Aktion „Inhalte von URL abrufen“ wählen und den Link oben einsetzen.</li>
-                <li>Fertig. Beim ersten Mal fragt das iPhone einmal nach, danach läuft es von allein.</li>
-              </ol>
-            </div>
-            <div>
-              <p className="font-medium">Android</p>
-              <ol className="ml-4 list-decimal space-y-1 text-leise">
-                <li>Eine Automations-App installieren, zum Beispiel MacroDroid.</li>
-                <li>Auslöser: „Geofence verlassen“, Theater als Bereich eintragen.</li>
-                <li>Aktion: „HTTP-Anfrage“ mit dem Link oben.</li>
-              </ol>
-            </div>
-          </div>
-
-          <form action={schluesselAbschalten} className="mt-3">
-            <button type="submit" className="text-xs text-leise underline">
-              Link abschalten (zum Beispiel bei einem neuen Handy)
-            </button>
-          </form>
-        </>
-      ) : (
-        <form action={schluesselErzeugen} className="mt-3">
-          <Absendeknopf text="Meinen Link erstellen" laeuftText="..." />
-        </form>
-      )}
-
-      <p className="mt-3 text-xs text-leise">
-        Klappt das nicht oder hast du kein passendes Handy: Bist du abends noch eingestempelt, meldet sich das
-        Programm bei dir. Trag dann kurz nach, wann du wirklich gegangen bist.
-      </p>
-    </details>
-  );
-}
 
 /** Offene Änderungswünsche und die Begründungen zu fehlenden Pausen. */
 async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean }) {

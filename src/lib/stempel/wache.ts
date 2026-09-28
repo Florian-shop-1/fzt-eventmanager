@@ -31,7 +31,7 @@
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { isoDatum } from "@/lib/zeit";
-import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stempelSetzen, stunden, werIstDa } from "./db";
+import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stunden, werIstDa } from "./db";
 
 /**
  * Nach so vielen Minuten Arbeit ohne Pause kommt die Erinnerung.
@@ -63,25 +63,6 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
       console.error("[stempel] Meldung an", p.email, "fehlgeschlagen:", f);
     }
   }
-}
-
-/**
- * Stempelt jemanden aus, wenn sein eigenes Handy es meldet.
- *
- * Der einzige Fall, in dem das Programm noch selbst einen Stempel setzt:
- * Der Mitarbeiter hat sich das mit dem persönlichen Kurzbefehl-Link selbst
- * eingerichtet (siehe /api/stempel/aus). Das ist sein eigenes Handy, das
- * seinen eigenen Weggang meldet, kein Raten des Servers.
- */
-export async function automatischAusstempeln(o: { benutzerId: string; name: string }): Promise<void> {
-  await stempelSetzen({
-    benutzerId: o.benutzerId,
-    name: o.name,
-    art: "gehen",
-    imHaus: false,
-    quelle: "kurzbefehl",
-    notiz: "Ausgestempelt über den Kurzbefehl am Handy",
-  });
 }
 
 /**

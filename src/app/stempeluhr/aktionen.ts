@@ -18,8 +18,6 @@ import {
   antragStellen,
   antragUebernehmen,
   nachtragen,
-  schluesselLoeschen,
-  schluesselNeu,
   stempelEntfernen,
   zeitAendern,
   type StempelArt,
@@ -259,22 +257,4 @@ export async function stempelNachtragen(f: FormData): Promise<void> {
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur", f);
   await nachtragen({ benutzerId, art, zeitpunkt, von: b.name });
   zurueck("Nachgetragen.", "#korrektur", f);
-}
-
-/* ------------------------------------------------------------------ *
- * Der persönliche Schlüssel fürs Ausstempeln vom Handy aus.
- * ------------------------------------------------------------------ */
-
-export async function schluesselErzeugen(): Promise<void> {
-  const b = await angemeldeterBenutzer();
-  if (!b) throw new Error("Bitte neu anmelden.");
-  await schluesselNeu(b.id);
-  zurueck("Dein Link ist fertig. Jetzt unten in den Kurzbefehl einsetzen.", "#automatik");
-}
-
-export async function schluesselAbschalten(): Promise<void> {
-  const b = await angemeldeterBenutzer();
-  if (!b) throw new Error("Bitte neu anmelden.");
-  await schluesselLoeschen(b.id);
-  zurueck("Abgeschaltet. Der alte Link geht nicht mehr.", "#automatik");
 }
