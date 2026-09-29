@@ -72,13 +72,21 @@ export default async function BewirtungSeite({
           Die Auswahl der Firma sieht nur, wer sie treffen darf. Für alle
           anderen bleibt der Knopf wie bisher (Florian, 28.09.2026).
         */}
-        <BelegScanner
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/bewirtung/abgleich"
+            className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+          >
+            Belege abgleichen
+          </Link>
+          <BelegScanner
           gesellschaften={
             darfGesellschaftWaehlen(b)
               ? GESELLSCHAFTEN.map((g) => ({ wert: g.wert, name: g.name }))
               : undefined
           }
-        />
+          />
+        </div>
       </header>
 
       {meldung && (

@@ -267,6 +267,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         }
         if (g.titel === "Sonstiges" && darfBuchhaltung(benutzer)) {
           punkte.push({ href: "/bewirtung", label: "Belege", rollen: [] });
+          // Welche Ausgabe hat noch keinen Beleg (Florian, 29.09.2026).
+          punkte.push({ href: "/bewirtung/abgleich", label: "Belege abgleichen", rollen: [] });
         }
         return { titel: g.titel, punkte };
       }).filter((g) => g.punkte.length > 0)
