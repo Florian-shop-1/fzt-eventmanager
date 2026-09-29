@@ -358,13 +358,19 @@ function SlotZeile({
     oder Kevin (Florian, 28.09.2026).
   */
   const kannUebernahmeAnbieten = Boolean(
-    ich &&
-      !meins &&
-      !michGefragt &&
-      !schonDabei &&
-      slot.person &&
-      !slot.offen &&
-      darfUebernehmen(ich, slot.position, slot.fuer),
+    ich && !meins && !michGefragt && !schonDabei && slot.person && !slot.offen,
+  );
+  /*
+    Freigabe noetig, wenn der bisherige fest angestellt ist oder wenn die
+    Position noch nicht bei mir steht.
+
+    Vorher war der Knopf ohne eigene Position gar nicht da. Leeven hat
+    unter einer Show geschrieben, er wuerde FOH machen, und konnte es
+    nirgends anklicken (Florian, 29.09.2026). Jetzt kann er anbieten, und
+    Florian oder Kevin entscheiden.
+  */
+  const entlastungBrauchtFreigabe = Boolean(
+    slot.person?.fest || (ich && !darfUebernehmen(ich, slot.position, slot.fuer)),
   );
   const versteckt = (
     <>
@@ -396,6 +402,18 @@ function SlotZeile({
               </span>
             )}
             {slot.fest && <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">fester Tag</span>}
+            {/* Eingetragen, haette aber lieber frei. Das ist die
+                Einladung an die anderen, ihn zu entlasten
+                (Florian, 29.09.2026). */}
+            {slot.notnagel && (
+              <span
+                className="ml-2 rounded px-1.5 py-0.5 text-xs"
+                style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}
+                title="Springt ein, haette aber lieber frei"
+              >
+                nur wenn Not am Mann{slot.notnagelGrund ? `: ${slot.notnagelGrund}` : ""}
+              </span>
+            )}
             {slot.suchtErsatz && (
               <>
                 <span className="ml-2 rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}>
@@ -493,9 +511,15 @@ function SlotZeile({
         )}
 
         {kannUebernehmen && !michGefragt && (
-          <form action={uebernehmen}>
+          <form action={uebernehmen} className="flex flex-wrap items-center gap-2">
             {versteckt}
             <Absendeknopf text="Ich übernehme" laeuftText="Moment..." />
+            {/* Wer nur einspringt, soll das sagen duerfen. Dann sehen die
+                anderen, wo eine Entlastung wirklich hilft. */}
+            <label className="flex items-center gap-1.5 text-xs text-leise">
+              <input type="checkbox" name="notnagel" value="ja" />
+              nur wenn Not am Mann ist
+            </label>
           </form>
         )}
 
@@ -504,8 +528,8 @@ function SlotZeile({
             {versteckt}
             <Absendeknopf
               text={
-                slot.person?.fest
-                  ? `${slot.person.vorname} entlasten (Freigabe nötig)`
+                entlastungBrauchtFreigabe
+                  ? `${slot.person?.vorname} entlasten (Freigabe nötig)`
                   : `${slot.person?.vorname} entlasten`
               }
               laeuftText="Moment..."

@@ -110,6 +110,9 @@ export interface Einsatz {
   suchtErsatz: boolean;
   grund: string | null;
   erinnertStufe: number;
+  /** Eingetragen, aber lieber frei: springt nur ein, wenn es sein muss. */
+  notnagel: boolean;
+  notnagelGrund: string;
   /** Direkt angefragt: Diese Person soll zusagen oder absagen. */
   angefragtId: string | null;
   angefragtVonId: string | null;
@@ -154,6 +157,7 @@ export async function festeTage(): Promise<FesterTag[]> {
 export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
     select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
+           notnagel, notnagel_grund,
            angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
@@ -163,6 +167,8 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     datum: String(r.datum),
     benutzerId: (r.benutzer_id as string) ?? null,
     suchtErsatz: Boolean(r.sucht_ersatz),
+    notnagel: Boolean(r.notnagel),
+    notnagelGrund: String(r.notnagel_grund ?? ""),
     grund: (r.grund as string) ?? null,
     erinnertStufe: Number(r.erinnert_stufe ?? 0),
     angefragtId: (r.angefragt_id as string) ?? null,
@@ -238,15 +244,20 @@ export async function einsatzSetzen(e: {
   grund: string | null;
   von: string;
   erinnertStufe?: number;
+  /** Springt nur ein, wenn sonst niemand kann. */
+  notnagel?: boolean;
+  notnagelGrund?: string;
 }): Promise<void> {
   await db()`
-    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id, sucht_ersatz, grund, geaendert_von, geaendert_am, erinnert_stufe)
+    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id, sucht_ersatz, grund, geaendert_von, geaendert_am, erinnert_stufe, notnagel, notnagel_grund)
     values (${e.termin.ditixEventId}, ${e.position}, ${e.termin.datum}::date, ${e.termin.uhrzeit}, ${e.benutzerId},
-            ${e.suchtErsatz}, ${e.grund}, ${e.von}, now(), ${e.erinnertStufe ?? 0})
+            ${e.suchtErsatz}, ${e.grund}, ${e.von}, now(), ${e.erinnertStufe ?? 0},
+            ${e.notnagel ?? false}, ${e.notnagelGrund ?? ""})
     on conflict (ditix_event_id, position) do update set
       benutzer_id = excluded.benutzer_id, sucht_ersatz = excluded.sucht_ersatz, grund = excluded.grund,
       geaendert_von = excluded.geaendert_von, geaendert_am = now(), erinnert_stufe = excluded.erinnert_stufe,
       datum = excluded.datum, uhrzeit = excluded.uhrzeit,
+      notnagel = excluded.notnagel, notnagel_grund = excluded.notnagel_grund,
       angefragt_id = null, angefragt_von_id = null, angefragt_notiz = null, angefragt_am = null
   `;
 }
@@ -275,6 +286,15 @@ export interface Slot {
   fest: boolean;
   /** Die Person hat gefragt, ob jemand übernimmt. */
   suchtErsatz: boolean;
+  /**
+   * Eingetragen, aber lieber frei.
+   *
+   * Wer sich so einträgt, sagt: Ich komme, wenn sonst niemand kann. Das
+   * steht neben dem Namen, damit die anderen sehen, wo eine Entlastung
+   * wirklich hilft (Florian, 29.09.2026).
+   */
+  notnagel: boolean;
+  notnagelGrund: string;
   grund: string | null;
   /** Hier wird jemand gebraucht: leer oder Ersatz gesucht. */
   offen: boolean;
@@ -333,6 +353,9 @@ export function planBauen(
           fest: Boolean(p && f && f.benutzerId === p.id),
           suchtErsatz,
           grund: e?.grund ?? null,
+          // Nur mit Person: Ein leerer Platz ist kein Notnagel.
+          notnagel: Boolean(p && e?.notnagel),
+          notnagelGrund: p ? (e?.notnagelGrund ?? "") : "",
           offen: !p || suchtErsatz,
           erinnertStufe: e?.erinnertStufe ?? 0,
           ersatzGefragtAm: e?.ersatzGefragtAm ?? null,
@@ -365,6 +388,8 @@ export function planBauen(
           fest: false,
           suchtErsatz,
           grund: sh?.grund ?? null,
+          notnagel: Boolean(shPerson && sh?.notnagel),
+          notnagelGrund: shPerson ? (sh?.notnagelGrund ?? "") : "",
           offen: !shPerson || suchtErsatz,
           erinnertStufe: sh?.erinnertStufe ?? 0,
           ersatzGefragtAm: sh?.ersatzGefragtAm ?? null,

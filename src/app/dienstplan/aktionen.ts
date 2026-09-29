@@ -128,7 +128,22 @@ export async function uebernehmen(f: FormData): Promise<void> {
     freigeworden = bisher!.position;
   }
   const vorher = slot.suchtErsatz ? slot.person : null;
-  await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: false, grund: null, von: benutzer.name });
+  /*
+    "Nur wenn Not am Mann ist": Wer das ankreuzt, kommt, haette aber
+    lieber frei. Das steht neben seinem Namen, damit die anderen sehen,
+    wo eine Entlastung wirklich hilft (Florian, 29.09.2026).
+  */
+  const notnagel = String(f.get("notnagel") ?? "") === "ja";
+  await einsatzSetzen({
+    termin,
+    position,
+    benutzerId: ich.id,
+    suchtErsatz: false,
+    grund: null,
+    von: benutzer.name,
+    notnagel,
+    notnagelGrund: notnagel ? text(f, "notnagelGrund") : "",
+  });
 
   // Die alte Position wieder ausschreiben, nicht einfach den Eintrag
   // loeschen: Sonst rutscht der feste Tag zurueck und die Person stuende
@@ -162,16 +177,25 @@ export async function schichtUebernehmenAnbieten(f: FormData): Promise<void> {
   const { benutzer, eventId, position, termin, schichten, personen, slot, ich } = await schichtLaden(f);
   if (!slot || !ich || !slot.person) zurueck(eventId, "Diese Schicht gibt es nicht.");
   if (slot.person.id === ich.id) zurueck(eventId, "Das ist schon deine Schicht.");
-  if (!darfUebernehmen(ich, position, slot.fuer)) {
-    zurueck(eventId, `${BEZEICHNUNG[position]} ist nicht bei deinen Positionen eingetragen. Florian kann das ändern.`);
-  }
   if (schonImDienst(schichten, ich.id, termin)) {
     zurueck(eventId, "An diesem Abend bist du schon eingeteilt.");
   }
 
   const bisheriger = slot.person;
 
-  if (!bisheriger.fest) {
+  /*
+    Anbieten darf jeder, auch ohne die Position im Profil.
+
+    Vorher war der Knopf nur da, wenn die Position schon bei den eigenen
+    stand. Leeven hat unter einer Show geschrieben, er wuerde FOH machen,
+    konnte es aber nicht anbieten, weil FOH bei ihm nicht eingetragen war
+    (Florian, 29.09.2026). Jetzt geht das Angebot trotzdem, nur
+    entscheiden dann Florian oder Kevin: Sie wissen, ob er die Position
+    kann, das Programm weiss es nicht.
+  */
+  const kannDiePosition = darfUebernehmen(ich, position, slot.fuer);
+
+  if (!bisheriger.fest && kannDiePosition) {
     await einsatzSetzen({ termin, position, benutzerId: ich.id, suchtErsatz: false, grund: null, von: benutzer.name });
     await uebernahmeAnbieten({
       bereich: "show",
@@ -204,7 +228,11 @@ export async function schichtUebernehmenAnbieten(f: FormData): Promise<void> {
   await uebernahmeAngefragtMail({ an: chefUndKevin, anbieter: ich.name, bisheriger: bisheriger.name, termin, position });
   zurueck(
     eventId,
-    `Angefragt. ${bisheriger.vorname} ist fest angestellt, deshalb entscheiden erst Florian oder Kevin, dann bist du eingetragen.`,
+    `Angefragt. ${
+      kannDiePosition
+        ? `${bisheriger.vorname} ist fest angestellt`
+        : `${BEZEICHNUNG[position]} steht noch nicht bei deinen Positionen`
+    }, deshalb entscheiden erst Florian oder Kevin, dann bist du eingetragen.`,
   );
 }
 
@@ -590,10 +618,24 @@ export async function kommentieren(f: FormData): Promise<void> {
     // Beteiligte nachschlagen liessen.
     if (eventId.startsWith("foyer:")) throw new Error("keine Mail für Foyer-Tage");
     const termin = await findeTermin(eventId);
+    /*
+      Alle aus dem Show-Team, nicht nur die Eingeteilten.
+
+      Leevens Angebot, FOH zu uebernehmen, ist untergegangen, weil er
+      unter einer Show schrieb, an der er nicht eingeteilt war: Die Mail
+      ging nur an die Beteiligten (Florian, 29.09.2026). Ein Kommentar
+      unter einer Show geht aber fast immer alle an, die an dem Abend
+      einspringen koennten.
+    */
     const wer = await beteiligte(eventId, benutzer.id);
-    if (termin && wer.length > 0) {
+    if (termin) {
       const { personen } = await planLaden();
-      const an = personen.filter((p) => wer.some((w) => w.id === p.id));
+      const an = personen.filter(
+        (p) =>
+          p.id !== benutzer.id &&
+          p.email &&
+          (wer.some((w) => w.id === p.id) || gehoertZumShowteam(p)),
+      );
       if (an.length > 0) {
         await kommentarMail({ an, wer: benutzer.name, termin, text: inhalt, antwort: Boolean(antwortAuf) });
       }
@@ -691,4 +733,17 @@ export async function nochmalFragen(f: FormData): Promise<void> {
   });
   await ersatzGefragtMerken(termin, position, an.length - (fehler?.length ?? 0));
   zurueck(eventId, `Nochmal gefragt: ${an.map((p) => p.vorname).join(", ")}.`);
+}
+
+/**
+ * Wer zum Show-Team gehoert.
+ *
+ * Alle, die abends im Saal einspringen koennen: die Rollen chef, team und
+ * showteam, und alle, bei denen eine Position eingetragen ist. Externe
+ * und der Food-Kiosk stehen ohnehin nicht in dieser Liste.
+ */
+function gehoertZumShowteam(p: { rolle: string; kann: Map<string, boolean>; art?: string }): boolean {
+  if (p.art === "extern") return false;
+  if (["chef", "team", "showteam"].includes(p.rolle)) return true;
+  return p.kann.size > 0;
 }
