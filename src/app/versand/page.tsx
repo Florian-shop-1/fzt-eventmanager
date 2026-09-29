@@ -131,6 +131,31 @@ export default async function VersandSeite({
   */
   const blaetter = druckeGutschein ? zuDrucken.length - ohneCode.length : zuDrucken.length;
 
+  /*
+    Seit wann ist nichts mehr angekommen?
+
+    Am 29.09.2026 hatte Vera Zrilic einen Gutschein für 200 Euro gekauft
+    und bezahlt, und die Bestellung stand nirgends in dieser Liste: Die
+    Übertragung aus Ditix in die Tabelle hatte sie nicht erfasst. Das
+    fällt nicht auf, denn eine fehlende Zeile sieht genauso aus wie ein
+    ruhiger Tag.
+
+    Deshalb steht jetzt hier, wie alt der jüngste Eintrag ist. Ob
+    tatsächlich nichts verkauft wurde, weiß die Seite nicht; sie kann
+    nur sagen, dass es auffällig still ist, und dann schaut Kevin in
+    Ditix nach (Florian, 29.09.2026).
+  */
+  const TAGE_STILL = 3;
+  const juengste = sendungen
+    .map((x) => x.kaufdatum)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+  const tageStill = juengste
+    ? Math.floor((Date.now() - Date.parse(juengste)) / 86400000)
+    : null;
+  const stille = !fehler && tageStill !== null && tageStill >= TAGE_STILL;
+
   return (
     <div className="space-y-6">
       {sofortDrucken && <SofortDrucken bereit={blaetter > 0} />}
@@ -188,6 +213,22 @@ export default async function VersandSeite({
         <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm print:hidden">
           <strong style={{ color: "var(--blocker)" }}>Liste nicht lesbar.</strong>
           <div className="mt-1 text-leise">{fehler}</div>
+        </div>
+      )}
+
+      {stille && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong className="font-medium">
+            Seit {tageStill} Tagen ist keine neue Bestellung in der Liste angekommen.
+          </strong>
+          <div className="mt-1 text-leise">
+            Das kann heißen, dass nichts verkauft wurde. Es kann aber auch heißen, dass die Übertragung
+            aus Ditix hängt und eine bezahlte Bestellung hier fehlt. Bitte in Ditix nachsehen, ob in der
+            Zwischenzeit Gutscheine verkauft wurden.
+          </div>
         </div>
       )}
 
