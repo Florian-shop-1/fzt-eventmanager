@@ -2,8 +2,19 @@
 
 import { useMemo, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
-import { tippLoeschenAktion, tippSpeichern } from "@/app/tipps/aktionen";
+import Link from "next/link";
+import { reiheSpeichern, reiheWeg, tippLoeschenAktion, tippSpeichern } from "@/app/tipps/aktionen";
 import { tippsFiltern, type Tipp } from "@/lib/tipps/filter";
+
+/** Eine mehrteilige Anleitung, wie sie von der Seite hereinkommt. */
+export interface ReiheAnsicht {
+  id: string;
+  titel: string;
+  beschreibung: string;
+  schlagworte: string;
+  erstelltVon: string;
+  schritte: Tipp[];
+}
 
 /**
  * Tipps & Tricks: Suche, Videos ansehen, neue hochladen.
@@ -15,15 +26,35 @@ import { tippsFiltern, type Tipp } from "@/lib/tipps/filter";
  */
 export function TippsListe({
   tipps,
+  reihen = [],
   darfHochladen,
   darfLoeschen,
 }: {
   tipps: Tipp[];
+  reihen?: ReiheAnsicht[];
   darfHochladen: boolean;
   darfLoeschen: boolean;
 }) {
   const [suche, setSuche] = useState("");
   const gefiltert = useMemo(() => tippsFiltern(tipps, suche), [tipps, suche]);
+  /*
+    Die Anleitungen durchsucht dieselbe Suche.
+
+    Gesucht wird ueber Titel, Beschreibung, Schlagworte und zusaetzlich
+    ueber die Titel der einzelnen Schritte: Wer "Pult" eingibt, soll die
+    Anleitung "Show einschalten" finden, auch wenn das Wort nur in einem
+    ihrer Schritte vorkommt (Florian, 29.09.2026).
+  */
+  const reihenGefiltert = useMemo(() => {
+    const woerter = suche.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (woerter.length === 0) return reihen;
+    return reihen.filter((r) => {
+      const text = `${r.titel} ${r.beschreibung} ${r.schlagworte} ${r.schritte
+        .map((s) => s.titel)
+        .join(" ")}`.toLowerCase();
+      return woerter.every((x) => text.includes(x));
+    });
+  }, [reihen, suche]);
 
   return (
     <div className="space-y-6">
@@ -36,18 +67,45 @@ export function TippsListe({
         aria-label="Tipps durchsuchen"
       />
 
-      {darfHochladen && <HochladenFormular />}
+      {darfHochladen && (
+        <div className="flex flex-wrap gap-3">
+          <HochladenFormular />
+          <ReiheFormular />
+        </div>
+      )}
 
-      {gefiltert.length === 0 ? (
+      {/* Die Anleitungen zuerst: Sie sind das, was man wirklich lernen muss. */}
+      {reihenGefiltert.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
+            Anleitungen in mehreren Schritten
+          </h2>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {reihenGefiltert.map((r) => (
+              <ReihenKarte key={r.id} reihe={r} darfLoeschen={darfLoeschen} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {reihenGefiltert.length > 0 && gefiltert.length > 0 && (
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">Einzelne Videos</h2>
+      )}
+
+      {gefiltert.length === 0 && reihenGefiltert.length === 0 ? (
         <p className="text-sm text-leise">
-          {tipps.length === 0 ? "Noch keine Tipps hochgeladen." : "Nichts gefunden."}
+          {tipps.length === 0 && reihen.length === 0
+            ? "Noch keine Tipps hochgeladen."
+            : "Nichts gefunden."}
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {gefiltert.map((t) => (
-            <TippKarte key={t.id} tipp={t} darfLoeschen={darfLoeschen} />
-          ))}
-        </ul>
+        gefiltert.length > 0 && (
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {gefiltert.map((t) => (
+              <TippKarte key={t.id} tipp={t} darfLoeschen={darfLoeschen} />
+            ))}
+          </ul>
+        )
       )}
     </div>
   );
@@ -181,6 +239,260 @@ function HochladenFormular() {
           className="rounded-md bg-gold px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
         >
           {laeuft ? `Wird hochgeladen... ${fortschritt}%` : "Hochladen"}
+        </button>
+        <button type="button" onClick={() => setOffen(false)} disabled={laeuft} className="text-sm text-leise underline">
+          Abbrechen
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Eine Anleitung in der Uebersicht.
+ *
+ * Kein Video zum Abspielen, sondern der Weg hinein: Wer "Show einschalten"
+ * sucht, will nicht das dritte Video sehen, sondern anfangen.
+ */
+function ReihenKarte({ reihe, darfLoeschen }: { reihe: ReiheAnsicht; darfLoeschen: boolean }) {
+  return (
+    <li className="flex flex-col gap-2 rounded-lg border border-gold bg-gold-hell p-4">
+      <Link href={`/tipps/reihe/${reihe.id}`} className="space-y-1">
+        <h3 className="font-semibold leading-snug">{reihe.titel}</h3>
+        <p className="text-sm">
+          {reihe.schritte.length} {reihe.schritte.length === 1 ? "Schritt" : "Schritte"} nacheinander
+        </p>
+        {reihe.beschreibung && <p className="text-sm text-leise">{reihe.beschreibung}</p>}
+      </Link>
+      <ol className="mt-1 space-y-0.5 text-xs text-leise">
+        {reihe.schritte.slice(0, 4).map((s, i) => (
+          <li key={s.id}>
+            {i + 1}. {s.titel}
+          </li>
+        ))}
+        {reihe.schritte.length > 4 && <li>und {reihe.schritte.length - 4} weitere</li>}
+      </ol>
+      <div className="mt-auto flex items-center justify-between pt-2">
+        <Link href={`/tipps/reihe/${reihe.id}`} className="text-sm font-medium underline">
+          Anleitung starten
+        </Link>
+        {darfLoeschen && (
+          <form action={reiheWeg}>
+            <input type="hidden" name="id" value={reihe.id} />
+            <button type="submit" className="text-xs text-leise underline">
+              löschen
+            </button>
+          </form>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Mehrere Videos auf einmal hochladen, als Anleitung in Schritten.
+ *
+ * Die Reihenfolge kommt aus den Dateinamen, denn so werden solche Videos
+ * aufgenommen: "1 Strom an.mp4", "2 Pult hochfahren.mp4". Verschieben geht
+ * trotzdem, und der Titel jedes Schritts laesst sich vorher aendern
+ * (Florian, 29.09.2026).
+ */
+function ReiheFormular() {
+  const [offen, setOffen] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const [stand, setStand] = useState("");
+  const [fortschritt, setFortschritt] = useState(0);
+  const [fehler, setFehler] = useState("");
+  const [dateien, setDateien] = useState<Array<{ datei: File; titel: string }>>([]);
+
+  function dateienWaehlen(liste: FileList | null) {
+    if (!liste) return;
+    /*
+      Nach Dateinamen sortieren, mit Zahlen als Zahlen.
+
+      Sonst stuende "10 Licht" vor "2 Pult", und genau dieser Fehler faellt
+      erst auf, wenn jemand die Anleitung durchgeht.
+    */
+    const sortiert = [...liste].sort((a, b) =>
+      a.name.localeCompare(b.name, "de", { numeric: true, sensitivity: "base" }),
+    );
+    setDateien(
+      sortiert.map((datei) => ({
+        datei,
+        // Nummer und Endung weg, Unterstriche zu Leerzeichen: Aus
+        // "1_strom_an.mp4" wird "strom an".
+        titel: datei.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/^[\s\d._-]+/, "")
+          .replace(/[_-]+/g, " ")
+          .trim(),
+      })),
+    );
+  }
+
+  function verschieben(i: number, richtung: -1 | 1) {
+    const ziel = i + richtung;
+    if (ziel < 0 || ziel >= dateien.length) return;
+    const neu = [...dateien];
+    [neu[i], neu[ziel]] = [neu[ziel], neu[i]];
+    setDateien(neu);
+  }
+
+  async function absenden(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFehler("");
+    const form = e.currentTarget;
+    const daten = new FormData(form);
+    const titel = String(daten.get("titel") ?? "").trim();
+
+    if (!titel) {
+      setFehler("Bitte einen Titel für die Anleitung eintragen.");
+      return;
+    }
+    if (dateien.length === 0) {
+      setFehler("Bitte die Videos auswählen.");
+      return;
+    }
+
+    setLaeuft(true);
+    try {
+      const schritte: Array<{ titel: string; videoUrl: string; videoTyp: string }> = [];
+      for (const [i, d] of dateien.entries()) {
+        setStand(`Video ${i + 1} von ${dateien.length}`);
+        setFortschritt(0);
+        const blob = await upload(d.datei.name, d.datei, {
+          access: "public",
+          handleUploadUrl: "/tipps/hochladen",
+          onUploadProgress: (p) => setFortschritt(Math.round(p.percentage)),
+        });
+        schritte.push({
+          titel: d.titel || `Schritt ${i + 1}`,
+          videoUrl: blob.url,
+          videoTyp: blob.contentType ?? d.datei.type,
+        });
+      }
+
+      setStand("Wird gespeichert...");
+      const speichern = new FormData();
+      speichern.set("titel", titel);
+      speichern.set("beschreibung", String(daten.get("beschreibung") ?? ""));
+      speichern.set("schlagworte", String(daten.get("schlagworte") ?? ""));
+      speichern.set("schritte", JSON.stringify(schritte));
+      await reiheSpeichern(speichern);
+      form.reset();
+      setDateien([]);
+      setOffen(false);
+    } catch (f) {
+      if (f instanceof Error && f.message === "NEXT_REDIRECT") throw f;
+      setFehler(f instanceof Error ? f.message : "Hochladen fehlgeschlagen.");
+    } finally {
+      setLaeuft(false);
+      setStand("");
+    }
+  }
+
+  if (!offen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOffen(true)}
+        className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+      >
+        + Anleitung in mehreren Schritten
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={absenden} className="w-full space-y-3 rounded-lg border border-linie bg-flaeche p-4">
+      <h2 className="font-semibold">Anleitung in mehreren Schritten</h2>
+      <p className="text-xs text-leise">
+        Für alles, was man nicht in einem Video erklären kann. Die Videos werden nacheinander angesehen,
+        deshalb zählt die Reihenfolge.
+      </p>
+
+      <label className="block">
+        <span className="mb-1 block text-xs text-leise">Titel der Anleitung</span>
+        <input name="titel" required maxLength={200} placeholder="z. B. Show einschalten" className="w-full" />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs text-leise">Worum geht es, freiwillig</span>
+        <textarea name="beschreibung" maxLength={2000} rows={2} className="w-full" />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs text-leise">
+          Schlagworte, freiwillig, mit denen man die Anleitung finden soll
+        </span>
+        <input name="schlagworte" maxLength={500} placeholder="Show Start Pult Licht Ton anschalten" className="w-full" />
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-xs text-leise">
+          Videos, alle auf einmal auswählen. Die Reihenfolge kommt aus den Dateinamen und lässt sich unten
+          ändern.
+        </span>
+        <input type="file" accept="video/*" multiple onChange={(e) => dateienWaehlen(e.target.files)} />
+      </label>
+
+      {dateien.length > 0 && (
+        <ol className="space-y-2">
+          {dateien.map((d, i) => (
+            <li key={d.datei.name + i} className="flex flex-wrap items-center gap-2 rounded-md border border-linie px-3 py-2">
+              <span className="w-6 text-center font-semibold tabular-nums">{i + 1}</span>
+              <input
+                value={d.titel}
+                onChange={(e) => {
+                  const neu = [...dateien];
+                  neu[i] = { ...neu[i], titel: e.target.value };
+                  setDateien(neu);
+                }}
+                maxLength={200}
+                className="min-w-0 flex-1"
+                aria-label={`Titel von Schritt ${i + 1}`}
+              />
+              <span className="text-xs text-leise">{Math.round(d.datei.size / 1024 / 1024)} MB</span>
+              <span className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => verschieben(i, -1)}
+                  disabled={i === 0 || laeuft}
+                  className="rounded border border-linie px-2 text-sm disabled:opacity-40"
+                  aria-label="nach oben"
+                >
+                  &uarr;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => verschieben(i, 1)}
+                  disabled={i === dateien.length - 1 || laeuft}
+                  className="rounded border border-linie px-2 text-sm disabled:opacity-40"
+                  aria-label="nach unten"
+                >
+                  &darr;
+                </button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {laeuft && (
+        <div className="space-y-1">
+          <p className="text-xs text-leise">{stand}</p>
+          <div className="h-2 overflow-hidden rounded-full bg-linie">
+            <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${fortschritt}%` }} />
+          </div>
+        </div>
+      )}
+      {fehler && <p className="text-sm" style={{ color: "var(--blocker)" }}>{fehler}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={laeuft}
+          className="rounded-md bg-gold px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {laeuft ? stand || "Wird hochgeladen..." : `${dateien.length || ""} Videos hochladen`.trim()}
         </button>
         <button type="button" onClick={() => setOffen(false)} disabled={laeuft} className="text-sm text-leise underline">
           Abbrechen

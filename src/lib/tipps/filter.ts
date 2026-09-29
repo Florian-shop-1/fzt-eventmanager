@@ -13,6 +13,10 @@ export interface Tipp {
   videoTyp: string;
   erstelltVon: string;
   erstelltAm: string;
+  /** Gehört zu einer mehrteiligen Anleitung, sonst null. */
+  reiheId?: string | null;
+  /** Die Stelle in der Reihe, beginnend bei 1. */
+  schritt?: number;
 }
 
 /**
