@@ -6,6 +6,15 @@ import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { datumLang } from "@/lib/zeit";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { Absendeknopf } from "@/components/Absendeknopf";
+import {
+  alsBuchung,
+  darfParkplatzEintragen,
+  handParkplaetzeAmTag,
+  type HandParkplatz,
+} from "@/lib/shop/parkplatz-hand";
+import { parkplatzEintragen, parkplatzLoeschen } from "./aktionen";
 
 export const metadata = { title: "Parkplätze | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -26,9 +35,10 @@ export const dynamic = "force-dynamic";
 export default async function ParkplaetzeSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; meldung?: string }>;
 }) {
-  const { abend, monat } = await searchParams;
+  const { abend, monat, meldung } = await searchParams;
+  const ich = await angemeldeterBenutzer();
   const termine = await alleShowtage();
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
   // Seiten: Adresse, dann der zuletzt angesehene Abend, dann heute.
@@ -50,14 +60,28 @@ export default async function ParkplaetzeSeite({
 
   const termin = await findeTermin(gewaehlt);
   let buchungen: Parkplatzbuchung[] = [];
+  let vonHand: HandParkplatz[] = [];
   let fehler: string | null = null;
 
   if (termin) {
     try {
       buchungen = await parkplaetzeDesTages(termin.datum);
     } catch (e) {
+      // Faellt die Google-Tabelle aus, sollen wenigstens die eigenen
+      // Eintraege noch dastehen: Sie liegen in unserer Datenbank.
       fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
     }
+    /*
+      Was wir selbst vergeben haben, kommt dazu: telefonisch gebucht oder
+      verschenkt (Florian, 29.09.2026). Auf dem Parkplatz sieht man dem
+      Auto nicht an, wie es gebucht wurde, deshalb landen beide Quellen in
+      derselben Liste und im selben Druck.
+    */
+    vonHand = await handParkplaetzeAmTag(termin.datum).catch(() => []);
+    buchungen = [
+      ...buchungen,
+      ...vonHand.map((h) => alsBuchung(h, termin.name, termin.uhrzeit ?? "")),
+    ].sort((a, b) => a.name.localeCompare(b.name, "de"));
   }
 
   // Ein Schild je Platz, nicht je Buchung: Wer zwei Plätze bucht, braucht
@@ -101,6 +125,15 @@ export default async function ParkplaetzeSeite({
         />
       </div>
 
+      {meldung && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
+        </p>
+      )}
+
       {fehler && (
         <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm print:hidden">
           <strong style={{ color: "var(--blocker)" }}>Liste nicht lesbar.</strong>
@@ -135,12 +168,46 @@ export default async function ParkplaetzeSeite({
               {buchungen.map((b) => (
                 <tr key={b.orderId + b.name} className="border-b border-linie last:border-0">
                   <td className="py-2">
-                    <div className="font-medium">{b.name}</div>
-                    <div className="text-xs text-leise">{b.eventName}</div>
+                    <div className="font-medium">
+                      {b.name}
+                      {b.orderId.startsWith("hand:") && (
+                        <span
+                          className="ml-2 rounded px-1.5 py-0.5 text-[11px]"
+                          style={{ background: "var(--gold-hell)" }}
+                        >
+                          von Hand
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-leise">
+                      {b.eventName}
+                      {(() => {
+                        const h = vonHand.find((x) => `hand:${x.id}` === b.orderId);
+                        if (!h) return null;
+                        return (
+                          <>
+                            {h.notiz ? ` · ${h.notiz}` : ""}
+                            {h.erfasstVon ? ` · eingetragen von ${h.erfasstVon}` : ""}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </td>
                   <td className="py-2 text-right tabular-nums">{b.anzahl}</td>
                   <td className="py-2 text-xs">
-                    {b.schildUrl ? (
+                    {b.orderId.startsWith("hand:") ? (
+                      darfParkplatzEintragen(ich) ? (
+                        <form action={parkplatzLoeschen}>
+                          <input type="hidden" name="id" value={b.orderId.slice(5)} />
+                          <input type="hidden" name="abend" value={gewaehlt} />
+                          <button type="submit" className="text-leise underline hover:text-text">
+                            wieder entfernen
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="text-leise">von Hand vergeben</span>
+                      )
+                    ) : b.schildUrl ? (
                       <a
                         href={b.schildUrl}
                         target="_blank"
@@ -159,6 +226,44 @@ export default async function ParkplaetzeSeite({
           </table>
         )}
       </section>
+
+      {/* ---------------------------------------------------------------
+          Einen Platz selbst vergeben: telefonisch gebucht oder geschenkt.
+          --------------------------------------------------------------- */}
+      {darfParkplatzEintragen(ich) && termin && (
+        <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm print:hidden">
+          <summary className="cursor-pointer font-medium">Parkplatz von Hand eintragen</summary>
+          <p className="mt-2 max-w-prose text-xs text-leise">
+            Für Gäste ohne Buchung im Shop: telefonisch gebucht, oder weil wir jemandem einen Platz
+            schenken. Das Schild wird genauso gedruckt wie für eine Buchung.
+          </p>
+          <form action={parkplatzEintragen} className="mt-3 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="abend" value={gewaehlt} />
+            <input type="hidden" name="datum" value={termin.datum} />
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Name (so steht er auf dem Schild)</span>
+              <input name="name" required className="w-64" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">E-Mail (falls bekannt)</span>
+              <input name="email" type="email" className="w-56" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Plätze</span>
+              <input name="anzahl" type="number" min={1} max={20} defaultValue={1} className="w-20" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Warum (nur intern)</span>
+              <input name="notiz" placeholder="telefonisch gebucht" className="w-64" />
+            </label>
+            <Absendeknopf text="Eintragen" laeuftText="..." />
+          </form>
+          <p className="mt-3 text-xs text-leise">
+            Gilt für den {termin ? datumKurz(termin.datum) : "gewählten Abend"}. Für einen anderen Abend
+            oben umschalten.
+          </p>
+        </details>
+      )}
 
       {/* Die Schilder. Am Bildschirm unsichtbar, im Druck je eine Seite. */}
       <div className="parkschilder hidden print:block">
