@@ -58,6 +58,10 @@ foreach ($eine in $ibans) {
     $endet = $eine.Substring([Math]::Max(0, $eine.Length - 4))
     Write-Host "  Konto ...$endet" -ForegroundColor Green
 }
+Write-Host "  Die Kreditkarte hat keine IBAN, sondern eine Kartennummer." -ForegroundColor Cyan
+Write-Host "  Leer lassen, wenn die Kartenumsaetze nicht abgerufen werden sollen." -ForegroundColor Cyan
+Frage "Kreditkartennummer (freiwillig)" "FINTS_KREDITKARTE" $true
+
 Write-Host "  Jedes Konto muss im Eventmanager unter Zahlungseingaenge einmal" -ForegroundColor Cyan
 Write-Host "  freigeschaltet werden, sonst kommen seine Umsaetze nicht an." -ForegroundColor Cyan
 Write-Host ""

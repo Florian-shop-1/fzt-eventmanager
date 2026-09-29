@@ -317,11 +317,12 @@ def main():
                     ("HICAZS", "Umsaetze im camt-Format (HKCAZ)"),
                 ):
                     treffer = klient.bpd.find_segments(kuerzel)
-                    fassungen = ", ".join(str(t.header.version) for t in treffer)
-                    print(f"  {titel}: {'ja, Fassung ' + fassungen if treffer else 'nicht angeboten'}")
+                    print(f"  {titel}: {'ja' if treffer else 'nicht angeboten'}")
                 print(
-                    "\nSteht bei den Kreditkartenumsaetzen 'nicht gefunden', gibt die Bank sie ueber FinTS\n"
-                    "nicht heraus. Dann bleibt der Weg ueber den Monatsauszug im OnlineBanking."
+                    "\nSteht bei den Kreditkartenumsaetzen 'nicht angeboten', gibt die Bank sie ueber FinTS\n"
+                    "nicht heraus. Dann bleibt der Weg ueber den Monatsauszug im OnlineBanking.\n"
+                    "\nSteht dort 'ja', fehlt nur noch die Kartennummer in FINTS_KREDITKARTE.\n"
+                    "Die traegst du mit zugangsdaten.cmd ein, sie steht nirgends im Programm."
                 )
                 return
 
