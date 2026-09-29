@@ -293,3 +293,62 @@ export async function nachtabschluss(): Promise<{ gemeldet: number }> {
   }
   return { gemeldet };
 }
+
+/**
+ * Ein Stempel zu einer Uhrzeit, zu der niemand arbeitet.
+ *
+ * Wer um zwei Uhr nachts einstempelt, hat entweder etwas Ungewoehnliches
+ * gemacht oder danebengegriffen. Das Programm entscheidet das nicht: Es
+ * schreibt der Person, dass der Tag erst gewertet wird, wenn die Zeiten
+ * vorliegen, und bittet um die Nachmeldung, die Florian oder Kevin
+ * bestaetigen (Florian, 29.09.2026).
+ *
+ * Silvester und Neujahr sind ausgenommen, da wird wirklich nachts
+ * gearbeitet, siehe istSilvester().
+ */
+export async function unplausibelMelden(o: {
+  stempelId: string;
+  benutzerId: string;
+  name: string;
+  art: string;
+  zeitpunkt: string;
+  grund: string;
+}): Promise<void> {
+  const tag = isoDatum(new Date(o.zeitpunkt));
+  // Hoechstens einmal je Tag, sonst kommt bei jedem weiteren Stempel
+  // derselben Nacht eine neue Mail.
+  if (await schonGemeldet(o.stempelId, `unplausibel:${tag}`)) return;
+  await meldungMerken(o.stempelId, `unplausibel:${tag}`);
+
+  await melden(`${o.name}: Stempel zu ungewoehnlicher Uhrzeit`, [
+    `${o.name} hat "${o.art}" gestempelt: ${zeit(o.zeitpunkt)}.`,
+    `Das ist nicht plausibel (${o.grund}).`,
+    "Der Tag zaehlt vorerst nicht als Arbeitszeit. Die Person wurde gebeten, ihre Zeiten nachzumelden.",
+    "Sobald ihr die Nachmeldung uebernehmt oder die Zeit von Hand eintragt, zaehlt der Tag wieder.",
+  ]);
+
+  const p = (await db()`select email from benutzer where id = ${o.benutzerId} and aktiv`) as Array<{ email: string }>;
+  if (!p[0]?.email) return;
+  try {
+    await mailVerschicken({
+      an: p[0].email,
+      betreff: "Deine Zeiten von heute brauchen eine Bestaetigung",
+      text: [
+        `Hallo ${o.name.split(" ")[0]},`,
+        "",
+        `du hast um ${zeit(o.zeitpunkt)} gestempelt. Zu dieser Uhrzeit arbeitet normalerweise niemand,`,
+        "deshalb kann dieser Tag erst gewertet werden, wenn die Zeiten dafuer vorliegen.",
+        "",
+        "Bitte trag kurz nach, wann du tatsaechlich gekommen und gegangen bist und ob du Pause gemacht hast.",
+        "Florian oder Kevin bestaetigen das dann, und der Tag zaehlt ganz normal mit:",
+        `${APP}/stempeluhr?tag=${tag}#nachmelden`,
+        "",
+        "War die Uhrzeit richtig, schreib es einfach dazu. Dann wird sie so bestaetigt.",
+        "",
+        "Danke dir.",
+      ].join("\n"),
+    });
+  } catch (f) {
+    console.error("[stempel] Hinweis an", p[0].email, "fehlgeschlagen:", f);
+  }
+}

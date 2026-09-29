@@ -166,6 +166,23 @@ export async function lohnPdf(d: LohnPdfDaten): Promise<Buffer> {
   schreib("Stunden als Dezimalzahl, zum Beispiel 7,75 fuer 7 Stunden 45 Minuten.", LINKS, y, 8, normal, HELLGRAU);
   y -= 12;
 
+  const zuBestaetigen = d.leute.filter((p) => p.unplausibleTage.length > 0);
+  if (zuBestaetigen.length > 0) {
+    y -= 6;
+    schreib("Noch zu bestaetigen", LINKS, y, 9, fett);
+    y -= 13;
+    for (const p of zuBestaetigen) {
+      platz(13);
+      schreib(
+        `${p.name}: ${p.unplausibleTage
+          .map((t) => `${datumDe(t.datum)} (${t.grund})`)
+          .join(", ")}. Diese Tage sind nicht mitgezaehlt.`,
+        LINKS, y, 8, normal, GRAU,
+      );
+      y -= 12;
+    }
+  }
+
   const offene = d.leute.filter((p) => p.offeneTage.length > 0);
   if (offene.length > 0) {
     y -= 6;

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { artSetzen, benutzerUmschalten, personalbogenAnfordern } from "@/lib/auth/aktionen";
 import { whatsappFreigabeUmschalten } from "@/lib/whatsapp/aktionen";
@@ -43,8 +44,10 @@ export default async function BenutzerSeite() {
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
            startpasswort, whatsapp, art, personalbogen_am
-      from benutzer order by rolle, name
+      from benutzer order by rolle
   `) as Zeile[];
+  // Innerhalb der Rolle nach Familienname, wie ueberall (Florian, 29.09.2026).
+  benutzer.sort((a, b) => a.rolle.localeCompare(b.rolle, "de") || nachFamilienname(a, b));
   const offeneLinks = await offeneEinladungen();
 
   return (

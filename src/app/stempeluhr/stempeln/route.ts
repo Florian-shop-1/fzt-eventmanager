@@ -10,7 +10,8 @@ import {
   stunden,
   type StempelArt,
 } from "@/lib/stempel/db";
-import { gelaendeVerlassen, standortUnklarMelden } from "@/lib/stempel/wache";
+import { gelaendeVerlassen, standortUnklarMelden, unplausibelMelden } from "@/lib/stempel/wache";
+import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 
 /**
@@ -92,6 +93,33 @@ export async function POST(request: Request) {
         ? `Ausgestempelt außerhalb des Geländes (rund ${pruefung.entfernungM} Meter entfernt)`
         : "",
   });
+
+  /*
+    Eine Uhrzeit, zu der niemand arbeitet.
+
+    Gestempelt wird trotzdem: Vielleicht stimmt es ja, und niemanden
+    auszusperren ist wichtiger als eine saubere Tabelle. Aber der Tag
+    zaehlt erst, wenn jemand die Zeiten bestaetigt hat, und die Person
+    erfaehrt das sofort statt erst bei der Lohnabrechnung
+    (Florian, 29.09.2026).
+  */
+  const jetzt = new Date(stempel.zeitpunkt);
+  const tagHier = jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const minutenHier = Number(
+    jetzt.toLocaleString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).slice(0, 2),
+  ) * 60 +
+    Number(jetzt.toLocaleString("de-DE", { timeZone: "Europe/Berlin", minute: "2-digit" }));
+
+  if (!istSilvester(tagHier) && minutenHier >= NACHT_VON && minutenHier <= NACHT_BIS) {
+    await unplausibelMelden({
+      stempelId: stand.stempelHeute.find((s) => s.art === "kommen")?.id ?? stempel.id,
+      benutzerId: b.id,
+      name: b.name,
+      art,
+      zeitpunkt: stempel.zeitpunkt,
+      grund: "mitten in der Nacht",
+    }).catch(() => undefined);
+  }
 
   if (standortUnklar) {
     // Auf den Kommen-Stempel der Schicht beziehen, damit nicht bei jedem

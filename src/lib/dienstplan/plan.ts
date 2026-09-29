@@ -12,6 +12,7 @@
  */
 
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 
 export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "SHADOW";
@@ -127,9 +128,9 @@ export async function allePersonen(): Promise<Person[]> {
       left join dienst_quali q on q.benutzer_id = b.id
      where b.aktiv and b.rolle <> 'kiosk'
      group by b.id
-     order by b.name
   `) as Array<{ id: string; name: string; email: string; rolle: string; art: string | null; fest: boolean; quali: Array<{ p: FestePosition; l: boolean }> }>;
-  return z.map((r) => ({
+  // Nach Familienname, wie ueberall (Florian, 29.09.2026).
+  return z.sort(nachFamilienname).map((r) => ({
     id: r.id,
     name: r.name,
     vorname: r.name.split(" ")[0],

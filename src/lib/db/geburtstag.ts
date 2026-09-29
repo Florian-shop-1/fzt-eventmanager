@@ -11,6 +11,7 @@
  */
 
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 
 export interface Geburtstagskind {
   id: string;
@@ -54,10 +55,11 @@ export async function heutigeGeburtstage(heute = new Date()): Promise<Geburtstag
      where b.aktiv
        and (b.geburtstag = any(${gesucht}::text[])
             or (b.geburtstag is null and left(btrim(coalesce(g.geburtsdatum, '')), 5) = any(${gesucht}::text[])))
-     order by b.name
   `) as Array<{ id: string; name: string }>;
 
-  return z.map((r) => ({ id: String(r.id), name: r.name, vorname: r.name.split(" ")[0] }));
+  return z
+    .sort(nachFamilienname)
+    .map((r) => ({ id: String(r.id), name: r.name, vorname: r.name.split(" ")[0] }));
 }
 
 /**

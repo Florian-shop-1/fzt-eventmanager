@@ -33,6 +33,7 @@ export function summenListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string {
       "Urlaubstage",
       "Kranktage",
       "Offene Tage",
+      "Zu bestaetigen",
     ]),
   ];
   for (const p of leute) {
@@ -47,6 +48,7 @@ export function summenListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string {
         p.urlaubstage,
         p.kranktage,
         p.offeneTage.length,
+        p.unplausibleTage.length,
       ]),
     );
   }
@@ -81,7 +83,13 @@ export function protokollListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string 
           gehen,
           alsDezimal(t.arbeitMinuten),
           alsDezimal(t.pauseMinuten),
-          t.offen ? "Ausstempeln fehlt" : "",
+          t.offen
+            ? "Ausstempeln fehlt, nicht gezaehlt"
+            : t.unplausibel && !t.bestaetigt
+              ? `${t.unplausibel}, noch zu bestaetigen, nicht gezaehlt`
+              : t.fehlstempel > 0
+                ? `${t.fehlstempel} Fehlstempel herausgerechnet`
+                : "",
         ]),
       );
       tage.delete(t.datum);

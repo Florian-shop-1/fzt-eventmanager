@@ -12,6 +12,8 @@
  */
 
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
+import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
 import type { Zeitraum } from "./zeitraum";
 
 export type Abwesenheitsart = "urlaub" | "krank" | "privat";
@@ -25,6 +27,14 @@ export interface Tagesprotokoll {
   pauseMinuten: number;
   /** Offen heißt: gekommen, aber nie gegangen. Dann fehlt die Zeit. */
   offen: boolean;
+  /** Wie viele Fehlstempel herausgefallen sind, etwa dreimal Einstempeln. */
+  fehlstempel: number;
+  /** Warum der Tag nicht plausibel ist, sonst null. */
+  unplausibel: string | null;
+  /** Das Büro hat den Tag angefasst und damit bestätigt. */
+  bestaetigt: boolean;
+  /** Zählt der Tag mit? Ein offener oder unplausibler Tag zählt nicht. */
+  gewertet: boolean;
 }
 
 export interface Abwesenheitstag {
@@ -44,6 +54,8 @@ export interface Mitarbeiterzeiten {
   kranktage: number;
   /** Tage, an denen ein Gehen fehlt. Die muss jemand nacharbeiten. */
   offeneTage: string[];
+  /** Tage, deren Zeiten nicht plausibel sind und noch bestätigt werden müssen. */
+  unplausibleTage: Array<{ datum: string; grund: string }>;
   protokoll: Tagesprotokoll[];
   abwesend: Abwesenheitstag[];
 }
@@ -84,7 +96,7 @@ function tageZwischen(von: string, bis: string): string[] {
  */
 export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]> {
   const stempel = (await db()`
-    select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, b.email
+    select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email
       from stempel s
       left join benutzer b on b.id = s.benutzer_id
      where s.zeitpunkt >= (${z.von}::date - 1)::timestamptz
@@ -116,6 +128,7 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       urlaubstage: 0,
       kranktage: 0,
       offeneTage: [],
+      unplausibleTage: [],
       protokoll: [],
       abwesend: [],
     };
@@ -123,73 +136,93 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
     return neu;
   };
 
-  // Stempel nach Person und Tag sortieren.
-  const jeTag = new Map<string, Tagesprotokoll>();
+  /*
+    Die Stempel je Person zu Tagen buendeln.
+
+    Ein Tag ist hier eine Schicht, kein Kalendertag: Wer um 17 Uhr kommt
+    und nach dem Aufraeumen um halb eins geht, hat einmal gearbeitet.
+    Deshalb wandern die Stempel der Nacht in nachtschichtenAnhaengen()
+    zurueck zum Vortag (Florian, 29.09.2026).
+  */
+  interface RohStempel {
+    art: string;
+    ms: number;
+    geaendertVon: string | null;
+    uhrzeit: string;
+    quelle: string;
+    imHaus: boolean;
+  }
+
+  const jePerson = new Map<string, Map<string, RohStempel[]>>();
   for (const s of stempel) {
     const id = String(s.benutzer_id);
-    const person = hole(id, String(s.name ?? ""), String(s.email ?? ""));
+    hole(id, String(s.name ?? ""), String(s.email ?? ""));
     const { tag, uhrzeit } = hier(String(s.zeitpunkt));
-    if (!imZeitraum(tag)) continue;
 
-    const schluessel = `${id}|${tag}`;
-    let eintrag = jeTag.get(schluessel);
-    if (!eintrag) {
-      eintrag = { datum: tag, stempel: [], arbeitMinuten: 0, pauseMinuten: 0, offen: false };
-      jeTag.set(schluessel, eintrag);
-      person.protokoll.push(eintrag);
-    }
-    eintrag.stempel.push({
-      art: String(s.art),
-      uhrzeit,
-      quelle: String(s.quelle ?? "app"),
-      imHaus: s.im_haus !== false,
-    });
+    const tage = jePerson.get(id) ?? new Map<string, RohStempel[]>();
+    jePerson.set(id, tage);
+    tage.set(tag, [
+      ...(tage.get(tag) ?? []),
+      {
+        art: String(s.art),
+        ms: Date.parse(String(s.zeitpunkt)),
+        geaendertVon: (s.geaendert_von as string) ?? null,
+        uhrzeit,
+        quelle: String(s.quelle ?? "app"),
+        imHaus: s.im_haus !== false,
+      },
+    ]);
   }
 
   /*
     Aus den Stempeln die Minuten rechnen.
 
-    Dieselbe Logik wie in der Monatsübersicht der Stempeluhr: Die Zeit
-    zwischen Kommen und Pause beziehungsweise Gehen ist Arbeit, die
-    zwischen Pausenanfang und Pausenende ist Pause. Fehlt das Gehen,
-    bleibt der Tag offen und zählt mit null Minuten: Lieber eine Lücke,
-    die jemand sieht, als eine geschätzte Zahl in der Lohnabrechnung.
+    Gerechnet wird in tagRechnen(), derselben Stelle wie in der
+    Stempeluhr. Dort fallen auch Fehlstempel heraus und dort entscheidet
+    sich, ob ein Tag plausibel ist. Ein Tag, der nicht gewertet wird,
+    zaehlt mit null Minuten: Lieber eine Luecke, die jemand sieht, als eine
+    geratene Zahl in der Lohnabrechnung.
   */
-  for (const [schluessel, tagProt] of jeTag) {
-    const id = schluessel.split("|")[0];
+  for (const [id, tage] of jePerson) {
     const person = leute.get(id)!;
-    let start: number | null = null;
-    let pauseStart: number | null = null;
+    const gruppen = nachtschichtenAnhaengen(
+      [...tage].map(([datum, liste]) => ({ datum, stempel: liste })),
+    );
 
-    for (const s of tagProt.stempel) {
-      const t = Date.parse(`${tagProt.datum}T${s.uhrzeit}:00`);
-      if (s.art === "kommen") start = t;
-      if (s.art === "pause_start") {
-        if (start !== null) tagProt.arbeitMinuten += (t - start) / 60000;
-        start = null;
-        pauseStart = t;
+    for (const g of gruppen) {
+      // Erst nach dem Zusammenfuehren entscheidet sich, zu welchem Tag
+      // eine Nachtschicht gehoert. Deshalb wird hier gefiltert, nicht vorher.
+      if (!imZeitraum(g.datum)) continue;
+
+      const r = tagRechnen(g.datum, g.stempel);
+      const tagProt: Tagesprotokoll = {
+        datum: g.datum,
+        stempel: g.stempel.map((x) => ({
+          art: x.art,
+          uhrzeit: x.uhrzeit,
+          quelle: x.quelle,
+          imHaus: x.imHaus,
+        })),
+        arbeitMinuten: r.arbeitMinuten,
+        pauseMinuten: r.pauseMinuten,
+        offen: r.offen,
+        fehlstempel: r.fehlstempel,
+        unplausibel: r.unplausibel,
+        bestaetigt: r.bestaetigt,
+        gewertet: r.gewertet,
+      };
+      person.protokoll.push(tagProt);
+
+      if (r.gewertet) {
+        person.arbeitMinuten += r.arbeitMinuten;
+        person.pauseMinuten += r.pauseMinuten;
+        if (r.arbeitMinuten > 0) person.arbeitstage += 1;
       }
-      if (s.art === "pause_ende") {
-        if (pauseStart !== null) tagProt.pauseMinuten += (t - pauseStart) / 60000;
-        pauseStart = null;
-        start = t;
-      }
-      if (s.art === "gehen") {
-        if (start !== null) tagProt.arbeitMinuten += (t - start) / 60000;
-        if (pauseStart !== null) tagProt.pauseMinuten += (t - pauseStart) / 60000;
-        start = null;
-        pauseStart = null;
+      if (r.offen) person.offeneTage.push(g.datum);
+      if (r.unplausibel && !r.bestaetigt) {
+        person.unplausibleTage.push({ datum: g.datum, grund: r.unplausibel });
       }
     }
-
-    tagProt.offen = start !== null || pauseStart !== null;
-    tagProt.arbeitMinuten = Math.round(tagProt.arbeitMinuten);
-    tagProt.pauseMinuten = Math.round(tagProt.pauseMinuten);
-
-    person.arbeitMinuten += tagProt.arbeitMinuten;
-    person.pauseMinuten += tagProt.pauseMinuten;
-    if (tagProt.arbeitMinuten > 0) person.arbeitstage += 1;
-    if (tagProt.offen) person.offeneTage.push(tagProt.datum);
   }
 
   // Urlaub und Krankheit tageweise, nur innerhalb des Zeitraums.
@@ -208,11 +241,18 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
   for (const p of leute.values()) {
     p.protokoll.sort((a, b) => a.datum.localeCompare(b.datum));
     p.abwesend.sort((a, b) => a.datum.localeCompare(b.datum));
+    p.unplausibleTage.sort((a, b) => a.datum.localeCompare(b.datum));
   }
 
   return [...leute.values()]
-    .filter((p) => p.arbeitMinuten > 0 || p.abwesend.length > 0 || p.offeneTage.length > 0)
-    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+    .filter(
+      (p) =>
+        p.arbeitMinuten > 0 ||
+        p.abwesend.length > 0 ||
+        p.offeneTage.length > 0 ||
+        p.unplausibleTage.length > 0,
+    )
+    .sort(nachFamilienname);
 }
 
 /** "7:45" aus 465 Minuten. */

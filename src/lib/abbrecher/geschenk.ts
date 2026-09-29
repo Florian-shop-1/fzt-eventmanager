@@ -67,6 +67,10 @@ export interface Geschenk {
   gebuchtUhrzeit: string | null;
   /** Wie viele Plätze er am Ende wirklich gebucht hat. */
   gebuchtPlaetze: number | null;
+  /** Von Hand eingetragen, ohne Buchung im Shop. */
+  vonHand: boolean;
+  /** Wer es eingetragen hat. Nur bei Geschenken von Hand. */
+  erfasstVon: string;
   /**
    * Was das Foyer herausgibt.
    *
@@ -96,6 +100,8 @@ function baue(r: Record<string, unknown>): Geschenk {
     gebuchtDatum: (r.gebucht_datum as string) ?? null,
     gebuchtUhrzeit: (r.gebucht_uhrzeit as string) ?? null,
     gebuchtPlaetze: r.gebucht_plaetze === null || r.gebucht_plaetze === undefined ? null : Number(r.gebucht_plaetze),
+    vonHand: Boolean(r.von_hand),
+    erfasstVon: String(r.erfasst_von ?? ""),
     gilt: (() => {
       const versprochen = Number(r.anzahl ?? 1);
       const gebucht = r.gebucht_plaetze === null || r.gebucht_plaetze === undefined ? null : Number(r.gebucht_plaetze);
@@ -154,9 +160,11 @@ export async function geschenkZurBuchung(buchungId: string): Promise<Geschenk | 
 export async function geschenke(alle = false): Promise<Geschenk[]> {
   const z = (await db()`
     select g.*,
-           coalesce(direkt.show, k.show) as gebucht_show,
-           coalesce(direkt.datum, k.datum)::text as gebucht_datum,
-           coalesce(direkt.uhrzeit, k.uhrzeit) as gebucht_uhrzeit,
+           -- Von Hand eingetragene Geschenke haben keine Buchung im Shop;
+           -- bei ihnen steht der Abend direkt am Geschenk.
+           coalesce(direkt.show, k.show, g.hand_show) as gebucht_show,
+           coalesce(direkt.datum, k.datum, g.hand_datum)::text as gebucht_datum,
+           coalesce(direkt.uhrzeit, k.uhrzeit, g.hand_uhrzeit) as gebucht_uhrzeit,
            coalesce(direkt.plaetze, k.plaetze) as gebucht_plaetze
       from abbruch_geschenk g
       -- Bei Show-Absagen (siehe lib/absage) steht die Buchung schon fest,
@@ -172,9 +180,11 @@ export async function geschenke(alle = false): Promise<Geschenk[]> {
          limit 1
       ) k on direkt.id is null
      where g.versprochen_am >= now() - interval '180 days'
-       and coalesce(direkt.show, k.show) is not null
+       -- Von Hand eingetragene Geschenke stehen immer in der Liste, auch
+       -- ohne Buchung: Genau dafuer sind sie da (Florian, 29.09.2026).
+       and (g.von_hand or coalesce(direkt.show, k.show) is not null)
        and (${alle} or g.eingeloest_am is null)
-     order by coalesce(direkt.datum, k.datum) nulls last, g.versprochen_am desc
+     order by coalesce(direkt.datum, k.datum, g.hand_datum) nulls last, g.versprochen_am desc
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
 }
@@ -189,4 +199,58 @@ export async function geschenkEinloesen(id: string, wer: string): Promise<void> 
 
 export async function geschenkZurueck(id: string): Promise<void> {
   await db()`update abbruch_geschenk set eingeloest_am = null, eingeloest_von = null where id = ${id}`;
+}
+
+/**
+ * Wer ein Geschenk von Hand eintragen darf: Florian, Kevin und das Foyer.
+ *
+ * Das Foyer steht abends mit den Gaesten zusammen und merkt als Erstes,
+ * wem man eine Freude machen sollte. Deshalb darf es selbst eintragen und
+ * muss nicht erst jemanden suchen (Florian, 29.09.2026).
+ */
+export function darfGeschenkEintragen(
+  b: { rolle: string; email: string } | null | undefined,
+): boolean {
+  if (!b) return false;
+  if (b.rolle === "chef" || b.rolle === "foyer") return true;
+  return b.email.toLowerCase() === "kevin.steele@florianzimmer.com";
+}
+
+/**
+ * Ein Geschenk ohne Shop-Buchung eintragen.
+ *
+ * Zwei Faelle: jemandem etwas Gutes tun, oder ein Abend, der telefonisch
+ * gebucht wurde. Der Abend wird mitgegeben, damit das Foyer den Gast am
+ * richtigen Tag in der Liste findet.
+ */
+export async function geschenkVonHand(o: {
+  name: string;
+  email: string;
+  art: GeschenkArt;
+  anzahl: number;
+  show: string;
+  datum: string;
+  uhrzeit: string;
+  notiz: string;
+  erfasstVon: string;
+}): Promise<void> {
+  const name = o.name.trim();
+  if (!name) throw new Error("Ohne Namen findet das Foyer den Gast nicht.");
+  const datum = /^\d{4}-\d{2}-\d{2}$/.test(o.datum) ? o.datum : null;
+  if (!datum) throw new Error("Bitte den Abend angeben, an dem der Gast kommt.");
+
+  /*
+    Gueltig bis zum Abend, plus ein paar Tage Luft: Wer wegen Krankheit
+    umbucht, soll sein Glas nicht verlieren.
+  */
+  const giltBis = new Date(`${datum}T23:59:00`);
+  giltBis.setDate(giltBis.getDate() + 30);
+
+  await db()`
+    insert into abbruch_geschenk
+      (email, name, art, anzahl, gilt_bis, notiz, von_hand, erfasst_von, hand_show, hand_datum, hand_uhrzeit)
+    values (${o.email.trim()}, ${name}, ${o.art}, ${Math.max(1, Math.min(20, o.anzahl))},
+            ${giltBis.toISOString()}, ${o.notiz.trim().slice(0, 500)}, true, ${o.erfasstVon},
+            ${o.show.trim().slice(0, 120) || null}, ${datum}::date, ${o.uhrzeit.trim().slice(0, 10) || null})
+  `;
 }

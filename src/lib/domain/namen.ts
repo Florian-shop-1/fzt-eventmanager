@@ -45,3 +45,31 @@ export function nameOrdentlich(name: string): string {
     })
     .join(" ");
 }
+
+/**
+ * Der Familienname aus einem vollen Namen.
+ *
+ * Das letzte Wort, Namenszusaetze davor eingeschlossen: Aus "Anna von
+ * Sachsen" wird "von Sachsen", aus "Herr Stefan Wilhelm" wird "Wilhelm".
+ * Wer nur einen Namen hat, behaelt ihn.
+ */
+export function familienname(name: string): string {
+  const teile = name.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (teile.length < 2) return teile[0] ?? "";
+
+  let ab = teile.length - 1;
+  while (ab > 1 && ZUSAETZE.has(teile[ab - 1].toLowerCase())) ab -= 1;
+  return teile.slice(ab).join(" ");
+}
+
+/**
+ * Mitarbeiter nach Familiennamen sortieren.
+ *
+ * Ueberall gleich, egal auf welcher Seite (Florian, 29.09.2026): Wer eine
+ * Person in einer Liste sucht, sucht sie nach dem Nachnamen, so wie im
+ * Telefonbuch. Bei gleichem Nachnamen entscheidet der Vorname.
+ */
+export function nachFamilienname(a: { name: string }, b: { name: string }): number {
+  const nach = familienname(a.name).localeCompare(familienname(b.name), "de");
+  return nach !== 0 ? nach : a.name.localeCompare(b.name, "de");
+}

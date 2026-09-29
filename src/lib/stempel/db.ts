@@ -10,6 +10,7 @@
  */
 
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 
 export type StempelArt = "kommen" | "pause_start" | "pause_ende" | "gehen";
 
@@ -374,11 +375,11 @@ export async function nachtragen(o: {
 
 /** Alle, die stempeln: für die Auswahl in der Korrektur. */
 export async function stempelnde(): Promise<Array<{ id: string; name: string }>> {
-  return (await db()`
+  // Nach Familienname, wie ueberall (Florian, 29.09.2026).
+  return ((await db()`
     select id, name from benutzer
      where aktiv and rolle not in ('kiosk', 'gastro') and coalesce(art, 'intern') <> 'extern'
-     order by name
-  `) as Array<{ id: string; name: string }>;
+  `) as Array<{ id: string; name: string }>).sort(nachFamilienname);
 }
 
 /* ------------------------------------------------------------------ *

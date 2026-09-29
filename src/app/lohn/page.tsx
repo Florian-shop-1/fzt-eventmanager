@@ -65,6 +65,7 @@ export default async function LohnSeite({
 
   const summe = leute.reduce((s, p) => s + p.arbeitMinuten, 0);
   const offene = leute.filter((p) => p.offeneTage.length > 0);
+  const zuBestaetigen = leute.filter((p) => p.unplausibleTage.length > 0);
   const verschickt = Boolean(stand.versendetAm);
   const freigegeben = Boolean(stand.bestaetigtAm);
 
@@ -160,6 +161,25 @@ export default async function LohnSeite({
             .join(", ")}{" "}
           hat das Ausstempeln vergessen. Diese Tage sind mit null Stunden gerechnet, bis jemand sie in der
           Zeiterfassung nachträgt.
+        </div>
+      )}
+
+      {zuBestaetigen.length > 0 && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong className="font-medium">Noch zu bestätigen:</strong> An diesen Tagen sind die Zeiten
+          nicht plausibel. Sie zählen erst mit, wenn jemand sie in der Zeiterfassung angefasst hat. Die
+          Mitarbeiter wurden gebeten, ihre Zeiten nachzumelden.
+          <ul className="mt-2 space-y-0.5">
+            {zuBestaetigen.map((p) => (
+              <li key={p.benutzerId}>
+                {p.name}:{" "}
+                {p.unplausibleTage.map((t) => `${datumDe(t.datum)} (${t.grund})`).join(", ")}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -306,6 +326,7 @@ function Person({ p, offen, zeitraum }: { p: Mitarbeiterzeiten; offen: boolean; 
           {p.urlaubstage > 0 && `, ${p.urlaubstage} Urlaubstage`}
           {p.kranktage > 0 && `, ${p.kranktage} Kranktage`}
           {p.offeneTage.length > 0 && `, ${p.offeneTage.length} Tage ohne Ausstempeln`}
+          {p.unplausibleTage.length > 0 && `, ${p.unplausibleTage.length} Tage noch zu bestätigen`}
         </span>
       </summary>
 
@@ -334,17 +355,35 @@ function Person({ p, offen, zeitraum }: { p: Mitarbeiterzeiten; offen: boolean; 
                   ) : (
                     <span className="text-leise">
                       {t.arbeit!.stempel.map((s) => `${BEZEICHNUNG[s.art] ?? s.art} ${s.uhrzeit}`).join(", ")}
+                      {t.arbeit!.fehlstempel > 0 && (
+                        <span> (davon {t.arbeit!.fehlstempel} Fehlstempel, nicht gezählt)</span>
+                      )}
                       {t.arbeit!.offen && (
                         <strong className="font-medium" style={{ color: "var(--warnung)" }}>
                           {" "}
                           Ausstempeln fehlt
                         </strong>
                       )}
+                      {t.arbeit!.unplausibel && !t.arbeit!.bestaetigt && (
+                        <strong className="font-medium" style={{ color: "var(--warnung)" }}>
+                          {" "}
+                          {t.arbeit!.unplausibel}, noch zu bestätigen
+                        </strong>
+                      )}
+                      {t.arbeit!.unplausibel && t.arbeit!.bestaetigt && (
+                        <span> ({t.arbeit!.unplausibel}, vom Büro bestätigt)</span>
+                      )}
                     </span>
                   )}
                 </td>
                 <td className="py-2 text-right tabular-nums">
-                  {t.arbeit ? alsStunden(t.arbeit.arbeitMinuten) : "-"}
+                  {t.arbeit ? (
+                    <span className={t.arbeit.gewertet ? "" : "text-leise line-through"}>
+                      {alsStunden(t.arbeit.arbeitMinuten)}
+                    </span>
+                  ) : (
+                    "-"
+                  )}
                 </td>
                 <td className="py-2 text-right tabular-nums text-leise">
                   {t.arbeit && t.arbeit.pauseMinuten > 0 ? alsStunden(t.arbeit.pauseMinuten) : ""}

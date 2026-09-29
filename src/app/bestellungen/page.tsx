@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import {
   ABSTELLORT,
@@ -343,8 +344,8 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
   const [artikel, e, leute] = await Promise.all([
     artikelListe(false),
     einstellungLesen(),
-    db()`select id, name, rolle from benutzer where aktiv and rolle in ('chef', 'team', 'foyer') order by name`.then(
-      (z) => z as Array<{ id: string; name: string; rolle: string }>,
+    db()`select id, name, rolle from benutzer where aktiv and rolle in ('chef', 'team', 'foyer')`.then(
+      (z) => (z as Array<{ id: string; name: string; rolle: string }>).sort(nachFamilienname),
     ),
   ]);
   return (

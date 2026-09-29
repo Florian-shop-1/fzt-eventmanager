@@ -20,6 +20,8 @@ import {
   type Stempel,
 } from "@/lib/stempel/db";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
+import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
+import { nachFamilienname } from "@/lib/domain/namen";
 import {
   antragBeantworten,
   antragUebernehmenAktion,
@@ -462,38 +464,64 @@ async function Monatsuebersicht({ monat }: { monat?: string }) {
   const danach = `${mm === 12 ? j + 1 : j}-${String(mm === 12 ? 1 : mm + 1).padStart(2, "0")}`;
   const stempel = await stempelDesMonats(m);
 
-  // Je Person Arbeitszeit und Pause zusammenzählen.
-  const jePerson = new Map<string, { name: string; minuten: number; pause: number; tage: Set<string> }>();
-  const nach = new Map<string, Stempel[]>();
-  for (const s of stempel) nach.set(s.benutzerId, [...(nach.get(s.benutzerId) ?? []), s]);
-  for (const [id, liste] of nach) {
-    const e = { name: liste[0].name, minuten: 0, pause: 0, tage: new Set<string>() };
-    let start: number | null = null;
-    let pauseStart: number | null = null;
-    for (const s of liste) {
-      const t = Date.parse(s.zeitpunkt);
-      e.tage.add(s.zeitpunkt.slice(0, 10));
-      if (s.art === "kommen") start = t;
-      if (s.art === "pause_start" && start !== null) {
-        e.minuten += (t - start) / 60000;
-        start = null;
-        pauseStart = t;
-      }
-      if (s.art === "pause_ende") {
-        if (pauseStart !== null) e.pause += (t - pauseStart) / 60000;
-        pauseStart = null;
-        start = t;
-      }
-      if (s.art === "gehen") {
-        if (start !== null) e.minuten += (t - start) / 60000;
-        if (pauseStart !== null) e.pause += (t - pauseStart) / 60000;
-        start = null;
-        pauseStart = null;
-      }
-    }
-    jePerson.set(id, e);
+  /*
+    Je Person und Tag rechnen, dann zusammenzählen.
+
+    Gerechnet wird in tagRechnen(), derselben Stelle wie in der
+    Lohnauswertung: Fehlstempel fallen heraus, unplausible Tage zählen
+    erst, wenn das Büro sie bestätigt hat (Florian, 29.09.2026). Zwei
+    Rechenwege für dieselbe Zahl waren einer zu viel.
+  */
+  const jePerson = new Map<
+    string,
+    { name: string; minuten: number; pause: number; tage: Set<string>; offen: number; unplausibel: number }
+  >();
+  const jeTag = new Map<string, Map<string, Stempel[]>>();
+  for (const s of stempel) {
+    const tag = s.zeitpunkt.slice(0, 10);
+    const tage = jeTag.get(s.benutzerId) ?? new Map<string, Stempel[]>();
+    jeTag.set(s.benutzerId, tage);
+    tage.set(tag, [...(tage.get(tag) ?? []), s]);
   }
-  const zeilen = [...jePerson.values()].sort((a, b) => b.minuten - a.minuten);
+
+  for (const [id, tage] of jeTag) {
+    // Eine Schicht ueber Mitternacht gehoert zum Vortag, nicht zu zwei
+    // halben Tagen (Florian, 29.09.2026).
+    const gruppen = nachtschichtenAnhaengen(
+      [...tage].map(([datum, liste]) => ({
+        datum,
+        stempel: liste.map((x) => ({
+          art: x.art,
+          ms: Date.parse(x.zeitpunkt),
+          geaendertVon: x.geaendertVon,
+          name: x.name,
+        })),
+      })),
+    );
+
+    for (const g of gruppen) {
+      const e = jePerson.get(id) ?? {
+        name: g.stempel[0]?.name ?? "",
+        minuten: 0,
+        pause: 0,
+        tage: new Set<string>(),
+        offen: 0,
+        unplausibel: 0,
+      };
+      const r = tagRechnen(g.datum, g.stempel);
+      if (r.gewertet) {
+        e.minuten += r.arbeitMinuten;
+        e.pause += r.pauseMinuten;
+        e.tage.add(g.datum);
+      }
+      if (r.offen) e.offen += 1;
+      if (r.unplausibel && !r.bestaetigt) e.unplausibel += 1;
+      jePerson.set(id, e);
+    }
+  }
+
+  // Nach Familienname, wie überall im Programm (Florian, 29.09.2026).
+  const zeilen = [...jePerson.values()].sort(nachFamilienname);
 
   return (
     <section className="space-y-2">
@@ -525,7 +553,20 @@ async function Monatsuebersicht({ monat }: { monat?: string }) {
           <tbody>
             {zeilen.map((z) => (
               <tr key={z.name} className="border-b border-linie last:border-0">
-                <td className="px-4 py-2">{z.name}</td>
+                <td className="px-4 py-2">
+                  {z.name}
+                  {(z.offen > 0 || z.unplausibel > 0) && (
+                    <div className="text-xs" style={{ color: "var(--warnung)" }}>
+                      {[
+                        z.offen > 0 ? `${z.offen} Tage ohne Ausstempeln` : "",
+                        z.unplausibel > 0 ? `${z.unplausibel} Tage noch zu bestätigen` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                      , nicht gezählt
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">{z.tage.size}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{stunden(z.pause)}</td>
                 <td className="px-4 py-2 text-right font-medium tabular-nums">{stunden(z.minuten)}</td>
