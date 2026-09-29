@@ -16,6 +16,7 @@ import {
   stornieren,
   type Angaben,
 } from "@/lib/bewirtung/db";
+import { postAbholen } from "@/lib/bewirtung/posteingang";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -155,4 +156,28 @@ export async function unterschriftSpeichern(f: FormData): Promise<void> {
   await unterschriftHinterlegen(png, b.name);
   revalidatePath("/bewirtung");
   redirect(`/bewirtung?meldung=${encodeURIComponent("Unterschrift hinterlegt. Sie kommt ab jetzt automatisch auf jede Bewirtung.")}`);
+}
+
+/**
+ * Die Rechnungen aus dem Postfach holen, auf Knopfdruck.
+ *
+ * Taeglich passiert das von selbst. Der Knopf ist fuer den Fall, dass
+ * gerade etwas angekommen ist und nicht bis morgen warten soll.
+ */
+export async function postHolen(): Promise<void> {
+  const b = await zugang();
+  try {
+    const lauf = await postAbholen({ tage: 14, wer: b.name });
+    const teile = [
+      `${lauf.neu} ${lauf.neu === 1 ? "neuer Beleg" : "neue Belege"} aus dem Postfach`,
+      lauf.ohneAnhang > 0 ? `${lauf.ohneAnhang} Mails ohne Rechnung im Anhang` : "",
+      lauf.fehler > 0 ? `${lauf.fehler} konnten nicht gelesen werden` : "",
+    ].filter(Boolean);
+    revalidatePath("/bewirtung");
+    redirect(`/bewirtung?meldung=${encodeURIComponent(teile.join(", ") + ".")}`);
+  } catch (f) {
+    if (f && typeof f === "object" && "digest" in f) throw f;
+    const meldung = f instanceof Error ? f.message : "Das hat nicht geklappt.";
+    redirect(`/bewirtung?meldung=${encodeURIComponent(meldung)}`);
+  }
 }

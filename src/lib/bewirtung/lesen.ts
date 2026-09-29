@@ -120,6 +120,18 @@ export function leserEingerichtet(): boolean {
 }
 
 export async function belegLesen(fotoBase64: string, typ = "image/jpeg"): Promise<BelegLesung> {
+  /*
+    Fotos und PDFs.
+
+    Abfotografiert wird am Handy, aber die Rechnungen von Meta, Google
+    und den Lieferanten kommen als PDF per Mail. Beides liest dasselbe
+    Modell, nur der Inhaltsblock unterscheidet sich (Florian, 29.09.2026).
+  */
+  const istPdf = typ.toLowerCase().includes("pdf");
+  const inhalt = istPdf
+    ? { type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data: fotoBase64 } }
+    : { type: "image" as const, source: { type: "base64" as const, media_type: typ as "image/jpeg", data: fotoBase64 } };
+
   const antwort = await anthropic().messages.create({
     model: MODELL,
     max_tokens: 2000,
@@ -128,10 +140,7 @@ export async function belegLesen(fotoBase64: string, typ = "image/jpeg"): Promis
     messages: [
       {
         role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: typ as "image/jpeg", data: fotoBase64 } },
-          { type: "text", text: "Bitte lies diesen Beleg ab." },
-        ],
+        content: [inhalt, { type: "text", text: "Bitte lies diesen Beleg ab." }],
       },
     ],
   });

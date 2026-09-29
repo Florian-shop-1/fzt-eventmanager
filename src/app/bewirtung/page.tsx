@@ -12,7 +12,8 @@ import {
 } from "@/lib/bewirtung/gesellschaft";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
-import { unterschriftSpeichern } from "./aktionen";
+import { postHolen, unterschriftSpeichern } from "./aktionen";
+import { letztePost, RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
 import { empfaengerAendern, monatSchicken } from "./versand";
 import { empfaengerLesen, sendungenDesJahres, type Empfaenger, type Sendung } from "@/lib/bewirtung/steuerbuero";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -56,7 +57,11 @@ export default async function BewirtungSeite({
     (Florian, 29.09.2026). Deshalb gibt es sie hier gar nicht.
   */
   const firmen = vorkommendeGesellschaften(belege);
-  const [empfaenger, sendungen] = await Promise.all([empfaengerLesen(), sendungenDesJahres(jahr)]);
+  const [empfaenger, sendungen, post] = await Promise.all([
+    empfaengerLesen(),
+    sendungenDesJahres(jahr),
+    letztePost(8).catch(() => []),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -94,6 +99,49 @@ export default async function BewirtungSeite({
           {meldung}
         </div>
       )}
+
+      {/* ---------------------------------------------------------------
+          Rechnungen, die per Mail hereinkommen (Florian, 29.09.2026).
+          --------------------------------------------------------------- */}
+      <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium">
+          Rechnungen aus dem Postfach{post.length > 0 ? ` (zuletzt ${post.length})` : ""}
+        </summary>
+        <p className="mt-2 max-w-prose text-xs text-leise">
+          Was an {RECHNUNGSPOSTFACH} geht, holt das Programm jeden Morgen ab: PDF lesen, Betrag und Datum
+          übernehmen, als Entwurf anlegen. Das Postfach wird dabei nur gelesen, nichts beantwortet und
+          nichts verschoben.
+        </p>
+        <form action={postHolen} className="mt-3">
+          <Absendeknopf text="Jetzt abholen" laeuftText="Wird geholt..." />
+        </form>
+        {post.length > 0 && (
+          <ul className="mt-3 space-y-1 text-xs">
+            {post.map((m) => (
+              <li key={m.nachrichtId} className="flex flex-wrap gap-2">
+                <span className="text-leise">
+                  {m.empfangenAm
+                    ? new Date(m.empfangenAm).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
+                    : ""}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  {m.betreff || "(ohne Betreff)"}{" "}
+                  <span className="text-leise">von {m.von}</span>
+                </span>
+                {m.belegId ? (
+                  <Link href={`/bewirtung/${m.belegId}`} className="underline">
+                    Beleg
+                  </Link>
+                ) : (
+                  <span className="text-leise">
+                    {m.stand === "kein_anhang" ? "keine Rechnung dabei" : m.stand}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
 
       {entwuerfe.length > 0 && (
         <section className="space-y-2 rounded-lg border p-4" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>

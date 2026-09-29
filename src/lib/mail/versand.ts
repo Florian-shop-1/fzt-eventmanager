@@ -102,6 +102,18 @@ function einstellungen(): Einstellungen {
  */
 let token: { wert: string; gueltigBis: number } | null = null;
 
+/**
+ * Dasselbe Token fuer andere Wege zu Microsoft, etwa den Posteingang.
+ *
+ * Eine Anwendung, ein Token: Wer Rechnungen aus dem Postfach holt,
+ * braucht keine zweite Anmeldung (Florian, 29.09.2026).
+ */
+export async function graphToken(): Promise<string> {
+  return zugangstoken(einstellungen());
+}
+
+export const GRAPH_BASIS = GRAPH;
+
 async function zugangstoken(e: Einstellungen): Promise<string> {
   // Eine Minute Sicherheitsabstand, damit ein Token nicht mitten im
   // Versand abläuft.
