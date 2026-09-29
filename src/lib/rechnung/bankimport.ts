@@ -66,6 +66,8 @@ export interface ImportErgebnis {
 export async function umsaetzeUebernehmen(
   liste: RoherUmsatz[],
   wer = "Bankabgleich",
+  /** Von welchem Konto die Umsaetze stammen, letzte vier Stellen. */
+  konto = "",
 ): Promise<ImportErgebnis> {
   const ergebnis: ImportErgebnis = { neu: 0, schonBekannt: 0, zugeordnet: 0, offen: 0, fehler: [] };
   const neue: BankUmsatz[] = [];
@@ -79,11 +81,11 @@ export async function umsaetzeUebernehmen(
       const abdruck = fingerabdruck(u);
       const z = (await db()`
         insert into bank_umsatz (fingerabdruck, bank_referenz, buchungstag, wertstellung, betrag_cent,
-                                 waehrung, gegenname, gegen_iban, verwendungszweck, roh)
+                                 waehrung, gegenname, gegen_iban, verwendungszweck, roh, konto)
         values (${abdruck}, ${u.bankReferenz ?? null}, ${u.buchungstag}::date,
                 ${u.wertstellung ?? null}::date, ${u.betragCent}, ${u.waehrung ?? "EUR"},
                 ${u.gegenname ?? ""}, ${(u.gegenIban ?? "").replace(/\s/g, "").toUpperCase()},
-                ${u.verwendungszweck ?? ""}, ${JSON.stringify(u)}::jsonb)
+                ${u.verwendungszweck ?? ""}, ${JSON.stringify(u)}::jsonb, ${konto})
         on conflict (fingerabdruck) do nothing
         returning id, fingerabdruck, bank_referenz, buchungstag::text as buchungstag,
                   wertstellung::text as wertstellung, betrag_cent, gegenname, gegen_iban,

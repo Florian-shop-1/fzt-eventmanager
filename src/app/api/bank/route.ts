@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { umsaetzeUebernehmen, type RoherUmsatz } from "@/lib/rechnung/bankimport";
 import { einstellung, erfolgErstmalsMerken, syncMerken } from "@/lib/rechnung/db";
+import { abrufMerken, konto as kontoLesen, kontoVermerken } from "@/lib/rechnung/konten";
 import { mailVerschicken } from "@/lib/mail/versand";
 
 /**
@@ -32,6 +33,8 @@ interface Anfrage {
   fehler?: string;
   /** Die letzten vier Stellen des Kontos, zur Sicherheit gegen Verwechslung. */
   kontoEndetAuf?: string;
+  /** giro oder kreditkarte. Nur fuer die Anzeige eines neuen Kontos. */
+  kontoArt?: "giro" | "kreditkarte";
 }
 
 function erlaubt(request: Request): boolean {
@@ -55,11 +58,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, vermerkt: true });
   }
 
-  const e = await einstellung();
-  if (d.kontoEndetAuf && e.kontoEndetAuf && d.kontoEndetAuf !== e.kontoEndetAuf) {
+  /*
+    Welches Konto? Zum Bankzugang gehoeren mehrere.
+
+    Ein Konto, das hier noch nicht freigeschaltet ist, wird vermerkt und
+    nicht eingelesen. So kann auf dem Rechner im Haus keine falsche Zeile
+    dazu fuehren, dass ein fremdes Konto im Programm landet
+    (Florian, 29.09.2026).
+  */
+  const endetAuf = (d.kontoEndetAuf ?? "").trim().slice(0, 8);
+  if (!endetAuf) {
+    return NextResponse.json({ ok: false, fehler: "Es fehlt die Angabe, zu welchem Konto die Umsätze gehören." }, { status: 400 });
+  }
+
+  const k = await kontoLesen(endetAuf);
+  if (!k) {
+    await kontoVermerken({ endetAuf, art: d.kontoArt === "kreditkarte" ? "kreditkarte" : "giro" });
     return NextResponse.json(
-      { ok: false, fehler: `Falsches Konto: erwartet wird das Konto auf ${e.kontoEndetAuf}` },
-      { status: 400 },
+      {
+        ok: false,
+        fehler:
+          `Das Konto auf ${endetAuf} ist noch nicht freigeschaltet. ` +
+          "Im Eventmanager unter Zahlungseingänge freischalten, dann kommen die Umsätze an.",
+      },
+      { status: 409 },
+    );
+  }
+  if (!k.aktiv) {
+    return NextResponse.json(
+      {
+        ok: false,
+        fehler: `Das Konto auf ${endetAuf} ist stillgelegt. Im Eventmanager unter Zahlungseingänge wieder freischalten.`,
+      },
+      { status: 409 },
     );
   }
 
@@ -69,7 +100,8 @@ export async function POST(request: Request) {
   }
 
   const BR = String.fromCharCode(10);
-  const ergebnis = await umsaetzeUebernehmen(liste, "Bankabruf");
+  const ergebnis = await umsaetzeUebernehmen(liste, "Bankabruf", endetAuf);
+  await abrufMerken(endetAuf, ergebnis.neu);
   await syncMerken({ umsaetze: ergebnis.neu, bisDatum: d.bis ?? null, fehler: null, freigabeNoetig: false });
 
   /*

@@ -47,18 +47,21 @@ function Frage($anzeige, $name, $geheim) {
 Frage "FinTS-Produktregistrierungsnummer (von der FinTS-Leitstelle)" "FINTS_PRODUKT_ID" $false
 Frage "VR-NetKey (oder Anmeldename fuers OnlineBanking)" "FINTS_USER" $false
 Frage "OnlineBanking-PIN" "FINTS_PIN" $true
-Frage "Vollstaendige IBAN des Geschaeftskontos" "FINTS_IBAN" $false
+Write-Host "  Mehrere Konten desselben Zugangs koennen mit Komma getrennt werden," -ForegroundColor Cyan
+Write-Host "  zum Beispiel: DE94...,DE66..." -ForegroundColor Cyan
+Frage "Vollstaendige IBAN(s) der Geschaeftskonten" "FINTS_IBAN" $false
 
-# Zur Sicherheit gegen Vertipper: Endet die IBAN wirklich auf 2019?
-$iban = ([Environment]::GetEnvironmentVariable("FINTS_IBAN", "User") -replace "\s", "")
-$endet = $iban.Substring([Math]::Max(0, $iban.Length - 4))
-if ($endet -ne "2019") {
-    Write-Host "  Achtung: Die eingegebene IBAN endet auf $endet, erwartet war 2019." -ForegroundColor Yellow
-    Write-Host "  Ist das ein anderes Konto, sag Florian oder Claude Bescheid." -ForegroundColor Yellow
-} else {
-    Write-Host "  Konto ...2019, das passt." -ForegroundColor Green
+# Zur Sicherheit gegen Vertipper: Welche Konten sind es geworden?
+$ibans = ([Environment]::GetEnvironmentVariable("FINTS_IBAN", "User") -replace "\s", "") -split ","
+foreach ($eine in $ibans) {
+    if (-not $eine) { continue }
+    $endet = $eine.Substring([Math]::Max(0, $eine.Length - 4))
+    Write-Host "  Konto ...$endet" -ForegroundColor Green
 }
-$iban = $null
+Write-Host "  Jedes Konto muss im Eventmanager unter Zahlungseingaenge einmal" -ForegroundColor Cyan
+Write-Host "  freigeschaltet werden, sonst kommen seine Umsaetze nicht an." -ForegroundColor Cyan
+Write-Host ""
+$ibans = $null
 
 Write-Host ""
 Write-Host "  Fertig. Jetzt einmal den Abruf von Hand starten:" -ForegroundColor Cyan

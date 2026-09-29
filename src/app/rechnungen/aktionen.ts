@@ -24,6 +24,7 @@ import {
   zahlungLoesen,
 } from "@/lib/rechnung/db";
 import { ausDatei, umsaetzeUebernehmen } from "@/lib/rechnung/bankimport";
+import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -173,4 +174,30 @@ export async function zahlungszielSpeichern(f: FormData): Promise<void> {
   const tage = Math.max(0, Math.min(90, Number(text(f, "tage", 3)) || 14));
   await einstellungSpeichern({ zahlungszielTage: tage });
   zurueck("/rechnungen", `Standard-Zahlungsziel: ${tage} Tage.`);
+}
+
+/**
+ * Ein Konto des Bankzugangs freischalten oder stilllegen.
+ *
+ * Meldet der Bankabruf ein Konto, das noch nicht bekannt ist, liegt es
+ * gesperrt da, bis ein Mensch es freischaltet. Das ist die Stelle dafuer
+ * (Florian, 29.09.2026).
+ */
+export async function kontoUmschalten(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!darfBuchhaltung(b) && !darfKaufmaennisches(b?.rolle ?? "team")) {
+    throw new Error("Nur die Buchhaltung darf Konten freischalten.");
+  }
+
+  const endetAuf = String(f.get("endetAuf") ?? "").trim().slice(0, 8);
+  if (!endetAuf) throw new Error("Es fehlt das Konto.");
+
+  if (String(f.get("was")) === "stilllegen") {
+    await kontoStilllegen(endetAuf);
+  } else {
+    await kontoFreischalten(endetAuf, String(f.get("bezeichnung") ?? "Konto"));
+  }
+
+  revalidatePath("/zahlungseingaenge");
+  redirect("/zahlungseingaenge?meldung=" + encodeURIComponent("Gespeichert."));
 }

@@ -33,7 +33,15 @@ im Projektordner schreiben):
     FINTS_BLZ        Bankleitzahl, hier 65091040
     FINTS_USER       VR-NetKey
     FINTS_PIN        OnlineBanking-PIN
-    FINTS_IBAN       vollstaendige IBAN des Geschaeftskontos
+    FINTS_IBAN       vollstaendige IBAN. Mehrere Konten desselben Zugangs
+                     durch Komma getrennt, zum Beispiel
+                     "DE94...,DE66..." -- alle werden nacheinander gelesen.
+                     Jedes Konto muss im Eventmanager unter
+                     Zahlungseingaenge einmal freigeschaltet werden.
+    FINTS_KREDITKARTE Kreditkartennummer, falls die Kartenumsaetze mit
+                     abgerufen werden sollen. Ob die Bank das ueber FinTS
+                     anbietet, zeigt "--konten". Fehlt die Variable, wird
+                     die Karte uebersprungen.
     FINTS_PRODUKT_ID FinTS-Registrierungsnummer. Pflicht, nicht von uns
                      erfunden: Die Banken lassen nur registrierte Programme
                      an ihre Schnittstelle. Kostenlos zu beantragen unter
@@ -46,6 +54,7 @@ Aufruf:
     py scripts/bank-abruf.py --tage 90
     py scripts/bank-abruf.py --trocken     nur anzeigen, nichts senden
     py scripts/bank-abruf.py --automatisch fuer die Aufgabenplanung
+    py scripts/bank-abruf.py --konten      zeigt, welche Konten der Zugang kennt
 
 Im automatischen Lauf wird nie auf eine Eingabe gewartet. Verlangt die
 Bank eine Freigabe, meldet das Programm das an den Eventmanager und
@@ -155,13 +164,20 @@ def main():
         action="store_true",
         help="ohne Rueckfragen, fuer die taegliche Aufgabenplanung",
     )
+    p.add_argument(
+        "--konten",
+        action="store_true",
+        help="nur anzeigen, welche Konten der Zugang kennt",
+    )
     a = p.parse_args()
 
     endpoint = pflicht("FINTS_ENDPOINT")
     blz = pflicht("FINTS_BLZ")
     benutzer = pflicht("FINTS_USER")
     pin = pflicht("FINTS_PIN")
-    iban = pflicht("FINTS_IBAN").replace(" ", "")
+    # Mehrere Konten desselben Zugangs, durch Komma getrennt.
+    ibans = [x.strip().replace(" ", "") for x in pflicht("FINTS_IBAN").split(",") if x.strip()]
+    kreditkarte = os.environ.get("FINTS_KREDITKARTE", "").strip().replace(" ", "")
     produkt = os.environ.get("FINTS_PRODUKT_ID", "").strip()
     if not produkt:
         raise SystemExit(
@@ -177,7 +193,11 @@ def main():
     if not a.trocken and (not url or not geheim):
         raise SystemExit("EVENTMANAGER_URL und BANK_IMPORT_SECRET fehlen. Oder starte mit --trocken.")
 
-    print(f"Konto ...{konto_endet_auf(iban)} bei BLZ {blz}. {LESENDE_HINWEISE}")
+    konten_text = ", ".join("..." + konto_endet_auf(x) for x in ibans)
+    print(f"Konten {konten_text} bei BLZ {blz}. {LESENDE_HINWEISE}")
+
+    # Je Konto ein Paket: Kontokennung und die gelesenen Umsaetze.
+    gelesen = []
 
     # Die Rueckmeldungen der Bank mitlesen.
     #
@@ -256,7 +276,6 @@ def main():
         print(f"Das TAN-Verfahren liess sich nicht abfragen ({type(f).__name__}: {f}).")
 
     fehler = None
-    umsaetze = []
     try:
         with klient:
             if klient.init_tan_response:
@@ -281,20 +300,72 @@ def main():
             if isinstance(konten, NeedTANResponse):
                 raise SystemExit("Die Bank verlangt eine weitere Freigabe. Bitte das Programm erneut starten.")
 
-            treffer = [k for k in konten if (k.iban or "").replace(" ", "") == iban]
-            if not treffer:
-                gefunden = ", ".join("..." + konto_endet_auf(k.iban or "") for k in konten)
-                raise SystemExit(
-                    f"Das Konto ...{konto_endet_auf(iban)} ist bei diesem Zugang nicht dabei. "
-                    f"Gefunden wurden: {gefunden or 'keine'}"
+            if a.konten:
+                # Nur nachsehen, was der Zugang kennt. Angezeigt werden
+                # ausschliesslich die letzten vier Stellen.
+                print("\nKonten bei diesem Zugang:")
+                for k in konten:
+                    print(f"  ...{konto_endet_auf(k.iban or '')}")
+                print("\nWas die Bank anbietet:")
+                for name, titel in (
+                    ("HKKAZ", "Kontoumsaetze"),
+                    ("HKSAL", "Saldo"),
+                    ("DKKKU", "Kreditkartenumsaetze"),
+                ):
+                    kann = any(name in str(x) for x in klient.bpd.parameters.keys()) if hasattr(klient, "bpd") else None
+                    print(f"  {titel} ({name}): {'ja' if kann else 'nicht gefunden'}")
+                print(
+                    "\nSteht bei den Kreditkartenumsaetzen 'nicht gefunden', gibt die Bank sie ueber FinTS\n"
+                    "nicht heraus. Dann bleibt der Weg ueber den Monatsauszug im OnlineBanking."
                 )
-            konto = treffer[0]
+                return
 
-            bis = date.today()
-            von = bis - timedelta(days=a.tage)
-            print(f"Lese Umsaetze von {von.isoformat()} bis {bis.isoformat()} ...")
-            buchungen = klient.get_transactions(konto, von, bis)
-            umsaetze = [umsatz_aus_buchung(t) for t in buchungen]
+            # Jedes gewuenschte Konto nacheinander lesen und einzeln senden.
+            for wunsch in ibans:
+                treffer = [k for k in konten if (k.iban or "").replace(" ", "") == wunsch]
+                if not treffer:
+                    gefunden = ", ".join("..." + konto_endet_auf(k.iban or "") for k in konten)
+                    print(
+                        f"Das Konto ...{konto_endet_auf(wunsch)} ist bei diesem Zugang nicht dabei. "
+                        f"Gefunden wurden: {gefunden or 'keine'}",
+                        file=sys.stderr,
+                    )
+                    continue
+
+                bis = date.today()
+                von = bis - timedelta(days=a.tage)
+                print(f"Lese Konto ...{konto_endet_auf(wunsch)} von {von.isoformat()} bis {bis.isoformat()} ...")
+                buchungen = klient.get_transactions(treffer[0], von, bis)
+                gelesen.append(
+                    {
+                        "kontoEndetAuf": konto_endet_auf(wunsch),
+                        "kontoArt": "giro",
+                        "umsaetze": [umsatz_aus_buchung(t) for t in buchungen],
+                    }
+                )
+
+            # Die Kreditkarte, falls die Bank sie ueber FinTS herausgibt.
+            if kreditkarte:
+                try:
+                    roh = klient.get_credit_card_transactions(konten[0] if konten else None, kreditkarte, von, bis)
+                    karten = [umsatz_aus_buchung(t) for t in (roh or [])]
+                    gelesen.append(
+                        {
+                            "kontoEndetAuf": kreditkarte[-4:],
+                            "kontoArt": "kreditkarte",
+                            "umsaetze": karten,
+                        }
+                    )
+                    print(f"Kreditkarte ...{kreditkarte[-4:]}: {len(karten)} Buchungen.")
+                except Exception as kf:  # noqa: BLE001
+                    # Die meisten Banken geben Kartenumsaetze ueber FinTS
+                    # gar nicht heraus. Das ist kein Grund, den ganzen
+                    # Abruf scheitern zu lassen.
+                    print(
+                        "Die Kreditkartenumsaetze konnte die Bank nicht liefern "
+                        f"({type(kf).__name__}). Die Kontoumsaetze sind davon nicht betroffen.",
+                        file=sys.stderr,
+                    )
     except SystemExit:
         raise
     except Exception as f:  # noqa: BLE001
@@ -319,30 +390,50 @@ def main():
         except Exception:  # noqa: BLE001
             pass
 
-    print(f"{len(umsaetze)} Buchungen gelesen.")
+    gesamt = sum(len(paket["umsaetze"]) for paket in gelesen)
+    print(f"{gesamt} Buchungen aus {len(gelesen)} Konto/Konten gelesen.")
+
     if a.trocken:
-        for u in umsaetze[:20]:
-            print(f"  {u['buchungstag']}  {u['betragCent'] / 100:10.2f}  {u['gegenname'][:28]:28}  {u['verwendungszweck'][:50]}")
-        print("Trockenlauf, es wurde nichts gesendet.")
+        for paket in gelesen:
+            print(f"\nKonto ...{paket['kontoEndetAuf']}:")
+            for u in paket["umsaetze"][:20]:
+                print(
+                    f"  {u['buchungstag']}  {u['betragCent'] / 100:10.2f}  "
+                    f"{u['gegenname'][:28]:28}  {u['verwendungszweck'][:50]}"
+                )
+        print("\nTrockenlauf, es wurde nichts gesendet.")
         return
 
     if fehler:
         melde(url, geheim, {"fehler": fehler})
         raise SystemExit(1)
 
-    ergebnis = melde(
-        url,
-        geheim,
-        {
-            "umsaetze": umsaetze,
-            "bis": date.today().isoformat(),
-            "kontoEndetAuf": konto_endet_auf(iban),
-        },
-    )
-    print(
-        f"Gesendet. Neu: {ergebnis.get('neu', 0)}, schon bekannt: {ergebnis.get('schonBekannt', 0)}, "
-        f"automatisch zugeordnet: {ergebnis.get('zugeordnet', 0)}, offen: {ergebnis.get('offen', 0)}"
-    )
+    # Je Konto ein eigener Versand: Der Eventmanager fuehrt die Umsaetze
+    # getrennt, und ein nicht freigeschaltetes Konto soll die anderen
+    # nicht aufhalten (Florian, 29.09.2026).
+    for paket in gelesen:
+        try:
+            ergebnis = melde(
+                url,
+                geheim,
+                {
+                    "umsaetze": paket["umsaetze"],
+                    "bis": date.today().isoformat(),
+                    "kontoEndetAuf": paket["kontoEndetAuf"],
+                    "kontoArt": paket["kontoArt"],
+                },
+            )
+        except SystemExit:
+            raise
+        except Exception as f:  # noqa: BLE001
+            print(f"Konto ...{paket['kontoEndetAuf']}: {f}", file=sys.stderr)
+            continue
+
+        print(
+            f"Konto ...{paket['kontoEndetAuf']}: neu {ergebnis.get('neu', 0)}, "
+            f"schon bekannt {ergebnis.get('schonBekannt', 0)}, "
+            f"zugeordnet {ergebnis.get('zugeordnet', 0)}, offen {ergebnis.get('offen', 0)}"
+        )
 
 
 if __name__ == "__main__":

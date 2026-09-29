@@ -6,7 +6,8 @@ import { vorschlaege } from "@/lib/rechnung/abgleich";
 import { euro, tagKurz } from "@/components/RechnungStatus";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { zeitpunkt } from "@/lib/zeit";
-import { beiseitelegen, dateiEinlesen, zuordnen } from "../rechnungen/aktionen";
+import { beiseitelegen, dateiEinlesen, kontoUmschalten, zuordnen } from "../rechnungen/aktionen";
+import { konten } from "@/lib/rechnung/konten";
 
 export const metadata = { title: "Zahlungseingänge | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -28,7 +29,13 @@ export default async function ZahlungseingaengeSeite({
   if (!darfKaufmaennisches(b.rolle) && !darfBuchhaltung(b)) redirect("/");
   const { meldung } = await searchParams;
 
-  const [liste, rechnungen, e] = await Promise.all([umsaetze(), alleRechnungen(), einstellung()]);
+  const [liste, rechnungen, e, kontenliste] = await Promise.all([
+    umsaetze(),
+    alleRechnungen(),
+    einstellung(),
+    konten(),
+  ]);
+  const neueKonten = kontenliste.filter((k) => !k.aktiv);
   const offen = liste.filter((u) => u.stand === "offen" && u.betragCent > 0);
 
   return (
@@ -37,7 +44,10 @@ export default async function ZahlungseingaengeSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Zahlungseingänge</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Konto {e.kontoEndetAuf} bei der {e.bank}. Gelesen wird nur, überwiesen wird von hier aus nichts.
+            {kontenliste.filter((k) => k.aktiv).length > 1
+              ? `${kontenliste.filter((k) => k.aktiv).length} Konten bei der ${e.bank}.`
+              : `Konto ${e.kontoEndetAuf} bei der ${e.bank}.`}{" "}
+            Gelesen wird nur, überwiesen wird von hier aus nichts.
           </p>
         </div>
         <Link href="/rechnungen" className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell">
@@ -70,6 +80,78 @@ export default async function ZahlungseingaengeSeite({
           <Absendeknopf text="Umsätze einlesen" laeuftText="Wird gelesen..." />
         </form>
       </section>
+
+      {/* ---------------------------------------------------------------
+          Die Konten des Bankzugangs. Ein neues steht gesperrt da, bis es
+          jemand freischaltet (Florian, 29.09.2026).
+          --------------------------------------------------------------- */}
+      {neueKonten.length > 0 && (
+        <section
+          className="space-y-2 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong className="font-medium">
+            {neueKonten.length === 1 ? "Ein neues Konto" : `${neueKonten.length} neue Konten`} beim Abruf
+            gefunden
+          </strong>
+          <p className="text-leise">
+            Die Umsätze werden erst eingelesen, wenn du das Konto freischaltest. So kann kein fremdes Konto
+            versehentlich hier landen.
+          </p>
+          {neueKonten.map((k) => (
+            <form key={k.endetAuf} action={kontoUmschalten} className="flex flex-wrap items-end gap-2">
+              <input type="hidden" name="endetAuf" value={k.endetAuf} />
+              <span className="tabular-nums">Konto auf {k.endetAuf}</span>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Wie soll es heißen?</span>
+                <input
+                  name="bezeichnung"
+                  defaultValue={k.art === "kreditkarte" ? "Kreditkarte" : "Geschäftskonto"}
+                  className="w-56"
+                />
+              </label>
+              <Absendeknopf text="Freischalten" laeuftText="..." />
+            </form>
+          ))}
+        </section>
+      )}
+
+      {kontenliste.filter((k) => k.aktiv).length > 0 && (
+        <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+          <summary className="cursor-pointer text-leise">
+            Konten des Bankzugangs ({kontenliste.filter((k) => k.aktiv).length})
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {kontenliste
+              .filter((k) => k.aktiv)
+              .map((k) => (
+                <li key={k.endetAuf} className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-56">
+                    <strong>{k.bezeichnung || "Konto"}</strong>{" "}
+                    <span className="tabular-nums text-leise">auf {k.endetAuf}</span>
+                    {k.art === "kreditkarte" && <span className="text-leise"> · Kreditkarte</span>}
+                  </span>
+                  <span className="text-xs text-leise">
+                    {k.zuletztAm
+                      ? `zuletzt ${zeitpunkt(new Date(k.zuletztAm))}, ${k.zuletztUmsaetze} neue Umsätze`
+                      : "noch nie abgerufen"}
+                  </span>
+                  <form action={kontoUmschalten} className="ml-auto">
+                    <input type="hidden" name="endetAuf" value={k.endetAuf} />
+                    <input type="hidden" name="was" value="stilllegen" />
+                    <button type="submit" className="text-xs text-leise underline">
+                      stilllegen
+                    </button>
+                  </form>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-3 text-xs text-leise">
+            Die vollständigen Kontonummern stehen nicht im Programm, nur die letzten vier Stellen. Der Zugang
+            zur Bank liegt allein auf dem Rechner im Haus.
+          </p>
+        </details>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
