@@ -13,7 +13,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { holeLeads, istStoerung } from "@/lib/shop/leads";
-import { leadsUebertragen } from "@/lib/marketing/brevo-kontakte";
+import { bekannteAdressen, dateiUebertragen, leadsUebertragen } from "@/lib/marketing/brevo-kontakte";
+import { leadsAusCsv } from "@/lib/marketing/lead-csv";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -73,6 +74,75 @@ export async function uebertragen(f: FormData): Promise<void> {
       e.fehler.length > 0 ? `Fehler: ${e.fehler.join(" | ")}` : "",
     ].filter(Boolean);
     zurueck(teile.join(", ") + ".", listeId);
+  } catch (fehler) {
+    if (fehler && typeof fehler === "object" && "digest" in fehler) throw fehler;
+    zurueck(fehler instanceof Error ? fehler.message : "Das hat nicht geklappt.", listeId);
+  }
+}
+
+/**
+ * Eine Lead-Liste aus einer Datei übertragen.
+ *
+ * Erst wird verglichen: Wie viele Adressen kennt Brevo schon? Erst wenn
+ * "wirklich übertragen" angekreuzt ist, geht etwas hinaus. So lässt sich
+ * eine alte Liste ansehen, ohne sie anzufassen (Florian, 29.09.2026).
+ */
+export async function dateiZuBrevo(f: FormData): Promise<void> {
+  await zugang();
+  const listeId = text(f, "liste");
+  const datei = f.get("datei");
+
+  if (!(datei instanceof File) || datei.size === 0) {
+    zurueck("Bitte eine Datei auswählen.", listeId);
+  }
+  if (datei.size > 5 * 1024 * 1024) zurueck("Die Datei ist zu groß.", listeId);
+
+  const inhalt = Buffer.from(await datei.arrayBuffer()).toString("utf8");
+
+  let gelesen;
+  try {
+    gelesen = leadsAusCsv(inhalt);
+  } catch (fehler) {
+    zurueck(fehler instanceof Error ? fehler.message : "Die Datei war nicht lesbar.", listeId);
+  }
+
+  if (gelesen.leads.length === 0) {
+    zurueck("In der Datei stand keine einzige brauchbare Mailadresse.", listeId);
+  }
+
+  // Erst vergleichen, dann entscheiden.
+  let schonDa = 0;
+  let neu = gelesen.leads.length;
+  try {
+    const bekannt = await bekannteAdressen();
+    schonDa = gelesen.leads.filter((l) => bekannt.has(l.email)).length;
+    neu = gelesen.leads.length - schonDa;
+  } catch {
+    // Kennt Brevo die Kontakte gerade nicht heraus, wird trotzdem
+    // übertragen: Doppelte legt Brevo ohnehin nicht doppelt an.
+  }
+
+  const bestand =
+    `${gelesen.leads.length} Adressen in der Datei, davon ${schonDa} schon in Brevo und ${neu} neu. ` +
+    `${gelesen.ohneMail} Zeilen ohne Mailadresse, ${gelesen.doppelt} doppelte in der Datei.`;
+
+  if (text(f, "wirklich") !== "ja") {
+    zurueck(`Nur nachgesehen: ${bestand} Es wurde nichts übertragen.`, listeId);
+  }
+  if (!Number(listeId)) zurueck(`${bestand} Zum Übertragen fehlt die Liste.`, listeId);
+
+  try {
+    const e = await dateiUebertragen({
+      leads: gelesen.leads,
+      listeId: Number(listeId),
+      herkunft: text(f, "herkunft") || datei.name.replace(/\.csv$/i, ""),
+      trocken: false,
+    });
+    zurueck(
+      `${e.gesendet} Kontakte übertragen (${schonDa} davon waren schon da und wurden aktualisiert).` +
+        (e.fehler.length > 0 ? ` Fehler: ${e.fehler.join(" | ")}` : ""),
+      listeId,
+    );
   } catch (fehler) {
     if (fehler && typeof fehler === "object" && "digest" in fehler) throw fehler;
     zurueck(fehler instanceof Error ? fehler.message : "Das hat nicht geklappt.", listeId);

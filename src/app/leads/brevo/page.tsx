@@ -4,7 +4,7 @@ import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { holeLeads, istStoerung, type Lead } from "@/lib/shop/leads";
 import { listen, type BrevoListe } from "@/lib/marketing/brevo-kontakte";
-import { probelauf, uebertragen } from "./aktionen";
+import { dateiZuBrevo, probelauf, uebertragen } from "./aktionen";
 
 export const metadata = { title: "Anfragen zu Brevo | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -169,6 +169,49 @@ export default async function BrevoSeite({
           Nachname, Telefon, Anfragetyp, Stand, Eingangsdatum, Wunschdatum, Teilnehmerzahl und Herkunft.
           Störungsmeldungen bleiben außen vor: Wer einen Fehler meldet, hat sich nicht für Werbung gemeldet.
         </p>
+      </section>
+
+      {/* ---------------------------------------------------------------
+          Eine Liste aus einer Datei, etwa der Lead-Ads-Export aus Meta.
+          --------------------------------------------------------------- */}
+      <section className="space-y-4 rounded-lg border border-linie bg-flaeche px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
+            Liste aus einer Datei
+          </h2>
+          <p className="mt-1 max-w-prose text-xs text-leise">
+            Für alte Listen, die nicht in der Anfragetabelle stehen, etwa den Lead-Ads-Export aus Meta.
+            Ohne das Häkchen wird nur nachgesehen: Du erfährst, wie viele Adressen Brevo schon kennt
+            und wie viele neu wären. Erst mit Häkchen geht etwas hinaus.
+          </p>
+        </div>
+
+        <form action={dateiZuBrevo} className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Datei (CSV)</span>
+            <input type="file" name="datei" accept=".csv,.txt" required className="text-sm" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Brevo-Liste</span>
+            <select name="liste" defaultValue={gewaehlteListe ?? ""} className="w-64">
+              <option value="">bitte wählen</option>
+              {brevoListen.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} ({l.anzahl} Kontakte)
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Herkunft (Merkmal in Brevo)</span>
+            <input name="herkunft" placeholder="Meta Lead Ads 2022/23" className="w-56" />
+          </label>
+          <label className="flex items-center gap-1.5 pb-2 text-xs">
+            <input type="checkbox" name="wirklich" value="ja" />
+            wirklich übertragen
+          </label>
+          <Absendeknopf text="Datei einlesen" laeuftText="Wird geprüft..." />
+        </form>
       </section>
     </div>
   );

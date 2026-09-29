@@ -155,3 +155,99 @@ export async function leadsUebertragen(o: {
 
   return e;
 }
+
+/**
+ * Welche Adressen Brevo schon kennt.
+ *
+ * Damit die Frage "sind die schon drin" eine Antwort bekommt, bevor
+ * irgendetwas hochgeht (Florian, 29.09.2026). Geholt wird in Bloecken zu
+ * tausend, das ist das Groesste, was Brevo auf einmal herausgibt.
+ */
+export async function bekannteAdressen(hoechstens = 20000): Promise<Set<string>> {
+  const adressen = new Set<string>();
+  const k = schluessel();
+
+  for (let offset = 0; offset < hoechstens; offset += 1000) {
+    const antwort = await fetch(`${BREVO}/contacts?limit=1000&offset=${offset}`, {
+      headers: { "api-key": k, accept: "application/json" },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!antwort.ok) {
+      throw new Error(`Brevo hat die Kontakte nicht herausgegeben (${antwort.status}).`);
+    }
+    const d = (await antwort.json()) as { contacts?: Array<{ email?: string }> };
+    const teil = d.contacts ?? [];
+    for (const c of teil) if (c.email) adressen.add(c.email.trim().toLowerCase());
+    if (teil.length < 1000) break;
+  }
+
+  return adressen;
+}
+
+/**
+ * Kontakte aus einer Datei uebertragen.
+ *
+ * Wie leadsUebertragen, nur mit den Feldern aus der Datei. Getrennt
+ * gehalten, damit die Merkmale nicht durcheinandergeraten: Eine alte
+ * Lead-Ads-Liste hat keinen Stand und kein Wunschdatum.
+ */
+export async function dateiUebertragen(o: {
+  leads: Array<{
+    email: string;
+    vorname: string;
+    nachname: string;
+    telefon: string;
+    eingang: string;
+    formular: string;
+    quelle: string;
+  }>;
+  listeId: number;
+  herkunft: string;
+  trocken?: boolean;
+}): Promise<Uebertragung> {
+  const e: Uebertragung = { gesendet: 0, ohneMail: 0, doppelt: 0, fehler: [], trocken: o.trocken !== false };
+
+  const kontakte = o.leads.map((l) => ({
+    email: l.email,
+    attributes: {
+      VORNAME: l.vorname,
+      NACHNAME: l.nachname,
+      SMS: l.telefon || undefined,
+      ANFRAGE_EINGANG: l.eingang,
+      ANFRAGETYP: l.formular || "Lead Ad",
+      HERKUNFT: [o.herkunft, l.quelle].filter(Boolean).join(" \u00b7 "),
+    },
+  }));
+
+  if (e.trocken) {
+    e.gesendet = kontakte.length;
+    return e;
+  }
+
+  for (let i = 0; i < kontakte.length; i += 100) {
+    const paket = kontakte.slice(i, i + 100);
+    try {
+      const antwort = await fetch(`${BREVO}/contacts/import`, {
+        method: "POST",
+        headers: { "api-key": schluessel(), "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          listIds: [o.listeId],
+          updateExistingContacts: true,
+          emptyContactsAttributes: false,
+          jsonBody: paket,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!antwort.ok) {
+        const text = await antwort.text().catch(() => "");
+        e.fehler.push(`Paket ab ${i + 1}: Brevo hat abgelehnt (${antwort.status}). ${text.slice(0, 200)}`);
+        continue;
+      }
+      e.gesendet += paket.length;
+    } catch (f) {
+      e.fehler.push(`Paket ab ${i + 1}: ${f instanceof Error ? f.message : "Unbekannter Fehler"}`);
+    }
+  }
+
+  return e;
+}
