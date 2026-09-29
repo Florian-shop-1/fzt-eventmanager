@@ -307,13 +307,18 @@ def main():
                 for k in konten:
                     print(f"  ...{konto_endet_auf(k.iban or '')}")
                 print("\nWas die Bank anbietet:")
-                for name, titel in (
-                    ("HKKAZ", "Kontoumsaetze"),
-                    ("HKSAL", "Saldo"),
-                    ("DKKKU", "Kreditkartenumsaetze"),
+                # Die Bank schreibt in die Bankparameterdaten, welche
+                # Geschaeftsvorfaelle sie kann. Fuer jeden steht dort ein
+                # Parametersegment, etwa HIKAZS zu HKKAZ.
+                for kuerzel, titel in (
+                    ("HIKAZS", "Kontoumsaetze (HKKAZ)"),
+                    ("HISALS", "Saldo (HKSAL)"),
+                    ("DIKKUS", "Kreditkartenumsaetze (DKKKU)"),
+                    ("HICAZS", "Umsaetze im camt-Format (HKCAZ)"),
                 ):
-                    kann = any(name in str(x) for x in klient.bpd.parameters.keys()) if hasattr(klient, "bpd") else None
-                    print(f"  {titel} ({name}): {'ja' if kann else 'nicht gefunden'}")
+                    treffer = klient.bpd.find_segments(kuerzel)
+                    fassungen = ", ".join(str(t.header.version) for t in treffer)
+                    print(f"  {titel}: {'ja, Fassung ' + fassungen if treffer else 'nicht angeboten'}")
                 print(
                     "\nSteht bei den Kreditkartenumsaetzen 'nicht gefunden', gibt die Bank sie ueber FinTS\n"
                     "nicht heraus. Dann bleibt der Weg ueber den Monatsauszug im OnlineBanking."

@@ -204,7 +204,11 @@ function baue(r: Record<string, unknown>, zahlungen: Zahlung[]): Rechnung {
 export async function alleRechnungen(nur?: "offen" | "bezahlt"): Promise<Rechnung[]> {
   const r = (await db()`
     select *, rechnungsdatum::text as rechnungsdatum, faellig_am::text as faellig_am
-      from rechnung order by rechnungsdatum desc, nummer desc limit 300
+      from rechnung
+     -- Mit Tabellennamen davor: Sonst weiss Postgres nicht, ob die Spalte
+     -- oder der gleichnamige Aliasname gemeint ist, und bricht mit
+     -- "ORDER BY rechnungsdatum is ambiguous" ab (29.09.2026).
+     order by rechnung.rechnungsdatum desc, rechnung.nummer desc limit 300
   `) as Array<Record<string, unknown>>;
   const ids = r.map((x) => String(x.id));
   const z =
@@ -212,7 +216,7 @@ export async function alleRechnungen(nur?: "offen" | "bezahlt"): Promise<Rechnun
       ? []
       : ((await db()`
           select *, datum::text as datum from rechnung_zahlung
-           where rechnung_id = any(${ids}::uuid[]) order by datum
+           where rechnung_id = any(${ids}::uuid[]) order by rechnung_zahlung.datum
         `) as Array<Record<string, unknown>>);
   const zahlungen = z.map(baueZahlung);
   const liste = r.map((x) => baue(x, zahlungen));
@@ -228,7 +232,8 @@ export async function rechnungLesen(id: string): Promise<Rechnung | null> {
   `) as Array<Record<string, unknown>>;
   if (!r[0]) return null;
   const z = (await db()`
-    select *, datum::text as datum from rechnung_zahlung where rechnung_id = ${id} order by datum
+    select *, datum::text as datum from rechnung_zahlung where rechnung_id = ${id}
+     order by rechnung_zahlung.datum
   `) as Array<Record<string, unknown>>;
   return baue(r[0], z.map(baueZahlung));
 }
