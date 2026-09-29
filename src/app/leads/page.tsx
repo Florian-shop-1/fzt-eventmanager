@@ -65,12 +65,20 @@ export default async function LeadsSeite({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Anfragen</h1>
-        <p className="mt-1 text-sm text-leise">
-          Was über Meta und den Webshop hereinkommt. Stand setzen, Notiz schreiben, und aus einer
-          ernsthaften Anfrage einen Vorgang machen.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Anfragen</h1>
+          <p className="mt-1 text-sm text-leise">
+            Was über Meta und den Webshop hereinkommt. Stand setzen, Notiz schreiben, und aus einer
+            ernsthaften Anfrage einen Vorgang machen.
+          </p>
+        </div>
+        <Link
+          href="/leads/brevo"
+          className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+        >
+          Zu Brevo übertragen
+        </Link>
       </header>
 
       {fehler && (
