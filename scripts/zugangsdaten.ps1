@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "  Zugangsdaten fuer den Bankabgleich" -ForegroundColor Cyan
-Write-Host "  Volksbank Allgaeu-Oberschwaben, Konto endet auf 2019"
+Write-Host "  Volksbank Allgaeu-Oberschwaben, Geschaeftskonten"
 Write-Host ""
 Write-Host "  Die Eingaben bleiben auf diesem Rechner."
 Write-Host "  Bei der PIN siehst du beim Tippen nichts, das ist so gewollt."

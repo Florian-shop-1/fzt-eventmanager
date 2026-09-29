@@ -155,11 +155,23 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
     zurueck("/zahlungseingaenge", "In dieser Datei standen keine lesbaren Umsätze.");
   }
 
-  const e = await umsaetzeUebernehmen(liste, b.name);
+  /*
+    Zu welchem Konto die Datei gehoert.
+
+    Die Kreditkartenumsaetze gibt die Bank ueber FinTS nicht heraus
+    (gemessen am 29.09.2026), sie kommen als Monatsauszug von Hand
+    hierher. Damit sie nicht mit den Kontoumsaetzen verschwimmen, waehlt
+    man beim Hochladen das Konto aus.
+  */
+  const konto = String(f.get("konto") ?? "").trim().slice(0, 8);
+
+  const e = await umsaetzeUebernehmen(liste, b.name, konto);
   await merken({
     rechnungId: null,
     art: "bank_import",
-    text: `Kontoauszug eingelesen: ${e.neu} neue Umsätze, ${e.zugeordnet} automatisch zugeordnet`,
+    text:
+      `Kontoauszug eingelesen${konto ? ` (Konto ${konto})` : ""}: ` +
+      `${e.neu} neue Umsätze, ${e.zugeordnet} automatisch zugeordnet`,
     wer: b.name,
   });
   zurueck(

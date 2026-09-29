@@ -77,6 +77,18 @@ export default async function ZahlungseingaengeSeite({
         </div>
         <form action={dateiEinlesen} className="flex flex-wrap items-center gap-2">
           <input type="file" name="datei" accept=".csv,.xml,.sta,.txt,.mt940" className="text-sm" />
+          {kontenliste.filter((k) => k.aktiv).length > 1 && (
+            <select name="konto" className="text-sm" defaultValue="">
+              <option value="">Konto wählen</option>
+              {kontenliste
+                .filter((k) => k.aktiv)
+                .map((k) => (
+                  <option key={k.endetAuf} value={k.endetAuf}>
+                    {k.bezeichnung || "Konto"} ({k.endetAuf})
+                  </option>
+                ))}
+            </select>
+          )}
           <Absendeknopf text="Umsätze einlesen" laeuftText="Wird gelesen..." />
         </form>
       </section>

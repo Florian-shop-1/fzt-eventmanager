@@ -307,17 +307,24 @@ def main():
                 for k in konten:
                     print(f"  ...{konto_endet_auf(k.iban or '')}")
                 print("\nWas die Bank anbietet:")
-                # Die Bank schreibt in die Bankparameterdaten, welche
-                # Geschaeftsvorfaelle sie kann. Fuer jeden steht dort ein
-                # Parametersegment, etwa HIKAZS zu HKKAZ.
-                for kuerzel, titel in (
-                    ("HIKAZS", "Kontoumsaetze (HKKAZ)"),
-                    ("HISALS", "Saldo (HKSAL)"),
-                    ("DIKKUS", "Kreditkartenumsaetze (DKKKU)"),
-                    ("HICAZS", "Umsaetze im camt-Format (HKCAZ)"),
+                # Gefragt wird die Bibliothek selbst, nicht die Segmentliste.
+                # Ein Segment kann in den Bankparameterdaten stehen und
+                # trotzdem in keiner Fassung nutzbar sein; eine eigene
+                # Suche darin hat am 29.09.2026 faelschlich "ja" gemeldet,
+                # obwohl der Abruf danach scheiterte (Florian).
+                from fints.segments.saldo import HKSAL5, HKSAL6, HKSAL7
+                from fints.segments.statement import DKKKU2, HKKAZ5, HKKAZ6, HKKAZ7
+
+                for titel, klassen in (
+                    ("Kontoumsaetze (HKKAZ)", (HKKAZ5, HKKAZ6, HKKAZ7)),
+                    ("Saldo (HKSAL)", (HKSAL5, HKSAL6, HKSAL7)),
+                    ("Kreditkartenumsaetze (DKKKU)", (DKKKU2,)),
                 ):
-                    treffer = klient.bpd.find_segments(kuerzel)
-                    print(f"  {titel}: {'ja' if treffer else 'nicht angeboten'}")
+                    try:
+                        klient._find_highest_supported_command(*klassen)
+                        print(f"  {titel}: ja")
+                    except Exception as pf:  # noqa: BLE001
+                        print(f"  {titel}: nicht angeboten ({str(pf)[:90]})")
                 print(
                     "\nSteht bei den Kreditkartenumsaetzen 'nicht angeboten', gibt die Bank sie ueber FinTS\n"
                     "nicht heraus. Dann bleibt der Weg ueber den Monatsauszug im OnlineBanking.\n"
