@@ -13,6 +13,9 @@ import {
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
 import { unterschriftSpeichern } from "./aktionen";
+import { empfaengerAendern, monatSchicken } from "./versand";
+import { empfaengerLesen, sendungenDesJahres, type Empfaenger, type Sendung } from "@/lib/bewirtung/steuerbuero";
+import { Absendeknopf } from "@/components/Absendeknopf";
 
 export const metadata = { title: "Belege | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -53,6 +56,7 @@ export default async function BewirtungSeite({
     (Florian, 29.09.2026). Deshalb gibt es sie hier gar nicht.
   */
   const firmen = vorkommendeGesellschaften(belege);
+  const [empfaenger, sendungen] = await Promise.all([empfaengerLesen(), sendungenDesJahres(jahr)]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -133,7 +137,14 @@ export default async function BewirtungSeite({
         <p className="text-sm text-leise">In {jahr} gibt es noch keine festgeschriebenen Belege.</p>
       ) : (
         firmen.map((g) => (
-          <Firmenjahr key={g} g={g} belege={belege.filter((x) => x.gesellschaft === g)} jahr={jahr} />
+          <Firmenjahr
+            key={g}
+            g={g}
+            belege={belege.filter((x) => x.gesellschaft === g)}
+            jahr={jahr}
+            e={empfaenger.find((x) => x.gesellschaft === g)!}
+            sendungen={sendungen.filter((x) => x.gesellschaft === g)}
+          />
         ))
       )}
 
@@ -191,7 +202,19 @@ export default async function BewirtungSeite({
  * auch jeder Download ihren Namen: Das Steuerbüro bekommt je Firma eine
  * eigene Datei (Florian, 29.09.2026).
  */
-function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[]; jahr: number }) {
+function Firmenjahr({
+  g,
+  belege,
+  jahr,
+  e: empf,
+  sendungen,
+}: {
+  g: Gesellschaft;
+  belege: Bewirtung[];
+  jahr: number;
+  e: Empfaenger;
+  sendungen: Sendung[];
+}) {
   const s = summen(belege, "bewirtung", g);
   const e = summen(belege, "einkauf", g);
   const zw = nachZahlweg(belege, g);
@@ -212,7 +235,12 @@ function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[];
 
   return (
     <section className="space-y-3 rounded-lg border border-linie p-4">
-      <h2 className="text-lg font-semibold">{gesellschaftName(g)}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">{gesellschaftName(g)}</h2>
+        <span className="text-xs text-leise">
+          {empf.email ? `Belege gehen an ${empf.name || empf.email}` : "Empfänger noch nicht eingetragen"}
+        </span>
+      </div>
 
       <h3 className="text-sm font-semibold uppercase tracking-wide text-leise">Bewirtungen</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -246,6 +274,9 @@ function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[];
         const liste = jeMonat.get(m)!;
         const fertig = liste.filter((x) => x.status === "fertig");
         const schluessel = `${jahr}-${String(m).padStart(2, "0")}`;
+        // Die jüngste Sendung dieses Monats. Sie steht unter der Liste,
+        // damit niemand zweimal dasselbe schickt, ohne es zu merken.
+        const gesendet = sendungen.find((x) => x.monat === schluessel);
         return (
           <div key={m} className="space-y-2 pt-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-linie pb-1">
@@ -257,13 +288,26 @@ function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[];
                 </span>
               </h4>
               {m > 0 && (
-                <span className="flex gap-3 text-xs">
+                <span className="flex flex-wrap items-center gap-3 text-xs">
                   <Link href={`/bewirtung/monat?m=${schluessel}`} className="underline">
-                    fürs Steuerbüro drucken
+                    ansehen
                   </Link>
-                  <a href={`/bewirtung/export?m=${schluessel}&g=${g}`} className="underline">
-                    CSV {gesellschaftKurz(g)}
+                  <a href={`/bewirtung/pdf?m=${schluessel}&g=${g}`} target="_blank" rel="noreferrer" className="underline">
+                    PDF
                   </a>
+                  <a href={`/bewirtung/export?m=${schluessel}&g=${g}`} className="underline">
+                    CSV
+                  </a>
+                  {empf.email && (
+                    <form action={monatSchicken} className="inline">
+                      <input type="hidden" name="gesellschaft" value={g} />
+                      <input type="hidden" name="monat" value={schluessel} />
+                      <Absendeknopf
+                        text={gesendet ? "noch einmal schicken" : `an ${empf.name || empf.email} schicken`}
+                        laeuftText="wird verschickt..."
+                      />
+                    </form>
+                  )}
                 </span>
               )}
             </div>
@@ -292,9 +336,47 @@ function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[];
                 </li>
               ))}
             </ul>
+            {gesendet && (
+              <p className="text-xs text-leise">
+                Verschickt am{" "}
+                {new Date(gesendet.versendetAm).toLocaleString("de-DE", {
+                  timeZone: "Europe/Berlin",
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}{" "}
+                an {gesendet.versendetAn} ({gesendet.anzahl} Belege, {euro(gesendet.summeCent)})
+              </p>
+            )}
           </div>
         );
       })}
+
+      <details className="pt-2">
+        <summary className="cursor-pointer text-xs text-leise">Wer die Belege dieser Firma bekommt</summary>
+        <form action={empfaengerAendern} className="mt-3 flex flex-wrap items-end gap-3">
+          <input type="hidden" name="gesellschaft" value={g} />
+          <input type="hidden" name="jahr" value={jahr} />
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Name</span>
+            <input name="name" defaultValue={empf.name} className="w-56" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Mailadresse</span>
+            <input
+              name="email"
+              type="email"
+              defaultValue={empf.email}
+              placeholder="noch nicht eingetragen"
+              className="w-64"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Stille Kopie an (freiwillig)</span>
+            <input name="kopieAn" type="email" defaultValue={empf.kopieAn} className="w-64" />
+          </label>
+          <Absendeknopf text="Speichern" laeuftText="..." />
+        </form>
+      </details>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { euro, type Bewirtung } from "@/lib/bewirtung/db";
+import { gesellschaftName } from "@/lib/bewirtung/gesellschaft";
 
 function datumLang(iso: string | null): string {
   if (!iso) return "";
@@ -50,8 +51,11 @@ export function BewirtungsBlatt({ b }: { b: Bewirtung }) {
     <article className="bewirtungsblatt grid gap-6 md:grid-cols-2 print:grid-cols-2">
       <div>
         <h2 className="mb-3 text-lg font-semibold">{b.art === "einkauf" ? "Beleg Einkauf" : "Bewirtungsbeleg"}</h2>
+        {/* Die Firma des Belegs, nicht immer das Theater: Seit es drei
+            Gesellschaften gibt, wäre ein fester Name schlicht falsch
+            (Florian, 29.09.2026). */}
         <p className="mb-3 text-xs text-leise">
-          Florian Zimmer Theater GmbH, Neu-Ulm
+          {gesellschaftName(b.gesellschaft)}
           {b.art === "bewirtung" && " · Angaben nach § 4 Abs. 5 Satz 1 Nr. 2 EStG"}
         </p>
         <table className="w-full text-sm">
