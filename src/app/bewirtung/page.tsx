@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { bewirtungenDesJahres, euro, nachZahlweg, summen, type Bewirtung } from "@/lib/bewirtung/db";
+import { bewirtungenDesJahres, euro, nachZahlweg, summen, vorkommendeGesellschaften, type Bewirtung } from "@/lib/bewirtung/db";
 import { BelegScanner } from "@/components/BelegScanner";
-import { darfGesellschaftWaehlen, GESELLSCHAFTEN } from "@/lib/bewirtung/gesellschaft";
+import {
+  darfGesellschaftWaehlen,
+  gesellschaftKurz,
+  gesellschaftName,
+  GESELLSCHAFTEN,
+  type Gesellschaft,
+} from "@/lib/bewirtung/gesellschaft";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
 import { unterschriftSpeichern } from "./aktionen";
@@ -37,22 +43,16 @@ export default async function BewirtungSeite({
   const alle = await bewirtungenDesJahres(jahr);
   const entwuerfe = alle.filter((x) => x.status === "entwurf");
   const belege = alle.filter((x) => x.status !== "entwurf");
-  const s = summen(belege, "bewirtung");
-  const e = summen(belege, "einkauf");
-  const zw = nachZahlweg(belege);
-  const kategorien = new Map<string, number>();
-  for (const x of belege) {
-    if (x.status !== "fertig" || x.art !== "einkauf") continue;
-    const k = x.kategorie || "Sonstiges";
-    kategorien.set(k, (kategorien.get(k) ?? 0) + (x.bruttoCent ?? 0));
-  }
 
-  const jeMonat = new Map<number, Bewirtung[]>();
-  for (const x of belege) {
-    const m = x.datum ? Number(x.datum.slice(5, 7)) : 0;
-    jeMonat.set(m, [...(jeMonat.get(m) ?? []), x]);
-  }
-  const monate = [...jeMonat.keys()].sort((a, c) => c - a);
+  /*
+    Je Firma eine eigene Liste, niemals eine gemeinsame.
+
+    Theater, Magic-Expert GbR und True Talent GmbH führen getrennte
+    Bücher. Eine Summe über alle drei hätte niemand je gebraucht, wäre
+    aber leicht mit der Zahl einer einzelnen Firma zu verwechseln
+    (Florian, 29.09.2026). Deshalb gibt es sie hier gar nicht.
+  */
+  const firmen = vorkommendeGesellschaften(belege);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -92,6 +92,12 @@ export default async function BewirtungSeite({
                 <Link href={`/bewirtung/${x.id}`} className="underline">
                   {datumKurz(x.datum)} · {x.restaurant || "Restaurant unbekannt"} · {euro(x.bruttoCent)}
                 </Link>
+                {/* Zu welcher Firma der Beleg gehört, steht schon hier: Die
+                    Zuordnung nachträglich zu ändern ist lästiger, als sie
+                    gleich zu sehen (Florian, 29.09.2026). */}
+                <span className="ml-2 rounded px-1.5 py-0.5 text-[11px]" style={{ background: "var(--gold-hell)" }}>
+                  {gesellschaftKurz(x.gesellschaft)}
+                </span>
                 <span className="text-leise">
                   {" · "}
                   {!x.zahlweg
@@ -121,88 +127,14 @@ export default async function BewirtungSeite({
             ))}
           </nav>
         </div>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-leise">Bewirtungen</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kachel zahl={String(s.anzahl)} was={s.anzahl === 1 ? "Bewirtung" : "Bewirtungen"} />
-          <Kachel zahl={euro(s.bruttoCent + s.trinkgeldCent)} was="ausgegeben" hinweis={`davon ${euro(s.trinkgeldCent)} Trinkgeld`} />
-          <Kachel zahl={euro(s.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
-          <Kachel zahl={euro(s.abziehbarCent)} was="Betriebsausgabe" hinweis={`70 % von ${euro(s.nettoCent)} netto`} betont />
-        </div>
-        <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Einkäufe</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kachel zahl={String(e.anzahl)} was={e.anzahl === 1 ? "Einkauf" : "Einkäufe"} />
-          <Kachel zahl={euro(e.bruttoCent)} was="ausgegeben" />
-          <Kachel zahl={euro(e.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
-          <Kachel zahl={euro(e.abziehbarCent)} was="Betriebsausgabe" hinweis="netto, voll abziehbar" betont />
-        </div>
-        {kategorien.size > 0 && (
-          <p className="text-xs text-leise">
-            {[...kategorien].sort((a, c) => c[1] - a[1]).map(([k, c]) => `${k} ${euro(c)}`).join(" · ")}
-          </p>
-        )}
-        <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Bezahlt</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kachel zahl={euro(zw.karte)} was="mit Karte" />
-          <Kachel zahl={euro(zw.bar)} was="bar" />
-          <Kachel zahl={euro(zw.privat)} was="privat ausgelegt" hinweis="erstattet dir die Firma" />
-        </div>
       </section>
 
-      {monate.length === 0 ? (
+      {firmen.length === 0 ? (
         <p className="text-sm text-leise">In {jahr} gibt es noch keine festgeschriebenen Belege.</p>
       ) : (
-        monate.map((m) => {
-          const liste = jeMonat.get(m)!;
-          const schluessel = `${jahr}-${String(m).padStart(2, "0")}`;
-          return (
-            <section key={m} className="space-y-2">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-linie pb-1">
-                <h3 className="font-semibold">
-                  {m ? MONATE[m - 1] : "ohne Datum"}{" "}
-                  <span className="font-normal text-leise">
-                    · {liste.filter((x) => x.status === "fertig").length === 1 ? "1 Beleg" : `${liste.filter((x) => x.status === "fertig").length} Belege`} ·{" "}
-                    {euro(liste.filter((x) => x.status === "fertig").reduce((n, x) => n + (x.bruttoCent ?? 0) + x.trinkgeldCent, 0))}
-                  </span>
-                </h3>
-                {m > 0 && (
-                  <span className="flex gap-3 text-xs">
-                    <Link href={`/bewirtung/monat?m=${schluessel}`} className="underline">
-                      fürs Steuerbüro drucken
-                    </Link>
-                    <a href={`/bewirtung/export?m=${schluessel}`} className="underline">
-                      CSV
-                    </a>
-                  </span>
-                )}
-              </div>
-              <ul className="divide-y divide-linie rounded-lg border border-linie bg-flaeche">
-                {liste.map((x) => (
-                  <li key={x.id}>
-                    <Link href={`/bewirtung/${x.id}`} className="flex flex-wrap items-baseline gap-x-3 px-4 py-2.5 text-sm hover:bg-gold-hell">
-                      <span className="w-24 font-mono text-xs text-leise">{x.nummer}</span>
-                      <span className="w-20 tabular-nums">{datumKurz(x.datum)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className="mr-2 rounded px-1.5 py-0.5 text-[11px]"
-                          style={{ background: x.art === "einkauf" ? "var(--info-hell)" : "var(--gold-hell)" }}
-                        >
-                          {x.art === "einkauf" ? "Einkauf" : "Bewirtung"}
-                        </span>
-                        <strong>{x.restaurant}</strong>
-                        <span className="text-leise"> · {x.art === "einkauf" ? x.zweck : x.anlass}</span>
-                        <span className="text-leise"> · {x.zahlweg === "bar" ? "bar" : "Karte"}{x.privatAusgelegt ? ", privat" : ""}</span>
-                      </span>
-                      <span className={`tabular-nums ${x.status === "storniert" ? "line-through text-leise" : ""}`}>
-                        {euro((x.bruttoCent ?? 0) + x.trinkgeldCent)}
-                      </span>
-                      {x.status === "storniert" && <span className="text-xs" style={{ color: "var(--blocker)" }}>storniert</span>}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })
+        firmen.map((g) => (
+          <Firmenjahr key={g} g={g} belege={belege.filter((x) => x.gesellschaft === g)} jahr={jahr} />
+        ))
       )}
 
       <UnterschriftEinrichten />
@@ -249,6 +181,121 @@ export default async function BewirtungSeite({
         </ul>
       </details>
     </div>
+  );
+}
+
+/**
+ * Ein Jahr einer einzigen Firma: Summen, dann die Monate.
+ *
+ * Alles, was hier steht, gehört zu dieser Gesellschaft. Deshalb trägt
+ * auch jeder Download ihren Namen: Das Steuerbüro bekommt je Firma eine
+ * eigene Datei (Florian, 29.09.2026).
+ */
+function Firmenjahr({ g, belege, jahr }: { g: Gesellschaft; belege: Bewirtung[]; jahr: number }) {
+  const s = summen(belege, "bewirtung", g);
+  const e = summen(belege, "einkauf", g);
+  const zw = nachZahlweg(belege, g);
+
+  const kategorien = new Map<string, number>();
+  for (const x of belege) {
+    if (x.status !== "fertig" || x.art !== "einkauf") continue;
+    const k = x.kategorie || "Sonstiges";
+    kategorien.set(k, (kategorien.get(k) ?? 0) + (x.bruttoCent ?? 0));
+  }
+
+  const jeMonat = new Map<number, Bewirtung[]>();
+  for (const x of belege) {
+    const m = x.datum ? Number(x.datum.slice(5, 7)) : 0;
+    jeMonat.set(m, [...(jeMonat.get(m) ?? []), x]);
+  }
+  const monate = [...jeMonat.keys()].sort((a, c) => c - a);
+
+  return (
+    <section className="space-y-3 rounded-lg border border-linie p-4">
+      <h2 className="text-lg font-semibold">{gesellschaftName(g)}</h2>
+
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-leise">Bewirtungen</h3>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kachel zahl={String(s.anzahl)} was={s.anzahl === 1 ? "Bewirtung" : "Bewirtungen"} />
+        <Kachel zahl={euro(s.bruttoCent + s.trinkgeldCent)} was="ausgegeben" hinweis={`davon ${euro(s.trinkgeldCent)} Trinkgeld`} />
+        <Kachel zahl={euro(s.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
+        <Kachel zahl={euro(s.abziehbarCent)} was="Betriebsausgabe" hinweis={`70 % von ${euro(s.nettoCent)} netto`} betont />
+      </div>
+
+      <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Einkäufe</h3>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kachel zahl={String(e.anzahl)} was={e.anzahl === 1 ? "Einkauf" : "Einkäufe"} />
+        <Kachel zahl={euro(e.bruttoCent)} was="ausgegeben" />
+        <Kachel zahl={euro(e.vorsteuerCent)} was="Vorsteuer" hinweis="voll abziehbar" />
+        <Kachel zahl={euro(e.abziehbarCent)} was="Betriebsausgabe" hinweis="netto, voll abziehbar" betont />
+      </div>
+      {kategorien.size > 0 && (
+        <p className="text-xs text-leise">
+          {[...kategorien].sort((a, c) => c[1] - a[1]).map(([k, c]) => `${k} ${euro(c)}`).join(" · ")}
+        </p>
+      )}
+
+      <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-leise">Bezahlt</h3>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kachel zahl={euro(zw.karte)} was="mit Karte" />
+        <Kachel zahl={euro(zw.bar)} was="bar" />
+        <Kachel zahl={euro(zw.privat)} was="privat ausgelegt" hinweis="erstattet dir die Firma" />
+      </div>
+
+      {monate.map((m) => {
+        const liste = jeMonat.get(m)!;
+        const fertig = liste.filter((x) => x.status === "fertig");
+        const schluessel = `${jahr}-${String(m).padStart(2, "0")}`;
+        return (
+          <div key={m} className="space-y-2 pt-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-linie pb-1">
+              <h4 className="font-semibold">
+                {m ? MONATE[m - 1] : "ohne Datum"}{" "}
+                <span className="font-normal text-leise">
+                  · {fertig.length === 1 ? "1 Beleg" : `${fertig.length} Belege`} ·{" "}
+                  {euro(fertig.reduce((n, x) => n + (x.bruttoCent ?? 0) + x.trinkgeldCent, 0))}
+                </span>
+              </h4>
+              {m > 0 && (
+                <span className="flex gap-3 text-xs">
+                  <Link href={`/bewirtung/monat?m=${schluessel}`} className="underline">
+                    fürs Steuerbüro drucken
+                  </Link>
+                  <a href={`/bewirtung/export?m=${schluessel}&g=${g}`} className="underline">
+                    CSV {gesellschaftKurz(g)}
+                  </a>
+                </span>
+              )}
+            </div>
+            <ul className="divide-y divide-linie rounded-lg border border-linie bg-flaeche">
+              {liste.map((x) => (
+                <li key={x.id}>
+                  <Link href={`/bewirtung/${x.id}`} className="flex flex-wrap items-baseline gap-x-3 px-4 py-2.5 text-sm hover:bg-gold-hell">
+                    <span className="w-24 font-mono text-xs text-leise">{x.nummer}</span>
+                    <span className="w-20 tabular-nums">{datumKurz(x.datum)}</span>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="mr-2 rounded px-1.5 py-0.5 text-[11px]"
+                        style={{ background: x.art === "einkauf" ? "var(--info-hell)" : "var(--gold-hell)" }}
+                      >
+                        {x.art === "einkauf" ? "Einkauf" : "Bewirtung"}
+                      </span>
+                      <strong>{x.restaurant}</strong>
+                      <span className="text-leise"> · {x.art === "einkauf" ? x.zweck : x.anlass}</span>
+                      <span className="text-leise"> · {x.zahlweg === "bar" ? "bar" : "Karte"}{x.privatAusgelegt ? ", privat" : ""}</span>
+                    </span>
+                    <span className={`tabular-nums ${x.status === "storniert" ? "line-through text-leise" : ""}`}>
+                      {euro((x.bruttoCent ?? 0) + x.trinkgeldCent)}
+                    </span>
+                    {x.status === "storniert" && <span className="text-xs" style={{ color: "var(--blocker)" }}>storniert</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

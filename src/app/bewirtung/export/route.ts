@@ -1,10 +1,15 @@
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { gesellschaftName } from "@/lib/bewirtung/gesellschaft";
+import { gesellschaftKurz, gesellschaftName, istGesellschaft } from "@/lib/bewirtung/gesellschaft";
 import { belegeDesMonats, monatLesen } from "@/lib/bewirtung/monat";
 
 /**
  * Die Belege eines Monats als CSV fürs Steuerbüro. Semikolon und Komma als
  * Dezimaltrennzeichen, damit Excel sie auf deutschen Rechnern richtig öffnet.
+ *
+ * Mit `&g=` nur die Belege einer Firma. So bekommt jede Gesellschaft ihre
+ * eigene Datei, und im Steuerbüro landet nie eine Liste, in der Theater,
+ * Magic-Expert GbR und True Talent GmbH untereinanderstehen
+ * (Florian, 29.09.2026).
  */
 
 export const dynamic = "force-dynamic";
@@ -17,7 +22,11 @@ export async function GET(request: Request) {
   const m = new URL(request.url).searchParams.get("m") ?? undefined;
   const mo = monatLesen(m);
   if (!mo) return new Response("Monat fehlt", { status: 400 });
-  const belege = await belegeDesMonats(mo.jahr, mo.monat);
+  const alle = await belegeDesMonats(mo.jahr, mo.monat);
+
+  const gRoh = new URL(request.url).searchParams.get("g");
+  const g = istGesellschaft(gRoh) ? gRoh : null;
+  const belege = g ? alle.filter((b) => b.gesellschaft === g) : alle;
 
   const kopf = [
     // Die Firma steht vorn: Das Steuerbuero sortiert danach, bevor es
@@ -44,7 +53,7 @@ export async function GET(request: Request) {
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="belege-${m}.csv"`,
+      "Content-Disposition": `attachment; filename="belege-${g ? `${gesellschaftKurz(g).replace(/[^A-Za-z0-9-]/g, "")}-` : ""}${m}.csv"`,
     },
   });
 }

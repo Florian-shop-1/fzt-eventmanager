@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { euro, nachZahlweg, summen, vorkommendeGesellschaften } from "@/lib/bewirtung/db";
-import { gesellschaftKurz, gesellschaftName } from "@/lib/bewirtung/gesellschaft";
+import { euro, nachZahlweg, summen, vorkommendeGesellschaften, type Bewirtung } from "@/lib/bewirtung/db";
+import { gesellschaftKurz, gesellschaftName, type Gesellschaft } from "@/lib/bewirtung/gesellschaft";
 import { belegeDesMonats, monatLesen } from "@/lib/bewirtung/monat";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -13,19 +13,23 @@ export const dynamic = "force-dynamic";
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 /**
- * Alles für einen Monat, so wie es ans Steuerbüro geht: vorne die
- * Aufstellung mit Summen, danach je Beleg eine Seite mit Angaben und Foto.
- * Im Browser "Als PDF speichern" ergibt die Datei fürs Steuerbüro.
+ * Alles für einen Monat, so wie es ans Steuerbüro geht: je Firma eine
+ * eigene Aufstellung mit Summen, danach je Beleg eine Seite mit Angaben
+ * und Foto. Im Browser "Als PDF speichern" ergibt die Datei fürs
+ * Steuerbüro.
+ *
+ * Die Firmen werden nirgends vermischt (Florian, 29.09.2026): Das
+ * Theater, die Magic-Expert GbR und die True Talent GmbH führen getrennte
+ * Bücher, und jede Aufstellung beginnt auf einer neuen Seite. Wer nur
+ * eine Firma braucht, lädt sie unten einzeln als Tabelle herunter.
  */
 export default async function MonatSeite({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   if (!darfBuchhaltung(await angemeldeterBenutzer())) redirect("/");
   const { m } = await searchParams;
   const mo = monatLesen(m);
   if (!mo) redirect("/bewirtung");
-  const belege = await belegeDesMonats(mo.jahr, mo.monat);
-  const s = summen(belege, "bewirtung");
-  const e = summen(belege, "einkauf");
-  const zw = nachZahlweg(belege);
+  const alle = await belegeDesMonats(mo.jahr, mo.monat);
+  const firmen = vorkommendeGesellschaften(alle);
   const titel = `Belege ${MONATE[mo.monat - 1]} ${mo.jahr}`;
 
   return (
@@ -34,17 +38,58 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
         <Link href={`/bewirtung?jahr=${mo.jahr}`} className="text-sm text-leise underline">
           zurück zur Übersicht
         </Link>
-        <span className="flex items-center gap-4">
-          <a href={`/bewirtung/export?m=${m}`} className="text-sm underline">
-            CSV herunterladen
-          </a>
-          <DruckKnopf text="Drucken oder als PDF speichern" hinweis="je Beleg eine Seite" />
-        </span>
+        <DruckKnopf text="Drucken oder als PDF speichern" hinweis="je Firma eine eigene Aufstellung" />
       </div>
 
+      {firmen.length === 0 && (
+        <p className="text-sm text-leise">In diesem Monat gibt es keine festgeschriebenen Belege.</p>
+      )}
+
+      {firmen.map((g, i) => (
+        <Firmenblock
+          key={g}
+          g={g}
+          belege={alle.filter((b) => b.gesellschaft === g)}
+          titel={titel}
+          monat={m ?? ""}
+          ersteSeite={i === 0}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Die vollständige Aufstellung einer Firma, ab einer neuen Seite. */
+function Firmenblock({
+  g,
+  belege,
+  titel,
+  monat,
+  ersteSeite,
+}: {
+  g: Gesellschaft;
+  belege: Bewirtung[];
+  titel: string;
+  monat: string;
+  ersteSeite: boolean;
+}) {
+  const s = summen(belege, "bewirtung", g);
+  const e = summen(belege, "einkauf", g);
+  const zw = nachZahlweg(belege, g);
+
+  return (
+    <div className="space-y-8" style={ersteSeite ? undefined : { breakBefore: "page" }}>
       <section>
-        <h1 className="text-2xl font-semibold tracking-tight">{titel}</h1>
-        <p className="mt-1 text-sm text-leise">Florian Zimmer Theater GmbH, Neu-Ulm</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">{titel}</h1>
+            <p className="mt-1 text-sm text-leise">{gesellschaftName(g)}</p>
+          </div>
+          <a href={`/bewirtung/export?m=${monat}&g=${g}`} className="text-sm underline print:hidden">
+            CSV {gesellschaftKurz(g)}
+          </a>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="mt-4 w-full text-sm">
             <thead className="border-b border-linie text-left text-xs text-leise">
@@ -77,6 +122,7 @@ export default async function MonatSeite({ searchParams }: { searchParams: Promi
             </tbody>
           </table>
         </div>
+
         <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-leise">Einkäufe</h2>
         <dl className="mt-2 grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-leise">Belege (ohne Stornos)</dt>

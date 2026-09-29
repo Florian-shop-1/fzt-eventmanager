@@ -257,6 +257,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         */
         if (g.titel === "Sonstiges" && darfZeitenAendern(benutzer)) {
           punkte.unshift({ href: "/stempeluhr", label: "Zeiterfassung", rollen: [] });
+          // Die Stunden je Abrechnungszeitraum, die Werner ans Steuerbüro
+          // meldet. Eigener Punkt, weil es eine andere Frage ist als die
+          // Zeiterfassung: Dort wird korrigiert, hier gemeldet.
+          punkte.splice(1, 0, { href: "/lohn", label: "Stundenmeldung", rollen: [] });
         }
         if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
           punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });

@@ -311,6 +311,9 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       // Rechnungen und der Abgleich mit dem Konto gehören zur Buchhaltung.
       pfad.startsWith("/rechnungen") ||
       pfad.startsWith("/zahlungseingaenge") ||
+      // Werner meldet die Arbeitszeiten ans Steuerbüro, siehe /lohn.
+      pfad.startsWith("/stempeluhr") ||
+      pfad.startsWith("/lohn") ||
       pfad.startsWith("/konto")
     );
   }

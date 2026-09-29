@@ -324,8 +324,14 @@ export function euro(cent: number | null | undefined): string {
 }
 
 /** Wie viel wurde bar, mit Karte, und privat ausgelegt bezahlt (alle Arten). */
-export function nachZahlweg(liste: Bewirtung[]): { bar: number; karte: number; privat: number } {
-  const fertig = liste.filter((b) => b.status === "fertig");
+export function nachZahlweg(
+  liste: Bewirtung[],
+  /** Nur diese Firma zählen. Ohne Angabe alle zusammen. */
+  gesellschaft?: Gesellschaft,
+): { bar: number; karte: number; privat: number } {
+  const fertig = liste.filter(
+    (b) => b.status === "fertig" && (!gesellschaft || b.gesellschaft === gesellschaft),
+  );
   const gesamt = (b: Bewirtung) => (b.bruttoCent ?? 0) + b.trinkgeldCent;
   return {
     bar: fertig.filter((b) => b.zahlweg === "bar").reduce((n, b) => n + gesamt(b), 0),
@@ -342,6 +348,10 @@ export function nachZahlweg(liste: Bewirtung[]): { bar: number; karte: number; p
  * Belege gibt: Wer nie für die Magic-Expert GbR einkauft, sieht sie
  * auch nirgends (Florian, 28.09.2026).
  */
+export function nurGesellschaft(liste: Bewirtung[], g: Gesellschaft): Bewirtung[] {
+  return liste.filter((b) => b.gesellschaft === g);
+}
+
 export function vorkommendeGesellschaften(liste: Bewirtung[]): Gesellschaft[] {
   const da = new Set(liste.filter((b) => b.status === "fertig").map((b) => b.gesellschaft));
   return GESELLSCHAFTEN.map((g) => g.wert).filter((w) => da.has(w));
