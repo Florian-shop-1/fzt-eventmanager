@@ -35,7 +35,14 @@ export default async function BelegSeite({
   const warnungen = [
     l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Beleg ist.",
     l && !l.maschinell && b.art === "bewirtung" && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt bei Bewirtungen in der Regel einen maschinellen Beleg.",
-    l && l.maschinell && !l.tse_vorhanden && "Auf dem Beleg sind keine TSE-Angaben zu erkennen. Bitte prüfen, ob sie abgeschnitten sind.",
+    /*
+      Die TSE-Frage gilt Kassenbons, nicht Rechnungen.
+
+      Eine Rechnung von Huss Licht + Ton, die per Lastschrift eingezogen
+      wird, hat keine Kasse gesehen und braucht keine TSE. Der Hinweis
+      war dort nur Rauschen (Florian, 30.09.2026).
+    */
+    l && l.maschinell && !l.tse_vorhanden && l.zahlweg !== "konto" && "Auf dem Beleg sind keine TSE-Angaben zu erkennen. Bitte prüfen, ob sie abgeschnitten sind.",
     l?.hinweis,
   ].filter(Boolean) as string[];
 
@@ -162,18 +169,41 @@ export default async function BelegSeite({
               </label>
             </fieldset>
 
+            {/*
+              Bei einer Rechnung, die abgebucht wird, ist die Frage nach
+              Karte oder bar sinnlos: Bezahlt wird sie vom Konto, und dort
+              steht sie auch. "warum fragst du dann nach karte oder bar?"
+              (Florian, 30.09.2026). Der Weg bleibt aenderbar, falls die
+              Erkennung sich irrt, aber er wird nicht mehr angemahnt.
+            */}
             <fieldset
               className="space-y-2 rounded-lg border p-4"
-              style={b.zahlweg ? { borderColor: "var(--linie)", background: "var(--flaeche)" } : { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+              style={
+                b.zahlweg
+                  ? { borderColor: "var(--linie)", background: "var(--flaeche)" }
+                  : { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+              }
             >
               <legend className="px-1 text-sm font-semibold">
-                Bezahlt mit {!b.zahlweg && <span style={{ color: "var(--warnung)" }}>, steht nicht auf dem Beleg: Karte oder bar?</span>}
+                Bezahlt mit{" "}
+                {b.zahlweg === "konto" ? (
+                  <span className="font-normal text-leise">
+                    Lastschrift oder Überweisung. Die Abbuchung kommt vom Konto, sie wird im
+                    Belegabgleich von selbst zugeordnet.
+                  </span>
+                ) : (
+                  !b.zahlweg && (
+                    <span style={{ color: "var(--warnung)" }}>, steht nicht auf dem Beleg: Karte oder bar?</span>
+                  )
+                )}
               </legend>
               <div className="flex flex-wrap gap-2">
-                {(["karte", "bar"] as const).map((z) => (
+                {(["karte", "bar", "konto"] as const).map((z) => (
                   <label key={z} className="flex cursor-pointer items-center gap-2 rounded-lg border border-linie bg-flaeche px-4 py-2 has-[:checked]:border-gold has-[:checked]:bg-gold-hell">
                     <input type="radio" name="zahlweg" value={z} defaultChecked={b.zahlweg === z} />
-                    <span className="text-sm font-medium">{z === "karte" ? "Karte" : "Bar"}</span>
+                    <span className="text-sm font-medium">
+                      {z === "karte" ? "Karte" : z === "bar" ? "Bar" : "Vom Konto"}
+                    </span>
                   </label>
                 ))}
               </div>

@@ -34,8 +34,14 @@ export interface Bewirtung {
   gesellschaft: Gesellschaft;
   kategorie: string;
   zweck: string;
-  /** karte oder bar, leer solange unbekannt. */
-  zahlweg: "" | "karte" | "bar";
+  /**
+   * Wie bezahlt wurde: karte, bar oder konto, leer solange unbekannt.
+   *
+   * "konto" heisst Lastschrift oder Ueberweisung. Bei einer Rechnung,
+   * die abgebucht wird, ist die Frage nach Karte oder bar sinnlos, und
+   * die Zahlung steht ohnehin auf dem Kontoauszug (Florian, 30.09.2026).
+   */
+  zahlweg: "" | "karte" | "bar" | "konto";
   privatAusgelegt: boolean;
   anlass: string;
   teilnehmer: string;
@@ -175,7 +181,7 @@ export interface Angaben {
   art: "bewirtung" | "einkauf";
   kategorie: string;
   zweck: string;
-  zahlweg: "" | "karte" | "bar";
+  zahlweg: "" | "karte" | "bar" | "konto";
   privatAusgelegt: boolean;
   anlass: string;
   teilnehmer: string;

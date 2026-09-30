@@ -46,7 +46,7 @@ Gib genau wieder, was auf dem Beleg steht. Erfinde nichts. Wenn etwas nicht auf 
 - mwst7 und mwst19: die ausgewiesenen Steuerbeträge in Euro (nicht die Nettobeträge). Im Restaurant: Speisen seit 2026 mit 7 %, Getränke mit 19 %. Nur übernehmen, was auf dem Beleg steht.
 - trinkgeld: nur bei Bewirtungen und nur, wenn ein Trinkgeld auf dem Beleg gedruckt oder handschriftlich vermerkt ist, sonst 0.
 - zahlart: so genau wie auf dem Beleg, zum Beispiel "EC-Karte", "Girocard", "Visa", "Mastercard", "Bar", "PayPal". Leer, wenn nicht erkennbar.
-- zahlweg: "karte" bei jeder Kartenzahlung (EC, Girocard, Kredit, kontaktlos, Apple Pay), "bar" bei Barzahlung (erkennbar an "Bar", "Gegeben", "Rückgeld"), "unbekannt", wenn der Beleg es nicht zeigt.
+- zahlweg: "karte" bei jeder Kartenzahlung (EC, Girocard, Kredit, kontaktlos, Apple Pay), "bar" bei Barzahlung (erkennbar an "Bar", "Gegeben", "Rückgeld"), "konto" bei einer Rechnung, die per Lastschrift eingezogen oder per Überweisung bezahlt wird (erkennbar an "Lastschrift", "SEPA", "Bankeinzug", "zahlbar bis", "Zahlungsziel", "Rechnungsbetrag wird abgebucht"), "unbekannt", wenn der Beleg es nicht zeigt.
 - tse_vorhanden: true, wenn Angaben der technischen Sicherheitseinrichtung (TSE, Signatur, Transaktionsnummer, Seriennummer der Kasse) aufgedruckt sind.
 - maschinell: true, wenn der Beleg maschinell erstellt ist (Kassenbon, Rechnungsdrucker), false bei einer handschriftlichen Quittung.
 - beleg_ok: false, wenn das Bild kein Kassenbeleg und keine Rechnung ist oder so unscharf, dass die Beträge nicht sicher lesbar sind.
@@ -79,7 +79,7 @@ const SCHEMA = {
     art: { type: "string", enum: ["bewirtung", "einkauf"] },
     zweck: { type: "string" },
     kategorie: { type: "string", enum: [...KATEGORIEN, ""] },
-    zahlweg: { type: "string", enum: ["karte", "bar", "unbekannt"] },
+    zahlweg: { type: "string", enum: ["karte", "bar", "konto", "unbekannt"] },
     restaurant: { type: "string" },
     anschrift: { type: "string" },
     datum: { type: "string" },
@@ -100,7 +100,7 @@ export interface BelegLesung {
   art: "bewirtung" | "einkauf";
   zweck: string;
   kategorie: string;
-  zahlweg: "karte" | "bar" | "unbekannt";
+  zahlweg: "karte" | "bar" | "konto" | "unbekannt";
   restaurant: string;
   anschrift: string;
   datum: string;

@@ -123,8 +123,25 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   }
 
   const nummer = await festschreiben(id, b.name);
+
+  /*
+    Gleich nachsehen, ob die Abbuchung dazu schon auf dem Konto steht.
+
+    Erst ein festgeschriebener Beleg kommt fuer die Zuordnung infrage,
+    vorher ist er ein Entwurf. Frueher musste man danach zum Abgleich
+    gehen und klicken; wenn es eindeutig passt, ist das ein Klick zu viel
+    (Florian, 30.09.2026: "du hast ja die abbuchung am konto auch = passt
+    ohne dass ich was tun sollte").
+  */
+  const auto = await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] }));
+  const dazu =
+    auto.zugeordnet > 0
+      ? ` Die Abbuchung dazu ist auf dem Konto gefunden und abgehakt.`
+      : "";
+
   revalidatePath("/bewirtung");
-  redirect(`/bewirtung?meldung=${encodeURIComponent(`Beleg ${nummer} ist festgeschrieben.`)}`);
+  revalidatePath("/bewirtung/abgleich");
+  redirect(`/bewirtung?meldung=${encodeURIComponent(`Beleg ${nummer} ist festgeschrieben.${dazu}`)}`);
 }
 
 export async function belegVerwerfen(f: FormData): Promise<void> {
