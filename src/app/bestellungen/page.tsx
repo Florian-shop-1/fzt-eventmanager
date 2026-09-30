@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
@@ -399,6 +400,12 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
       </form>
 
       <AbsenderEinrichtung />
+
+      <p className="text-sm">
+        <Link href="/bestellungen/rechnungen" className="underline">
+          Alle Rechnungen an die Gastro und ihr Zahlstand
+        </Link>
+      </p>
 
       <RechnungsEinrichtung />
 

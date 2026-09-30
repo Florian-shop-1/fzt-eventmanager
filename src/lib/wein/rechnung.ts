@@ -21,6 +21,7 @@ import {
 } from "@/lib/rechnung/db";
 import { bestellungen, euro, leihen } from "./db";
 import { rechnungsPdfBauen, type Absender, type RechnungsPosition } from "./pdf";
+import { zahlungenAmKontoPruefen } from "./zahlung";
 
 export interface Empfaenger {
   name: string;
@@ -419,6 +420,15 @@ export async function zahlungenPruefen(): Promise<number> {
  * Vormonat, wenn die Automatik an ist, und der Blick aufs Konto.
  */
 export async function taeglicherRechnungslauf(): Promise<{ erstellt: string | null; bezahlt: number }> {
+  /*
+    Der Blick aufs eigene Konto zuerst.
+
+    Die Zahlung landet bei uns, nicht bei Lexware Office. Seit wir die
+    Kontoumsaetze selbst lesen, ist der Umweg ueberfluessig, und er faellt
+    ohnehin weg, sobald Lexware Office abgeschaltet wird
+    (Florian, 30.09.2026).
+  */
+  const amKonto = await zahlungenAmKontoPruefen().catch(() => ({ geprueft: 0, bezahlt: 0 }));
   let erstellt: string | null = null;
   const e = await rechnungsEinstellung();
   const heute = new Date();
@@ -431,6 +441,8 @@ export async function taeglicherRechnungslauf(): Promise<{ erstellt: string | nu
       erstellt = neu.nummer;
     }
   }
-  const bezahlt = await zahlungenPruefen();
-  return { erstellt, bezahlt };
+  // Was Lexware Office noch weiss, solange es laeuft. Das eigene Konto
+  // wurde oben schon gefragt und ist die verlaesslichere Quelle.
+  const ausLexoffice = await zahlungenPruefen().catch(() => 0);
+  return { erstellt, bezahlt: amKonto.bezahlt + ausLexoffice };
 }
