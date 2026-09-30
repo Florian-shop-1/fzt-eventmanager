@@ -545,6 +545,26 @@ export function UpgradeTafel({
   /** Ein Tipp im Plan: aufnehmen, setzen, die Empfehlung annehmen oder durch-x-en. */
   function tippen(s: TafelSitz) {
     setHinweis("");
+
+    /*
+      Ein Haken muss immer wieder weggehen.
+
+      Seit dem 30.09.2026 ist das X auch im Umsetzen-Modus zu sehen, als
+      gruener Haken in der Ecke. Wegnehmen liess es sich dort aber nicht:
+      Ein Tipp auf den Platz hat die Gruppe aufgenommen oder gesetzt, der
+      Haken blieb. Wer sich verklickt hat, stand davor fest (Florian,
+      30.09.2026).
+
+      Deshalb steht das Zuruecknehmen jetzt vor allem anderen und gilt in
+      beiden Ansichten: Ein abgehakter Platz reagiert auf den naechsten
+      Tipp, indem der Haken verschwindet. Umgesetzt wird dort ohnehin
+      nicht mehr, wer schon sitzt, wird nicht verschoben.
+    */
+    if (eingecheckt.has(s.id)) {
+      void toggleEinchecken(s.id);
+      return;
+    }
+
     if (modus === "einchecken") {
       void toggleEinchecken(s.id);
       return;
@@ -931,7 +951,11 @@ export function UpgradeTafel({
                 }
 
                 const anfassbar =
-                  modus === "einchecken" || Boolean(heimat ?? zielVon) || Boolean(start) || Boolean(vorlage);
+                  modus === "einchecken" ||
+                  durchgext ||
+                  Boolean(heimat ?? zielVon) ||
+                  Boolean(start) ||
+                  Boolean(vorlage);
                 const hervorgehoben = modus === "umsetzen" && empfohlen;
 
                 return (
@@ -943,8 +967,10 @@ export function UpgradeTafel({
                     <title>
                       {modus === "einchecken"
                         ? `Reihe ${s.reihe}, Platz ${s.name}${durchgext ? ": durch-x-t" : ""}`
-                        : zielVon
-                          ? `${gruppeZu(zielVon)?.titel ?? ""} sitzt jetzt hier`
+                        : durchgext
+                          ? `Reihe ${s.reihe}, Platz ${s.name}: sitzt schon. Tippen nimmt den Haken zur\u00fcck.`
+                          : zielVon
+                            ? `${gruppeZu(zielVon)?.titel ?? ""} sitzt jetzt hier`
                           : heimat
                             ? `${heimat.personen} Gäste, ${heimat.titel}`
                             : s.freiLassen
