@@ -138,19 +138,42 @@ export async function postAbholen(o: {
   const seit = new Date(Date.now() - (o.tage ?? 14) * 86400_000).toISOString();
   const hoechstens = Math.min(50, o.hoechstens ?? 25);
 
+  /*
+    Nach Anhang wird hier NICHT gefragt, sondern weiter unten aussortiert.
+
+    Microsoft hat den Abruf sonst rundweg abgelehnt: "The restriction or
+    sort order is too complex for this operation" (30.09.2026). Der Grund
+    ist eine Eigenheit von Exchange: Nach hasAttachments darf man
+    einschraenken, nach receivedDateTime darf man einschraenken und
+    sortieren, aber beides zusammen geht nicht. Exchange hat fuer diese
+    Mischung keinen Index und weigert sich, das ganze Postfach
+    durchzublaettern.
+
+    Deshalb fragen wir nur nach dem Zeitraum, holen ein Vielfaches der
+    gewuenschten Menge und werfen die Mails ohne Anhang hier weg. Das
+    kostet eine Anfrage mit ein paar Kilobyte mehr und ist dafuer
+    unempfindlich gegen die Launen des Postfachs.
+  */
   const liste = await graph<{ value: GraphNachricht[] }>(
     `/users/${encodeURIComponent(RECHNUNGSPOSTFACH)}/messages` +
-      `?$filter=hasAttachments eq true and receivedDateTime ge ${seit}` +
+      `?$filter=receivedDateTime ge ${seit}` +
       `&$select=id,subject,receivedDateTime,from,hasAttachments` +
-      `&$orderby=receivedDateTime desc&$top=${hoechstens}`,
+      `&$orderby=receivedDateTime desc&$top=${Math.min(200, hoechstens * 6)}`,
   );
 
-  const nachrichten = liste.value ?? [];
-  lauf.gesehen = nachrichten.length;
-  const bekannt = await schonGeholt(nachrichten.map((n) => n.id));
+  /*
+    Erst das Bekannte weg, dann die Menge begrenzen.
+
+    Andersherum kaeme der Lauf nie voran: Die neuesten Mails sind nach
+    dem ersten Durchgang bekannt, wuerden die Obergrenze aber weiter
+    belegen, und was darunter liegt, bliebe fuer immer liegen.
+  */
+  const mitAnhang = (liste.value ?? []).filter((n) => n.hasAttachments);
+  const bekannt = await schonGeholt(mitAnhang.map((n) => n.id));
+  const nachrichten = mitAnhang.filter((n) => !bekannt.has(n.id)).slice(0, hoechstens);
+  lauf.gesehen = mitAnhang.length;
 
   for (const n of nachrichten) {
-    if (bekannt.has(n.id)) continue;
 
     const von = n.from?.emailAddress?.address ?? "";
     const betreff = (n.subject ?? "").slice(0, 300);
