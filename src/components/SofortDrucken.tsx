@@ -28,7 +28,21 @@
 import { useEffect, useState } from "react";
 import { Vorschauhinweis } from "./DruckKnopf";
 
-export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
+export function SofortDrucken({
+  bereit = true,
+  bereich = ".briefseiten",
+}: {
+  bereit?: boolean;
+  /**
+   * Welcher Bereich gedruckt wird.
+   *
+   * Auf die Bilder darin wird gewartet. Die Parkschilder liegen in
+   * ".parkschilder", die Briefe in ".briefseiten"; wartet man auf den
+   * falschen Bereich, druckt der Browser, bevor das Logo da ist
+   * (Florian, 30.09.2026).
+   */
+  bereich?: string;
+}) {
   const [wartet, setWartet] = useState(bereit);
   const [stockt, setStockt] = useState(false);
 
@@ -56,7 +70,7 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
     const nachDemLaden = () => {
       // Nur die Bilder abwarten, die auch gedruckt werden. Alles andere
       // steht ohnehin nicht auf dem Blatt.
-      const bilder = [...document.querySelectorAll<HTMLImageElement>(".briefseiten img")];
+      const bilder = [...document.querySelectorAll<HTMLImageElement>(`${bereich} img`)];
       const offen = bilder.filter((b) => !b.complete);
 
       if (offen.length === 0) {
@@ -106,7 +120,7 @@ export function SofortDrucken({ bereit = true }: { bereit?: boolean }) {
       window.clearTimeout(notausgang);
       window.removeEventListener("load", nachDemLaden);
     };
-  }, [bereit]);
+  }, [bereit, bereich]);
 
   return (
     <div className="rounded-lg border border-gold bg-gold-hell px-4 py-3 text-sm print:hidden">

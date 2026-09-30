@@ -4,7 +4,9 @@ import { parkplaetzeDesTages, type Parkplatzbuchung } from "@/lib/shop/parkplaet
 import { findeTermin } from "@/lib/ditix/spielplan";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import Link from "next/link";
 import { DruckKnopf } from "@/components/DruckKnopf";
+import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang } from "@/lib/zeit";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -35,9 +37,15 @@ export const dynamic = "force-dynamic";
 export default async function ParkplaetzeSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string; meldung?: string }>;
+  searchParams: Promise<{
+    abend?: string;
+    monat?: string;
+    meldung?: string;
+    nur?: string;
+    sofort?: string;
+  }>;
 }) {
-  const { abend, monat, meldung } = await searchParams;
+  const { abend, monat, meldung, nur, sofort } = await searchParams;
   const ich = await angemeldeterBenutzer();
   const termine = await alleShowtage();
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
@@ -86,10 +94,23 @@ export default async function ParkplaetzeSeite({
 
   // Ein Schild je Platz, nicht je Buchung: Wer zwei Plätze bucht, braucht
   // auch zwei Schilder.
-  const schilder = buchungen.flatMap((b) =>
+  const alleSchilder = buchungen.flatMap((b) =>
     Array.from({ length: b.anzahl }, (_, i) => ({ ...b, nummer: i + 1 })),
   );
+
+  /*
+    Ein einzelnes Schild nachdrucken.
+
+    Der Normalfall bleibt der Stapel am Nachmittag. Aber es kommt jemand
+    nach, ein Blatt verknittert, ein Name wird korrigiert: Dann soll nicht
+    der ganze Abend noch einmal aus dem Drucker kommen (Florian,
+    30.09.2026). Gedruckt werden alle Schilder dieser einen Buchung, denn
+    wer zwei Plaetze hat, braucht auch zwei.
+  */
+  const schilder = nur ? alleSchilder.filter((x) => x.orderId === nur) : alleSchilder;
   const plaetze = schilder.length;
+  const einzeln = Boolean(nur) && plaetze > 0;
+  const einzelName = einzeln ? schilder[0].name : "";
 
   return (
     <div className="space-y-6">
@@ -107,6 +128,19 @@ export default async function ParkplaetzeSeite({
           />
         )}
       </header>
+
+      {sofort === "1" && <SofortDrucken bereit={plaetze > 0} bereich=".parkschilder" />}
+
+      {einzeln && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gold bg-gold-hell px-4 py-3 text-sm print:hidden">
+          <span>
+            Nur {plaetze === 1 ? "das Schild" : `die ${plaetze} Schilder`} für <strong>{einzelName}</strong>.
+          </span>
+          <Link href={`/parkplaetze?abend=${encodeURIComponent(gewaehlt)}`} className="underline">
+            Zurück zur ganzen Liste
+          </Link>
+        </div>
+      )}
 
       <div className="print:hidden">
         <AbendAuswahl
@@ -161,7 +195,8 @@ export default async function ParkplaetzeSeite({
               <tr>
                 <th className="pb-1 font-medium">Kunde</th>
                 <th className="w-24 pb-1 text-right font-medium">Plätze</th>
-                <th className="w-40 pb-1 font-medium">Bisheriges Schild</th>
+                <th className="w-36 pb-1 font-medium">Schild</th>
+                <th className="w-32 pb-1 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -195,6 +230,19 @@ export default async function ParkplaetzeSeite({
                   </td>
                   <td className="py-2 text-right tabular-nums">{b.anzahl}</td>
                   <td className="py-2 text-xs">
+                    {/*
+                      Das Schild dieser einen Buchung, ohne den ganzen
+                      Stapel. Der Weg fuehrt ueber die Adresse, damit auch
+                      der zweite Rechner im Buero denselben Druck bekommt.
+                    */}
+                    <Link
+                      href={`/parkplaetze?abend=${encodeURIComponent(gewaehlt)}&nur=${encodeURIComponent(b.orderId)}&sofort=1`}
+                      className="rounded-md border border-linie px-2.5 py-1 hover:bg-gold-hell"
+                    >
+                      Schild drucken
+                    </Link>
+                  </td>
+                  <td className="py-2 text-xs">
                     {b.orderId.startsWith("hand:") ? (
                       darfParkplatzEintragen(ich) ? (
                         <form action={parkplatzLoeschen}>
@@ -207,18 +255,7 @@ export default async function ParkplaetzeSeite({
                       ) : (
                         <span className="text-leise">von Hand vergeben</span>
                       )
-                    ) : b.schildUrl ? (
-                      <a
-                        href={b.schildUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-leise underline hover:text-text"
-                      >
-                        in Google öffnen
-                      </a>
-                    ) : (
-                      <span className="text-leise">keines hinterlegt</span>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               ))}
