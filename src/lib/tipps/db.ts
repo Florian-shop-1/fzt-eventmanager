@@ -34,6 +34,9 @@ function zeile(r: Record<string, unknown>): Tipp {
     videoTyp: String(r.video_typ),
     erstelltVon: String(r.erstellt_von),
     erstelltAm: new Date(r.erstellt_am as string).toISOString(),
+    art: (r.art as "video" | "datei" | "notiz") ?? "video",
+    notiz: String(r.notiz ?? ""),
+    dateiName: String(r.datei_name ?? ""),
     reiheId: r.reihe_id ? String(r.reihe_id) : null,
     schritt: Number(r.schritt ?? 1),
   };
@@ -83,11 +86,16 @@ export async function tippAnlegen(o: {
   von: string;
   reiheId?: string | null;
   schritt?: number;
+  art?: "video" | "datei" | "notiz";
+  notiz?: string;
+  dateiName?: string;
 }): Promise<void> {
   await db()`
-    insert into tipp (titel, beschreibung, schlagworte, video_url, video_typ, erstellt_von, reihe_id, schritt)
+    insert into tipp (titel, beschreibung, schlagworte, video_url, video_typ, erstellt_von, reihe_id, schritt,
+                      art, notiz, datei_name)
     values (${o.titel}, ${o.beschreibung}, ${o.schlagworte}, ${o.videoUrl}, ${o.videoTyp}, ${o.von},
-            ${o.reiheId ?? null}::uuid, ${o.schritt ?? 1})
+            ${o.reiheId ?? null}::uuid, ${o.schritt ?? 1},
+            ${o.art ?? "video"}, ${o.notiz ?? ""}, ${o.dateiName ?? ""})
   `;
 }
 
@@ -102,7 +110,14 @@ export async function reiheAnlegen(o: {
   beschreibung: string;
   schlagworte: string;
   von: string;
-  schritte: Array<{ titel: string; videoUrl: string; videoTyp: string }>;
+  schritte: Array<{
+    titel: string;
+    videoUrl: string;
+    videoTyp: string;
+    art?: "video" | "datei" | "notiz";
+    notiz?: string;
+    dateiName?: string;
+  }>;
 }): Promise<string> {
   const r = (await db()`
     insert into tipp_reihe (titel, beschreibung, schlagworte, erstellt_von)
@@ -123,6 +138,9 @@ export async function reiheAnlegen(o: {
       von: o.von,
       reiheId,
       schritt: i + 1,
+      art: s.art ?? "video",
+      notiz: s.notiz ?? "",
+      dateiName: s.dateiName ?? "",
     });
   }
 

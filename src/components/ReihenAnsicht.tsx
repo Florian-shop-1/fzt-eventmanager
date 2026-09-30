@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Tipp } from "@/lib/tipps/filter";
+import { TippInhalt } from "./TippsListe";
 
 /**
  * Eine Anleitung Schritt für Schritt.
@@ -63,15 +64,33 @@ export function ReihenAnsicht({ reiheId, titel, schritte }: { reiheId: string; t
           {gesehen.length > 0 && ` · ${gesehen.length} angesehen`}
         </p>
         <h2 className="text-xl font-semibold">{schritt.titel}</h2>
-        <video
-          key={schritt.id}
-          controls
-          autoPlay
-          preload="metadata"
-          className="w-full rounded-lg bg-black"
-          src={schritt.videoUrl}
-          onEnded={() => fertiggesehen(aktuell)}
-        />
+        {schritt.art === "video" || !schritt.art ? (
+          <video
+            key={schritt.id}
+            controls
+            autoPlay
+            preload="metadata"
+            className="w-full rounded-lg bg-black"
+            src={schritt.videoUrl}
+            onEnded={() => fertiggesehen(aktuell)}
+          />
+        ) : (
+          /*
+            Eine Datei oder eine Notiz laeuft nicht ab, deshalb gibt es
+            hier keinen Haken von selbst. Man hakt sie ab, wenn man sie
+            gelesen hat (Florian, 30.09.2026).
+          */
+          <div className="space-y-2">
+            <TippInhalt tipp={schritt} />
+            <button
+              type="button"
+              onClick={() => fertiggesehen(aktuell)}
+              className="text-xs text-leise underline"
+            >
+              gelesen, abhaken
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -25,7 +25,23 @@ export async function tippSpeichern(f: FormData): Promise<void> {
   const titel = text(f, "titel", 200);
   const videoUrl = text(f, "videoUrl", 2000);
   const videoTyp = text(f, "videoTyp", 100);
-  if (!titel || !videoUrl) zurueck("Titel oder Video fehlt.");
+  const notiz = text(f, "notiz", 20000);
+  const roheArt = text(f, "art", 20);
+  /*
+    Video, Datei oder Notiz.
+
+    Was fuer eine Sorte es ist, entscheidet nicht der Knopf allein, sondern
+    was wirklich ankam: Wer eine Notiz schreibt und dabei keine Datei
+    waehlt, bekommt eine Notiz (Florian, 30.09.2026).
+  */
+  const art: "video" | "datei" | "notiz" = !videoUrl
+    ? "notiz"
+    : roheArt === "datei" || !videoTyp.startsWith("video/")
+      ? "datei"
+      : "video";
+
+  if (!titel) zurueck("Der Eintrag braucht einen Titel.");
+  if (art === "notiz" && !notiz) zurueck("Ohne Datei braucht es wenigstens einen Text.");
 
   await tippAnlegen({
     titel,
@@ -34,6 +50,9 @@ export async function tippSpeichern(f: FormData): Promise<void> {
     videoUrl,
     videoTyp,
     von: b!.name,
+    art,
+    notiz,
+    dateiName: text(f, "dateiName", 200),
   });
   zurueck(`"${titel}" ist gespeichert.`);
 }
@@ -59,7 +78,13 @@ export async function reiheSpeichern(f: FormData): Promise<void> {
   const titel = text(f, "titel", 200);
   if (!titel) zurueck("Die Anleitung braucht einen Titel.");
 
-  let schritte: Array<{ titel: string; videoUrl: string; videoTyp: string }>;
+  let schritte: Array<{
+    titel: string;
+    videoUrl: string;
+    videoTyp: string;
+    notiz?: string;
+    dateiName?: string;
+  }>;
   try {
     schritte = JSON.parse(text(f, "schritte", 200000)) as typeof schritte;
   } catch {
@@ -67,15 +92,26 @@ export async function reiheSpeichern(f: FormData): Promise<void> {
   }
 
   const sauber = (schritte ?? [])
-    .filter((s) => s && typeof s.videoUrl === "string" && s.videoUrl.startsWith("https://"))
+    // Ein Schritt braucht entweder eine Datei oder einen Text.
+    .filter((s) => s && (String(s.videoUrl ?? "").startsWith("https://") || String(s.notiz ?? "").trim()))
     .slice(0, 30)
-    .map((s) => ({
-      titel: String(s.titel ?? "").trim().slice(0, 200),
-      videoUrl: s.videoUrl,
-      videoTyp: String(s.videoTyp ?? "video/mp4").slice(0, 100),
-    }));
+    .map((s) => {
+      const url = String(s.videoUrl ?? "");
+      const typ = String(s.videoTyp ?? "").slice(0, 100);
+      return {
+        titel: String(s.titel ?? "").trim().slice(0, 200),
+        videoUrl: url,
+        videoTyp: typ,
+        art: (!url ? "notiz" : typ.startsWith("video/") ? "video" : "datei") as
+          | "video"
+          | "datei"
+          | "notiz",
+        notiz: String(s.notiz ?? "").slice(0, 20000),
+        dateiName: String(s.dateiName ?? "").slice(0, 200),
+      };
+    });
 
-  if (sauber.length === 0) zurueck("Es kam kein einziges Video an.");
+  if (sauber.length === 0) zurueck("Es kam kein einziger Schritt an.");
 
   await reiheAnlegen({
     titel,

@@ -13,6 +13,12 @@ export interface Tipp {
   videoTyp: string;
   erstelltVon: string;
   erstelltAm: string;
+  /** video, datei oder notiz. */
+  art?: "video" | "datei" | "notiz";
+  /** Text einer Notiz, oder eine Ergänzung zu Video und Datei. */
+  notiz?: string;
+  /** Der Dateiname, damit man sieht, was einen erwartet. */
+  dateiName?: string;
   /** Gehört zu einer mehrteiligen Anleitung, sonst null. */
   reiheId?: string | null;
   /** Die Stelle in der Reihe, beginnend bei 1. */
@@ -29,7 +35,7 @@ export function tippsFiltern(tipps: Tipp[], suche: string): Tipp[] {
   const woerter = suche.toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (woerter.length === 0) return tipps;
   return tipps.filter((t) => {
-    const text = `${t.titel} ${t.beschreibung} ${t.schlagworte}`.toLowerCase();
+    const text = `${t.titel} ${t.beschreibung} ${t.schlagworte} ${t.notiz ?? ""}`.toLowerCase();
     return woerter.every((w) => text.includes(w));
   });
 }

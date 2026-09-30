@@ -114,7 +114,7 @@ export function TippsListe({
 function TippKarte({ tipp, darfLoeschen }: { tipp: Tipp; darfLoeschen: boolean }) {
   return (
     <li className="space-y-2 rounded-lg border border-linie bg-flaeche p-3">
-      <video controls preload="metadata" className="w-full rounded-md bg-black" src={tipp.videoUrl} />
+      <TippInhalt tipp={tipp} />
       <div>
         <h3 className="font-semibold leading-snug">{tipp.titel}</h3>
         {tipp.beschreibung && <p className="mt-1 text-sm text-leise">{tipp.beschreibung}</p>}
@@ -146,29 +146,43 @@ function HochladenFormular() {
     const daten = new FormData(form);
     const datei = daten.get("video");
     const titel = String(daten.get("titel") ?? "").trim();
-    if (!(datei instanceof File) || datei.size === 0) {
-      setFehler("Bitte ein Video auswählen.");
-      return;
-    }
+    const notiz = String(daten.get("notiz") ?? "").trim();
+    const hatDatei = datei instanceof File && datei.size > 0;
+
     if (!titel) {
       setFehler("Bitte einen Titel eintragen.");
+      return;
+    }
+    /*
+      Datei oder Text, eines von beiden muss da sein.
+
+      Nicht zu jeder Anleitung gehoert ein Video: Manchmal ist es ein PDF,
+      manchmal nur ein Text, den jemand herauskopiert hat
+      (Florian, 30.09.2026).
+    */
+    if (!hatDatei && !notiz) {
+      setFehler("Bitte eine Datei auswählen oder einen Text schreiben.");
       return;
     }
 
     setLaeuft(true);
     setFortschritt(0);
     try {
-      const blob = await upload(datei.name, datei, {
-        access: "public",
-        handleUploadUrl: "/tipps/hochladen",
-        onUploadProgress: (p) => setFortschritt(Math.round(p.percentage)),
-      });
       const speichern = new FormData();
+      if (hatDatei) {
+        const blob = await upload(datei.name, datei, {
+          access: "public",
+          handleUploadUrl: "/tipps/hochladen",
+          onUploadProgress: (p) => setFortschritt(Math.round(p.percentage)),
+        });
+        speichern.set("videoUrl", blob.url);
+        speichern.set("videoTyp", blob.contentType ?? datei.type);
+        speichern.set("dateiName", datei.name);
+      }
       speichern.set("titel", titel);
+      speichern.set("notiz", notiz);
       speichern.set("beschreibung", String(daten.get("beschreibung") ?? ""));
       speichern.set("schlagworte", String(daten.get("schlagworte") ?? ""));
-      speichern.set("videoUrl", blob.url);
-      speichern.set("videoTyp", blob.contentType ?? datei.type);
       await tippSpeichern(speichern);
       // tippSpeichern leitet bei Erfolg um (redirect), das Zurücksetzen
       // hier greift nur, wenn die Umleitung aus irgendeinem Grund ausbleibt.
@@ -191,7 +205,7 @@ function HochladenFormular() {
         onClick={() => setOffen(true)}
         className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
       >
-        + Video hochladen
+        + Video, Datei oder Notiz
       </button>
     );
   }
@@ -202,7 +216,11 @@ function HochladenFormular() {
       onSubmit={absenden}
       className="space-y-3 rounded-lg border border-linie bg-flaeche p-4"
     >
-      <h2 className="font-semibold">Video hochladen</h2>
+      <h2 className="font-semibold">Video, Datei oder Notiz</h2>
+      <p className="text-xs text-leise">
+        Ein Video, ein PDF wie ein Datenblatt, oder einfach ein Text zum Hineinkopieren. Eines von beidem
+        reicht.
+      </p>
       <label className="block">
         <span className="mb-1 block text-xs text-leise">Titel</span>
         <input name="titel" required maxLength={200} placeholder="z. B. 12-V-Akkus laden" className="w-full" />
@@ -218,8 +236,14 @@ function HochladenFormular() {
         <input name="schlagworte" maxLength={500} className="w-full" />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs text-leise">Video</span>
-        <input type="file" name="video" accept="video/*" required />
+        <span className="mb-1 block text-xs text-leise">Video oder Datei, freiwillig</span>
+        <input type="file" name="video" accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt" />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs text-leise">
+          Text, freiwillig. Hier kannst du auch etwas hineinkopieren.
+        </span>
+        <textarea name="notiz" maxLength={20000} rows={4} className="w-full" />
       </label>
 
       {laeuft && (
@@ -303,7 +327,8 @@ function ReiheFormular() {
   const [stand, setStand] = useState("");
   const [fortschritt, setFortschritt] = useState(0);
   const [fehler, setFehler] = useState("");
-  const [dateien, setDateien] = useState<Array<{ datei: File; titel: string }>>([]);
+  // Ein Schritt ist entweder eine Datei oder ein Text.
+  const [dateien, setDateien] = useState<Array<{ datei: File | null; titel: string; notiz: string }>>([]);
 
   function dateienWaehlen(liste: FileList | null) {
     if (!liste) return;
@@ -319,6 +344,7 @@ function ReiheFormular() {
     setDateien(
       sortiert.map((datei) => ({
         datei,
+        notiz: "",
         // Nummer und Endung weg, Unterstriche zu Leerzeichen: Aus
         // "1_strom_an.mp4" wird "strom an".
         titel: datei.name
@@ -350,15 +376,36 @@ function ReiheFormular() {
       return;
     }
     if (dateien.length === 0) {
-      setFehler("Bitte die Videos auswählen.");
+      setFehler("Bitte die Videos auswählen oder einen Textschritt hinzufügen.");
+      return;
+    }
+    if (dateien.some((d) => !d.datei && !d.notiz.trim())) {
+      setFehler("Ein Textschritt ohne Text geht nicht. Bitte ausfüllen oder entfernen.");
       return;
     }
 
     setLaeuft(true);
     try {
-      const schritte: Array<{ titel: string; videoUrl: string; videoTyp: string }> = [];
+      const schritte: Array<{
+        titel: string;
+        videoUrl: string;
+        videoTyp: string;
+        notiz: string;
+        dateiName: string;
+      }> = [];
       for (const [i, d] of dateien.entries()) {
-        setStand(`Video ${i + 1} von ${dateien.length}`);
+        if (!d.datei) {
+          // Ein reiner Textschritt wird nicht hochgeladen, er steht gleich da.
+          schritte.push({
+            titel: d.titel || `Schritt ${i + 1}`,
+            videoUrl: "",
+            videoTyp: "",
+            notiz: d.notiz,
+            dateiName: "",
+          });
+          continue;
+        }
+        setStand(`Datei ${i + 1} von ${dateien.length}`);
         setFortschritt(0);
         const blob = await upload(d.datei.name, d.datei, {
           access: "public",
@@ -369,6 +416,8 @@ function ReiheFormular() {
           titel: d.titel || `Schritt ${i + 1}`,
           videoUrl: blob.url,
           videoTyp: blob.contentType ?? d.datei.type,
+          notiz: d.notiz,
+          dateiName: d.datei.name,
         });
       }
 
@@ -428,29 +477,73 @@ function ReiheFormular() {
 
       <label className="block">
         <span className="mb-1 block text-xs text-leise">
-          Videos, alle auf einmal auswählen. Die Reihenfolge kommt aus den Dateinamen und lässt sich unten
-          ändern.
+          Videos und Dateien, alle auf einmal auswählen. Die Reihenfolge kommt aus den Dateinamen und lässt
+          sich unten ändern. Ein PDF geht genauso wie ein Video.
         </span>
-        <input type="file" accept="video/*" multiple onChange={(e) => dateienWaehlen(e.target.files)} />
+        <input
+          type="file"
+          accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt"
+          multiple
+          onChange={(e) => dateienWaehlen(e.target.files)}
+        />
       </label>
+
+      <button
+        type="button"
+        onClick={() =>
+          setDateien((alt) => [...alt, { datei: null, titel: "", notiz: "" }])
+        }
+        disabled={laeuft}
+        className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+      >
+        + Schritt nur mit Text
+      </button>
 
       {dateien.length > 0 && (
         <ol className="space-y-2">
           {dateien.map((d, i) => (
-            <li key={d.datei.name + i} className="flex flex-wrap items-center gap-2 rounded-md border border-linie px-3 py-2">
+            <li key={(d.datei?.name ?? "text") + i} className="flex flex-wrap items-center gap-2 rounded-md border border-linie px-3 py-2">
               <span className="w-6 text-center font-semibold tabular-nums">{i + 1}</span>
-              <input
-                value={d.titel}
-                onChange={(e) => {
-                  const neu = [...dateien];
-                  neu[i] = { ...neu[i], titel: e.target.value };
-                  setDateien(neu);
-                }}
-                maxLength={200}
-                className="min-w-0 flex-1"
-                aria-label={`Titel von Schritt ${i + 1}`}
-              />
-              <span className="text-xs text-leise">{Math.round(d.datei.size / 1024 / 1024)} MB</span>
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <input
+                  value={d.titel}
+                  onChange={(e) => {
+                    const neu = [...dateien];
+                    neu[i] = { ...neu[i], titel: e.target.value };
+                    setDateien(neu);
+                  }}
+                  maxLength={200}
+                  placeholder={d.datei ? "Titel" : "Titel des Textschritts"}
+                  className="min-w-0"
+                  aria-label={`Titel von Schritt ${i + 1}`}
+                />
+                {!d.datei && (
+                  <textarea
+                    value={d.notiz}
+                    onChange={(e) => {
+                      const neu = [...dateien];
+                      neu[i] = { ...neu[i], notiz: e.target.value };
+                      setDateien(neu);
+                    }}
+                    rows={3}
+                    maxLength={20000}
+                    placeholder="Text, den man in diesem Schritt lesen soll"
+                    className="w-full text-sm"
+                  />
+                )}
+              </span>
+              <span className="text-xs text-leise">
+                {d.datei ? `${Math.max(1, Math.round(d.datei.size / 1024 / 1024))} MB` : "Text"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setDateien(dateien.filter((_, x) => x !== i))}
+                disabled={laeuft}
+                className="rounded border border-linie px-2 text-sm disabled:opacity-40"
+                aria-label="Schritt entfernen"
+              >
+                &times;
+              </button>
               <span className="flex gap-1">
                 <button
                   type="button"
@@ -492,12 +585,64 @@ function ReiheFormular() {
           disabled={laeuft}
           className="rounded-md bg-gold px-4 py-1.5 text-sm font-medium text-white disabled:opacity-60"
         >
-          {laeuft ? stand || "Wird hochgeladen..." : `${dateien.length || ""} Videos hochladen`.trim()}
+          {laeuft
+            ? stand || "Wird hochgeladen..."
+            : `${dateien.length || ""} Schritte speichern`.trim()}
         </button>
         <button type="button" onClick={() => setOffen(false)} disabled={laeuft} className="text-sm text-leise underline">
           Abbrechen
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Der Inhalt eines Eintrags: Video, Datei oder Notiz.
+ *
+ * Zu einer Anleitung gehoert nicht immer ein Video. Das Datenblatt als PDF
+ * und der Text, den jemand irgendwo herauskopiert hat, gehoeren genauso
+ * dazu (Florian, 30.09.2026).
+ */
+export function TippInhalt({ tipp }: { tipp: Tipp }) {
+  if (tipp.art === "notiz") {
+    return (
+      <div className="whitespace-pre-line rounded-md border border-linie bg-flaeche p-3 text-sm">
+        {tipp.notiz}
+      </div>
+    );
+  }
+
+  if (tipp.art === "datei") {
+    const pdf = (tipp.videoTyp ?? "").includes("pdf");
+    return (
+      <div className="space-y-2">
+        <a
+          href={tipp.videoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-md border border-linie px-3 py-3 hover:bg-gold-hell"
+        >
+          <span
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-md text-xs font-semibold"
+            style={{ background: "var(--gold-hell)", color: "var(--gold-dunkel)" }}
+          >
+            {pdf ? "PDF" : "Datei"}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">{tipp.dateiName || "Datei öffnen"}</span>
+            <span className="text-xs text-leise">zum Ansehen antippen</span>
+          </span>
+        </a>
+        {tipp.notiz && <p className="whitespace-pre-line text-sm text-leise">{tipp.notiz}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <video controls preload="metadata" className="w-full rounded-md bg-black" src={tipp.videoUrl} />
+      {tipp.notiz && <p className="whitespace-pre-line text-sm text-leise">{tipp.notiz}</p>}
+    </div>
   );
 }

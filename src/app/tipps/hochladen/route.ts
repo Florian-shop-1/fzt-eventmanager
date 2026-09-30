@@ -11,7 +11,29 @@ import { angemeldeterBenutzer, darfTipps } from "@/lib/auth/sitzung";
 
 export const dynamic = "force-dynamic";
 
-const ERLAUBT = ["video/mp4", "video/quicktime", "video/webm", "video/x-m4v"];
+/*
+  Was hochgeladen werden darf.
+
+  Nicht mehr nur Videos: Zu einer Anleitung gehoert oft ein Datenblatt als
+  PDF oder ein Foto vom Anschlussfeld (Florian, 30.09.2026). Ausfuehrbares
+  steht bewusst nicht in der Liste.
+*/
+const ERLAUBT = [
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "text/plain",
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/msword",
+];
 const HOECHSTENS = 1024 * 1024 * 1024; // 1 GB
 
 export async function POST(request: Request): Promise<NextResponse> {

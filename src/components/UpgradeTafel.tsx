@@ -38,7 +38,13 @@ export interface TafelSitz {
   nutzbar: boolean;
   /** Der eine Platz, der wirklich leer bleibt: Reihe 4, Platz 3. */
   freiLassen: boolean;
-  /** Direkt neben dem eingeweihten Zuschauer: hier sitzt gern jemand. */
+  /**
+   * Direkt neben dem eingeweihten Zuschauer.
+   *
+   * Diese Plaetze werden zuerst vergeben: Bis zum Eingeweihten soll
+   * aufgefuellt sein, damit er nicht allein in einer Luecke sitzt und
+   * auffaellt (Florian, 29.09.2026).
+   */
   nebenZuschauer: "links" | "rechts" | null;
 }
 
@@ -388,9 +394,16 @@ export function UpgradeTafel({
           test: erzwingeOffen,
         }),
       });
-      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      const e = (await antwort.json().catch(() => ({ ok: false, fehler: "" }))) as {
+        ok: boolean;
+        fehler?: string;
+      };
       if (!e.ok) {
-        setHinweis(e.fehler ?? "Das ließ sich nicht speichern.");
+        setHinweis(
+          antwort.status === 401
+            ? "Die Anmeldung ist abgelaufen. Bitte die Seite neu laden und noch einmal anmelden."
+            : e.fehler || `Das ließ sich nicht speichern (${antwort.status}).`,
+        );
         return;
       }
       setGesetzt((alt) => [
@@ -492,9 +505,26 @@ export function UpgradeTafel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId, sitzId }),
       });
-      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
-      if (!e.ok) throw new Error(e.fehler ?? "");
-    } catch {
+      const e = (await antwort.json().catch(() => ({ ok: false, fehler: "" }))) as {
+        ok: boolean;
+        fehler?: string;
+      };
+      /*
+        Den echten Grund zeigen, nicht pauschal "Keine Verbindung".
+
+        Am 29.09.2026 ging weder Umsetzen noch Durch-x-en, und auf dem
+        Tablet stand nur, es liege an der Verbindung. Wenn der Server in
+        Wahrheit "Bitte neu anmelden" sagt, hilft dieser Satz niemandem
+        weiter (Florian).
+      */
+      if (!e.ok) {
+        throw new Error(
+          antwort.status === 401
+            ? "Die Anmeldung ist abgelaufen. Bitte die Seite neu laden und noch einmal anmelden."
+            : e.fehler || `Der Server hat abgelehnt (${antwort.status}).`,
+        );
+      }
+    } catch (f) {
       // Fehlgeschlagen: den Stand vor dem Tipp wiederherstellen.
       setEingecheckt((alt) => {
         const neu = new Set(alt);
@@ -502,7 +532,11 @@ export function UpgradeTafel({
         else neu.delete(sitzId);
         return neu;
       });
-      setHinweis("Keine Verbindung. Bitte noch einmal versuchen.");
+      setHinweis(
+        f instanceof Error && f.message
+          ? f.message
+          : "Keine Verbindung. Bitte noch einmal versuchen.",
+      );
     } finally {
       setLaeuft(false);
     }
@@ -534,7 +568,23 @@ export function UpgradeTafel({
     }
     const daraufGesetzt = belegt.get(s.id);
     const naechste = gruppeZu(daraufGesetzt ?? null) ?? gruppeVonSitz.get(s.id) ?? null;
-    if (naechste) setInDerHand(naechste.schluessel === inDerHand ? null : naechste.schluessel);
+    if (naechste) {
+      setInDerHand(naechste.schluessel === inDerHand ? null : naechste.schluessel);
+      return;
+    }
+
+    /*
+      Nichts passiert, und niemand weiss warum.
+
+      Ein Tipp auf einen leeren Platz blieb bisher stumm: kein X, keine
+      Umsetzung, keine Meldung. Wer nicht weiss, dass man erst eine Gruppe
+      aufnehmen muss, haelt das fuer kaputt (Florian, 29.09.2026).
+    */
+    setHinweis(
+      gruppe
+        ? "Auf diesen Platz passt die Gruppe nicht: zu wenig freie Plätze nebeneinander. Tippe auf einen Platz, ab dem genug frei ist."
+        : "Tippe zuerst links auf eine Gruppe, dann auf den Platz, ab dem sie sitzen soll. Zum Abhaken oben auf „durch-x-en“ umschalten.",
+    );
   }
 
   const u = gruppe ? umsetzungVon(gruppe.schluessel) : null;
@@ -886,7 +936,7 @@ export function UpgradeTafel({
                             : s.freiLassen
                               ? "Reihe 4, Platz 3: bleibt frei für den eingeweihten Zuschauer"
                               : s.nebenZuschauer
-                                ? `Reihe ${s.reihe}, Platz ${s.name}: direkt neben dem Eingeweihten, hier sitzt gern jemand`
+                                ? `Reihe ${s.reihe}, Platz ${s.name}: bitte unbedingt bis zum eingeweihten Zuschauer auffüllen`
                                 : `Reihe ${s.reihe}, Platz ${s.name}`}
                     </title>
                     <rect
@@ -1026,7 +1076,7 @@ export function UpgradeTafel({
                 className="mr-1 inline-block h-3 w-3 rounded-sm border align-middle"
                 style={{ background: "var(--warnung-hell)", borderColor: "var(--warnung)" }}
               />
-              daneben: gern besetzen
+              bis zum Eingeweihten auffüllen
             </span>
           </figcaption>
         )}
