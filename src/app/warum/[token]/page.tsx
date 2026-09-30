@@ -6,6 +6,7 @@ import { notieren, rueckrufGewuenscht } from "@/lib/abbrecher/vertrieb";
 import { abbrecherMeldung } from "@/lib/abbrecher/posteingang";
 import { textSchicken } from "./aktionen";
 import { FARBEN, GastSeite, GoldKnopf, Kasten, Kontaktzeile, Wortzeile } from "@/components/GastSeite";
+import { GastAbsendeknopf } from "@/components/GastAbsendeknopf";
 
 export const metadata = { title: "Danke | Florian Zimmer Theater" };
 export const dynamic = "force-dynamic";
@@ -192,13 +193,13 @@ export default async function WarumSeite({
           style={{ background: FARBEN.karte, border: `1px solid ${FARBEN.linie}`, color: FARBEN.weiss }}
           placeholder="Ein, zwei Sätze reichen."
         />
-        <button
-          type="submit"
-          className="mt-3 w-full rounded px-5 py-3 text-base font-medium sm:w-auto"
-          style={{ border: `1px solid ${FARBEN.gold}`, color: FARBEN.goldHell }}
-        >
-          Abschicken
-        </button>
+        {/* Sperrt sich beim ersten Klick, siehe GastAbsendeknopf. */}
+        <GastAbsendeknopf
+          text="Abschicken"
+          laeuftText="Wird gesendet..."
+          rand={FARBEN.gold}
+          farbe={FARBEN.goldHell}
+        />
       </form>
 
       <Kontakt />

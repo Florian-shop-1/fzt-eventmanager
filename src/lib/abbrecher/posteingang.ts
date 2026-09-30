@@ -17,6 +17,7 @@ import { grundText, type Abbrecher } from "./db";
 import { webanfrageSpeichern } from "@/lib/db/whatsapp";
 import { nachEingang } from "@/lib/whatsapp/nachlauf";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { db } from "@/lib/db/client";
 
 /**
  * Wer bei einem technischen Problem sofort Bescheid weiß.
@@ -65,10 +66,28 @@ export async function abbrecherMeldung(o: {
       : "",
   ].filter(Boolean);
 
+  /*
+    Dieselbe Meldung nicht mehrfach.
+
+    Am 30.09.2026 lagen fuenf gleiche Meldungen im Posteingang, alle
+    innerhalb von neun Sekunden: Der Gast hatte mehrfach auf Abschicken
+    gedrueckt, weil nach dem Klick nichts Sichtbares passierte (Florian).
+    Der Knopf sperrt sich jetzt, aber darauf allein soll sich nichts
+    verlassen: Ein zweiter Tab, ein Neuladen oder ein Doppelklick auf
+    einem langsamen Handy fuehren zum selben Ergebnis.
+
+    Deshalb wird hier nachgesehen, ob zu diesem Gast in der letzten
+    Viertelstunde schon dieselbe Meldung liegt. Wenn ja, bleibt es dabei.
+  */
+  const inhalt = zeilen.join(UM);
+  if (await schonGemeldet(a.email || a.telefon || "", inhalt)) return;
+
   const neu = await webanfrageSpeichern({
     kanal: "abbrecher",
     name: a.name || a.email || "Gast ohne Namen",
-    nachricht: zeilen.join("\n"),
+    // Derselbe Text, der oben verglichen wurde: Sonst schlägt die
+    // Wiederholungssperre beim nächsten Mal nicht an.
+    nachricht: inhalt,
     email: a.email || null,
     telefon: a.telefon || null,
     // Bei einem technischen Problem ist der Anruf der schnellere Weg,
@@ -125,4 +144,22 @@ export async function abbrecherMeldung(o: {
       console.warn("[abbrecher] Alarmmail nicht zugestellt:", f);
     });
   }
+}
+
+/**
+ * Liegt dieselbe Meldung schon im Posteingang?
+ *
+ * Verglichen wird der ganze Text, nicht nur der Anfang: Zwei Meldungen
+ * desselben Gastes koennen sich in den eigenen Worten unterscheiden, und
+ * dann sind es wirklich zwei.
+ */
+async function schonGemeldet(wer: string, inhalt: string): Promise<boolean> {
+  if (!wer) return false;
+  const z = (await db()`
+    select 1 from wa_nachricht
+     where text = ${inhalt}
+       and angelegt_am > now() - interval '15 minutes'
+     limit 1
+  `.catch(() => [] as unknown[])) as unknown[];
+  return z.length > 0;
 }
