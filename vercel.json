@@ -1,36 +1,14 @@
 {
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "crons": [
     {
-      "path": "/api/vorfreude",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/bewertung",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/scanner?lauf=abschicken",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/scanner?lauf=abholen",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/dienstplan",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/wein",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/stempel",
+      "path": "/api/nachtlauf?teil=nacht",
       "schedule": "30 1 * * *"
     },
     {
-      "path": "/api/belege",
+      "path": "/api/nachtlauf?teil=morgen",
       "schedule": "15 6 * * *"
     }
   ]
