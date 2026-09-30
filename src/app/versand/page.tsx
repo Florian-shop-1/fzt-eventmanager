@@ -21,6 +21,7 @@ import {
 } from "@/lib/shop/zauberstab";
 import { abhaken as zauberstabAbhaken, dochNicht as zauberstabDochNicht } from "@/app/zauberstab/aktionen";
 import { DruckKnopf } from "@/components/DruckKnopf";
+import { ZauberstabBrief } from "@/components/ZauberstabBrief";
 import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang, zeitpunkt } from "@/lib/zeit";
 import { eur } from "@/lib/domain/pricing";
@@ -140,6 +141,8 @@ export default async function VersandSeite({
       : alleZeigen
         ? staebe
         : staebeOffen;
+  // Gedruckt wird nur, was auch wirklich in die Post kann: mit Anschrift.
+  const staebeZuDrucken = einzeln ? [] : staebeOffen.filter((z) => !z.offen);
   const zuDrucken = (einzeln ?? offen).filter(gehtInDiePost);
   const klaerung = offen.filter((s) => brauchtKlaerung(s));
   // Ohne Gutscheincode kann kein Gutschein gedruckt werden. Ditix gibt ihn
@@ -157,7 +160,9 @@ export default async function VersandSeite({
     Gutscheine gibt es nur mit Code, denn ohne Code druckt der Bogen ein
     leeres Feld statt einer Nummer.
   */
-  const blaetter = druckeGutschein ? zuDrucken.length - ohneCode.length : zuDrucken.length;
+  const blaetter = druckeGutschein
+    ? zuDrucken.length - ohneCode.length
+    : zuDrucken.length + staebeZuDrucken.length;
 
   /*
     Seit wann ist nichts mehr angekommen?
@@ -193,16 +198,13 @@ export default async function VersandSeite({
           <h1 className="text-2xl font-semibold tracking-tight">Versand</h1>
           <p className="mt-1 text-sm text-leise">
             Alles, was in die Post muss, in einer Liste. Die Marke an jeder Karte sagt, worum es geht.
-            Begleitschreiben der Zauberstäbe druckst du{" "}
-            <Link href="/zauberstab" className="underline">
-              auf ihrer eigenen Seite
-            </Link>
-            , weil dort anderes Papier in die Kassette gehört.
+            Die Begleitschreiben der Zauberstäbe kommen beim Drucken der Anschreiben mit: derselbe
+            Briefbogen, derselbe Umschlag.
           </p>
         </div>
-        {zuDrucken.length > 0 && (
+        {(zuDrucken.length > 0 || staebeZuDrucken.length > 0) && (
           <Druckwahl
-            anzahl={zuDrucken.length}
+            anzahl={zuDrucken.length + staebeZuDrucken.length}
             mitGutschein={zuDrucken.filter((s) => staende.get(s.bestellnummer)?.gutscheincode).length}
             nur={nur}
             drucken={drucken}
@@ -386,6 +388,17 @@ export default async function VersandSeite({
             {druckeGutschein && <Gutschein sendung={s} stand={staende.get(s.bestellnummer)} />}
           </Fragment>
         ))}
+        {/*
+          Die Zauberstab-Schreiben liegen im selben Stapel.
+
+          Sie stehen auf demselben Briefbogen wie die Anschreiben und
+          gehen in denselben Umschlag, es gibt also keinen Grund, dafuer
+          ein zweites Mal zum Drucker zu laufen (Florian, 30.09.2026).
+          Beim Gutscheinbogen bleiben sie draussen, der ist goldschimmernd
+          und liegt nur fuer die Gutscheine in der Kassette.
+        */}
+        {druckeAnschreiben &&
+          staebeZuDrucken.map((z) => <ZauberstabBrief key={z.id} z={z} />)}
       </div>
     </div>
   );
@@ -454,8 +467,13 @@ function ZauberstabKarte({ stab }: { stab: Zauberstab }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-sm">
+          {/*
+            Das Schreiben liegt im selben Druckstapel wie die Anschreiben
+            der Gutscheine. Der Weg auf die eigene Seite bleibt fuer den
+            Fall, dass jemand nur dieses eine noch einmal braucht.
+          */}
           <Link href="/zauberstab" className="underline text-leise">
-            Begleitschreiben
+            nur dieses Schreiben
           </Link>
           {erledigt ? (
             <form action={zauberstabDochNicht}>
