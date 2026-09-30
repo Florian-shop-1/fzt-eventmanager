@@ -22,9 +22,14 @@ export function zauberstabAnrede(name: string): string {
 export const ZAUBERSTAB_ABSAETZE = [
   "schön, dass du beim Gewinnspiel mitgemacht hast. Hier ist deine magische Überraschung: " +
     "ein erscheinender Zauberstab. Er gehört jetzt dir, ganz gleich, wie die Verlosung ausgeht.",
-  "Wie er funktioniert, verrate ich dir nicht ganz. Nur so viel: Er erscheint aus dem Nichts, " +
-    "wenn man ihn richtig hält. Ein paar Minuten üben vor dem Spiegel, und du hast deinen " +
-    "ersten eigenen Zaubertrick.",
+  /*
+    Der QR-Code ist auf die Verpackung des Stabes gedruckt (Florian,
+    30.09.2026). Deshalb steht hier, wo er zu finden ist: "scanne den
+    QR-Code" allein laesst jemanden auf dem Brief danach suchen.
+  */
+  "Wie er funktioniert, erfährst du, indem du den QR-Code auf der Verpackung scannst. " +
+    "Viel Spaß beim Üben: Ein paar Minuten vor dem Spiegel, und du hast deinen ersten " +
+    "eigenen Zaubertrick.",
   "Über eines würde ich mich besonders freuen: wenn du uns in Ulm besuchst. Unser Theater ist " +
     "für mich der magischste Ort Deutschlands, und eine Show aus nächster Nähe ist etwas " +
     "anderes als alles, was man im Fernsehen sieht.",
