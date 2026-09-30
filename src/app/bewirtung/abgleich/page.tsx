@@ -134,6 +134,7 @@ export default async function AbgleichSeite({
             die Abbuchungen vom Konto.
           </p>
           <form action={dateiEinlesen} className="mt-3 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="zurueck" value={`/bewirtung/abgleich?m=${monat}`} />
             <input type="file" name="datei" accept=".csv,.xml,.sta,.txt,.mt940" required className="text-sm" />
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Karte</span>
@@ -344,12 +345,27 @@ function Zeile({
             <form action={ohneBeleg} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="umsatzId" value={a.id} />
               <input type="hidden" name="monat" value={monat} />
+              <input type="hidden" name="muster" value={a.gegenname} />
               <input
                 name="grund"
                 placeholder="braucht keinen Beleg, weil ..."
                 className="w-64 text-sm"
               />
               <Absendeknopf text="Kein Beleg nötig" laeuftText="..." />
+              {/*
+                Einmal schreiben, immer gemerkt.
+
+                Ohne das Haekchen gilt der Grund nur fuer diese eine
+                Buchung, und das Gehalt steht im naechsten Monat wieder
+                in der Liste. Angehakt wird daraus eine Regel auf den
+                Namen des Empfaengers (Florian, 30.09.2026).
+              */}
+              {a.gegenname.length >= 3 && (
+                <label className="flex items-center gap-2 text-xs text-leise">
+                  <input type="checkbox" name="merken" value="1" />
+                  <span>künftig immer bei „{a.gegenname}“</span>
+                </label>
+              )}
             </form>
           </div>
         </div>

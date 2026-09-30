@@ -143,16 +143,47 @@ export async function beiseitelegen(f: FormData): Promise<void> {
 /** Kontoauszug einlesen: CSV, CAMT.053 oder MT940 aus dem Online-Banking. */
 export async function dateiEinlesen(f: FormData): Promise<void> {
   const b = await darf();
+
+  /*
+    Zurueck dorthin, wo hochgeladen wurde.
+
+    Die Kreditkartenabrechnung wird auf der Seite "Belege abgleichen"
+    eingelesen, und wer dort hochlaedt, will dort weiterarbeiten und
+    nicht bei den Zahlungseingaengen landen (Florian, 30.09.2026).
+    Angenommen wird nur ein bekannter Weg, nichts aus dem Formular
+    blind weitergereicht.
+  */
+  const woher = String(f.get("zurueck") ?? "");
+  const ziel = /^\/bewirtung\/abgleich(\?m=\d{4}-\d{2})?$/.test(woher) ? woher : "/zahlungseingaenge";
+
   const datei = f.get("datei");
   if (!(datei instanceof File) || datei.size === 0) {
-    zurueck("/zahlungseingaenge", "Bitte eine Datei auswählen.");
+    zurueck(ziel, "Bitte eine Datei auswählen.");
   }
-  if (datei.size > 8 * 1024 * 1024) zurueck("/zahlungseingaenge", "Die Datei ist zu groß.");
+  if (datei.size > 8 * 1024 * 1024) zurueck(ziel, "Die Datei ist zu groß.");
 
-  const inhalt = Buffer.from(await datei.arrayBuffer()).toString("utf8");
+  const roh = Buffer.from(await datei.arrayBuffer());
+
+  /*
+    Ein PDF sagt es besser selbst.
+
+    Die Abrechnung laesst sich im OnlineBanking als PDF oder als CSV
+    herunterladen, und das PDF ist der naheliegendere Knopf. Gelesen
+    werden kann es hier nicht, und "keine lesbaren Umsaetze" laesst
+    jemanden ratlos zurueck, der alles richtig gemacht zu haben glaubt.
+  */
+  if (roh.subarray(0, 4).toString("latin1") === "%PDF") {
+    zurueck(
+      ziel,
+      "Das ist ein PDF, daraus kann ich die einzelnen Buchungen nicht lesen. " +
+        "Bitte im OnlineBanking dieselbe Abrechnung als CSV herunterladen.",
+    );
+  }
+
+  const inhalt = roh.toString("utf8");
   const liste = ausDatei(inhalt);
   if (liste.length === 0) {
-    zurueck("/zahlungseingaenge", "In dieser Datei standen keine lesbaren Umsätze.");
+    zurueck(ziel, "In dieser Datei standen keine lesbaren Umsätze.");
   }
 
   /*
@@ -175,7 +206,7 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
     wer: b.name,
   });
   zurueck(
-    "/zahlungseingaenge",
+    ziel,
     `${e.neu} neue Umsätze, davon ${e.zugeordnet} automatisch zugeordnet, ${e.offen} offen` +
       `${e.schonBekannt > 0 ? `, ${e.schonBekannt} waren schon bekannt` : ""}.`,
   );

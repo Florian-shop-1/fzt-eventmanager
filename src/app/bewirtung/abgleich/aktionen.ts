@@ -45,7 +45,31 @@ export async function loesen(f: FormData): Promise<void> {
 
 export async function ohneBeleg(f: FormData): Promise<void> {
   const b = await zugang();
-  await keinBelegNoetig(text(f, "umsatzId"), text(f, "grund") || "braucht keinen Beleg", b.name);
+  const grund = text(f, "grund") || "braucht keinen Beleg";
+  await keinBelegNoetig(text(f, "umsatzId"), grund, b.name);
+
+  /*
+    Auf Wunsch gilt der Grund auch beim naechsten Mal.
+
+    Ein Gehalt, die Miete, der Strom: Dieselbe Abbuchung kommt jeden
+    Monat wieder, und Werner hat den Grund bisher jedes Mal neu
+    geschrieben. Das Haekchen macht daraus eine Regel auf den Namen des
+    Empfaengers, und ab dann ist die Buchung von allein erledigt
+    (Florian, 30.09.2026).
+
+    Angelegt wird nur, was der Mensch angehakt hat. Eine Regel blendet
+    kuenftige Buchungen aus der Liste aus, und das darf nie nebenbei
+    passieren.
+  */
+  const muster = text(f, "muster");
+  if (f.get("merken") && muster.length >= 3) {
+    await regelAnlegen(muster, grund, b.name).catch(() => undefined);
+    zurueck(
+      text(f, "monat"),
+      `Abgehakt. Gemerkt: Alles mit "${muster}" braucht künftig keinen Beleg.`,
+    );
+  }
+
   zurueck(text(f, "monat"), "Abgehakt.");
 }
 
