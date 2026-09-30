@@ -6,6 +6,8 @@
  * § 14 UStG. Gesetzt mit pdf-lib, also ohne Browser im Hintergrund.
  */
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export interface RechnungsPosition {
@@ -58,6 +60,18 @@ export async function rechnungsPdfBauen(d: RechnungsDaten): Promise<Buffer> {
   const fett = await pdf.embedFont(StandardFonts.HelveticaBold);
   const schwarz = rgb(0.11, 0.11, 0.1);
   const grau = rgb(0.45, 0.44, 0.42);
+  const gold = rgb(0.788, 0.659, 0.298);
+
+  /*
+    Das Logo oben rechts, wie bei Angebot und Eventrechnung.
+
+    Bisher stand auf dieser Rechnung nur der Firmenname in Fettdruck. Wer
+    Angebot und Rechnung nebeneinanderlegt, soll sehen, dass beides vom
+    selben Haus kommt (Florian, 30.09.2026).
+  */
+  const logo = await readFile(path.join(process.cwd(), "src/lib/angebot/bilder/logo-dunkel.png"))
+    .then((datei) => pdf.embedPng(datei))
+    .catch(() => null);
 
   const links = 56;
   const rechts = 539;
@@ -71,11 +85,22 @@ export async function rechnungsPdfBauen(d: RechnungsDaten): Promise<Buffer> {
   };
 
   // Kopf
+  if (logo) {
+    const hoehe = 26;
+    seite.drawImage(logo, {
+      x: rechts - (logo.width * hoehe) / logo.height,
+      y: y - 8,
+      width: (logo.width * hoehe) / logo.height,
+      height: hoehe,
+    });
+  }
   schreib(d.absender.firma, links, 16, fett);
   y -= 16;
   schreib(`${d.absender.strasse}, ${d.absender.plz} ${d.absender.ort}`, links, 9, normal, grau);
   y -= 12;
   schreib(`${d.absender.telefon} · ${d.absender.email} · ${d.absender.web}`, links, 9, normal, grau);
+  y -= 14;
+  seite.drawLine({ start: { x: links, y }, end: { x: rechts, y }, thickness: 1.2, color: gold });
 
   // Empfänger
   y = 700;
@@ -132,7 +157,9 @@ export async function rechnungsPdfBauen(d: RechnungsDaten): Promise<Buffer> {
   y -= 15;
   schreib("Umsatzsteuer 19 %", 380, 10, normal, grau);
   rechtsBuendig(eur(d.ustCent), rechts, 10);
-  y -= 17;
+  y -= 6;
+  seite.drawLine({ start: { x: 330, y }, end: { x: rechts, y }, thickness: 1, color: gold });
+  y -= 15;
   schreib("Rechnungsbetrag", 380, 11, fett);
   rechtsBuendig(eur(d.bruttoCent), rechts, 11, fett);
 
@@ -151,17 +178,39 @@ export async function rechnungsPdfBauen(d: RechnungsDaten): Promise<Buffer> {
   // Fuß mit den Pflichtangaben
   y = 96;
   seite.drawLine({ start: { x: links, y: y + 14 }, end: { x: rechts, y: y + 14 }, thickness: 0.7, color: grau });
-  const fussSpalten: string[][] = [
-    [d.absender.firma, d.absender.strasse, `${d.absender.plz} ${d.absender.ort}`],
-    [`Steuernummer ${d.absender.steuernummer}`, d.absender.ustId ? `USt-IdNr. ${d.absender.ustId}` : "", d.absender.registergericht],
-    [d.absender.bank, `IBAN ${d.absender.iban}`, `BIC ${d.absender.bic}`],
-    [`Geschäftsführung`, d.absender.geschaeftsfuehrer, d.absender.web],
+  /*
+    Vier Spalten, aber nicht gleich breit.
+
+    Die Bankspalte braucht Platz fuer "IBAN DE66 6509 1040 0351 9820 19".
+    Bei festen 125 Punkten lief sie in die naechste Spalte hinein, im
+    Ausdruck klebte der Geschaeftsfuehrer an der IBAN (Florian, 30.09.2026).
+  */
+  const fussSpalten: Array<{ x: number; zeilen: string[] }> = [
+    {
+      x: links,
+      zeilen: [d.absender.firma, d.absender.strasse, `${d.absender.plz} ${d.absender.ort}`],
+    },
+    {
+      x: links + 128,
+      zeilen: [
+        `Steuernummer ${d.absender.steuernummer}`,
+        d.absender.ustId ? `USt-IdNr. ${d.absender.ustId}` : "",
+        d.absender.registergericht,
+      ],
+    },
+    {
+      x: links + 268,
+      zeilen: [d.absender.bank, `IBAN ${d.absender.iban}`, `BIC ${d.absender.bic}`],
+    },
+    {
+      x: links + 420,
+      zeilen: ["Geschäftsführung", d.absender.geschaeftsfuehrer, d.absender.web],
+    },
   ];
-  fussSpalten.forEach((spalte, i) => {
-    const x = links + i * 125;
-    spalte.forEach((zeile, j) => {
+  fussSpalten.forEach(({ x, zeilen }) => {
+    zeilen.forEach((zeile, j) => {
       if (!zeile) return;
-      seite.drawText(zeile, { x, y: y - j * 11, size: 7.5, font: normal, color: grau });
+      seite.drawText(zeile, { x, y: y - j * 11, size: 7, font: normal, color: grau });
     });
   });
 
