@@ -27,16 +27,34 @@ export default async function RechnungenSeite({
   const { meldung, nur } = await searchParams;
 
   const [alle, e] = await Promise.all([alleRechnungen(), einstellung()]);
-  const liste =
-    nur === "offen"
-      ? alle.filter((r) => !["PAID", "CANCELLED"].includes(r.status))
-      : nur === "bezahlt"
-        ? alle.filter((r) => r.status === "PAID")
-        : alle;
-
   const offen = alle.filter((r) => !["PAID", "CANCELLED"].includes(r.status));
   const offenSumme = offen.reduce((n, r) => n + r.offenCent, 0);
   const ueberfaellig = offen.filter((r) => r.status === "OVERDUE");
+  const verzugSumme = ueberfaellig.reduce((n, r) => n + r.offenCent, 0);
+  const bezahlt = alle.filter((r) => r.status === "PAID");
+  const nochOffen = offen.filter((r) => r.status !== "OVERDUE");
+
+  const liste =
+    nur === "verzug"
+      ? ueberfaellig
+      : nur === "offen"
+        ? offen
+        : nur === "bezahlt"
+          ? bezahlt
+          : alle;
+
+  /*
+    Wie alt ist der Blick aufs Konto?
+
+    Eine Rechnung gilt erst als bezahlt, wenn die Zahlung vom Konto
+    zugeordnet wurde. Laeuft der Abruf nicht mehr, steht hier tagelang
+    "offen", obwohl das Geld da ist, und niemand wuesste, woran es liegt
+    (Florian, 30.09.2026).
+  */
+  const abgleichAlter = e.zuletztAm
+    ? Math.floor((Date.now() - Date.parse(e.zuletztAm)) / 86400000)
+    : null;
+  const abgleichAlt = abgleichAlter === null || abgleichAlter >= 2;
 
   return (
     <div className="space-y-6">
@@ -62,29 +80,48 @@ export default async function RechnungenSeite({
         </p>
       )}
 
-      <div className="flex flex-wrap gap-4">
-        <Kachel zahl={String(offen.length)} was="offene Rechnungen" hinweis={euro(offenSumme)} />
+      {/*
+        Der Stand auf einen Blick, in Farben, die man nicht uebersieht.
+
+        "das machst du sehr plakativ" (Florian, 30.09.2026). Wer Geld
+        hereinbekommen will, schaut hierher und nirgendwo sonst: Rot heisst
+        hinterher, Blau heisst warten, Gruen heisst erledigt. Jede Kachel
+        ist zugleich der Filter darunter.
+      */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kachel
+          href="/rechnungen?nur=verzug"
           zahl={String(ueberfaellig.length)}
-          was="überfällig"
-          hinweis={ueberfaellig.length > 0 ? euro(ueberfaellig.reduce((n, r) => n + r.offenCent, 0)) : "nichts offen"}
-          betont={ueberfaellig.length > 0}
+          was="in Verzug"
+          hinweis={ueberfaellig.length > 0 ? `${euro(verzugSumme)} überfällig` : "nichts überfällig"}
+          farbe={ueberfaellig.length > 0 ? "blocker" : "gut"}
         />
         <Kachel
-          zahl={String(alle.filter((r) => r.status === "PAID").length)}
+          href="/rechnungen?nur=offen"
+          zahl={String(nochOffen.length)}
+          was="noch offen"
+          hinweis={offenSumme > 0 ? `${euro(offenSumme)} insgesamt offen` : "alles bezahlt"}
+          farbe={nochOffen.length > 0 ? "info" : "gut"}
+        />
+        <Kachel
+          href="/rechnungen?nur=bezahlt"
+          zahl={String(bezahlt.length)}
           was="bezahlt"
           hinweis={`von ${alle.length} insgesamt`}
+          farbe="gut"
         />
         <Kachel
-          zahl={e.zuletztAm ? tagKurz(e.zuletztAm) : "nie"}
-          was="Bank zuletzt abgeglichen"
-          hinweis={e.zuletztAm ? `${e.zuletztUmsaetze} neue Umsätze` : "noch kein Abgleich"}
+          zahl={abgleichAlter === null ? "nie" : abgleichAlter === 0 ? "heute" : `vor ${abgleichAlter} Tagen`}
+          was="Konto abgeglichen"
+          hinweis={e.zuletztAm ? `${e.zuletztUmsaetze} neue Umsätze` : "der Abruf lief noch nie"}
+          farbe={abgleichAlt ? "warnung" : "neutral"}
         />
       </div>
 
       <nav className="flex flex-wrap gap-1 text-sm">
         {[
           ["", "Alle"],
+          ["verzug", "In Verzug"],
           ["offen", "Offen"],
           ["bezahlt", "Bezahlt"],
         ].map(([wert, titel]) => (
@@ -120,7 +157,20 @@ export default async function RechnungenSeite({
             </thead>
             <tbody>
               {liste.map((r) => (
-                <tr key={r.id} className="border-b border-linie last:border-0 align-top">
+                /*
+                  Der Streifen links traegt die Farbe des Standes, und eine
+                  ueberfaellige Rechnung bekommt zusaetzlich einen roten
+                  Grund. So sieht man beim Ueberfliegen, wo es klemmt, ohne
+                  die Schilder rechts zu lesen.
+                */
+                <tr
+                  key={r.id}
+                  className="border-b border-linie last:border-0 align-top"
+                  style={{
+                    borderLeft: `5px solid ${zeilenfarbe(r.status)}`,
+                    background: r.status === "OVERDUE" ? "var(--blocker-hell)" : undefined,
+                  }}
+                >
                   <td className="px-4 py-3">
                     <Link href={`/rechnungen/${r.id}`} className="font-medium underline">
                       {r.nummer}
@@ -208,28 +258,69 @@ export default async function RechnungenSeite({
   );
 }
 
+/** Die Farbe des Standes, fuer den Streifen links an der Zeile. */
+function zeilenfarbe(status: string): string {
+  if (status === "OVERDUE") return "var(--blocker)";
+  if (status === "PAID") return "var(--gut)";
+  if (status === "PARTIALLY_PAID") return "var(--warnung)";
+  if (status === "CANCELLED" || status === "DRAFT") return "var(--linie)";
+  return "var(--info)";
+}
+
+/**
+ * Eine Kennzahl, gross und in der Farbe ihrer Bedeutung.
+ *
+ * Rot heisst hinterher, Blau heisst warten, Gruen heisst erledigt, Gelb
+ * heisst hinsehen. Das Wort steht immer dabei: Wer Farben schlecht
+ * unterscheidet, liest dasselbe (Florian, 30.09.2026).
+ */
+const KACHELFARBEN = {
+  blocker: { rand: "var(--blocker)", flaeche: "var(--blocker-hell)", schrift: "var(--blocker)" },
+  info: { rand: "var(--info)", flaeche: "var(--info-hell)", schrift: "var(--info)" },
+  gut: { rand: "var(--gut)", flaeche: "var(--gut-hell)", schrift: "var(--gut)" },
+  warnung: { rand: "var(--warnung)", flaeche: "var(--warnung-hell)", schrift: "var(--warnung)" },
+  neutral: { rand: "var(--linie)", flaeche: "var(--flaeche)", schrift: "var(--text)" },
+} as const;
+
 function Kachel({
   zahl,
   was,
   hinweis,
-  betont,
+  farbe = "neutral",
+  href,
 }: {
   zahl: string;
   was: string;
   hinweis: string;
-  betont?: boolean;
+  farbe?: keyof typeof KACHELFARBEN;
+  href?: string;
 }) {
-  return (
-    <div
-      className="min-w-44 rounded-lg border px-4 py-3"
-      style={{
-        borderColor: betont ? "var(--blocker)" : "var(--linie)",
-        background: betont ? "var(--blocker-hell)" : "var(--flaeche)",
-      }}
-    >
-      <div className="text-2xl font-semibold tabular-nums">{zahl}</div>
-      <div className="text-sm">{was}</div>
-      <div className="text-xs text-leise">{hinweis}</div>
+  const f = KACHELFARBEN[farbe];
+  const inhalt = (
+    <>
+      <div className="text-4xl font-semibold tabular-nums" style={{ color: f.schrift }}>
+        {zahl}
+      </div>
+      <div className="mt-1 text-sm font-semibold uppercase tracking-wide" style={{ color: f.schrift }}>
+        {was}
+      </div>
+      <div className="mt-0.5 text-xs text-leise">{hinweis}</div>
+    </>
+  );
+
+  const stil = {
+    borderColor: f.rand,
+    background: f.flaeche,
+    borderWidth: 2,
+  } as const;
+
+  return href ? (
+    <Link href={href} className="block rounded-xl border px-5 py-4 transition hover:brightness-95" style={stil}>
+      {inhalt}
+    </Link>
+  ) : (
+    <div className="rounded-xl border px-5 py-4" style={stil}>
+      {inhalt}
     </div>
   );
 }
