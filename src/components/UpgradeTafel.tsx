@@ -893,27 +893,41 @@ export function UpgradeTafel({
                   Im Einchecken-Modus zählt nur das X, nicht Gruppe oder
                   Vorschlag: eigene, einfachere Farbgebung statt der
                   Umsetz-Logik oben (Florian, 28.09.2026).
+
+                  Gezeigt wird aber der Stand NACH dem Umsetzen, nicht der
+                  aus dem Ticketshop. Wer eine Gruppe nach vorne gesetzt
+                  hat und dann zum Durch-x-en wechselt, sah bisher den
+                  alten Saal: Die Leute standen noch auf ihren alten
+                  Plätzen, die neuen waren leer. Abgehakt wird aber dort,
+                  wo die Gäste wirklich sitzen (Florian, 30.09.2026).
                 */
                 const durchgext = eingecheckt.has(s.id);
                 if (modus === "einchecken") {
+                  // Hierher umgesetzt heißt besetzt, von hier weggesetzt heißt frei.
+                  const jetztBesetzt = Boolean(zielVon) || (s.status === "verkauft" && !heimatUmsetzung);
                   if (durchgext) {
                     fuellung = "var(--gut)";
                     rahmen = "var(--gut)";
+                    schrift = "#fff";
+                  } else if (jetztBesetzt) {
+                    fuellung = "var(--text)";
+                    rahmen = "var(--text)";
                     schrift = "#fff";
                   } else if (s.status === "gesperrt") {
                     fuellung = "var(--linie)";
                     rahmen = "var(--linie)";
                     schrift = "var(--flaeche)";
-                  } else if (s.status === "verkauft") {
-                    fuellung = "var(--text)";
-                    rahmen = "var(--text)";
-                    schrift = "#fff";
                   } else {
                     fuellung = "var(--flaeche)";
                     rahmen = "var(--linie)";
                     schrift = "var(--text-leise)";
                   }
-                  beschriftung = durchgext ? "×" : s.name;
+                  /*
+                    Der Buchstabe der umgesetzten Gruppe bleibt stehen,
+                    solange nicht abgehakt ist: So sieht der Einlass, wen
+                    er auf diesem Platz erwartet.
+                  */
+                  beschriftung = durchgext ? "×" : zielVon ? zeichen : s.name;
                 }
 
                 const anfassbar =
@@ -959,6 +973,32 @@ export function UpgradeTafel({
                     >
                       {hervorgehoben ? "＋" : beschriftung}
                     </text>
+                    {/*
+                      Schon da: ein grüner Haken in der Ecke.
+
+                      Auch beim Umsetzen, denn wer schon sitzt, wird nicht
+                      mehr verschoben. Das Häkchen statt der vollen grünen
+                      Fläche, damit Farbe und Buchstabe der Gruppe lesbar
+                      bleiben (Florian, 30.09.2026).
+                    */}
+                    {durchgext && modus === "umsetzen" && (
+                      <>
+                        <circle
+                          cx={s.x + KANTE / 2 - 2.5}
+                          cy={s.y - KANTE / 2 + 2.5}
+                          r={3.4}
+                          fill="var(--gut)"
+                        />
+                        <path
+                          d={`M ${s.x + KANTE / 2 - 4.1} ${s.y - KANTE / 2 + 2.5} l 1.1 1.2 l 2.2 -2.4`}
+                          fill="none"
+                          stroke="#fff"
+                          strokeWidth={0.9}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </>
+                    )}
                   </g>
                 );
               })}
