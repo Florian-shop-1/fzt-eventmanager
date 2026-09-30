@@ -341,7 +341,43 @@ export async function stempelAmTag(benutzerId: string, tag: string): Promise<Ste
 }
 
 /** Verschiebt einen Stempel auf eine andere Uhrzeit. */
-export async function zeitAendern(id: string, zeitpunkt: string, von: string): Promise<void> {
+/**
+ * Jede Korrektur wird mitgeschrieben.
+ *
+ * Arbeitszeit ist nachweispflichtig, und eine Aenderung ohne Grund ist im
+ * Zweifel wertlos, fuer beide Seiten (Florian, 30.09.2026). Deshalb
+ * landet jede Korrektur zusaetzlich im Aenderungsbuch, auch eine
+ * Loeschung: Sonst waere der Stempel danach einfach weg und niemand
+ * koennte sagen, ob er je da war.
+ */
+async function aenderungMerken(o: {
+  benutzerId: string;
+  name: string;
+  tag: string;
+  was: "geaendert" | "geloescht" | "nachgetragen";
+  art: string;
+  altZeitpunkt: string | null;
+  neuZeitpunkt: string | null;
+  grund: string;
+  wer: string;
+}): Promise<void> {
+  await db()`
+    insert into stempel_aenderung (benutzer_id, name, tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer)
+    values (${o.benutzerId}::uuid, ${o.name}, ${o.tag}::date, ${o.was}, ${o.art},
+            ${o.altZeitpunkt}::timestamptz, ${o.neuZeitpunkt}::timestamptz, ${o.grund}, ${o.wer})
+  `.catch((f) => console.warn("[stempel] Änderung nicht vermerkt:", f));
+}
+
+/** Der Tag eines Zeitpunkts in hiesiger Zeit. */
+function tagVon(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+
+export async function zeitAendern(id: string, zeitpunkt: string, von: string, grund = ""): Promise<void> {
+  const vorher = (await db()`
+    select benutzer_id, name, art, zeitpunkt from stempel where id = ${id}
+  `) as Array<Record<string, unknown>>;
+
   await db()`
     update stempel
        set original_zeitpunkt = coalesce(original_zeitpunkt, zeitpunkt),
@@ -350,11 +386,80 @@ export async function zeitAendern(id: string, zeitpunkt: string, von: string): P
            notiz = case when notiz = '' then ${`Zeit geändert von ${von}`} else notiz end
      where id = ${id}
   `;
+
+  if (vorher[0]) {
+    const alt = new Date(vorher[0].zeitpunkt as string).toISOString();
+    await aenderungMerken({
+      benutzerId: String(vorher[0].benutzer_id),
+      name: String(vorher[0].name ?? ""),
+      // Der Tag der neuen Zeit: Wird ein Stempel auf einen anderen Tag
+      // geschoben, gehoert die Notiz zu dem Tag, an dem er jetzt steht.
+      tag: tagVon(zeitpunkt),
+      was: "geaendert",
+      art: String(vorher[0].art ?? ""),
+      altZeitpunkt: alt,
+      neuZeitpunkt: new Date(zeitpunkt).toISOString(),
+      grund,
+      wer: von,
+    });
+  }
 }
 
 /** Löscht einen Stempel, etwa wenn jemand versehentlich doppelt gestempelt hat. */
-export async function stempelEntfernen(id: string): Promise<void> {
+export async function stempelEntfernen(id: string, von = "", grund = ""): Promise<void> {
+  const vorher = (await db()`
+    select benutzer_id, name, art, zeitpunkt from stempel where id = ${id}
+  `) as Array<Record<string, unknown>>;
+
   await db()`delete from stempel where id = ${id}`;
+
+  if (vorher[0]) {
+    const alt = new Date(vorher[0].zeitpunkt as string).toISOString();
+    await aenderungMerken({
+      benutzerId: String(vorher[0].benutzer_id),
+      name: String(vorher[0].name ?? ""),
+      tag: tagVon(alt),
+      was: "geloescht",
+      art: String(vorher[0].art ?? ""),
+      altZeitpunkt: alt,
+      neuZeitpunkt: null,
+      grund,
+      wer: von,
+    });
+  }
+}
+
+export interface Zeitaenderung {
+  id: string;
+  tag: string;
+  was: string;
+  art: string;
+  altZeitpunkt: string | null;
+  neuZeitpunkt: string | null;
+  grund: string;
+  wer: string;
+  wann: string;
+}
+
+/** Was an einem Tag korrigiert wurde. */
+export async function aenderungenAmTag(benutzerId: string, tag: string): Promise<Zeitaenderung[]> {
+  const z = (await db()`
+    select id, tag::text as tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer, wann
+      from stempel_aenderung
+     where benutzer_id = ${benutzerId}::uuid and tag = ${tag}::date
+     order by wann desc
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    id: String(r.id),
+    tag: String(r.tag),
+    was: String(r.was),
+    art: String(r.art ?? ""),
+    altZeitpunkt: r.alt_zeitpunkt ? new Date(r.alt_zeitpunkt as string).toISOString() : null,
+    neuZeitpunkt: r.neu_zeitpunkt ? new Date(r.neu_zeitpunkt as string).toISOString() : null,
+    grund: String(r.grund ?? ""),
+    wer: String(r.wer ?? ""),
+    wann: new Date(r.wann as string).toISOString(),
+  }));
 }
 
 /** Trägt einen vergessenen Stempel nach. */
@@ -363,6 +468,7 @@ export async function nachtragen(o: {
   art: StempelArt;
   zeitpunkt: string;
   von: string;
+  grund?: string;
 }): Promise<void> {
   const p = (await db()`select name from benutzer where id = ${o.benutzerId}`) as Array<{ name: string }>;
   if (!p[0]) throw new Error("Diese Person gibt es nicht.");
@@ -371,6 +477,17 @@ export async function nachtragen(o: {
     values (${o.benutzerId}, ${p[0].name}, ${o.art}, ${o.zeitpunkt}::timestamptz, true, 'korrektur',
             ${`Nachgetragen von ${o.von}`}, ${o.von}, now())
   `;
+  await aenderungMerken({
+    benutzerId: o.benutzerId,
+    name: p[0].name,
+    tag: tagVon(o.zeitpunkt),
+    was: "nachgetragen",
+    art: o.art,
+    altZeitpunkt: null,
+    neuZeitpunkt: new Date(o.zeitpunkt).toISOString(),
+    grund: o.grund ?? "",
+    wer: o.von,
+  });
 }
 
 /** Alle, die stempeln: für die Auswahl in der Korrektur. */

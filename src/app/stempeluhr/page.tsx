@@ -19,6 +19,7 @@ import {
   werIstDa,
   type Stempel,
 } from "@/lib/stempel/db";
+import { aenderungenAmTag } from "@/lib/stempel/db";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
 import { nachFamilienname } from "@/lib/domain/namen";
@@ -379,7 +380,9 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   const leute = await stempelnde();
   const person = leute.find((p) => p.id === wer) ?? leute[0];
   const derTag = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? tag! : heuteBerlin();
-  const liste = person ? await stempelAmTag(person.id, derTag) : [];
+  const [liste, aenderungen] = person
+    ? await Promise.all([stempelAmTag(person.id, derTag), aenderungenAmTag(person.id, derTag)])
+    : [[], []];
 
   return (
     <section id="korrektur" className="scroll-mt-24 space-y-3">
@@ -414,17 +417,38 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
               {liste.map((s) => (
                 <li key={s.id} className="flex flex-wrap items-center gap-2 py-2">
                   <span className="w-40">{BEZEICHNUNG[s.art]}</span>
-                  <form action={zeitKorrigieren} className="flex items-center gap-2">
+                  {/*
+                    Aendern heisst: Tag und Uhrzeit. Ein Stempel am
+                    falschen Tag laesst sich so hinueberschieben, statt
+                    ihn zu loeschen und neu anzulegen (Florian,
+                    30.09.2026).
+                  */}
+                  <form action={zeitKorrigieren} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="tag" value={derTag} />
                     <input type="hidden" name="wer" value={person.id} />
+                    <input type="date" name="neuerTag" defaultValue={derTag} className="w-40" aria-label="Tag" />
                     <input type="time" name="uhrzeit" defaultValue={uhr(s.zeitpunkt)} className="w-28" />
+                    <input
+                      name="grund"
+                      placeholder="Grund (z. B. falscher Tag)"
+                      maxLength={200}
+                      className="w-56 text-sm"
+                      aria-label="Grund der Änderung"
+                    />
                     <button className="rounded-lg border border-linie px-3 py-1.5">Ändern</button>
                   </form>
-                  <form action={stempelLoeschen}>
+                  <form action={stempelLoeschen} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="tag" value={derTag} />
                     <input type="hidden" name="wer" value={person.id} />
+                    <input
+                      name="grund"
+                      placeholder="Grund"
+                      maxLength={200}
+                      className="w-40 text-sm"
+                      aria-label="Grund der Löschung"
+                    />
                     <button className="rounded-lg border border-linie px-3 py-1.5" style={{ color: "var(--blocker)" }}>
                       Löschen
                     </button>
@@ -456,11 +480,43 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
               <span className="mb-1 block text-xs text-leise">Uhrzeit</span>
               <input type="time" name="uhrzeit" className="w-28" required />
             </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Grund</span>
+              <input name="grund" maxLength={200} placeholder="z. B. Stempeluhr streikte" className="w-64" />
+            </label>
             <Absendeknopf text="Eintragen" laeuftText="..." />
           </form>
           <p className="mt-2 text-xs text-leise">
-            Jede Änderung wird mit Namen und Uhrzeit festgehalten, die ursprüngliche Zeit bleibt gespeichert.
+            Jede Änderung wird mit Namen, Uhrzeit und Grund festgehalten, die ursprüngliche Zeit bleibt
+            gespeichert. Auch eine Löschung bleibt im Änderungsbuch stehen.
           </p>
+
+          {/*
+            Das Aenderungsbuch dieses Tages.
+
+            Ohne diese Liste waere ein geloeschter Stempel spurlos weg, und
+            im Zweifel koennte niemand sagen, ob er je da war. Arbeitszeit
+            ist nachweispflichtig (Florian, 30.09.2026).
+          */}
+          {aenderungen.length > 0 && (
+            <div className="mt-4 border-t border-linie pt-3">
+              <div className="text-xs font-medium">Was an diesem Tag korrigiert wurde</div>
+              <ul className="mt-1 space-y-1 text-xs text-leise">
+                {aenderungen.map((a) => (
+                  <li key={a.id}>
+                    <span className="tabular-nums">{new Date(a.wann).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" })}</span> ·{" "}
+                    {a.was === "geloescht"
+                      ? `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} um ${uhr(a.altZeitpunkt ?? "")} gelöscht`
+                      : a.was === "nachgetragen"
+                        ? `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} um ${uhr(a.neuZeitpunkt ?? "")} nachgetragen`
+                        : `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} von ${uhr(a.altZeitpunkt ?? "")} auf ${uhr(a.neuZeitpunkt ?? "")} geändert`}{" "}
+                    von {a.wer}
+                    {a.grund && <span> · {a.grund}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </section>

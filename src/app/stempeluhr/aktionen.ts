@@ -236,16 +236,24 @@ function zeitpunktAus(tag: string, uhrzeit: string): string | null {
 export async function zeitKorrigieren(f: FormData): Promise<void> {
   const b = await verlangeBuero();
   const id = text(f, "id", 40);
-  const zeitpunkt = zeitpunktAus(text(f, "tag", 10), text(f, "uhrzeit", 5));
+  /*
+    Der Tag steht im Formular und darf geaendert werden.
+
+    Florian hatte Sabahs Zeiten auf den 30.09. eingetragen, gearbeitet
+    hat sie am 25.09. (30.09.2026). Ohne Datumsfeld muesste er loeschen
+    und neu anlegen; so schiebt er den Stempel einfach hinueber.
+  */
+  const zielTag = text(f, "neuerTag", 10) || text(f, "tag", 10);
+  const zeitpunkt = zeitpunktAus(zielTag, text(f, "uhrzeit", 5));
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur");
-  await zeitAendern(id, zeitpunkt, b.name);
+  await zeitAendern(id, zeitpunkt, b.name, text(f, "grund", 200));
   zurueck("Zeit geändert.", "#korrektur", f);
 }
 
 export async function stempelLoeschen(f: FormData): Promise<void> {
-  await verlangeBuero();
-  await stempelEntfernen(text(f, "id", 40));
-  zurueck("Stempel gelöscht.", "#korrektur", f);
+  const b = await verlangeBuero();
+  await stempelEntfernen(text(f, "id", 40), b.name, text(f, "grund", 200));
+  zurueck("Stempel gelöscht. Die Löschung steht im Änderungsbuch.", "#korrektur", f);
 }
 
 export async function stempelNachtragen(f: FormData): Promise<void> {
@@ -255,6 +263,6 @@ export async function stempelNachtragen(f: FormData): Promise<void> {
   const zeitpunkt = zeitpunktAus(text(f, "tag", 10), text(f, "uhrzeit", 5));
   if (!["kommen", "pause_start", "pause_ende", "gehen"].includes(art)) zurueck("Unbekannte Art.", "#korrektur", f);
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur", f);
-  await nachtragen({ benutzerId, art, zeitpunkt, von: b.name });
+  await nachtragen({ benutzerId, art, zeitpunkt, von: b.name, grund: text(f, "grund", 200) });
   zurueck("Nachgetragen.", "#korrektur", f);
 }
