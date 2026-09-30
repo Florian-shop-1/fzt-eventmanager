@@ -82,22 +82,33 @@ export default async function UpgradeSeite({
   const vorstellung: Vorstellungstermin | undefined =
     shows.find((s) => s.ditixEventId === show) ?? shows[0];
 
-  let plan: Saalplan | null = null;
+  /*
+    Der Saalplan und die vier Auskuenfte aus der eigenen Datenbank
+    gleichzeitig.
+
+    Sie haengen nicht voneinander ab, wurden aber nacheinander geholt: Der
+    Saalplan kommt von Ditix, die uebrigen aus der Datenbank, und jeder
+    einzelne Weg dorthin kostet Zeit. Am Einlass steht jemand mit dem
+    Tablet in der Hand und wartet darauf (Florian, 30.09.2026).
+  */
   let fehler: string | null = null;
-  if (vorstellung?.seatmapEventId) {
-    try {
-      plan = await holeSaalplan(vorstellung.seatmapEventId);
-    } catch (e) {
-      fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
-    }
-  }
+  const [plan, gaeste, benutzer, umsetzungen, eingecheckt] = await Promise.all([
+    vorstellung?.seatmapEventId
+      ? holeSaalplan(vorstellung.seatmapEventId).catch((e: unknown) => {
+          fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
+          return null as Saalplan | null;
+        })
+      : Promise.resolve(null as Saalplan | null),
+    vorstellung ? gaesteDerVorstellung(vorstellung.ditixEventId) : Promise.resolve([]),
+    angemeldeterBenutzer(),
+    vorstellung ? umsetzungenDerVorstellung(vorstellung.ditixEventId) : Promise.resolve([]),
+    vorstellung ? eingecheckteSitze(vorstellung.ditixEventId) : Promise.resolve([]),
+  ]);
 
   const rat = plan ? empfehlung(plan) : null;
 
   // Die Gästeliste: ohne Ticket, vor Ort zu setzen. Vorschläge nach den Upgrades.
-  const gaeste = vorstellung ? await gaesteDerVorstellung(vorstellung.ditixEventId) : [];
   const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich | null>();
-  const benutzer = await angemeldeterBenutzer();
   const darfEintragen = benutzer?.rolle === "chef" || benutzer?.rolle === "team";
   /*
     Testmodus: Umsetzen und Durch-x-en gehen sonst erst ab Saalöffnung.
@@ -108,11 +119,6 @@ export default async function UpgradeSeite({
   */
   const testModusMoeglich = darfEinladen(benutzer);
   const testModus = testModusMoeglich && test === "1";
-  // Was am Einlass schon gesetzt wurde. Steht ueber dem Vorschlag: Der Plan
-  // ist eine Empfehlung, gezaehlt wird, was der Einlass eingetippt hat.
-  const umsetzungen = vorstellung ? await umsetzungenDerVorstellung(vorstellung.ditixEventId) : [];
-  // Von Hand durch-x-t, wer sitzt: die Vorstufe zum späteren Scanner.
-  const eingecheckt = vorstellung ? await eingecheckteSitze(vorstellung.ditixEventId) : [];
 
   return (
     /*

@@ -141,13 +141,25 @@ export default async function StempeluhrSeite({
       {stempelt && <Nachmeldung benutzerId={b.id} tag={tag} />}
       {stempelt && <MeineAntraege benutzerId={b.id} />}
 
-      {buero && <WerIstDaLive start={await werIstDa()} />}
+      {buero && <WerIstDaKasten />}
       {buero && <Antraege duerfenUebernehmen={darfSelbstauskunftUebernehmen(b)} />}
       {buero && <Korrektur wer={wer} tag={tag} />}
       {buero && <Monatsuebersicht monat={monat} />}
       {b.rolle === "chef" && <Einrichtung />}
     </div>
   );
+}
+
+/**
+ * Wer gerade da ist.
+ *
+ * Eigener Baustein, damit das Warten auf diese Liste nicht die ganze
+ * Seite aufhaelt. Stand vorher ein `await` mitten in der Seite, begannen
+ * die uebrigen Kaesten erst danach zu laden; als eigener Baustein laedt
+ * er neben ihnen (Florian, 30.09.2026).
+ */
+async function WerIstDaKasten() {
+  return <WerIstDaLive start={await werIstDa()} />;
 }
 
 /** "Warum ist die Pause ausgefallen?" Der Mitarbeiter schreibt es selbst dazu. */

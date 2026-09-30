@@ -57,8 +57,11 @@ export default async function BestellungenSeite({
   if (!b || !z.sehen) redirect("/");
   const { meldung, monat } = await searchParams;
 
-  const artikel = await artikelListe(!z.verwalten);
-  const alle = await bestellungen({ bestellerId: z.uebergeben ? undefined : b.id });
+  // Beides gleichzeitig: Der Katalog haengt nicht an den Bestellungen.
+  const [artikel, alle] = await Promise.all([
+    artikelListe(!z.verwalten),
+    bestellungen({ bestellerId: z.uebergeben ? undefined : b.id }),
+  ]);
   const offen = alle.filter((x) => x.status === "offen");
   const erledigt = alle.filter((x) => x.status !== "offen").slice(0, 20);
 

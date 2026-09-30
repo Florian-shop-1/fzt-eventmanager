@@ -162,9 +162,34 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const aufgaben: Erinnerung[] = [];
   // Für das Pop-up: die offenen Bestellungen der Gastro, kurz gefasst.
   let offeneBestellungen: OffeneBestellung[] = [];
+  /*
+    Alles auf einmal fragen, nicht eines nach dem anderen.
+
+    Diese Auskuenfte haengen nicht voneinander ab, wurden aber nacheinander
+    geholt, und jede einzelne kostet den vollen Weg zur Datenbank. Bei
+    einem halben Dutzend kommt so vor jeder Seite eine spuerbare Wartezeit
+    zusammen, und zwar bei jedem Klick (Florian, 30.09.2026: "der
+    eventmanager braucht lang zum laden").
+
+    Die Reihenfolge der Erinnerungen bleibt, wie sie war: Gefragt wird
+    gleichzeitig, eingeordnet wird danach.
+  */
+  const istKevin = benutzer ? benutzer.email.toLowerCase() === "kevin.steele@florianzimmer.com" : false;
+  const brauchtGeheimhaltung = Boolean(
+    benutzer && !offen && !istKevin && !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle),
+  );
+
+  const [geheimhaltungOk, dienstplan, merker, weinVorab] =
+    benutzer && !offen
+      ? await Promise.all([
+          brauchtGeheimhaltung ? geheimhaltungUnterschrieben(benutzer.id).catch(() => true) : Promise.resolve(true),
+          dienstplanErinnerungen(benutzer).catch(() => [] as Erinnerung[]),
+          faelligeMerker(benutzer.id).catch(() => [] as Array<{ titel: string; text?: string }>),
+          weinEinstellung().catch(() => null),
+        ])
+      : [true, [] as Erinnerung[], [] as Array<{ titel: string; text?: string }>, null];
+
   if (benutzer && !offen) {
-    // Kevin hat beides längst erledigt, das Programm weiß es nur nicht mehr.
-    const istKevin = benutzer.email.toLowerCase() === "kevin.steele@florianzimmer.com";
     if (benutzer.art === "intern" && !benutzer.personalbogenAm && !istKevin) {
       aufgaben.push({
         href: "/personalbogen",
@@ -173,11 +198,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Dein Personalbogen fürs Lohnbüro fehlt noch. Dauert nur fünf Minuten.",
       });
     }
-    if (
-      !istKevin &&
-      !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle) &&
-      !(await geheimhaltungUnterschrieben(benutzer.id).catch(() => true))
-    ) {
+    if (brauchtGeheimhaltung && !geheimhaltungOk) {
       aufgaben.push({
         href: "/geheimhaltung",
         leiste: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben.",
@@ -185,10 +206,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben. Ein Zauberer verrät nie seine Tricks!",
       });
     }
-    aufgaben.push(...(await dienstplanErinnerungen(benutzer).catch(() => [])));
+    aufgaben.push(...dienstplan);
 
     // Der eigene Merkzettel: meldet sich alle paar Tage, siehe lib/db/merker.ts.
-    for (const m of await faelligeMerker(benutzer.id).catch(() => [])) {
+    for (const m of merker) {
       aufgaben.push({
         href: "/merker",
         leiste: m.titel,
@@ -201,7 +222,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     if (["chef", "team"].includes(benutzer.rolle)) void nebenbeiPruefen();
 
     // Offene Weinbestellung der Gastro: bei allen, die Bescheid bekommen sollen.
-    const wein = await weinEinstellung().catch(() => null);
+    const wein = weinVorab;
     if (wein && wein.meldenAn.includes(benutzer.id) && (wein.freigegeben || benutzer.email.toLowerCase() === "info@florianzimmer.com")) {
       const n = await offeneWeinbestellungen().catch(() => 0);
       if (n > 0) {
@@ -226,12 +247,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Der Stempelknopf erscheint nur am Handy: Am Rechner und am Tablet
   // wird nicht gestempelt (Florian, 23.09.2026).
   const amHandy = istHandy(kopf.get("user-agent"));
-  const stempelZustand =
+  // Auch diese beiden haengen nicht voneinander ab.
+  const [stempelZustand, weinZugriff] = await Promise.all([
     benutzer && !offen && amHandy && darfStempeln(benutzer)
-      ? await zustandVon(benutzer.id).catch(() => null)
-      : null;
-
-  const weinSichtbar = benutzer && !offen ? (await weinZugang(benutzer).catch(() => null))?.sehen === true : false;
+      ? zustandVon(benutzer.id).catch(() => null)
+      : Promise.resolve(null),
+    benutzer && !offen ? weinZugang(benutzer).catch(() => null) : Promise.resolve(null),
+  ]);
+  const weinSichtbar = weinZugriff?.sehen === true;
 
   /*
     Die Reiter für diese Person zusammenstellen.

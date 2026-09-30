@@ -8,6 +8,7 @@
  * Oberfläche nicht abgegriffen werden kann.
  */
 
+import { cache } from "react";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db/client";
@@ -191,8 +192,16 @@ async function benutzerIdAusCookie(): Promise<string | null> {
  * Der gerade angemeldete Benutzer, oder null.
  * Fragt die Datenbank, damit eine Sperrung sofort wirkt und nicht erst,
  * wenn das Cookie abläuft.
+ *
+ * Gefragt wird einmal je Aufruf, nicht einmal je Stelle im Code: Das
+ * Gerüst fragt, die Seite fragt noch einmal, und manche Prüfung darin
+ * ein drittes Mal. Dreimal dieselbe Antwort aus der Datenbank kostete
+ * jedes Mal den vollen Weg dorthin. `cache` von React merkt sich das
+ * Ergebnis für die Dauer dieses einen Aufrufs; beim nächsten Klick wird
+ * wieder gefragt, eine Sperrung wirkt also weiterhin sofort
+ * (Florian, 30.09.2026: "der eventmanager braucht lang zum laden").
  */
-export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | null> {
+export const angemeldeterBenutzer = cache(async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | null> {
   const id = await benutzerIdAusCookie();
   if (!id) return null;
 
@@ -221,7 +230,7 @@ export async function angemeldeterBenutzer(): Promise<AngemeldeterBenutzer | nul
     // Prüfung hereinlassen.
     return null;
   }
-}
+});
 
 /** Darf diese Rolle Preise, Kundendaten und Zahlungen sehen? */
 export function darfKaufmaennisches(rolle: Rolle): boolean {
