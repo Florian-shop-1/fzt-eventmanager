@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { taeglicherBewertungslauf } from "@/lib/bewertung/lauf";
 import { abbrecherLauf } from "@/lib/abbrecher/lauf";
+import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 
 /**
  * Der Auslöser für die Bewertungsmail, jeden Morgen.
@@ -31,10 +32,18 @@ export async function GET(request: Request) {
         `[abbrecher] ${a.gefragt} gefragt, ${a.gezogen} gezogen, ${a.getroestet} mit Glas oder Zauberstab`
         + (a.zusammengefasst ? `, ${a.zusammengefasst} weitere Körbe ohne eigene Mail abgehakt` : ""),
       );
+    // Wer beim Gewinnspiel keine Anschrift dagelassen hat, wird am Tag
+    // darauf einmal erinnert. Siehe lib/shop/zauberstab-lauf.ts.
+    const z = await zauberstabLauf().catch((f) => {
+      console.error("[zauberstab] Lauf fehlgeschlagen:", f);
+      return { erinnert: 0, fehler: [] };
+    });
+    if (z.erinnert) console.log(`[zauberstab] ${z.erinnert} an die Anschrift erinnert`);
+
     console.log(
       `[bewertung] ${e.datum}: ${e.ausgeschaltet ? "ausgeschaltet" : `${e.verschickt.length} verschickt, ${e.uebersprungen.length} übersprungen, ${e.fehler.length} Fehler`}`,
     );
-    return NextResponse.json({ ok: true, ...e, abbrecher: a });
+    return NextResponse.json({ ok: true, ...e, abbrecher: a, zauberstab: z });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     console.error("[bewertung] Lauf fehlgeschlagen:", meldung);

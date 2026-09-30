@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { zauberstabEintragen } from "@/lib/shop/zauberstab";
+import { anschriftNachtragen, zauberstabEintragen, zauberstabPerToken } from "@/lib/shop/zauberstab";
 
 /**
  * Der Shop meldet eine Anschrift für einen Zauberstab.
@@ -40,6 +40,32 @@ interface Anfrage {
   land?: string;
   quelle?: string;
   notiz?: string;
+  /** Nur die Teilnahme festhalten, die Anschrift kommt später. */
+  nurTeilnahme?: boolean;
+  /** Schlüssel aus der Erinnerungsmail, um die Anschrift nachzutragen. */
+  token?: string;
+}
+
+/** Wer über den Link aus der Erinnerungsmail kommt, sieht seinen Namen. */
+export async function GET(request: Request) {
+  if (!istErlaubt(request)) {
+    return NextResponse.json({ ok: false, fehler: "nicht erlaubt" }, { status: 401 });
+  }
+  const token = new URL(request.url).searchParams.get("token") ?? "";
+  const eintrag = await zauberstabPerToken(token);
+  if (!eintrag) {
+    return NextResponse.json({ ok: false, fehler: "unbekannt" }, { status: 404 });
+  }
+  return NextResponse.json({
+    ok: true,
+    vorname: eintrag.vorname,
+    nachname: eintrag.nachname,
+    strasse: eintrag.strasse,
+    plz: eintrag.plz,
+    ort: eintrag.ort,
+    offen: eintrag.offen,
+    versendet: Boolean(eintrag.versendetAm),
+  });
 }
 
 export async function POST(request: Request) {
@@ -51,7 +77,36 @@ export async function POST(request: Request) {
   if (!d) return NextResponse.json({ ok: false, fehler: "Keine Daten" }, { status: 400 });
 
   const text = (w: unknown) => String(w ?? "").trim();
-  if (!text(d.strasse) || !text(d.plz) || !text(d.ort)) {
+
+  /*
+    Drei Wege in diese Route:
+
+    1. Anschrift nachtragen über den Link aus der Erinnerungsmail (token).
+    2. Nur die Teilnahme festhalten, noch ohne Anschrift (nurTeilnahme).
+       Dann steht der Teilnehmer in der Liste und bekommt am Tag darauf
+       die Erinnerung, statt vergessen zu werden.
+    3. Anschrift gleich nach dem Absenden, wie bisher.
+  */
+  const token = text(d.token);
+  if (token) {
+    if (!text(d.strasse) || !text(d.plz) || !text(d.ort)) {
+      return NextResponse.json({ ok: false, fehler: "Anschrift unvollständig" }, { status: 400 });
+    }
+    const eintrag = await anschriftNachtragen(token, {
+      vorname: text(d.vorname),
+      nachname: text(d.nachname),
+      strasse: text(d.strasse),
+      plz: text(d.plz),
+      ort: text(d.ort),
+    });
+    if (!eintrag) {
+      return NextResponse.json({ ok: false, fehler: "Der Link ist nicht mehr gültig." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, id: eintrag.id, email: eintrag.email, token: eintrag.token });
+  }
+
+  const nurTeilnahme = d.nurTeilnahme === true;
+  if (!nurTeilnahme && (!text(d.strasse) || !text(d.plz) || !text(d.ort))) {
     return NextResponse.json({ ok: false, fehler: "Anschrift unvollständig" }, { status: 400 });
   }
 
