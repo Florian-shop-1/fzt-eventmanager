@@ -20,6 +20,7 @@ import {
   type Stempel,
 } from "@/lib/stempel/db";
 import { aenderungenAmTag } from "@/lib/stempel/db";
+import { alleKontostaende, sollzeiten } from "@/lib/lohn/konto";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
 import { nachFamilienname } from "@/lib/domain/namen";
@@ -29,6 +30,8 @@ import {
   korrekturBeantragen,
   nachmeldungSenden,
   pausengrundSenden,
+  sollzeitEintragen,
+  sollzeitLoeschen,
   standortSpeichern,
   stempelLoeschen,
   stempelNachtragen,
@@ -145,6 +148,7 @@ export default async function StempeluhrSeite({
       {buero && <WerIstDaKasten />}
       {buero && <Antraege duerfenUebernehmen={darfSelbstauskunftUebernehmen(b)} />}
       {buero && <Korrektur wer={wer} tag={tag} />}
+      {buero && <Arbeitszeitkonto />}
       {buero && <Monatsuebersicht monat={monat} />}
       {b.rolle === "chef" && <Einrichtung />}
     </div>
@@ -520,6 +524,187 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Das Arbeitszeitkonto der Festangestellten.
+ *
+ * Nur fuer die Festangestellten, denn nur sie schulden Monatsstunden:
+ * Ben 80, Olena 60 (Florian, 30.09.2026). Wer weniger schafft, baut
+ * Minusstunden auf, und die rufen wir ab. Mehrarbeit bis zehn Prozent
+ * ist mit dem Gehalt abgegolten und ergibt keine Plusstunden, so steht
+ * es im Teilzeitvertrag unter § 5.
+ *
+ * Eingeklappt, weil es im Alltag nicht stoeren soll: "so dass man es
+ * auch anklicken kann bei der stundenmeldung".
+ */
+async function Arbeitszeitkonto() {
+  const [staende, leute] = await Promise.all([alleKontostaende(), stempelnde()]);
+  const schonDrin = new Set(staende.map((k) => k.person.benutzerId));
+  const offen = leute.filter((p) => !schonDrin.has(p.id));
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const laufend = heute.slice(0, 7);
+
+  const stunden = (min: number) => {
+    const v = Math.abs(min);
+    return `${min < 0 ? "-" : ""}${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
+  };
+
+  return (
+    <details id="konto" className="scroll-mt-24 rounded-lg border border-linie bg-flaeche p-4 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Arbeitszeitkonto der Festangestellten
+        {staende.length > 0 && (
+          <span className="text-leise">
+            {" "}
+            (
+            {staende
+              .map((k) => `${k.person.name.split(" ")[0]} ${stunden(k.saldoMinuten)}`)
+              .join(", ")}
+            )
+          </span>
+        )}
+      </summary>
+
+      <p className="mt-2 max-w-prose text-xs text-leise">
+        Gerechnet wird nach Kalendermonaten. Mehrarbeit bis zum Korridor ist mit dem Gehalt abgegolten und
+        ergibt keine Plusstunden. Wer unter seiner Regelarbeitszeit bleibt, sammelt Minusstunden, die
+        stehen bleiben, bis sie abgearbeitet sind. Der laufende Monat ist noch nicht fertig und deshalb
+        grau.
+      </p>
+
+      {staende.length === 0 && (
+        <p className="mt-3 text-leise">Für niemanden wird gerade ein Arbeitszeitkonto geführt.</p>
+      )}
+
+      {staende.map((k) => (
+        <div key={k.person.benutzerId} className="mt-4 border-t border-linie pt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <strong>{k.person.name}</strong>{" "}
+              <span className="text-leise">
+                {k.person.monatsStunden.toString().replace(".00", "")} Stunden im Monat, Korridor{" "}
+                {k.person.korridorProzent} % (
+                {stunden(Math.round((k.person.monatsStunden * 60 * k.person.korridorProzent) / 100))} Stunden),
+                seit {k.person.seit.split("-").reverse().join(".")}
+              </span>
+            </div>
+            <div
+              className="rounded-md px-3 py-1 font-semibold tabular-nums"
+              style={{
+                background: k.saldoMinuten < 0 ? "var(--warnung-hell)" : "var(--gut-hell)",
+                color: k.saldoMinuten < 0 ? "var(--warnung)" : "var(--gut)",
+              }}
+            >
+              {k.saldoMinuten < 0
+                ? `${stunden(k.saldoMinuten)} Stunden schuldig`
+                : `${stunden(k.saldoMinuten)} Stunden Guthaben`}
+            </div>
+          </div>
+
+          <table className="mt-2 w-full text-xs">
+            <thead className="text-left text-leise">
+              <tr>
+                <th className="py-1 font-medium">Monat</th>
+                <th className="py-1 text-right font-medium">Soll</th>
+                <th className="py-1 text-right font-medium">Ist</th>
+                <th className="py-1 text-right font-medium">abgegolten</th>
+                <th className="py-1 text-right font-medium">Plus</th>
+                <th className="py-1 text-right font-medium">Minus</th>
+                <th className="py-1 text-right font-medium">Stand</th>
+              </tr>
+            </thead>
+            <tbody>
+              {k.monate.map((m) => (
+                <tr key={m.monat} className={m.monat === laufend ? "text-leise" : ""}>
+                  <td className="py-1">
+                    {m.monat.split("-").reverse().join(".")}
+                    {m.monat === laufend && " (läuft noch)"}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">{stunden(m.sollMinuten)}</td>
+                  <td className="py-1 text-right tabular-nums">{stunden(m.istMinuten)}</td>
+                  <td className="py-1 text-right tabular-nums">
+                    {m.abgegoltenMinuten > 0 ? stunden(m.abgegoltenMinuten) : "-"}
+                  </td>
+                  <td className="py-1 text-right tabular-nums" style={{ color: m.plusMinuten ? "var(--gut)" : undefined }}>
+                    {m.plusMinuten > 0 ? stunden(m.plusMinuten) : "-"}
+                  </td>
+                  <td className="py-1 text-right tabular-nums" style={{ color: m.minusMinuten ? "var(--warnung)" : undefined }}>
+                    {m.minusMinuten > 0 ? stunden(m.minusMinuten) : "-"}
+                  </td>
+                  <td className="py-1 text-right font-medium tabular-nums">{stunden(m.saldoMinuten)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <form action={sollzeitEintragen} className="mt-2 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="benutzerId" value={k.person.benutzerId} />
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Stunden im Monat</span>
+              <input name="stunden" defaultValue={String(k.person.monatsStunden).replace(".00", "")} className="w-24" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Korridor %</span>
+              <input name="korridor" defaultValue={k.person.korridorProzent} className="w-20" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Zählt ab</span>
+              <input type="date" name="seit" defaultValue={k.person.seit} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Notiz</span>
+              <input name="notiz" defaultValue={k.person.notiz} className="w-56" />
+            </label>
+            <Absendeknopf text="Speichern" laeuftText="..." />
+          </form>
+
+          {/*
+            Das Loeschen steht bewusst neben dem Formular und nicht darin:
+            Ein Formular im Formular ist keine gueltige Seite, der Browser
+            wirft das innere weg und der Knopf tut dann nichts.
+          */}
+          <form action={sollzeitLoeschen} className="mt-1">
+            <input type="hidden" name="benutzerId" value={k.person.benutzerId} />
+            <button type="submit" className="text-xs text-leise underline">
+              Konto nicht mehr führen
+            </button>
+          </form>
+        </div>
+      ))}
+
+      {offen.length > 0 && (
+        <form action={sollzeitEintragen} className="mt-4 flex flex-wrap items-end gap-2 border-t border-linie pt-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Weitere Person</span>
+            <select name="benutzerId" defaultValue="">
+              <option value="" disabled>
+                bitte wählen
+              </option>
+              {offen.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Stunden im Monat</span>
+            <input name="stunden" placeholder="80" className="w-24" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Korridor %</span>
+            <input name="korridor" defaultValue={10} className="w-20" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Zählt ab</span>
+            <input type="date" name="seit" defaultValue={`${laufend}-01`} />
+          </label>
+          <Absendeknopf text="Konto führen" laeuftText="..." />
+        </form>
+      )}
+    </details>
   );
 }
 

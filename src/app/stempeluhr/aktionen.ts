@@ -23,6 +23,7 @@ import {
   type StempelArt,
 } from "@/lib/stempel/db";
 import { melden } from "@/lib/stempel/wache";
+import { sollzeitEntfernen, sollzeitSpeichern } from "@/lib/lohn/konto";
 
 const text = (f: FormData, k: string, max = 1000) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -40,6 +41,41 @@ async function verlangeBuero() {
   const b = await angemeldeterBenutzer();
   if (!darfZeitenAendern(b)) throw new Error("Arbeitszeiten dürfen nur Werner, Kevin und Florian ändern.");
   return b!;
+}
+
+/**
+ * Die Regelarbeitszeit einer festangestellten Person.
+ *
+ * Nur fuer Festangestellte: Wer auf Abruf arbeitet, schuldet keine
+ * Monatsstunden, und ein Konto waere dort eine Zahl ohne Bedeutung
+ * (Florian, 30.09.2026).
+ */
+export async function sollzeitEintragen(f: FormData): Promise<void> {
+  const b = await verlangeBuero();
+  const id = text(f, "benutzerId", 40);
+  const stunden = Number(text(f, "stunden", 10).replace(",", "."));
+  const korridor = Math.round(Number(text(f, "korridor", 4)) || 10);
+  const seit = text(f, "seit", 10);
+
+  if (!id) zurueck("Bitte eine Person wählen.", "#konto");
+  if (!(stunden > 0 && stunden <= 250)) zurueck("Bitte Monatsstunden zwischen 1 und 250 eintragen.", "#konto");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(seit)) zurueck("Bitte ein Startdatum wählen.", "#konto");
+
+  await sollzeitSpeichern({
+    benutzerId: id,
+    monatsStunden: stunden,
+    korridorProzent: korridor >= 0 && korridor <= 50 ? korridor : 10,
+    seit,
+    notiz: text(f, "notiz", 200),
+    wer: b.name,
+  });
+  zurueck("Regelarbeitszeit gespeichert.", "#konto");
+}
+
+export async function sollzeitLoeschen(f: FormData): Promise<void> {
+  await verlangeBuero();
+  await sollzeitEntfernen(text(f, "benutzerId", 40));
+  zurueck("Für diese Person wird kein Arbeitszeitkonto mehr geführt.", "#konto");
 }
 
 /** Mittelpunkt, Umkreis und Meldegrenze der Stempeluhr. Nur für den Inhaber. */
