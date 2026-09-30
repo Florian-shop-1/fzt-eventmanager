@@ -144,14 +144,35 @@ export async function monatsPositionen(monat: string) {
 
   const liste = await bestellungen({ status: "uebergeben", seit: vonIso, bis: bisIso });
   const jeSorte = new Map<string, RechnungsPosition>();
+  /*
+    Die Bestelltage je Sorte mitfuehren.
+
+    Die Rechnung fasst einen Monat zusammen, und ohne die Tage kann der
+    Empfaenger sie nicht mit seinen eigenen Aufzeichnungen vergleichen
+    (Florian, 30.09.2026). Doppelte Tage fallen heraus, sonst stuende
+    derselbe Tag bei zwei Bestellungen zweimal da.
+  */
+  const tage = new Map<string, Set<string>>();
   for (const x of liste) {
+    const tag = new Date(x.erstelltAm).toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
+      day: "2-digit",
+      month: "2-digit",
+    });
     for (const p of x.positionen) {
       const k = `${p.artikelId}|${p.ekCent}`;
       const e = jeSorte.get(k) ?? { name: p.name, menge: 0, einzelCent: p.ekCent, summeCent: 0 };
       e.menge += p.menge;
       e.summeCent += p.menge * p.ekCent;
       jeSorte.set(k, e);
+      const t = tage.get(k) ?? new Set<string>();
+      t.add(tag);
+      tage.set(k, t);
     }
+  }
+  for (const [k, e] of jeSorte) {
+    const t = [...(tage.get(k) ?? [])];
+    if (t.length) e.bestellt = t.join(", ");
   }
 
   // Ausgeliehene Ware: Marktpreis plus Aufschlag, als Nettobetrag gerechnet.

@@ -32,7 +32,6 @@ import {
   rechnungEinstellungSpeichern,
   rechnungJetzt,
 } from "./aktionen";
-import { lexofficeEingerichtet } from "@/lib/lexoffice/client";
 import { fehlendePflichtangaben, monatsPositionen, rechnungDesMonats, rechnungsEinstellung } from "@/lib/wein/rechnung";
 
 export const metadata = { title: "Bestellungen | FZT Eventmanager" };
@@ -288,7 +287,7 @@ async function Rechnungsblock({ monat }: { monat: string }) {
       >
         <strong>Rechnung {r.nummer}</strong> über {euro(r.bruttoCent)}, verschickt am{" "}
         {new Date(r.versendetAm).toLocaleDateString("de-DE")} an {r.versendetAn.join(", ")}.{" "}
-        {r.lexofficeId ? <strong>{STATUS[r.status] ?? r.status}</strong> : <span className="text-leise">Zahlungsstand nicht verbunden</span>}
+        <strong>{bezahlt ? "Bezahlt" : "Noch offen"}</strong>
         {r.bezahltAm && ` seit ${new Date(r.bezahltAm).toLocaleDateString("de-DE")}`}.{" "}
         {r.hatPdf && (
           <a href={`/bestellungen/rechnung/${r.id}`} target="_blank" rel="noreferrer" className="underline">
@@ -425,14 +424,21 @@ async function Einrichtung({ freigegeben }: { freigegeben: boolean }) {
 
 async function RechnungsEinrichtung() {
   const e = await rechnungsEinstellung();
-  const verbunden = lexofficeEingerichtet();
   return (
     <form action={rechnungEinstellungSpeichern} className="space-y-3 border-t border-linie pt-4">
       <h3 className="text-sm font-semibold">Monatsrechnung</h3>
-      <p className="text-xs" style={{ color: verbunden ? "var(--gut)" : "var(--warnung)" }}>
-        {verbunden
-          ? "Lexware Office ist verbunden. Rechnungen bekommen dort ihre Nummer, und lexoffice gleicht die Zahlung mit dem Konto ab."
-          : "Lexware Office ist noch nicht verbunden. Dafür muss der API-Schlüssel bei Vercel eingetragen werden."}
+      {/*
+        Kein Hinweis auf Lexware Office mehr.
+
+        Die Rechnung entsteht hier, geht von hier per Mail hinaus und
+        gilt als bezahlt, sobald die Zahlung auf dem eigenen Konto steht.
+        Ein Hinweis, dass ein fremder Dienst "noch nicht verbunden" sei,
+        beschreibt einen Weg, den wir nicht mehr gehen (Florian,
+        30.09.2026).
+      */}
+      <p className="text-xs text-leise">
+        Erstellt am 1. des Folgemonats, verschickt per Mail, bezahlt, sobald das Geld auf dem Konto
+        steht. Der Zahlstand kommt aus dem Bankabgleich.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block sm:col-span-2">

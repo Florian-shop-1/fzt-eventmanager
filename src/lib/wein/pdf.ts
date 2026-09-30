@@ -23,6 +23,15 @@ export interface RechnungsPosition {
   menge: number;
   einzelCent: number;
   summeCent: number;
+  /**
+   * An welchen Tagen diese Ware bestellt wurde, als fertiger Text.
+   *
+   * "wichtig ist, dass z.b. der osman genau sieht auf der Rg, wann er
+   * bestellt hat" (Florian, 30.09.2026). Eine Monatsrechnung fasst
+   * zusammen; ohne die Tage kann der Empfaenger sie nicht mit seinen
+   * eigenen Aufzeichnungen vergleichen.
+   */
+  bestellt?: string;
 }
 
 export interface Absender {
@@ -77,6 +86,7 @@ export async function rechnungsPdfBauen(d: RechnungsDaten): Promise<Buffer> {
     id: String(i + 1),
     artikelNummer: String(i + 1),
     bezeichnung: p.name,
+    beschreibung: p.bestellt ? `bestellt am ${p.bestellt}` : undefined,
     menge: p.menge,
     einheit: "",
     einzelBruttoCent: p.einzelCent,
