@@ -14,6 +14,12 @@ import {
   widmungSpeichern,
   type VersandStand,
 } from "@/lib/db/buero";
+import {
+  brauchtKlaerung as zauberstabKlaerung,
+  zauberstaebe,
+  type Zauberstab,
+} from "@/lib/shop/zauberstab";
+import { abhaken as zauberstabAbhaken, dochNicht as zauberstabDochNicht } from "@/app/zauberstab/aktionen";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang, zeitpunkt } from "@/lib/zeit";
@@ -54,9 +60,10 @@ export default async function VersandSeite({
     sofort?: string;
     zuletzt?: string;
     aktion?: string;
+    meldung?: string;
   }>;
 }) {
-  const { zeige, nur, drucken, sofort, zuletzt, aktion } = await searchParams;
+  const { zeige, nur, drucken, sofort, zuletzt, aktion, meldung } = await searchParams;
   const alleZeigen = zeige === "alle";
   const erledigteZeigen = zeige === "erledigt";
   // Die aktuelle Ansicht wandert mit in die Aktion, damit man nach dem
@@ -87,7 +94,17 @@ export default async function VersandSeite({
     fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }
 
-  const staende = await versandStaende();
+  /*
+    Die Zauberstaebe gehoeren in dieselbe Liste.
+
+    "hier sollte alles rein in einer liste" (Florian, 30.09.2026): Wer
+    Post fertig macht, will eine Liste abarbeiten und nicht zwei Seiten
+    im Kopf behalten. Woher eine Sendung kommt, sagt die Marke auf der
+    Karte, nicht die Seite, auf der sie steht.
+  */
+  const [staende, staebe] = await Promise.all([versandStaende(), zauberstaebe(true).catch(() => [])]);
+  const staebeOffen = staebe.filter((z) => !z.versendetAm);
+  const staebeErledigt = staebe.filter((z) => z.versendetAm);
   const istErledigt = (s: Sendung) =>
     Boolean(staende.get(s.bestellnummer)?.erledigtAm) || /versendet/i.test(s.status);
 
@@ -112,6 +129,17 @@ export default async function VersandSeite({
 
   const sichtbar =
     einzeln ?? (erledigteZeigen ? erledigte : alleZeigen ? sendungen : offen);
+  /*
+    Beim Blick auf eine einzelne Gutscheinsendung stehen die Zauberstaebe
+    nicht im Weg: Dort geht es um genau einen Umschlag.
+  */
+  const staebeSichtbar = einzeln
+    ? []
+    : erledigteZeigen
+      ? staebeErledigt
+      : alleZeigen
+        ? staebe
+        : staebeOffen;
   const zuDrucken = (einzeln ?? offen).filter(gehtInDiePost);
   const klaerung = offen.filter((s) => brauchtKlaerung(s));
   // Ohne Gutscheincode kann kein Gutschein gedruckt werden. Ditix gibt ihn
@@ -164,11 +192,12 @@ export default async function VersandSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Versand</h1>
           <p className="mt-1 text-sm text-leise">
-            Gutscheine, die in die Post müssen. Anschreiben und Gutschein zum Drucken.{" "}
+            Alles, was in die Post muss, in einer Liste. Die Marke an jeder Karte sagt, worum es geht.
+            Begleitschreiben der Zauberstäbe druckst du{" "}
             <Link href="/zauberstab" className="underline">
-              Zauberstäbe aus dem Gewinnspiel
-            </Link>{" "}
-            stehen auf einer eigenen Seite.
+              auf ihrer eigenen Seite
+            </Link>
+            , weil dort anderes Papier in die Kassette gehört.
           </p>
         </div>
         {zuDrucken.length > 0 && (
@@ -213,6 +242,15 @@ export default async function VersandSeite({
         </div>
       )}
 
+      {meldung && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
+        </p>
+      )}
+
       {fehler && (
         <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm print:hidden">
           <strong style={{ color: "var(--blocker)" }}>Liste nicht lesbar.</strong>
@@ -251,6 +289,11 @@ export default async function VersandSeite({
           hinweis="fehlende Angaben"
           warnung={klaerung.length > 0}
         />
+        <Kachel
+          zahl={staebeOffen.filter((z) => !z.offen).length}
+          was="Zauberstäbe"
+          hinweis="Päckchen packen"
+        />
       </section>
 
       {einzeln && (
@@ -278,13 +321,13 @@ export default async function VersandSeite({
           href="/versand?zeige=erledigt"
           className={`rounded-md border px-3 py-1.5 ${erledigteZeigen ? "border-gold bg-gold-hell" : "border-linie"}`}
         >
-          Abgehakt ({erledigte.length})
+          Abgehakt ({erledigte.length + staebeErledigt.length})
         </Link>
         <Link
           href="/versand?zeige=alle"
           className={`rounded-md border px-3 py-1.5 ${alleZeigen ? "border-gold bg-gold-hell" : "border-linie"}`}
         >
-          Alle ({sendungen.length})
+          Alle ({sendungen.length + staebe.length})
         </Link>
       </nav>
 
@@ -296,19 +339,30 @@ export default async function VersandSeite({
         </p>
       )}
 
-      {sichtbar.length === 0 ? (
+      {sichtbar.length === 0 && staebeSichtbar.length === 0 ? (
         <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm print:hidden">
           <div className="font-medium">
             {alleZeigen ? "Keine Sendungen in der Liste" : "Nichts offen"}
           </div>
           <p className="mt-1 text-leise">
             {alleZeigen
-              ? "Sobald ein Gutschein bestellt wird, erscheint er hier."
-              : "Alle Gutscheine sind raus. Gut gemacht."}
+              ? "Sobald ein Gutschein bestellt oder ein Zauberstab angefordert wird, erscheint er hier."
+              : "Alles ist raus. Gut gemacht."}
           </p>
         </div>
       ) : (
         <div className="space-y-3 print:hidden">
+          {/*
+            Die Zauberstaebe stehen oben.
+
+            Sie sind wenige und selten, und wer sie unten suchen muesste,
+            fände sie erst nach dem Stapel Gutscheine. Die Reihenfolge der
+            Gutscheine bleibt unangetastet: Kevin arbeitet sie in der
+            Reihenfolge der Tabelle ab.
+          */}
+          {staebeSichtbar.map((z) => (
+            <ZauberstabKarte key={z.id} stab={z} />
+          ))}
           {sichtbar.map((s) => (
             <Karte
               key={s.bestellnummer}
@@ -334,6 +388,101 @@ export default async function VersandSeite({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Die Marke an einer Karte: GUTSCHEIN, ZAUBERSTAB, spaeter TICKET.
+ *
+ * Eine Liste fuer alles braucht auf den ersten Blick die Auskunft, was
+ * gepackt werden muss. Die Farbe traegt dabei nicht allein: Sie ist eine
+ * Hilfe, das Wort steht daneben (Florian, 30.09.2026).
+ */
+function Marke({ art }: { art: "gutschein" | "zauberstab" }) {
+  const gutschein = art === "gutschein";
+  return (
+    <span
+      className="rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide"
+      style={{
+        background: gutschein ? "var(--gold-hell)" : "#ece7f8",
+        color: gutschein ? "var(--gold-dunkel)" : "#5b3fa8",
+        border: `1px solid ${gutschein ? "var(--gold)" : "#b9a7e8"}`,
+      }}
+    >
+      {gutschein ? "GUTSCHEIN" : "ZAUBERSTAB"}
+    </span>
+  );
+}
+
+/** Ein Zauberstab aus dem Gewinnspiel, in derselben Liste wie die Gutscheine. */
+function ZauberstabKarte({ stab }: { stab: Zauberstab }) {
+  const problem = zauberstabKlaerung(stab);
+  const erledigt = Boolean(stab.versendetAm);
+
+  return (
+    <article
+      className={`rounded-lg border bg-flaeche p-5 ${erledigt ? "opacity-60" : ""}`}
+      style={{ borderColor: problem && !erledigt ? "var(--warnung)" : "var(--linie)" }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Marke art="zauberstab" />
+            <h2 className="font-semibold">{stab.name || stab.email || "ohne Namen"}</h2>
+            {erledigt && (
+              <span className="text-xs" style={{ color: "var(--gut)" }}>
+                erledigt{stab.versendetVon ? ` von ${stab.versendetVon}` : ""}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-sm text-leise">
+            {stab.offen ? (
+              <span style={{ color: "var(--warnung)" }}>
+                Anschrift fehlt noch. Ohne sie ist nichts zu packen.
+              </span>
+            ) : (
+              <>
+                {stab.strasse}, {stab.plz} {stab.ort}
+                {stab.land && stab.land !== "Deutschland" ? `, ${stab.land}` : ""}
+              </>
+            )}
+          </div>
+          <div className="mt-1 text-xs text-leise">
+            {stab.email}
+            {stab.quelle ? ` · ${stab.quelle}` : ""} · eingegangen {zeitpunkt(new Date(stab.eingegangenAm))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Link href="/zauberstab" className="underline text-leise">
+            Begleitschreiben
+          </Link>
+          {erledigt ? (
+            <form action={zauberstabDochNicht}>
+              <input type="hidden" name="id" value={stab.id} />
+              <input type="hidden" name="ziel" value="/versand" />
+              <button type="submit" className="rounded-md border border-linie px-3 py-1.5">
+                doch nicht raus
+              </button>
+            </form>
+          ) : (
+            !stab.offen && (
+              <form action={zauberstabAbhaken}>
+                <input type="hidden" name="id" value={stab.id} />
+                <input type="hidden" name="ziel" value="/versand" />
+                <button
+                  type="submit"
+                  className="rounded-md px-4 py-2 font-semibold text-white"
+                  style={{ background: "var(--gut)" }}
+                >
+                  Päckchen ist raus
+                </button>
+              </form>
+            )
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -388,6 +537,7 @@ function Karte({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
+            <Marke art="gutschein" />
             <h2 className="font-semibold">{postempfaenger(sendung)}</h2>
             {!post && (
               <span className="rounded-full border border-linie px-2 py-px text-xs text-leise">

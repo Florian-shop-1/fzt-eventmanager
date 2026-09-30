@@ -13,22 +13,32 @@ async function zugang() {
   return b;
 }
 
-function zurueck(meldung: string): never {
+/*
+  Zurueck dorthin, wo geklickt wurde.
+
+  Die Zauberstaebe stehen seit dem 30.09.2026 auch in der Versandliste,
+  und wer dort abhakt, will dort weiterarbeiten und nicht auf einer
+  anderen Seite landen (Florian). Angenommen wird nur einer der beiden
+  bekannten Wege, nichts aus dem Formular blind weitergereicht.
+*/
+function zurueck(meldung: string, ziel = "/zauberstab"): never {
+  const weg = ziel === "/versand" ? "/versand" : "/zauberstab";
   revalidatePath("/zauberstab");
-  redirect(`/zauberstab?meldung=${encodeURIComponent(meldung)}`);
+  revalidatePath("/versand");
+  redirect(`${weg}?meldung=${encodeURIComponent(meldung)}`);
 }
 
 /** Päckchen ist raus. */
 export async function abhaken(f: FormData): Promise<void> {
   const b = await zugang();
   await zauberstabAbhaken(text(f, "id"), b.name);
-  zurueck("Abgehakt, das Päckchen ist raus.");
+  zurueck("Abgehakt, das Päckchen ist raus.", text(f, "ziel"));
 }
 
 export async function dochNicht(f: FormData): Promise<void> {
   await zugang();
   await zauberstabZurueck(text(f, "id"));
-  zurueck("Wieder offen.");
+  zurueck("Wieder offen.", text(f, "ziel"));
 }
 
 /**
