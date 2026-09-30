@@ -48,8 +48,12 @@ export default async function ZauberstabSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Zauberstäbe</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Teilnehmer des Gewinnspiels bekommen einen erscheinenden Zauberstab mit der Post. Hier steht,
-            was noch raus muss, samt Begleitschreiben zum Ausdrucken.
+            Die Begleitschreiben zum Ausdrucken. Wer noch ein Päckchen bekommt, steht zusammen mit den
+            Gutscheinen in der{" "}
+            <Link href="/versand" className="underline">
+              Versandliste
+            </Link>
+            ; dort wird auch abgehakt.
           </p>
         </div>
         {zuDrucken.length > 0 && (

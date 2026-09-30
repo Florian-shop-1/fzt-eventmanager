@@ -104,9 +104,15 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
       { href: "/absagen", label: "Show absagen", rollen: ["chef", "team"] },
       { href: "/bewertung", label: "Bewertungen", rollen: ["chef", "team"] },
-      // Die Zauberstaebe aus dem Gewinnspiel muessen in die Post, genau
-      // wie die Gutscheine (Florian, 30.09.2026).
-      { href: "/zauberstab", label: "Zauberstäbe verschicken", rollen: ["chef", "team"] },
+      /*
+        Die Zauberstaebe haben keinen eigenen Menuepunkt mehr.
+
+        Sie stehen in derselben Versandliste wie die Gutscheine: "das soll
+        alles in eine liste zum abarbeiten" (Florian, 30.09.2026). Ein
+        zweiter Eintrag im Menue hiesse, es gaebe zwei Orte, und genau das
+        soll es nicht mehr geben. Die Seite selbst bleibt, dort werden die
+        Begleitschreiben gedruckt; der Weg dorthin steht an jeder Karte.
+      */
     ],
   },
   {
