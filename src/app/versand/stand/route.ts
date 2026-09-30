@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { brauchtKlaerung, gehtInDiePost, holeSendungen } from "@/lib/shop/versand";
 import { versandStaende } from "@/lib/db/buero";
+import { offeneZauberstaebe } from "@/lib/shop/zauberstab";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,13 @@ export async function GET() {
   }
 
   try {
-    const [sendungen, staende] = await Promise.all([holeSendungen(), versandStaende()]);
+    const [sendungen, staende, zauberstaebe] = await Promise.all([
+      holeSendungen(),
+      versandStaende(),
+      // Die Zauberstaebe aus dem Gewinnspiel muessen genauso in die Post
+      // wie die Gutscheine, also zaehlen sie mit (Florian, 30.09.2026).
+      offeneZauberstaebe().catch(() => 0),
+    ]);
 
     let offen = 0;
     let klaerung = 0;
@@ -39,7 +46,10 @@ export async function GET() {
       if (brauchtKlaerung(s)) klaerung += 1;
     }
 
-    return NextResponse.json({ offen, klaerung }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { offen: offen + zauberstaebe, klaerung, zauberstaebe },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch {
     // Lieber kein Zähler als eine Fehlermeldung im Kopf jeder Seite.
     return NextResponse.json(LEER, { status: 503 });

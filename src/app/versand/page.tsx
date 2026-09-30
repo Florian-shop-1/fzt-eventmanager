@@ -164,7 +164,11 @@ export default async function VersandSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Versand</h1>
           <p className="mt-1 text-sm text-leise">
-            Gutscheine, die in die Post müssen. Anschreiben und Gutschein zum Drucken.
+            Gutscheine, die in die Post müssen. Anschreiben und Gutschein zum Drucken.{" "}
+            <Link href="/zauberstab" className="underline">
+              Zauberstäbe aus dem Gewinnspiel
+            </Link>{" "}
+            stehen auf einer eigenen Seite.
           </p>
         </div>
         {zuDrucken.length > 0 && (
