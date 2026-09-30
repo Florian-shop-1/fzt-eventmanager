@@ -95,7 +95,24 @@ export async function terminAnlegen(f: FormData): Promise<void> {
   if (!istUhrzeit(uhrzeit)) zurueck(f, "Die Uhrzeit sieht nicht richtig aus (zum Beispiel 20:00).");
   if (!name) zurueck(f, "Bitte schreib dazu, worum es geht.");
 
-  await eigenenTerminAnlegen({ datum, uhrzeit, name, notiz: text(f, "notiz", 300), von: b.name });
+  /*
+    Mit Show oder nur das Haus vermietet.
+
+    Ohne Show wird kein Showteam ausgeschrieben. Technik kann trotzdem
+    noetig sein, dafuer die zweite Frage (Florian, 30.09.2026).
+  */
+  const mitShow = text(f, "mitShow", 5) !== "nein";
+  const brauchtTechnik = !mitShow && text(f, "technik", 5) === "ja";
+
+  await eigenenTerminAnlegen({
+    datum,
+    uhrzeit,
+    name,
+    notiz: text(f, "notiz", 300),
+    von: b.name,
+    mitShow,
+    brauchtTechnik,
+  });
   revalidatePath("/", "layout");
   zurueck(f, `${name} am ${datum.split("-").reverse().join(".")} ist angelegt und steht jetzt überall im Programm.`);
 }
@@ -106,7 +123,16 @@ export async function terminAendern(f: FormData): Promise<void> {
   const uhrzeit = text(f, "uhrzeit", 5);
   const name = text(f, "name", 120);
   if (!istDatum(datum) || !istUhrzeit(uhrzeit) || !name) zurueck(f, "Bitte Datum, Uhrzeit und Anlass prüfen.");
-  await eigenenTerminAendern({ id: text(f, "id", 40), datum, uhrzeit, name, notiz: text(f, "notiz", 300) });
+  const mitShow = text(f, "mitShow", 5) !== "nein";
+  await eigenenTerminAendern({
+    id: text(f, "id", 40),
+    datum,
+    uhrzeit,
+    name,
+    notiz: text(f, "notiz", 300),
+    mitShow,
+    brauchtTechnik: !mitShow && text(f, "technik", 5) === "ja",
+  });
   revalidatePath("/", "layout");
   zurueck(f, "Termin geändert.");
 }

@@ -33,6 +33,15 @@ Die vier möglichen Fragen und ihre Kategorien:
 
 Der Zuschauer spricht natürlich und aus eigener Perspektive, oft mit Füllwörtern wie "also", "ähm", "eigentlich", "ich glaube", "irgendwie", "würde ich sagen". Diese Füllwörter ignorierst du. Beispiel: "Also ähm, ich glaube, ich wollte eigentlich immer Tierärztin werden." → TIERARZT.
 
+WICHTIG: Oft antwortet nicht der Zuschauer selbst verständlich, sondern der Zauberer wiederholt die Antwort laut, damit der ganze Saal sie hört. Dann steht sie in der zweiten Person oder als Rückfrage. Das zählt genauso, und zwar ohne Abstriche:
+- "Du wolltest Sänger werden, sehr schön." → SÄNGER
+- "Ach, Tierärztin wolltest du werden?" → TIERARZT
+- "Deine Oma hat dich am meisten inspiriert." → OMA
+- "Eine Safari in Afrika, toll!" → SAFARI
+- "Die Geburt deiner Tochter war dein magischster Moment." → GEBURT DER TOCHTER
+
+Ebenso zählt eine Antwort, die nur aus dem Stichwort besteht, ohne ganzen Satz: "Sänger." → SÄNGER. Warte nicht auf eine vollständig formulierte Antwort; sobald das Stichwort klar dasteht, gib es zurück.
+
 Aktuell noch offen, nur diese Kategorien kommen infrage, alle anderen wurden in dieser Show schon beantwortet: ${offen.join(", ")}.
 
 Ordne den Text genau einer dieser offenen Kategorien zu und gib das kurze Stichwort in GROSSBUCHSTABEN zurück. Erfinde nichts: Passt der Text zu keiner offenen Kategorie eindeutig, oder wirkt die Antwort noch unvollständig, setze erkannt auf false und lass kategorie und ergebnis leer. Gib niemals mehr als die entscheidende Information zurück, keine ganzen Sätze, keine Anführungszeichen, keinen Punkt am Ende.`;

@@ -75,6 +75,34 @@ export function EigeneTermine({
           <span className="mb-1 block text-xs text-leise">Notiz, freiwillig</span>
           <input name="notiz" maxLength={300} placeholder="zum Beispiel Haus komplett gebucht, kein Kartenverkauf" />
         </label>
+
+        {/*
+          Mit Show oder nur das Haus.
+
+          Ohne Show wird kein Showteam ausgeschrieben, dann steht im
+          Dienstplan an dem Abend nichts. Technik kann trotzdem nötig
+          sein, etwa Licht und ein Mikrofon für die Ansprache
+          (Florian, 30.09.2026).
+        */}
+        <fieldset className="rounded-md border border-linie px-3 py-2">
+          <legend className="px-1 text-xs text-leise">Was ist an dem Abend?</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="mitShow" value="ja" defaultChecked />
+            Mit Show. Das Showteam wird wie immer eingeteilt.
+          </label>
+          <label className="mt-1 flex items-center gap-2 text-sm">
+            <input type="radio" name="mitShow" value="nein" />
+            Ohne Show, nur das Haus vermietet. Kein Showteam nötig.
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input type="checkbox" name="technik" value="ja" />
+            <span>
+              Techniker einteilen
+              <span className="text-leise"> (nur bei Abenden ohne Show; Licht, Ton, Mikrofon)</span>
+            </span>
+          </label>
+        </fieldset>
+
         <Absendeknopf text="Termin anlegen" laeuftText="Wird angelegt..." />
       </form>
 
@@ -103,6 +131,17 @@ export function EigeneTermine({
                   <label className="block min-w-[12rem] flex-1">
                     <span className="mb-1 block text-xs text-leise">Notiz</span>
                     <input name="notiz" defaultValue={t.notiz} maxLength={300} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Abend</span>
+                    <select name="mitShow" defaultValue={t.mitShow ? "ja" : "nein"} className="w-40">
+                      <option value="ja">mit Show</option>
+                      <option value="nein">ohne Show</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1.5 pb-2 text-xs">
+                    <input type="checkbox" name="technik" value="ja" defaultChecked={t.brauchtTechnik} />
+                    Techniker
                   </label>
                   <button type="submit" className="rounded-md border border-linie px-3 py-1.5">
                     Speichern

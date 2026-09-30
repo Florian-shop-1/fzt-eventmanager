@@ -15,7 +15,7 @@ import { db } from "@/lib/db/client";
 import { nachFamilienname } from "@/lib/domain/namen";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 
-export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "SHADOW";
+export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "TECHNIK" | "SHADOW";
 export type FestePosition = Exclude<Position, "SHADOW">;
 
 export const POSITIONEN: FestePosition[] = ["FOH", "T1", "T2", "ZUSCHAUER"];
@@ -25,6 +25,7 @@ export const BEZEICHNUNG: Record<Position, string> = {
   T2: "T2",
   T1: "T1",
   ZUSCHAUER: "Zuschauer (nur erste Hälfte)",
+  TECHNIK: "Technik",
   SHADOW: "Shadow",
 };
 
@@ -37,6 +38,9 @@ export const ERKLAERUNG: Record<Position, string> = {
   // Der Eingeweihte im Publikum, Reihe 4, Platz 3. Gespielt von Roman,
   // Anita, Olena oder Sarah (Florian, 22.09.2026).
   ZUSCHAUER: "eingeweihter Zuschauer im Saal, Reihe 4, Platz 3, nur erste Hälfte der Show",
+  // Abende ohne Show: Licht, Ton, Mikrofon für die Ansprache. Kann jeder
+  // aus dem Showteam (Florian, 30.09.2026).
+  TECHNIK: "Licht und Ton an einem Abend ohne Show",
   SHADOW: "erfahrener Kollege, begleitet den Rookie",
 };
 
@@ -50,7 +54,21 @@ export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donners
  * Zuschauer. Den Flo-Zirkus macht Ben allein (T2). Was nicht unsere
  * eigene Show ist (RegioTV), braucht keinen Dienst.
  */
-export function positionenDerShow(name: string): FestePosition[] {
+export function positionenDerShow(
+  name: string,
+  termin?: { mitShow?: boolean; brauchtTechnik?: boolean },
+): FestePosition[] {
+  /*
+    Ein eigener Termin ohne Show braucht kein Showteam.
+
+    Mietet eine Firma nur das Haus, gibt es nichts einzuteilen: keine
+    Technik am Pult, keinen eingeweihten Zuschauer. Wer trotzdem Licht und
+    Ton braucht, hakt beim Anlegen "Technik noetig" an, dann wird genau
+    eine Stelle ausgeschrieben (Florian, 30.09.2026).
+  */
+  if (termin && termin.mitShow === false) {
+    return termin.brauchtTechnik ? ["TECHNIK"] : [];
+  }
   if (/regio\s*tv/i.test(name)) return [];
   if (/flo-?zirkus/i.test(name)) return ["T2"];
   return ["FOH", "T1", "T2", "ZUSCHAUER"];
@@ -341,7 +359,7 @@ export function planBauen(
   return termine
     .map((termin) => {
       const slots: Slot[] = [];
-      for (const position of positionenDerShow(termin.name)) {
+      for (const position of positionenDerShow(termin.name, termin)) {
         const e = eintrag.get(`${termin.ditixEventId}|${position}`);
         const f = festerTag(position, termin.datum);
         const id = e ? e.benutzerId : (f?.benutzerId ?? null);
@@ -434,6 +452,14 @@ export function istVollwertig(p: Person, position: FestePosition): boolean {
  */
 export function darfUebernehmen(p: Person, position: Position, fuer: FestePosition = "T1"): boolean {
   if (position === "SHADOW") return istVollwertig(p, fuer);
+  /*
+    Die Technikstelle an einem Abend ohne Show kann jeder aus dem
+    Showteam: Licht an, Ton an, Mikrofon fuer die Ansprache. Das ist keine
+    Frage der Spezialisierung (Florian, 30.09.2026).
+  */
+  if (position === "TECHNIK") {
+    return p.kann.has("FOH") || p.kann.has("T1") || p.kann.has("T2");
+  }
   /*
     Den eingeweihten Zuschauer kann jeder aus dem Haus: Man sitzt im
     Publikum, bekommt es 30 Minuten vor Einlass gezeigt, und das war es

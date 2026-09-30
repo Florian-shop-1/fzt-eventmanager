@@ -37,11 +37,24 @@ export interface ShopVorstellung {
   seatmapEventId?: string;
   seatmapSchemaId?: string;
   seatingPlanVersionId?: string;
+  /** Nur bei eigenen Terminen: Ist an dem Abend eine Show? */
+  mitShow?: boolean;
+  /** Nur bei eigenen Terminen ohne Show: Braucht es jemanden an der Technik? */
+  brauchtTechnik?: boolean;
 }
 
 /** Aufbereitete Vorstellung für die Oberfläche. */
 export interface Vorstellungstermin {
   ditixEventId: string;
+  /**
+   * Ist an dem Abend eine Show?
+   *
+   * Nur bei eigenen Terminen kann das "nein" sein: Dann mietet eine Firma
+   * bloss das Haus, und es braucht kein Showteam (Florian, 30.09.2026).
+   */
+  mitShow?: boolean;
+  /** Ohne Show: Braucht der Abend trotzdem jemanden an der Technik? */
+  brauchtTechnik?: boolean;
   /** Kennung des Saalplans. Wird für die Auslastung und die Preise gebraucht. */
   seatmapEventId?: string;
   /** Kennung des Saalplan-Schemas. Ohne sie liefert der Shop keine Sitzpreise. */
@@ -89,6 +102,8 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
       location: "Florian Zimmer Theater",
       ticketSaleState: "CLOSED",
       kind: "eigen",
+      mitShow: e.mitShow,
+      brauchtTechnik: e.brauchtTechnik,
     })),
   ];
 }
@@ -138,6 +153,9 @@ function zuTermin(v: ShopVorstellung): Vorstellungstermin {
     uhrzeit: uhrzeit(beginn),
     // Im Spielplan stehen teilweise nachlaufende Leerzeichen.
     name: v.name.trim(),
+    // Nur bei eigenen Terminen gesetzt, sonst ist es immer eine Show.
+    mitShow: v.mitShow !== false,
+    brauchtTechnik: Boolean(v.brauchtTechnik),
     ausverkauft: v.ticketSaleState === "SOLD_OUT",
     beginn,
   };

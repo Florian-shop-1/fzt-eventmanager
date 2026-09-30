@@ -23,6 +23,10 @@ export interface EigenerTermin {
   name: string;
   notiz: string;
   angelegtVon: string | null;
+  /** Mit Show im Saal, oder nur das Haus vermietet. */
+  mitShow: boolean;
+  /** Ohne Show: Braucht der Abend trotzdem jemanden an der Technik? */
+  brauchtTechnik: boolean;
 }
 
 /** Erkennt einen eigenen Termin an seiner Kennung. */
@@ -39,13 +43,16 @@ function baue(z: Record<string, unknown>): EigenerTermin {
     name: String(z.name),
     notiz: String(z.notiz ?? ""),
     angelegtVon: (z.angelegt_von as string) ?? null,
+    mitShow: z.mit_show !== false,
+    brauchtTechnik: Boolean(z.braucht_technik),
   };
 }
 
 /** Alle eigenen Termine, die noch kommen (oder heute sind). */
 export async function eigeneTermine(): Promise<EigenerTermin[]> {
   const z = (await db()`
-    select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von
+    select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
+           mit_show, braucht_technik
       from eigener_termin
      where aktiv and datum >= (now() at time zone 'Europe/Berlin')::date - 1
      order by datum, uhrzeit
@@ -56,7 +63,8 @@ export async function eigeneTermine(): Promise<EigenerTermin[]> {
 /** Alle eigenen Termine, auch vergangene: für den Spielplan im Rückblick. */
 export async function alleEigenenTermine(): Promise<EigenerTermin[]> {
   const z = (await db()`
-    select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von
+    select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
+           mit_show, braucht_technik
       from eigener_termin where aktiv order by datum, uhrzeit
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
@@ -68,12 +76,16 @@ export async function eigenenTerminAnlegen(o: {
   name: string;
   notiz: string;
   von: string;
+  mitShow?: boolean;
+  brauchtTechnik?: boolean;
 }): Promise<EigenerTermin> {
   const eventId = `eigen-${randomBytes(6).toString("hex")}`;
   const z = (await db()`
-    insert into eigener_termin (event_id, datum, uhrzeit, name, notiz, angelegt_von)
-    values (${eventId}, ${o.datum}::date, ${o.uhrzeit}, ${o.name}, ${o.notiz}, ${o.von})
-    returning id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von
+    insert into eigener_termin (event_id, datum, uhrzeit, name, notiz, angelegt_von, mit_show, braucht_technik)
+    values (${eventId}, ${o.datum}::date, ${o.uhrzeit}, ${o.name}, ${o.notiz}, ${o.von},
+            ${o.mitShow !== false}, ${Boolean(o.brauchtTechnik)})
+    returning id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
+              mit_show, braucht_technik
   `) as Array<Record<string, unknown>>;
   return baue(z[0]);
 }
@@ -84,10 +96,14 @@ export async function eigenenTerminAendern(o: {
   uhrzeit: string;
   name: string;
   notiz: string;
+  mitShow?: boolean;
+  brauchtTechnik?: boolean;
 }): Promise<void> {
   await db()`
     update eigener_termin
-       set datum = ${o.datum}::date, uhrzeit = ${o.uhrzeit}, name = ${o.name}, notiz = ${o.notiz}
+       set datum = ${o.datum}::date, uhrzeit = ${o.uhrzeit}, name = ${o.name}, notiz = ${o.notiz},
+           mit_show = coalesce(${o.mitShow ?? null}, mit_show),
+           braucht_technik = coalesce(${o.brauchtTechnik ?? null}, braucht_technik)
      where id = ${o.id}
   `;
 }

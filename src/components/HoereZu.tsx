@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KATEGORIEN, KATEGORIE_LABEL, type Kategorie } from "@/lib/hoerezu/kategorien";
+import {
+  KATEGORIEN,
+  KATEGORIE_BUCHSTABE,
+  KATEGORIE_ERKLAERUNG,
+  KATEGORIE_LABEL,
+  type Kategorie,
+} from "@/lib/hoerezu/kategorien";
 
 type Status =
   | "gestoppt"
@@ -326,13 +332,30 @@ export function HoereZu() {
             return (
               <div
                 key={i}
-                className="flex min-h-36 flex-col justify-center rounded-xl border-2 px-5 py-4 text-center"
+                className="relative flex min-h-36 flex-col justify-center rounded-xl border-2 px-5 py-4 text-center"
                 style={
                   e
                     ? { borderColor: "#c9a84c", background: "#2a2311" }
                     : { borderColor: "#3a3226", background: "#1c1a16", borderStyle: "dashed" }
                 }
               >
+                {/*
+                  Der Hinweisbuchstabe oben links.
+
+                  Der Techniker schreibt ihn mit auf den Zettel, damit
+                  spaeter klar ist, zu welcher Frage das Stichwort gehoert.
+                  Klein und in der Ecke, damit er das Stichwort nicht
+                  stoert (Florian, 30.09.2026).
+                */}
+                {e && (
+                  <span
+                    title={KATEGORIE_ERKLAERUNG[e.kategorie]}
+                    className="absolute left-2 top-1.5 cursor-help select-none text-sm font-bold leading-none"
+                    style={{ color: "#c9a84c" }}
+                  >
+                    {KATEGORIE_BUCHSTABE[e.kategorie]}
+                  </span>
+                )}
                 <div
                   className="text-xs font-semibold uppercase tracking-widest"
                   style={{ color: e ? "#c9a84c" : "#5c564a" }}
