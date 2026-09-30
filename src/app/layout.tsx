@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { vertragVon } from "@/lib/db/arbeitsvertrag";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, darfVertraege, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
@@ -150,12 +151,29 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
     ],
   },
+  /*
+    Alles, was die Leute betrifft, an einem Ort.
+
+    "mach am besten eine rubrik mitarbeiter - darunter kannst du dann die
+    verträge, geheimhaltung, zeiterfassung packen" (Florian, 30.09.2026).
+    Vorher lag die Geheimhaltung unter Sonstiges und die Zeiterfassung
+    wurde dort unten angehaengt, was beides niemand vermutet haette.
+
+    Der eigene Personalbogen steht bewusst mit drin: Wer hier sucht, sucht
+    seine eigenen Unterlagen.
+  */
+  {
+    titel: "Mitarbeiter",
+    punkte: [
+      { href: "/personalbogen", label: "Personalbogen", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"] },
+      { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+    ],
+  },
   {
     titel: "Sonstiges",
     punkte: [
       { href: "/shortcuts", label: "Shortcuts", rollen: ["chef", "team", "foyer"] },
       { href: "/merker", label: "Merkzettel", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"] },
-      { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
       { href: "/einstellungen/mail", label: "E-Mail-Versand", rollen: ["chef", "team"] },
       { href: "/einstellungen/benutzer", label: "Zugänge", rollen: ["chef"] },
     ],
@@ -200,15 +218,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     benutzer && !offen && !istKevin && !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle),
   );
 
-  const [geheimhaltungOk, dienstplan, merker, weinVorab] =
+  const [geheimhaltungOk, dienstplan, merker, weinVorab, vertrag] =
     benutzer && !offen
       ? await Promise.all([
           brauchtGeheimhaltung ? geheimhaltungUnterschrieben(benutzer.id).catch(() => true) : Promise.resolve(true),
           dienstplanErinnerungen(benutzer).catch(() => [] as Erinnerung[]),
           faelligeMerker(benutzer.id).catch(() => [] as Array<{ titel: string; text?: string }>),
           weinEinstellung().catch(() => null),
+          vertragVon(benutzer.id).catch(() => null),
         ])
-      : [true, [] as Erinnerung[], [] as Array<{ titel: string; text?: string }>, null];
+      : [true, [] as Erinnerung[], [] as Array<{ titel: string; text?: string }>, null, null];
 
   if (benutzer && !offen) {
     if (benutzer.art === "intern" && !benutzer.personalbogenAm && !istKevin) {
@@ -227,6 +246,22 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         hase: "Deine Geheimhaltungsvereinbarung ist noch nicht unterschrieben. Ein Zauberer verrät nie seine Tricks!",
       });
     }
+    /*
+      Ein freigegebener Vertrag wartet.
+
+      Er steht ganz oben, noch vor dem Dienstplan: Ohne Unterschrift darf
+      niemand anfangen, das sagt der Vertrag selbst in § 1 (Florian,
+      30.09.2026).
+    */
+    if (vertrag && vertrag.freigegebenAm && !vertrag.unterschriebenAm) {
+      aufgaben.push({
+        href: "/vertrag",
+        leiste: "Dein Arbeitsvertrag liegt zur Unterschrift bereit.",
+        knopf: "Jetzt ansehen",
+        hase: "Dein Arbeitsvertrag liegt bereit. Lies ihn in Ruhe durch und unterschreib ihn hier.",
+      });
+    }
+
     aufgaben.push(...dienstplan);
 
     // Der eigene Merkzettel: meldet sich alle paar Tage, siehe lib/db/merker.ts.
@@ -302,12 +337,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           bekommen ihn nicht zu sehen, damit am Rechner niemand glaubt,
           er könne hier stempeln.
         */
-        if (g.titel === "Sonstiges" && darfZeitenAendern(benutzer)) {
+        if (g.titel === "Mitarbeiter" && darfZeitenAendern(benutzer)) {
           punkte.unshift({ href: "/stempeluhr", label: "Zeiterfassung", rollen: [] });
           // Die Stunden je Abrechnungszeitraum, die Werner ans Steuerbüro
           // meldet. Eigener Punkt, weil es eine andere Frage ist als die
           // Zeiterfassung: Dort wird korrigiert, hier gemeldet.
           punkte.splice(1, 0, { href: "/lohn", label: "Stundenmeldung", rollen: [] });
+        }
+        /*
+          Die Arbeitsvertraege sehen dieselben drei wie die Arbeitszeiten:
+          Florian, Werner und Kevin (Florian, 30.09.2026). Ein Vertrag
+          nennt das Gehalt, das geht sonst niemanden im Haus etwas an.
+        */
+        if (g.titel === "Mitarbeiter" && darfVertraege(benutzer)) {
+          punkte.unshift({ href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
         }
         if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
           punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });

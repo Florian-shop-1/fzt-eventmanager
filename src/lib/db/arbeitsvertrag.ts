@@ -43,6 +43,8 @@ export interface Arbeitsvertrag {
   textstand: string | null;
   unterschrift: string | null;
   unterschriebenAm: string | null;
+  freigegebenAm: string | null;
+  freigegebenVon: string | null;
   zurueckgezogenAm: string | null;
   zurueckgezogenVon: string | null;
 }
@@ -73,6 +75,8 @@ function baue(z: Record<string, unknown>): Arbeitsvertrag {
     textstand: (z.textstand as string) ?? null,
     unterschrift: (z.unterschrift as string) ?? null,
     unterschriebenAm: zeit(z.unterschrieben_am),
+    freigegebenAm: zeit(z.freigegeben_am),
+    freigegebenVon: (z.freigegeben_von as string) || null,
     zurueckgezogenAm: zeit(z.zurueckgezogen_am),
     zurueckgezogenVon: (z.zurueckgezogen_von as string) ?? null,
   };
@@ -85,6 +89,7 @@ export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | n
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
+           v.freigegeben_am, v.freigegeben_von,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null
@@ -99,6 +104,7 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
+           v.freigegeben_am, v.freigegeben_von,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.id = ${id}::uuid
@@ -113,6 +119,7 @@ export async function vertraege(): Promise<Arbeitsvertrag[]> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
+           v.freigegeben_am, v.freigegeben_von,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.zurueckgezogen_am is null
@@ -218,6 +225,55 @@ export async function vertragUnterschreiben(o: {
   return z.length > 0;
 }
 
+/**
+ * Den Vertrag zur Unterschrift freigeben.
+ *
+ * Bis dahin ist er ein Entwurf, den nur das Büro sieht. Erst mit der
+ * Freigabe erscheint er beim Mitarbeiter (Florian, 30.09.2026).
+ */
+export async function vertragFreigeben(id: string, wer: string): Promise<void> {
+  await db()`
+    update arbeitsvertrag
+       set freigegeben_am = now(), freigegeben_von = ${wer}
+     where id = ${id}::uuid and freigegeben_am is null and zurueckgezogen_am is null
+  `;
+}
+
+/** Doch noch etwas ändern: die Freigabe zurücknehmen. */
+export async function freigabeZurueck(id: string): Promise<void> {
+  await db()`
+    update arbeitsvertrag
+       set freigegeben_am = null, freigegeben_von = ''
+     where id = ${id}::uuid and unterschrieben_am is null
+  `;
+}
+
+/** Wurde die Ausfertigung heruntergeladen? Jeder Abruf zählt. */
+export async function downloadMerken(o: {
+  vertragId: string;
+  wer: string;
+  eigener: boolean;
+  ip: string;
+  geraet: string;
+}): Promise<void> {
+  await db()`
+    insert into vertrag_download (vertrag_id, wer, eigener, ip, geraet)
+    values (${o.vertragId}::uuid, ${o.wer}, ${o.eigener}, ${o.ip}, ${o.geraet})
+  `.catch((f) => console.warn("[vertrag] Download nicht vermerkt:", f));
+}
+
+export async function downloads(vertragId: string): Promise<Array<{ wer: string; eigener: boolean; wann: string }>> {
+  const z = (await db()`
+    select wer, eigener, wann from vertrag_download
+     where vertrag_id = ${vertragId}::uuid order by wann desc limit 20
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    wer: String(r.wer ?? ""),
+    eigener: Boolean(r.eigener),
+    wann: new Date(r.wann as string).toISOString(),
+  }));
+}
+
 /** Ein Vertrag war ein Versehen: zurückziehen, nicht löschen. */
 export async function vertragZurueckziehen(id: string, wer: string): Promise<void> {
   await db()`
@@ -231,7 +287,7 @@ export async function vertragZurueckziehen(id: string, wer: string): Promise<voi
 export async function offeneVertraege(): Promise<number> {
   const z = (await db()`
     select count(*)::int as n from arbeitsvertrag
-     where unterschrieben_am is null and zurueckgezogen_am is null
+     where unterschrieben_am is null and zurueckgezogen_am is null and freigegeben_am is not null
   `.catch(() => [{ n: 0 }])) as Array<{ n: number }>;
   return Number(z[0]?.n ?? 0);
 }

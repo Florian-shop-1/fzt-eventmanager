@@ -12,7 +12,12 @@ import {
 } from "@/lib/bewirtung/gesellschaft";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
-import { alleBereitenFestschreiben, postHolen, unterschriftSpeichern } from "./aktionen";
+import {
+  alleBereitenFestschreiben,
+  belegeMitAbbuchungFreigeben,
+  postHolen,
+  unterschriftSpeichern,
+} from "./aktionen";
 import { letztePost, RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
 import { empfaengerAendern, monatSchicken } from "./versand";
 import { empfaengerLesen, sendungenDesJahres, type Empfaenger, type Sendung } from "@/lib/bewirtung/steuerbuero";
@@ -176,14 +181,32 @@ export default async function BewirtungSeite({
               eine halbe Stunde Klicken, und solange sie Entwuerfe sind,
               findet der Abgleich sie nicht (Florian, 30.09.2026).
             */}
-            <form action={alleBereitenFestschreiben}>
-              <Absendeknopf text="Alle vollständigen festschreiben" laeuftText="Wird festgeschrieben..." />
-            </form>
+            <div className="flex flex-wrap gap-2">
+              {/*
+                Der schnelle Weg zuerst: Wo die Abbuchung auf dem Konto
+                steht, ist der Beleg belegt. Der andere Knopf bleibt fuer
+                Belege ohne Kontobezug, etwa bar bezahlte.
+              */}
+              <form action={belegeMitAbbuchungFreigeben}>
+                <Absendeknopf text="Mit Abbuchung freigeben" laeuftText="Wird freigegeben..." />
+              </form>
+              <form action={alleBereitenFestschreiben}>
+                <button
+                  type="submit"
+                  className="rounded-lg border border-linie bg-flaeche px-4 py-2 text-sm font-medium"
+                >
+                  Alle vollständigen festschreiben
+                </button>
+              </form>
+            </div>
           </div>
-          <p className="text-xs text-leise">
-            Festgeschrieben wird nur, wo nichts mehr fehlt. Danach sucht das Programm gleich die passende
-            Abbuchung auf dem Konto. Was unvollständig ist oder nach einem Doppelgänger aussieht, bleibt
-            stehen.
+          <p className="max-w-prose text-xs text-leise">
+            <strong>Mit Abbuchung freigeben</strong> nimmt jeden Beleg, zu dem genau eine Abbuchung mit
+            demselben Betrag auf dem Konto steht: Das Geld ist weg, der Beleg liegt vor, das passt. Er wird
+            festgeschrieben und gleich zugeordnet.{" "}
+            <strong>Alle vollständigen festschreiben</strong> nimmt die übrigen, bei denen alle
+            Pflichtangaben stehen, etwa bar bezahlte ohne Kontobezug. Unvollständiges und mögliche
+            Doppelgänger bleiben in beiden Fällen stehen.
           </p>
           <ul className="space-y-1 text-sm">
             {entwuerfe.map((x) => (

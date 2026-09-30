@@ -72,6 +72,20 @@ export async function meineVereinbarung(): Promise<Vereinbarung | null> {
 }
 
 /** Alle Vereinbarungen, für die Übersicht des Inhabers. */
+/**
+ * Die Angaben einer Person, so wie sie in der Geheimhaltung stehen.
+ *
+ * Fuer den Arbeitsvertrag: Anschrift und Geburtsdatum hat sie dort schon
+ * eingetragen, und was sie selbst eingetragen hat, ist verlaesslicher als
+ * etwas Abgetipptes (Florian, 30.09.2026).
+ */
+export async function angabenVon(benutzerId: string): Promise<Vereinbarung | null> {
+  const z = (await db()`
+    select * from geheimhaltung where benutzer_id = ${benutzerId} limit 1
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z[0] ? zuVereinbarung(z[0]) : null;
+}
+
 export async function alleVereinbarungen(): Promise<Vereinbarung[]> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer || !darfBenutzerVerwalten(benutzer.rolle)) return [];

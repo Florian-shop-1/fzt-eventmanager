@@ -49,6 +49,7 @@ Gib genau wieder, was auf dem Beleg steht. Erfinde nichts. Wenn etwas nicht auf 
 - zahlweg: "karte" bei jeder Kartenzahlung (EC, Girocard, Kredit, kontaktlos, Apple Pay), "bar" bei Barzahlung (erkennbar an "Bar", "Gegeben", "Rückgeld"), "konto" bei einer Rechnung, die per Lastschrift eingezogen oder per Überweisung bezahlt wird (erkennbar an "Lastschrift", "SEPA", "Bankeinzug", "zahlbar bis", "Zahlungsziel", "Rechnungsbetrag wird abgebucht"), "unbekannt", wenn der Beleg es nicht zeigt.
 - tse_vorhanden: true, wenn Angaben der technischen Sicherheitseinrichtung (TSE, Signatur, Transaktionsnummer, Seriennummer der Kasse) aufgedruckt sind.
 - maschinell: true, wenn der Beleg maschinell erstellt ist (Kassenbon, Rechnungsdrucker), false bei einer handschriftlichen Quittung.
+- eigene_rechnung: true, wenn das Florian Zimmer Theater bzw. die Florian Zimmer Theater GmbH selbst die Rechnung STELLT, also Absender und Rechnungssteller ist. Das sind unsere eigenen Ausgangsrechnungen an Kunden; sie sind keine Belege fuer Ausgaben. Sonst false.
 - beleg_ok: false, wenn das Bild kein Kassenbeleg und keine Rechnung ist oder so unscharf, dass die Beträge nicht sicher lesbar sind.
 - hinweis: kurz auf Deutsch, was unsicher oder auffällig war. Leer, wenn alles klar ist.`;
 
@@ -57,6 +58,7 @@ const SCHEMA = {
   additionalProperties: false,
   required: [
     "beleg_ok",
+    "eigene_rechnung",
     "art",
     "zweck",
     "kategorie",
@@ -76,6 +78,7 @@ const SCHEMA = {
   ],
   properties: {
     beleg_ok: { type: "boolean" },
+    eigene_rechnung: { type: "boolean" },
     art: { type: "string", enum: ["bewirtung", "einkauf"] },
     zweck: { type: "string" },
     kategorie: { type: "string", enum: [...KATEGORIEN, ""] },
@@ -97,6 +100,8 @@ const SCHEMA = {
 
 export interface BelegLesung {
   beleg_ok: boolean;
+  /** Unsere eigene Ausgangsrechnung, kein Beleg fuer eine Ausgabe. */
+  eigene_rechnung: boolean;
   art: "bewirtung" | "einkauf";
   zweck: string;
   kategorie: string;

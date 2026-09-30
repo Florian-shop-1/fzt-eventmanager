@@ -90,6 +90,15 @@ export function darfZeitenAendern(b: { rolle: Rolle; email: string } | null | un
  * Wer Einladungslinks ausgeben darf: Florian und Kevin
  * (Florian, 21.09.2026). Zugänge anlegen und Rollen ändern bleibt beim Chef.
  */
+/**
+ * Wer Arbeitsvertraege sehen und anlegen darf: Werner, Kevin und Florian
+ * (Florian, 30.09.2026). Dieselben drei wie bei den Arbeitszeiten, und
+ * aus demselben Grund: Ein Vertrag nennt das Gehalt.
+ */
+export function darfVertraege(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  return darfZeitenAendern(b);
+}
+
 export function darfEinladen(b: { rolle: Rolle; email: string } | null | undefined): boolean {
   if (!b) return false;
   return b.rolle === "chef" || ZEITEN_TEAM.includes(b.email.toLowerCase());
@@ -279,6 +288,13 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
   if (pfad.startsWith("/whatsapp")) return true;
   // Den eigenen Personalbogen darf jeder ausfüllen. Die Seite prüft selbst, ob er gebraucht wird.
   if (pfad.startsWith("/personalbogen")) return true;
+  /*
+    Den eigenen Arbeitsvertrag sieht jeder, sobald das Buero ihn
+    freigegeben hat; die Seite prueft das selbst. Die Verwaltung
+    darunter (/vertraege, mit e) ist etwas anderes und bleibt bei
+    Werner, Kevin und Florian (Florian, 30.09.2026).
+  */
+  if (pfad === "/vertrag" || pfad.startsWith("/vertrag?")) return true;
   // Der eigene Merkzettel gehört jedem, unabhängig von der Rolle.
   if (pfad.startsWith("/merker")) return true;
   // Einladungslinks: Die Seite prüft selbst, ob diese Person sie ausgeben darf.

@@ -252,6 +252,44 @@ async function offeneAusgaben(): Promise<Ausgabe[]> {
   return alle;
 }
 
+/**
+ * Die Abbuchung zu einem Beleg finden, nicht umgekehrt.
+ *
+ * Fuer den Stapel aus dem Postfach: Wenn zu einer Rechnung genau eine
+ * offene Abbuchung mit demselben Betrag im Zeitfenster steht, ist das der
+ * Nachweis, dass die Rechnung echt und bezahlt ist. "wenn ein beleg eine
+ * buchung am konto hat, dann passt das doch" (Florian, 30.09.2026).
+ *
+ * Genau eine. Gibt es zwei gleich hohe Abbuchungen, kann niemand sagen,
+ * welche gemeint ist, und dann bleibt es liegen.
+ */
+export async function abbuchungZuBeleg(o: {
+  datum: string | null;
+  bruttoCent: number | null;
+  trinkgeldCent?: number;
+}): Promise<{ id: string; gegenname: string; buchungstag: string } | null> {
+  if (!o.datum || !o.bruttoCent || o.bruttoCent <= 0) return null;
+  const gesamt = o.bruttoCent + (o.trinkgeldCent ?? 0);
+
+  const z = (await db()`
+    select id, gegenname, buchungstag::text as buchungstag
+      from bank_umsatz
+     where beleg_stand = 'offen'
+       and beleg_id is null
+       and betrag_cent < 0
+       and abs(betrag_cent) in (${o.bruttoCent}, ${gesamt})
+       and buchungstag between (${o.datum}::date - 3) and (${o.datum}::date + ${TAGE_FENSTER}::int)
+     limit 2
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+
+  if (z.length !== 1) return null;
+  return {
+    id: String(z[0].id),
+    gegenname: String(z[0].gegenname ?? ""),
+    buchungstag: String(z[0].buchungstag),
+  };
+}
+
 export async function belegZuordnen(umsatzId: string, belegId: string, wer: string): Promise<void> {
   await db()`
     update bank_umsatz

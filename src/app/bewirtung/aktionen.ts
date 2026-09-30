@@ -19,7 +19,7 @@ import {
   type Angaben,
 } from "@/lib/bewirtung/db";
 import { postAbholen } from "@/lib/bewirtung/posteingang";
-import { automatischZuordnen } from "@/lib/bewirtung/abgleich";
+import { abbuchungZuBeleg, automatischZuordnen, belegZuordnen } from "@/lib/bewirtung/abgleich";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -216,6 +216,71 @@ export async function alleBereitenFestschreiben(): Promise<void> {
     auto.zugeordnet > 0 ? `${auto.zugeordnet} davon gleich einer Abbuchung zugeordnet` : "",
     uebrig > 0 ? `${uebrig} brauchen noch Angaben` : "",
     dubletten > 0 ? `${dubletten} sehen nach Doppelgängern aus und warten auf dich` : "",
+  ].filter(Boolean);
+
+  revalidatePath("/bewirtung");
+  revalidatePath("/bewirtung/abgleich");
+  redirect(`/bewirtung?meldung=${encodeURIComponent(teile.join(", ") + ".")}`);
+}
+
+/**
+ * Belege freigeben, zu denen die Abbuchung auf dem Konto steht.
+ *
+ * "wenn ein beleg eine buchung am konto hat, dann passt das doch - die
+ * kann man doch vielleicht im bulk freigeben?" (Florian, 30.09.2026).
+ *
+ * Das ist der schnelle Weg durch den Stapel aus dem Postfach. Die
+ * Abbuchung ist der Nachweis: Der Betrag ist vom Konto gegangen, das
+ * Datum passt, und es gibt genau eine Buchung, die dazu passt. Wo das so
+ * ist, wird der Beleg festgeschrieben und gleich zugeordnet.
+ *
+ * Zwei Dinge bleiben liegen. Belege ohne eindeutige Abbuchung, denn ohne
+ * sie fehlt der Nachweis. Und Belege, denen eine Pflichtangabe fehlt, die
+ * das Konto nicht liefern kann: Bei einer Bewirtung sind das Anlass und
+ * Teilnehmer, und die weiss nur ein Mensch. Der Zahlweg wird gesetzt, der
+ * steht fest: Was vom Konto abgeht, ging vom Konto ab.
+ */
+export async function belegeMitAbbuchungFreigeben(): Promise<void> {
+  const b = await zugang();
+  const alle = await bewirtungenDesJahres(new Date().getFullYear());
+  const entwuerfe = alle.filter((x) => x.status === "entwurf");
+
+  let fertig = 0;
+  let ohneBuchung = 0;
+  let unvollstaendig = 0;
+
+  for (const x of entwuerfe) {
+    const treffer = await abbuchungZuBeleg({
+      datum: x.datum,
+      bruttoCent: x.bruttoCent,
+      trinkgeldCent: x.trinkgeldCent,
+    });
+    if (!treffer) {
+      ohneBuchung++;
+      continue;
+    }
+
+    // Was die Abbuchung nicht beantwortet, muss dastehen.
+    const fehlt =
+      !x.restaurant ||
+      (x.art === "bewirtung" ? !x.anlass || !x.teilnehmer : !x.zweck);
+    if (fehlt) {
+      unvollstaendig++;
+      continue;
+    }
+
+    if (!x.zahlweg) {
+      await db()`update bewirtung set zahlweg = 'konto' where id = ${x.id} and status = 'entwurf'`;
+    }
+    await festschreiben(x.id, b.name);
+    await belegZuordnen(treffer.id, x.id, "automatisch");
+    fertig++;
+  }
+
+  const teile = [
+    `${fertig} ${fertig === 1 ? "Beleg" : "Belege"} freigegeben und der Abbuchung zugeordnet`,
+    ohneBuchung > 0 ? `${ohneBuchung} ohne eindeutige Buchung auf dem Konto` : "",
+    unvollstaendig > 0 ? `${unvollstaendig} brauchen noch Angaben` : "",
   ].filter(Boolean);
 
   revalidatePath("/bewirtung");
