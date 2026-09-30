@@ -22,11 +22,16 @@ import type { Absender } from "@/lib/angebot/pdf";
 
 export interface RechnungsPdfDaten {
   /**
-   * Was oben drübersteht: "Rechnung" (Standard) oder etwa "Angebot".
+   * Was oben drübersteht: "Rechnung" (Standard), "Gutschrift", "Storno".
    *
-   * Damit dasselbe Blatt später auch andere Schriftstücke tragen kann,
-   * ohne dass jemand ein zweites Aussehen pflegen muss (Florian,
-   * 30.09.2026: "diese kannst du auch für die Angebote nehmen").
+   * NICHT fuer Angebote. Ein Angebot hat sein eigenes Aussehen mit Fotos
+   * vom Haus, von der Show und vom Menue, und das bleibt so: "ein angebot
+   * muss immer so sein, dass es tierisch lust drauf macht zu kommen. so
+   * wie das gezeigte sehen rechnungen aus" (Florian, 30.09.2026). Das
+   * Angebot steht in lib/angebot/pdf.ts und wird von hier nicht ersetzt.
+   *
+   * Dieses Blatt traegt alles, was nuechtern sein darf, weil es nach der
+   * Entscheidung kommt: Rechnung, Gutschrift, Zahlungserinnerung.
    */
   art?: string;
   /**

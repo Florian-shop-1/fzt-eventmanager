@@ -286,14 +286,23 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
   fuellen(s, await bild("kopf.jpg"), { x: 0, y: HOEHE - 190, w: BREITE, h: 190 });
   s.drawRectangle({ x: 0, y: HOEHE - 190, width: BREITE, height: 62, color: rgb(0, 0, 0), opacity: 0.6 });
+  /*
+    Logo und darunter HOME OF MAGIC, wie auf der Rechnung.
+
+    Der Untertitel gesperrt gesetzt, weil pdf-lib keinen Zeichenabstand
+    kennt. Das Logo ist dafuer ein paar Punkte kleiner geworden: Der
+    dunkle Streifen ueber dem Foto ist 62 Punkt hoch, und beides soll
+    darin Platz haben, ohne an den Rand zu stossen (Florian, 30.09.2026).
+  */
   if (logoHell) {
-    const h = 30;
+    const h = 26;
     s.drawImage(logoHell, {
       x: LINKS,
-      y: HOEHE - 181,
+      y: HOEHE - 176,
       width: (logoHell.width * h) / logoHell.height,
       height: h,
     });
+    schreib("HOME OF MAGIC".split("").join(" "), LINKS + 1, HOEHE - 186, 6, normal, GOLD);
   } else {
     schreib("FLORIAN ZIMMER THEATER", LINKS, HOEHE - 170, 12.5, fett, WEISS);
   }

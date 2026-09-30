@@ -432,6 +432,22 @@ export async function taeglicherRechnungslauf(): Promise<{ erstellt: string | nu
   let erstellt: string | null = null;
   const e = await rechnungsEinstellung();
   const heute = new Date();
+  /*
+    Eine Rechnung im Monat, und zwar zum Ersten des Folgemonats.
+
+    "dran denken, dass nur einmal monatlich eine Rg fuer Osman erstellt
+    wird. Am besten immer zum 1. des Folgemonats" (Florian, 30.09.2026).
+
+    Der Lauf kommt jeden Morgen vorbei, gerechnet wird aber nur der
+    abgeschlossene Vormonat, und eine zweite Rechnung dazu kann es nicht
+    geben: Die Tabelle laesst je Monat nur eine zu, und eine schon
+    versendete wird nicht angefasst.
+
+    Das Fenster bis zum Fuenften ist kein zweiter Termin, sondern das
+    Netz darunter: Faellt der Lauf am Ersten aus, weil der Dienst gerade
+    nicht laeuft, holt der naechste Morgen es nach. Ohne das Fenster
+    bliebe ein ganzer Monat unberechnet, und gemerkt haette es niemand.
+  */
   if (e.automatisch && heute.getUTCDate() <= 5) {
     const monat = vormonat(heute);
     const r = await rechnungDesMonats(monat);
