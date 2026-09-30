@@ -134,6 +134,25 @@ function schluesselVon(ids: number[]): string {
   return `g:${[...ids].sort((a, b) => a - b).join("-")}`;
 }
 
+/**
+ * Eine einzelne Person ist eine Gruppe mit einem Platz.
+ *
+ * Das ist der ganze Kniff am einzelnen Umsetzen: Es braucht keinen
+ * zweiten Weg durch den Server und keine zweite Tabelle. Ein Platz
+ * bekommt denselben Schluessel, den ein Einerblock ohnehin haette, und
+ * von da an gilt fuer ihn alles, was fuer Gruppen gilt: aufnehmen,
+ * setzen, zuruecknehmen, Pfeil, Farbe, Buchstabe.
+ */
+function einzelSchluessel(id: number): string {
+  return `g:${id}`;
+}
+
+/** Gehoert dieser Schluessel zu genau einem Platz? Dann welchem. */
+function einzelPlatz(schluessel: string | null): number | null {
+  const t = /^g:(\d+)$/.exec(schluessel ?? "");
+  return t ? Number(t[1]) : null;
+}
+
 export function UpgradeTafel({
   eventId,
   sitze,
@@ -147,6 +166,15 @@ export function UpgradeTafel({
 }: Props) {
   const router = useRouter();
   const [modus, setModus] = useState<Modus>("umsetzen");
+  /*
+    Einzeln statt in der Gruppe.
+
+    Die Gruppe am Stueck zu setzen ist der Normalfall und bleibt es. Aber
+    manchmal passt sie nirgends mehr am Stueck hin, oder zwei von fuenf
+    sollen in die Reihe davor. Dann nimmt dieser Modus eine Person nach
+    der anderen (Florian, 30.09.2026).
+  */
+  const [einzeln, setEinzeln] = useState(false);
   const [inDerHand, setInDerHand] = useState<string | null>(null);
   const [gesetzt, setGesetzt] = useState<TafelUmsetzung[]>(umsetzungen);
   const [eingecheckt, setEingecheckt] = useState<Set<number>>(() => new Set(eingecheckteIds));
@@ -210,8 +238,76 @@ export function UpgradeTafel({
    * was am Stück verkauft ist und dort nicht vorkommt, sitzt schon gut
    * und wird nur ergänzt, damit man es trotzdem verschieben kann.
    */
+  /**
+   * Die Plaetze, die gerade fuer sich allein stehen.
+   *
+   * Entweder liegt fuer sie schon eine eigene Umsetzung vor, oder sie
+   * sind in diesem Moment in der Hand. Beides heisst: Diese Person
+   * gehoert nicht mehr zum Block, sondern zaehlt einzeln.
+   */
+  const einzelIds = useMemo(() => {
+    const m = new Set<number>();
+    for (const x of gesetzt) {
+      const id = einzelPlatz(x.schluessel);
+      if (id !== null) m.add(id);
+    }
+    const inHand = einzelPlatz(inDerHand);
+    if (inHand !== null) m.add(inHand);
+    return m;
+  }, [gesetzt, inDerHand]);
+
   const alleGruppen = useMemo(() => {
-    const liste: TafelGruppe[] = gruppen.map((g) => ({ ...g, umzusetzen: true }));
+    const liste: TafelGruppe[] = [];
+
+    /*
+      Zuerst die einzeln herausgeloesten Personen.
+
+      Sie stehen vor den Bloecken, damit sie in gruppeVonSitz gewinnen:
+      Wer einzeln unterwegs ist, soll auch einzeln wieder aufgenommen
+      werden, nicht als Teil seines alten Blocks.
+    */
+    for (const id of einzelIds) {
+      const s = sitze.find((x) => x.id === id);
+      if (!s) continue;
+      liste.push({
+        schluessel: einzelSchluessel(id),
+        art: "gruppe",
+        umzusetzen: true,
+        titel: `Reihe ${s.reihe}, Platz ${s.name}`,
+        zusatz: s.sektor,
+        personen: 1,
+        quelleIds: [id],
+        vorschlagText: null,
+        vorschlagIds: [],
+      });
+    }
+
+    /*
+      Die Gruppen vom Server, um die Einzelnen erleichtert.
+
+      Der Schluessel bleibt, wie er war, auch wenn die Gruppe kleiner
+      wird: An ihm haengt eine womoeglich schon gespeicherte Umsetzung.
+      Wuerde er sich mit jeder herausgeloesten Person aendern, waere die
+      alte Umsetzung nicht mehr zuzuordnen.
+    */
+    for (const g of gruppen) {
+      const ids = g.quelleIds.filter((id) => !einzelIds.has(id));
+      if (g.art !== "gast" && ids.length === 0) continue;
+      /*
+        Die Personenzahl kommt weiter vom Server, solange nichts fehlt.
+        Sie muss nicht der Zahl der Plaetze entsprechen, und wo sie es
+        nicht tut, weiss der Server es besser. Erst wenn wir selbst
+        jemanden herausgeloest haben, zaehlen wir die restlichen Plaetze.
+      */
+      const vollzaehlig = ids.length === g.quelleIds.length;
+      liste.push({
+        ...g,
+        umzusetzen: true,
+        quelleIds: ids,
+        personen: vollzaehlig || g.art === "gast" ? g.personen : Math.max(1, ids.length),
+      });
+    }
+
     const schonVergeben = new Set(gruppen.flatMap((g) => g.quelleIds));
 
     for (const r of reihen) {
@@ -232,13 +328,21 @@ export function UpgradeTafel({
         lauf = [];
       };
       for (const s of r.sitze) {
+        /*
+          Eine herausgeloeste Person reisst den Block nicht auseinander.
+
+          Platz 5 und 7 bleiben zusammen, wenn 6 einzeln nach vorne geht:
+          Es ist weiter dieselbe Gesellschaft, und der Rest soll sich am
+          Stueck weiterschieben lassen.
+        */
+        if (einzelIds.has(s.id)) continue;
         if (s.status === "verkauft" && !schonVergeben.has(s.id)) lauf.push(s);
         else schliessen();
       }
       schliessen();
     }
     return liste;
-  }, [reihen, gruppen]);
+  }, [reihen, gruppen, sitze, einzelIds]);
 
   const gruppeVonSitz = useMemo(() => {
     const m = new Map<number, TafelGruppe>();
@@ -330,10 +434,23 @@ export function UpgradeTafel({
    * schon umgesetzten. Wer ohnehin gut sitzt, bleibt schlicht schwarz,
    * sonst leuchtet der halbe Saal (Florian, 22.09.2026).
    */
-  const bunte = useMemo(
-    () => alleGruppen.filter((g) => g.umzusetzen || gesetzt.some((x) => x.schluessel === g.schluessel)),
-    [alleGruppen, gesetzt],
-  );
+  const bunte = useMemo(() => {
+    const liste = alleGruppen.filter(
+      (g) => g.umzusetzen || gesetzt.some((x) => x.schluessel === g.schluessel),
+    );
+    /*
+      Einzelne ganz nach hinten.
+
+      Buchstabe und Farbe haengen an der Reihenfolge in dieser Liste.
+      Stuenden die Einzelnen vorn, bekaeme der halbe Saal eine neue
+      Farbe, sobald jemand eine Person aufnimmt, und der Einlass sucht
+      seine Gruppe von vorn.
+    */
+    return [
+      ...liste.filter((g) => einzelPlatz(g.schluessel) === null),
+      ...liste.filter((g) => einzelPlatz(g.schluessel) !== null),
+    ];
+  }, [alleGruppen, gesetzt]);
 
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
@@ -420,7 +537,7 @@ export function UpgradeTafel({
         .filter((y): y is TafelSitz => Boolean(y));
       const mitte = (liste: TafelSitz[]) => liste.reduce((n, y) => n + y.y, 0) / Math.max(1, liste.length);
       const nachVorne = alt.length === 0 || mitte(block) < mitte(alt) - 1;
-      if (nachVorne && g.umzusetzen) {
+      if (nachVorne && g.umzusetzen && !einzeln) {
         setLob(
           `${g.personen} ${g.personen === 1 ? "Gast sitzt" : "Gäste sitzen"} jetzt auf ${blockText(block)}. Gut gemacht!`,
         );
@@ -573,6 +690,12 @@ export function UpgradeTafel({
       setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
       return;
     }
+
+    if (einzeln) {
+      void einzelTippen(s);
+      return;
+    }
+
     const start = starts.get(s.id);
     if (start && gruppe) {
       void setzen(gruppe, start);
@@ -607,6 +730,71 @@ export function UpgradeTafel({
     );
   }
 
+  /**
+   * Ein Tipp im Einzelmodus: eine Person aufnehmen, eine Person setzen.
+   *
+   * Der Modus kennt nur Personen, keine Gruppen. Deshalb ist auch die
+   * Reihenfolge einfacher als beim Umsetzen am Stueck: Wer in der Hand
+   * ist, geht auf den naechsten freien Platz. Ist die Hand leer, nimmt
+   * ein Tipp die Person auf, die dort sitzt.
+   */
+  function einzelTippen(s: TafelSitz) {
+    const inHand = einzelPlatz(inDerHand);
+
+    // In der Hand und der Platz ist frei: dorthin.
+    if (inHand !== null && gruppe) {
+      const block = blockAb(s, 1, gruppe.schluessel);
+      if (block) {
+        void setzen(gruppe, block);
+        return;
+      }
+    }
+
+    // Nochmal auf dieselbe Person: wieder ablegen.
+    if (inHand === s.id) {
+      setInDerHand(null);
+      return;
+    }
+
+    /*
+      Wer hier sitzt, nachdem umgesetzt wurde.
+
+      Eine einzeln umgesetzte Person laesst sich von ihrem neuen Platz
+      aus weiterschieben. Bei einer Gruppe geht das nicht: Ihre
+      Umsetzung haengt an allen ihren Plaetzen zugleich, und eine
+      einzelne davon herauszubrechen wuerde die gespeicherte Umsetzung
+      unauffindbar machen. Deshalb hier der klare Weg statt einer
+      halben Loesung.
+    */
+    const daraufGesetzt = belegt.get(s.id);
+    if (daraufGesetzt) {
+      const einzelnDort = einzelPlatz(daraufGesetzt);
+      if (einzelnDort !== null) {
+        setInDerHand(daraufGesetzt);
+        return;
+      }
+      setHinweis(
+        "Auf diesem Platz sitzt eine umgesetzte Gruppe. Nimm sie erst zurück, dann lässt sie sich Person für Person verteilen.",
+      );
+      return;
+    }
+
+    if (s.status !== "verkauft") {
+      setHinweis("Hier sitzt niemand. Tippe auf die Person, die woanders hin soll.");
+      return;
+    }
+
+    const heimatG = gruppeVonSitz.get(s.id);
+    if (heimatG && einzelPlatz(heimatG.schluessel) === null && umsetzungVon(heimatG.schluessel)) {
+      setHinweis(
+        `${heimatG.titel} sitzt schon woanders. Nimm die Umsetzung zurück, dann lässt sich die Gruppe Person für Person verteilen.`,
+      );
+      return;
+    }
+
+    setInDerHand(einzelSchluessel(s.id));
+  }
+
   const u = gruppe ? umsetzungVon(gruppe.schluessel) : null;
   const vorschlag = gruppe && !u ? vorschlagBlock(gruppe) : null;
   const offeneVorschlaege = alleGruppen.filter((g) => g.vorschlagText && !umsetzungVon(g.schluessel));
@@ -616,7 +804,7 @@ export function UpgradeTafel({
     <section className="space-y-3 print:hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">
-          Saalplan: {modus === "umsetzen" ? "umsetzen" : "durch-x-en"}
+          Saalplan: {modus === "einchecken" ? "durch-x-en" : einzeln ? "einzeln verteilen" : "umsetzen"}
         </h2>
         <span className="text-sm text-leise">
           {modus === "umsetzen"
@@ -635,15 +823,44 @@ export function UpgradeTafel({
         <button
           type="button"
           role="tab"
-          aria-selected={modus === "umsetzen"}
-          onClick={() => setModus("umsetzen")}
+          aria-selected={modus === "umsetzen" && !einzeln}
+          onClick={() => {
+            setModus("umsetzen");
+            setEinzeln(false);
+            setInDerHand(null);
+          }}
           className="rounded-lg border-2 px-3 py-1.5 text-sm font-medium"
           style={{
-            borderColor: modus === "umsetzen" ? "var(--gold)" : "var(--linie)",
-            background: modus === "umsetzen" ? "var(--gold-hell)" : "var(--flaeche)",
+            borderColor: modus === "umsetzen" && !einzeln ? "var(--gold)" : "var(--linie)",
+            background: modus === "umsetzen" && !einzeln ? "var(--gold-hell)" : "var(--flaeche)",
           }}
         >
-          Umsetzen
+          Gruppe umsetzen
+        </button>
+        {/*
+          Einzeln ist ein eigenes Werkzeug, kein Haekchen am Umsetzen.
+
+          Ein Tipp bedeutet hier etwas anderes als nebenan: Er nimmt eine
+          Person auf, nicht ihre Gruppe. Das gehoert sichtbar in dieselbe
+          Reihe wie die anderen beiden, sonst tippt am Abend jemand in
+          der falschen Annahme (Florian, 30.09.2026).
+        */}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={modus === "umsetzen" && einzeln}
+          onClick={() => {
+            setModus("umsetzen");
+            setEinzeln(true);
+            setInDerHand(null);
+          }}
+          className="rounded-lg border-2 px-3 py-1.5 text-sm font-medium"
+          style={{
+            borderColor: modus === "umsetzen" && einzeln ? "var(--gold)" : "var(--linie)",
+            background: modus === "umsetzen" && einzeln ? "var(--gold-hell)" : "var(--flaeche)",
+          }}
+        >
+          Einzeln verteilen
         </button>
         <button
           type="button"
@@ -683,6 +900,12 @@ export function UpgradeTafel({
             Buchstaben zeigen, welche Gruppe wohin soll. Wer Tage vorher umsetzt, hat am Abend einen Plan, der nicht
             mehr stimmt.
           </p>
+        ) : einzeln && !gruppe ? (
+          <p className="text-sm">
+            <strong>Erst die Person antippen, dann ihren neuen Platz.</strong> Hier zählt jeder Platz für sich: So
+            lässt sich eine Gruppe auch auf zwei Reihen verteilen. Der Rest der Gruppe bleibt zusammen und kann
+            danach mit „Gruppe umsetzen“ am Stück weiter.
+          </p>
         ) : !gruppe ? (
           <p className="text-sm">
             <strong>Erst die Gruppe antippen, dann ihren neuen Platz.</strong> Jede Gruppe hat eine eigene Farbe und
@@ -703,7 +926,9 @@ export function UpgradeTafel({
               </p>
               <p className="text-sm">
                 {u
-                  ? `Sitzt jetzt auf ${u.zielText}. Tipp einen anderen Platz an, oder setz sie zurück.`
+                  ? `Sitzt jetzt auf ${u.zielText}. Tipp einen anderen Platz an, oder setz ${
+                      gruppe.personen === 1 ? "die Person" : "sie"
+                    } zurück.`
                   : "Jetzt den neuen Platz antippen: Die grünen Felder sind frei."}
               </p>
             </div>
