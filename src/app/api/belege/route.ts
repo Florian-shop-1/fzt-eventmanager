@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { postAbholen } from "@/lib/bewirtung/posteingang";
+import { postlaufMerken } from "@/lib/bewirtung/eingangsrechnung";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 
 /**
@@ -28,6 +29,15 @@ export async function GET(request: Request) {
 
   try {
     const lauf = await postAbholen({ tage, wer: vonDerUhr ? "Posteingang" : "Posteingang (von Hand)" });
+    // Festhalten, dass der Lauf war und was er gefunden hat: Sonst sieht
+    // morgens niemand, ob er ueberhaupt lief (Florian, 30.09.2026).
+    await postlaufMerken({
+      gesehen: lauf.gesehen,
+      neu: lauf.neu,
+      ohneAnhang: lauf.ohneAnhang,
+      fehlerAnzahl: lauf.fehler,
+      letzterFehler: lauf.meldungen.join(" | "),
+    }).catch(() => undefined);
     console.log(
       `[belege] Posteingang: ${lauf.gesehen} Mails gesehen, ${lauf.neu} neue Belege, ` +
         `${lauf.ohneAnhang} ohne Anhang, ${lauf.fehler} Fehler`,
@@ -35,6 +45,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, ...lauf });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
+    await postlaufMerken({ gesehen: 0, neu: 0, ohneAnhang: 0, fehlerAnzahl: 1, letzterFehler: meldung }).catch(
+      () => undefined,
+    );
     console.error("[belege] Posteingang fehlgeschlagen:", meldung);
     return NextResponse.json({ ok: false, fehler: meldung }, { status: 500 });
   }

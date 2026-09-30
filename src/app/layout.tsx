@@ -269,6 +269,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           punkte.push({ href: "/bewirtung", label: "Belege", rollen: [] });
           // Welche Ausgabe hat noch keinen Beleg (Florian, 29.09.2026).
           punkte.push({ href: "/bewirtung/abgleich", label: "Belege abgleichen", rollen: [] });
+          // Was wir schulden und was schon bezahlt ist (Florian, 30.09.2026).
+          punkte.push({ href: "/bewirtung/rechnungen", label: "Eingangsrechnungen", rollen: [] });
         }
         return { titel: g.titel, punkte };
       }).filter((g) => g.punkte.length > 0)

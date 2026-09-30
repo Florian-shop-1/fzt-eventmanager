@@ -12,6 +12,7 @@ import {
   type Belegvorschlag,
 } from "@/lib/bewirtung/abgleich";
 import { konten } from "@/lib/rechnung/konten";
+import { dateiEinlesen } from "@/app/rechnungen/aktionen";
 import { loesen, ohneBeleg, regelSpeichern, regelWeg, zuordnen } from "./aktionen";
 
 export const metadata = { title: "Belege abgleichen | FZT Eventmanager" };
@@ -115,6 +116,41 @@ export default async function AbgleichSeite({
           </div>
         </div>
       </section>
+
+      {/* ---------------------------------------------------------------
+          Die Kreditkartenabrechnung.
+
+          Ueber die Bankschnittstelle gibt die Bank die Kartenumsaetze nicht
+          heraus, gemessen am 29.09.2026. Deshalb kommt die Abrechnung einmal
+          im Monat von Hand herein, und danach laeuft der Abgleich fuer die
+          Karte genauso wie fuers Konto (Florian, 30.09.2026).
+          --------------------------------------------------------------- */}
+      {kontenliste.some((k) => k.art === "kreditkarte" && k.aktiv) && (
+        <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+          <summary className="cursor-pointer font-medium">Kreditkartenabrechnung hochladen</summary>
+          <p className="mt-2 max-w-prose text-xs text-leise">
+            Im OnlineBanking die Umsatzliste der Karte als CSV oder camt herunterladen und hier einlesen.
+            Danach stehen die einzelnen Kartenzahlungen in dieser Liste und bekommen ihren Beleg, genau wie
+            die Abbuchungen vom Konto.
+          </p>
+          <form action={dateiEinlesen} className="mt-3 flex flex-wrap items-end gap-3">
+            <input type="file" name="datei" accept=".csv,.xml,.sta,.txt,.mt940" required className="text-sm" />
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Karte</span>
+              <select name="konto" className="w-56" defaultValue={kontenliste.find((k) => k.art === "kreditkarte")?.endetAuf ?? ""}>
+                {kontenliste
+                  .filter((k) => k.aktiv)
+                  .map((k) => (
+                    <option key={k.endetAuf} value={k.endetAuf}>
+                      {k.bezeichnung || "Konto"} ({k.endetAuf})
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <Absendeknopf text="Abrechnung einlesen" laeuftText="Wird gelesen..." />
+          </form>
+        </details>
+      )}
 
       <nav className="flex flex-wrap gap-1 text-sm">
         {[

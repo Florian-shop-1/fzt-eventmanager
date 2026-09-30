@@ -79,6 +79,12 @@ export default async function BewirtungSeite({
         */}
         <div className="flex flex-wrap items-center gap-3">
           <Link
+            href="/bewirtung/rechnungen"
+            className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+          >
+            Eingangsrechnungen
+          </Link>
+          <Link
             href="/bewirtung/abgleich"
             className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
           >
