@@ -264,14 +264,6 @@ async function Abrechnung({ monat }: { monat?: string }) {
   );
 }
 
-const STATUS: Record<string, string> = {
-  open: "offen",
-  overdue: "überfällig",
-  paid: "bezahlt",
-  paidoff: "bezahlt",
-  voided: "storniert",
-  draft: "Entwurf",
-};
 
 /** Die Rechnung zum Monat: anlegen und senden, oder Stand und PDF. */
 async function Rechnungsblock({ monat }: { monat: string }) {

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   try {
     const lauf = await postAbholen({ tage, wer: vonDerUhr ? "Posteingang" : "Posteingang (von Hand)" });
     // Was eindeutig zusammengehoert, gleich abhaken (Florian, 30.09.2026).
-    const auto = await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] }));
+    const auto = await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] as string[] }));
     // Festhalten, dass der Lauf war und was er gefunden hat: Sonst sieht
     // morgens niemand, ob er ueberhaupt lief (Florian, 30.09.2026).
     await postlaufMerken({
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       `[belege] Posteingang: ${lauf.gesehen} Mails gesehen, ${lauf.neu} neue Belege, ` +
         `${lauf.ohneAnhang} ohne Anhang, ${lauf.fehler} Fehler`,
     );
-    return NextResponse.json({ ok: true, ...lauf });
+    return NextResponse.json({ ok: true, zugeordnet: auto.zugeordnet, ...lauf });
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     await postlaufMerken({ gesehen: 0, neu: 0, ohneAnhang: 0, fehlerAnzahl: 1, letzterFehler: meldung }).catch(

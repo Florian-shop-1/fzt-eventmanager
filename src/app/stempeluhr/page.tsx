@@ -20,7 +20,7 @@ import {
   type Stempel,
 } from "@/lib/stempel/db";
 import { aenderungenAmTag } from "@/lib/stempel/db";
-import { alleKontostaende, sollzeiten } from "@/lib/lohn/konto";
+import { alleKontostaende } from "@/lib/lohn/konto";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
 import { nachFamilienname } from "@/lib/domain/namen";

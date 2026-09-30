@@ -4,14 +4,8 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { ZauberstabBrief } from "@/components/ZauberstabBrief";
-import { datumLang, zeitpunkt } from "@/lib/zeit";
-import { ABSENDERZEILE, KONTAKTZEILE, UNTERSCHRIFT_ROLLE } from "@/lib/shop/anschreiben";
-import {
-  ZAUBERSTAB_ABSAETZE,
-  ZAUBERSTAB_GRUSS,
-  ZAUBERSTAB_UEBERSCHRIFT,
-  zauberstabAnrede,
-} from "@/lib/shop/zauberstab-brief";
+import { zeitpunkt } from "@/lib/zeit";
+
 import { brauchtKlaerung, zauberstaebe, type Zauberstab } from "@/lib/shop/zauberstab";
 import { abhaken, dochNicht, vonHand } from "./aktionen";
 
