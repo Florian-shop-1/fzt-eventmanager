@@ -44,6 +44,33 @@ export interface AbbrecherLauf {
   fehler: string[];
 }
 
+/**
+ * Welcher Korb je Adresse angeschrieben wird: der mit dem meisten Umsatz.
+ *
+ * Wer drei Termine durchprobiert hat, bekommt nur eine Mail (siehe unten),
+ * und dann soll es die über den grössten Korb sein: 4 Plätze mit Menü sind
+ * mehr wert als das eine Ticket, das derselbe Gast nebenbei angesehen hat
+ * (Florian, 30.09.2026). Bei gleichem Betrag gewinnt der ältere Korb, damit
+ * die Wahl nachvollziehbar bleibt.
+ */
+function groessteJeAdresse(liste: Abbrecher[]): Set<string> {
+  const beste = new Map<string, Abbrecher>();
+  for (const a of liste) {
+    const adresse = a.email.toLowerCase();
+    const bisher = beste.get(adresse);
+    if (!bisher) {
+      beste.set(adresse, a);
+      continue;
+    }
+    const neu = a.gesamtCent ?? 0;
+    const alt = bisher.gesamtCent ?? 0;
+    if (neu > alt || (neu === alt && Date.parse(a.eingegangenAm) < Date.parse(bisher.eingegangenAm))) {
+      beste.set(adresse, a);
+    }
+  }
+  return new Set([...beste.values()].map((a) => a.id));
+}
+
 function stundenSeit(iso: string): number {
   return (Date.now() - Date.parse(iso)) / 3600000;
 }
@@ -120,9 +147,10 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
 
   /* 1. Die Frage, frühestens vier Stunden und spätestens drei Tage danach. */
   const fragen = offen.filter((a) => !a.frageAm && stundenSeit(a.eingegangenAm) >= 4 && stundenSeit(a.eingegangenAm) <= 72);
+  const grossteFrage = groessteJeAdresse(fragen);
   for (const a of fragen) {
     const adresse = a.email.toLowerCase();
-    if (heuteSchon.has(adresse)) {
+    if (heuteSchon.has(adresse) || !grossteFrage.has(a.id)) {
       // Schon angeschrieben: Korb abhaken, keine zweite Mail.
       if (!probelauf) await frageVermerken(a.id);
       ergebnis.zusammengefasst++;
@@ -164,14 +192,15 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   const kandidaten = offen.filter(
     (a) => !a.angebotAm && stundenSeit(a.eingegangenAm) >= 72 && stundenSeit(a.eingegangenAm) <= 30 * 24,
   );
+  const groessteAngebot = groessteJeAdresse(kandidaten);
   const rest = Math.max(0, KONTINGENT_JE_WOCHE - (await schonVergeben()));
   const gezogene = new Set(ziehen(kandidaten, rest).map((a) => a.id));
 
   for (const a of kandidaten) {
     const art = gezogene.has(a.id) ? "baendchen" : passendesGeschenk(a.show);
     const adresse = a.email.toLowerCase();
-    if (heuteSchon.has(adresse)) {
-      // Diese Adresse hat ihre Mail heute schon, der Korb ist damit erledigt.
+    if (heuteSchon.has(adresse) || !groessteAngebot.has(a.id)) {
+      // Schon angeschrieben oder ein kleinerer Korb derselben Adresse: abhaken.
       if (!probelauf) await angebotVermerken(a.id);
       ergebnis.zusammengefasst++;
       continue;
