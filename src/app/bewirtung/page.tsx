@@ -12,7 +12,7 @@ import {
 } from "@/lib/bewirtung/gesellschaft";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
-import { postHolen, unterschriftSpeichern } from "./aktionen";
+import { alleBereitenFestschreiben, postHolen, unterschriftSpeichern } from "./aktionen";
 import { letztePost, RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
 import { empfaengerAendern, monatSchicken } from "./versand";
 import { empfaengerLesen, sendungenDesJahres, type Empfaenger, type Sendung } from "@/lib/bewirtung/steuerbuero";
@@ -169,7 +169,22 @@ export default async function BewirtungSeite({
 
       {entwuerfe.length > 0 && (
         <section className="space-y-2 rounded-lg border p-4" style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
-          <h2 className="font-semibold">Noch zu ergänzen ({entwuerfe.length})</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-semibold">Noch zu ergänzen ({entwuerfe.length})</h2>
+            {/*
+              Dreissig Rechnungen aus dem Postfach einzeln zu oeffnen ist
+              eine halbe Stunde Klicken, und solange sie Entwuerfe sind,
+              findet der Abgleich sie nicht (Florian, 30.09.2026).
+            */}
+            <form action={alleBereitenFestschreiben}>
+              <Absendeknopf text="Alle vollständigen festschreiben" laeuftText="Wird festgeschrieben..." />
+            </form>
+          </div>
+          <p className="text-xs text-leise">
+            Festgeschrieben wird nur, wo nichts mehr fehlt. Danach sucht das Programm gleich die passende
+            Abbuchung auf dem Konto. Was unvollständig ist oder nach einem Doppelgänger aussieht, bleibt
+            stehen.
+          </p>
           <ul className="space-y-1 text-sm">
             {entwuerfe.map((x) => (
               <li key={x.id}>

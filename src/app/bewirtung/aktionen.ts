@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { darfGesellschaftWaehlen, istGesellschaft } from "@/lib/bewirtung/gesellschaft";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
+import { db } from "@/lib/db/client";
 import {
   bewirtungLesen,
+  bewirtungenDesJahres,
   hinterlegteUnterschrift,
   unterschriftHinterlegen,
   moeglicheDubletten,
@@ -142,6 +144,83 @@ export async function belegSpeichern(f: FormData): Promise<void> {
   revalidatePath("/bewirtung");
   revalidatePath("/bewirtung/abgleich");
   redirect(`/bewirtung?meldung=${encodeURIComponent(`Beleg ${nummer} ist festgeschrieben.${dazu}`)}`);
+}
+
+/**
+ * Alle Entwuerfe festschreiben, denen nichts mehr fehlt.
+ *
+ * Aus dem Postfach kommen an einem Morgen dreissig Rechnungen. Jede
+ * einzeln zu oeffnen und festzuschreiben ist eine halbe Stunde Klicken,
+ * und solange sie Entwuerfe sind, findet der Abgleich sie nicht: "warum
+ * werden die rechnungen nicht automatisch abgeglichen" (Florian,
+ * 30.09.2026).
+ *
+ * Festgeschrieben wird nur, wo alle Pflichtangaben stehen. Alles andere
+ * bleibt liegen, und ein moeglicher Doppelgaenger auch: Zwei gleiche
+ * Belege sind ein Fall fuer einen Menschen, nicht fuer einen Stapel.
+ *
+ * Eine Rechnung, die per Mail hereinkam, wird per Ueberweisung oder
+ * Lastschrift bezahlt; hat die Erkennung den Zahlweg nicht gefunden,
+ * wird er hier auf "konto" gesetzt. Bar bezahlt man keine Rechnung, die
+ * im Postfach liegt.
+ */
+export async function alleBereitenFestschreiben(): Promise<void> {
+  const b = await zugang();
+  const alle = await bewirtungenDesJahres(new Date().getFullYear());
+  const entwuerfe = alle.filter((x) => x.status === "entwurf");
+
+  const ausDemPostfach = new Set(
+    (
+      (await db()`select beleg_id from rechnungspost where beleg_id is not null`.catch(() => [])) as Array<{
+        beleg_id: string;
+      }>
+    ).map((r) => String(r.beleg_id)),
+  );
+
+  let fertig = 0;
+  let uebrig = 0;
+  let dubletten = 0;
+
+  for (const x of entwuerfe) {
+    const zahlweg = x.zahlweg || (ausDemPostfach.has(x.id) ? "konto" : "");
+    const vollstaendig =
+      Boolean(x.datum) &&
+      Boolean(x.restaurant) &&
+      x.bruttoCent !== null &&
+      x.bruttoCent > 0 &&
+      Boolean(zahlweg) &&
+      (x.art === "bewirtung" ? Boolean(x.anlass) && Boolean(x.teilnehmer) : Boolean(x.zweck));
+
+    if (!vollstaendig) {
+      uebrig++;
+      continue;
+    }
+
+    const gleich = await moeglicheDubletten({ id: x.id, datum: x.datum, bruttoCent: x.bruttoCent });
+    if (gleich.length) {
+      dubletten++;
+      continue;
+    }
+
+    if (zahlweg !== x.zahlweg) {
+      await db()`update bewirtung set zahlweg = ${zahlweg} where id = ${x.id} and status = 'entwurf'`;
+    }
+    await festschreiben(x.id, b.name);
+    fertig++;
+  }
+
+  const auto = fertig > 0 ? await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] })) : { zugeordnet: 0 };
+
+  const teile = [
+    `${fertig} ${fertig === 1 ? "Beleg" : "Belege"} festgeschrieben`,
+    auto.zugeordnet > 0 ? `${auto.zugeordnet} davon gleich einer Abbuchung zugeordnet` : "",
+    uebrig > 0 ? `${uebrig} brauchen noch Angaben` : "",
+    dubletten > 0 ? `${dubletten} sehen nach Doppelgängern aus und warten auf dich` : "",
+  ].filter(Boolean);
+
+  revalidatePath("/bewirtung");
+  revalidatePath("/bewirtung/abgleich");
+  redirect(`/bewirtung?meldung=${encodeURIComponent(teile.join(", ") + ".")}`);
 }
 
 export async function belegVerwerfen(f: FormData): Promise<void> {

@@ -37,7 +37,7 @@ const SYSTEM = `Du liest Kassenbons und Rechnungen deutscher Geschäfte für die
 Gib genau wieder, was auf dem Beleg steht. Erfinde nichts. Wenn etwas nicht auf dem Beleg steht oder nicht lesbar ist, lass es leer bzw. setze 0.
 
 - art: "bewirtung", wenn es ein Restaurant, Café oder eine Bar ist und dort gegessen oder getrunken wurde. Sonst "einkauf" (Baumarkt, Supermarkt, Büro, Tankstelle, Elektronik, Drogerie ...).
-- restaurant: Name des Geschäfts bzw. Lokals, wie gedruckt.
+- restaurant: Name des Geschäfts bzw. Lokals, wie gedruckt. Bei einer Rechnung ist das IMMER der Absender, also wer die Rechnung stellt, niemals der Empfänger. Das Florian Zimmer Theater bzw. die Florian Zimmer Theater GmbH ist der Empfänger und darf hier nie stehen; steht der Name im Briefkopf, ist er die Rechnungsanschrift und nicht das Geschäft.
 - anschrift: Straße, PLZ und Ort des Geschäfts in einer Zeile.
 - zweck: bei Einkäufen kurz auf Deutsch, was gekauft wurde (zum Beispiel "Farbe, Pinsel, Schrauben"). Höchstens zehn Wörter. Bei Bewirtungen leer.
 - kategorie: bei Einkäufen die passendste aus: ${KATEGORIEN.join(", ")}. Bei Bewirtungen leer.
