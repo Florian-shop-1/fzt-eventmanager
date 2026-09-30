@@ -14,6 +14,7 @@ import {
   leihArtikel,
   leiheAnlegen,
   leiheLoeschen,
+  leihePreisNachtragen,
   leiheWiederOffen,
   leiheZurueck,
   mitAufschlag,
@@ -217,6 +218,19 @@ export async function leiheErfassen(f: FormData): Promise<void> {
 }
 
 /** Wieder zurückgebracht: kostet nichts. */
+/** Einen offenen Preis nachtragen. Nur das Buero. */
+export async function leihePreis(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  const z = await zugang(b);
+  if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
+  const preis = cent(text(f, "marktpreis", 20));
+  if (!Number.isFinite(preis) || preis <= 0) {
+    zurueck("Bitte den üblichen Ladenpreis eintragen.", "#leihware");
+  }
+  await leihePreisNachtragen(text(f, "id", 40), preis);
+  zurueck("Preis ergänzt.", "#leihware");
+}
+
 export async function leiheZurueckgebracht(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
   const z = await zugang(b);

@@ -25,6 +25,7 @@ import {
   freischalten,
   leiheDochBerechnen,
   leiheEntfernen,
+  leihePreis,
   leiheErfassen,
   leiheZurueckgebracht,
   meldenSpeichern,
@@ -147,7 +148,9 @@ export default async function BestellungenSeite({
         </section>
       )}
 
-      {z.uebergeben && <Leihware darfLoeschen={z.verwalten} />}
+      {(z.uebergeben || z.bestellen) && (
+        <Leihware darfLoeschen={z.verwalten} imBuero={z.uebergeben} />
+      )}
 
       {z.verwalten && <Abrechnung monat={monat} />}
       {z.verwalten && <Einrichtung freigegeben={z.freigegeben} />}
@@ -479,9 +482,22 @@ async function RechnungsEinrichtung() {
  * Ware, die sich die Gastro genommen hat. Kommt sie zurück, kostet sie
  * nichts. Sonst steht sie mit Ladenpreis plus 10 Prozent auf der Rechnung.
  */
-async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
+/**
+ * Ware aus unserem Bestand, die sich die Gastro genommen hat.
+ *
+ * Neu seit dem 30.09.2026: Die Gastro traegt selbst ein, was sie
+ * mitgenommen hat. Vorher konnte das nur das Buero, und was das Buero
+ * nicht sieht, traegt es auch nicht ein.
+ *
+ * Preise sieht die Gastro nur als Endpreis. Dass darin ein Aufschlag
+ * steckt, ist unsere Sache und steht nirgends auf ihrem Bildschirm
+ * (Florian, 30.09.2026). Bei etwas, das nicht im Katalog steht, traegt
+ * sie nur ein, was es war; den Preis ergaenzt das Buero.
+ */
+async function Leihware({ darfLoeschen, imBuero }: { darfLoeschen: boolean; imBuero: boolean }) {
   const [katalog, liste] = await Promise.all([leihArtikel(), leihen({})]);
   const offeneSumme = liste.filter((l) => l.status === "offen").reduce((n, l) => n + l.menge * l.preisCent, 0);
+  const ohnePreis = liste.filter((l) => l.status === "offen" && l.preisCent <= 0);
   const heute = new Date().toISOString().slice(0, 10);
 
   return (
@@ -491,9 +507,22 @@ async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
         {offeneSumme > 0 && <span className="text-sm text-leise">offen: {euro(offeneSumme)}</span>}
       </div>
       <p className="text-sm text-leise">
-        Wenn sich die Gastro etwas nimmt, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet es nichts.
-        Sonst kommt sie mit einem Aufschlag von 10 Prozent auf die Monatsrechnung.
+        {imBuero
+          ? "Wenn sich die Gastro etwas nimmt, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet es nichts. Sonst kommt sie mit einem Aufschlag von 10 Prozent auf die Monatsrechnung."
+          : "Was ihr euch aus unserem Bestand nehmt, bitte hier eintragen, zum Beispiel eine Flasche Aperol. Bringt ihr die Ware zurück, kostet sie nichts. Alles andere kommt auf die Monatsrechnung."}
       </p>
+
+      {imBuero && ohnePreis.length > 0 && (
+        <p
+          className="rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>
+            {ohnePreis.length} {ohnePreis.length === 1 ? "Posten hat" : "Posten haben"} noch keinen Preis.
+          </strong>{" "}
+          Bitte unten den üblichen Ladenpreis eintragen, sonst fehlt der Posten auf der Monatsrechnung.
+        </p>
+      )}
 
       <form action={leiheErfassen} className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -501,7 +530,13 @@ async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
           <select name="artikel" defaultValue={katalog[0]?.id ?? ""}>
             {katalog.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} ({euro(a.marktpreisCent)}, berechnet {euro(mitAufschlag(a.marktpreisCent))})
+                {/*
+                  Der Gastro nur den Endpreis zeigen. Was er sich
+                  zusammensetzt, steht hier bewusst nicht.
+                */}
+                {imBuero
+                  ? `${a.name} (${euro(a.marktpreisCent)}, berechnet ${euro(mitAufschlag(a.marktpreisCent))})`
+                  : `${a.name} (${euro(mitAufschlag(a.marktpreisCent))})`}
               </option>
             ))}
             <option value="">etwas anderes ...</option>
@@ -515,10 +550,16 @@ async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
           <span className="mb-1 block text-xs text-leise">Nur bei „etwas anderes“: Bezeichnung</span>
           <input name="name" maxLength={120} placeholder="zum Beispiel Havana Club 0,7 l" />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-leise">Nur bei „etwas anderes“: üblicher Ladenpreis €</span>
-          <input name="marktpreis" inputMode="decimal" placeholder="12,99" />
-        </label>
+        {imBuero ? (
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Nur bei „etwas anderes“: üblicher Ladenpreis €</span>
+            <input name="marktpreis" inputMode="decimal" placeholder="12,99" />
+          </label>
+        ) : (
+          <p className="self-end text-xs text-leise">
+            Den Preis tragen wir ein. Ihr müsst nur wissen, was ihr genommen habt.
+          </p>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs text-leise">Wann</span>
           <input name="datum" type="date" defaultValue={heute} />
@@ -544,9 +585,27 @@ async function Leihware({ darfLoeschen }: { darfLoeschen: boolean }) {
                 {l.notiz && <span className="text-leise"> · {l.notiz}</span>}
                 <span className="text-leise"> · eingetragen von {l.erfasstVon}</span>
               </span>
-              <span className={`tabular-nums ${l.status === "zurueck" ? "text-leise line-through" : ""}`}>
-                {euro(l.menge * l.preisCent)}
-              </span>
+              {l.preisCent > 0 ? (
+                <span className={`tabular-nums ${l.status === "zurueck" ? "text-leise line-through" : ""}`}>
+                  {euro(l.menge * l.preisCent)}
+                </span>
+              ) : imBuero ? (
+                <form action={leihePreis} className="flex items-center gap-1">
+                  <input type="hidden" name="id" value={l.id} />
+                  <input
+                    name="marktpreis"
+                    inputMode="decimal"
+                    placeholder="Ladenpreis €"
+                    className="w-28 text-sm"
+                    aria-label={`Ladenpreis für ${l.name}`}
+                  />
+                  <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs hover:bg-gold-hell">
+                    Preis eintragen
+                  </button>
+                </form>
+              ) : (
+                <span className="text-xs text-leise">Preis folgt</span>
+              )}
               {l.status === "offen" ? (
                 <form action={leiheZurueckgebracht}>
                   <input type="hidden" name="id" value={l.id} />

@@ -25,6 +25,7 @@ import {
 } from "@/lib/rechnung/db";
 import { ausDatei, umsaetzeUebernehmen, type RoherUmsatz } from "@/lib/rechnung/bankimport";
 import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kartenauszug";
+import { auszugMitAbdruck, auszugVermerken, dateiAbdruck } from "@/lib/rechnung/auszuege";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -166,6 +167,29 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
   const roh = Buffer.from(await datei.arrayBuffer());
 
   /*
+    Dieselbe Datei nicht zweimal.
+
+    Die Umsaetze selbst koennen nicht doppelt hereinkommen, dafuer sorgt
+    ihr Fingerabdruck. Der Mensch davor sieht dann aber nur "0 neue
+    Umsaetze" und weiss nicht, ob er die richtige Datei erwischt hat.
+    Deshalb sagt das Programm es ihm (Florian, 30.09.2026).
+  */
+  const abdruck = dateiAbdruck(roh);
+  const schonDa = await auszugMitAbdruck(abdruck);
+  if (schonDa) {
+    const wann = new Date(schonDa.angelegtAm).toLocaleDateString("de-DE");
+    const zeitraum =
+      schonDa.vonDatum && schonDa.bisDatum
+        ? ` (${schonDa.vonDatum.split("-").reverse().join(".")} bis ${schonDa.bisDatum.split("-").reverse().join(".")})`
+        : "";
+    zurueck(
+      ziel,
+      `Diese Abrechnung habe ich schon: eingelesen am ${wann}${schonDa.wer ? ` von ${schonDa.wer}` : ""}, ` +
+        `${schonDa.umsaetze} Umsätze${zeitraum}. Es wurde nichts doppelt angelegt.`,
+    );
+  }
+
+  /*
     CSV oder PDF, beides geht.
 
     Im OnlineBanking liegt die Kartenabrechnung als PDF naeher als die
@@ -205,6 +229,18 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
   const konto = String(f.get("konto") ?? "").trim().slice(0, 8);
 
   const e = await umsaetzeUebernehmen(liste, b.name, konto);
+
+  const tage = liste.map((u) => u.buchungstag).filter(Boolean).sort();
+  await auszugVermerken({
+    hash: abdruck,
+    dateiname: datei.name.slice(0, 200),
+    konto,
+    vonDatum: tage[0] ?? null,
+    bisDatum: tage[tage.length - 1] ?? null,
+    umsaetze: liste.length,
+    neu: e.neu,
+    wer: b.name,
+  }).catch((f) => console.warn("[bank] Auszug nicht vermerkt:", f));
   await merken({
     rechnungId: null,
     art: "bank_import",

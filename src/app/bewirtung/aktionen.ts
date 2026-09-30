@@ -164,12 +164,23 @@ export async function unterschriftSpeichern(f: FormData): Promise<void> {
  * Taeglich passiert das von selbst. Der Knopf ist fuer den Fall, dass
  * gerade etwas angekommen ist und nicht bis morgen warten soll.
  */
-export async function postHolen(): Promise<void> {
+export async function postHolen(f?: FormData): Promise<void> {
   const b = await zugang();
+  /*
+    Wie weit zurueck geschaut wird.
+
+    Bis zum 30.09.2026 waren es immer 14 Tage, und genau daran lag es,
+    dass Rechnungen fehlten: Die Lastschrift von Huss Licht + Ton stand
+    laengst auf dem Konto, die Rechnung dazu lag im Postfach, aber sie
+    war aelter als zwei Wochen und wurde nie geholt (Florian). Von Hand
+    laesst sich deshalb jetzt weiter zurueckgreifen, bis zu einem Jahr.
+  */
+  const gewuenscht = Math.round(Number(f?.get("tage") ?? 0));
+  const tage = gewuenscht >= 1 && gewuenscht <= 365 ? gewuenscht : 30;
   try {
-    const lauf = await postAbholen({ tage: 14, wer: b.name });
+    const lauf = await postAbholen({ tage, hoechstens: 50, wer: b.name });
     const teile = [
-      `${lauf.neu} ${lauf.neu === 1 ? "neuer Beleg" : "neue Belege"} aus dem Postfach`,
+      `${lauf.neu} ${lauf.neu === 1 ? "neuer Beleg" : "neue Belege"} aus dem Postfach der letzten ${tage} Tage`,
       lauf.ohneAnhang > 0 ? `${lauf.ohneAnhang} Mails ohne Rechnung im Anhang` : "",
       lauf.fehler > 0 ? `${lauf.fehler} konnten nicht gelesen werden` : "",
     ].filter(Boolean);

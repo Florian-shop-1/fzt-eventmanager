@@ -118,7 +118,25 @@ export default async function BewirtungSeite({
           übernehmen, als Entwurf anlegen. Das Postfach wird dabei nur gelesen, nichts beantwortet und
           nichts verschoben.
         </p>
-        <form action={postHolen} className="mt-3">
+        {/*
+          Wie weit zurueck.
+
+          Der taegliche Lauf schaut nur wenige Tage zurueck, das genuegt
+          im Alltag. Wer aber merkt, dass eine aeltere Rechnung fehlt,
+          soll sie holen koennen, ohne im Postfach zu suchen
+          (Florian, 30.09.2026).
+        */}
+        <form action={postHolen} className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Wie weit zurück?</span>
+            <select name="tage" defaultValue="30" className="w-44">
+              <option value="14">die letzten 14 Tage</option>
+              <option value="30">die letzten 30 Tage</option>
+              <option value="90">die letzten 3 Monate</option>
+              <option value="180">das letzte halbe Jahr</option>
+              <option value="365">das letzte Jahr</option>
+            </select>
+          </label>
           <Absendeknopf text="Jetzt abholen" laeuftText="Wird geholt..." />
         </form>
         {post.length > 0 && (

@@ -270,6 +270,22 @@ export async function leiheAnlegen(l: {
   `;
 }
 
+/**
+ * Einen fehlenden Preis nachtragen.
+ *
+ * Die Gastro traegt ein, was sie genommen hat, kennt aber unsere
+ * Einkaufspreise nicht und soll sie auch nicht sehen. Der Preis kommt
+ * deshalb aus dem Buero dazu, bevor die Monatsrechnung entsteht
+ * (Florian, 30.09.2026).
+ */
+export async function leihePreisNachtragen(id: string, marktpreisCent: number): Promise<void> {
+  await db()`
+    update wein_leihe
+       set marktpreis_cent = ${marktpreisCent}, preis_cent = ${mitAufschlag(marktpreisCent)}
+     where id = ${id}::uuid and status = 'offen'
+  `;
+}
+
 /** Zurückgebracht: kostet nichts und kommt nicht auf die Rechnung. */
 export async function leiheZurueck(id: string, von: string): Promise<boolean> {
   const z = (await db()`

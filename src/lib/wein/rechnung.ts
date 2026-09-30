@@ -176,7 +176,18 @@ export async function monatsPositionen(monat: string) {
   }
 
   // Ausgeliehene Ware: Marktpreis plus Aufschlag, als Nettobetrag gerechnet.
-  const offeneLeihen = (await leihen({ seit: vonTag, bis: bisTag })).filter((l) => l.status === "offen");
+  /*
+    Ware aus unserem Bestand, aber nur mit Preis.
+
+    Seit dem 30.09.2026 traegt die Gastro selbst ein, was sie genommen
+    hat, und kennt dabei den Preis nicht. Bis ihn das Buero ergaenzt hat,
+    steht der Posten ohne Betrag da. Er darf weder mit 0,00 Euro auf der
+    Rechnung landen noch stillschweigend fehlen, deshalb wird er hier
+    gezaehlt und die Rechnung verweigert sich, solange etwas offen ist.
+  */
+  const alleLeihen = (await leihen({ seit: vonTag, bis: bisTag })).filter((l) => l.status === "offen");
+  const ohnePreis = alleLeihen.filter((l) => l.preisCent <= 0);
+  const offeneLeihen = alleLeihen.filter((l) => l.preisCent > 0);
   const jeLeihe = new Map<string, RechnungsPosition>();
   for (const l of offeneLeihen) {
     const netto = Math.round(l.preisCent / 1.19);
@@ -197,6 +208,8 @@ export async function monatsPositionen(monat: string) {
     netto,
     ust,
     brutto: netto + ust,
+    ohnePreis: ohnePreis.length,
+    ohnePreisNamen: ohnePreis.map((l) => `${l.menge} × ${l.name}`),
     uebergaben: liste.length,
     von: vonIso,
     bis: bisIso,
@@ -237,6 +250,12 @@ export async function rechnungErstellenUndSenden(monat: string, von: string): Pr
 
   const daten = await monatsPositionen(monat);
   if (daten.positionen.length === 0) throw new Error(`Im ${monatsname(monat)} gibt es nichts zu berechnen.`);
+  if (daten.ohnePreis > 0) {
+    throw new Error(
+      `Für ${daten.ohnePreisNamen.join(", ")} fehlt noch der Preis. ` +
+        "Bitte auf der Seite Bestellungen unter „Ware aus unserem Bestand“ eintragen, dann kann die Rechnung raus.",
+    );
+  }
 
   const heute = new Date();
   const nummer = vorhanden?.nummer ?? (await naechsteNummer(heute));

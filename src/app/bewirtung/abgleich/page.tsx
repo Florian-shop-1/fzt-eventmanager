@@ -12,6 +12,7 @@ import {
   type Belegvorschlag,
 } from "@/lib/bewirtung/abgleich";
 import { konten } from "@/lib/rechnung/konten";
+import { eingeleseneAuszuege } from "@/lib/rechnung/auszuege";
 import { dateiEinlesen } from "@/app/rechnungen/aktionen";
 import { loesen, ohneBeleg, regelSpeichern, regelWeg, zuordnen } from "./aktionen";
 
@@ -54,11 +55,12 @@ export default async function AbgleichSeite({
   const vorher = `${mm === 1 ? jahr - 1 : jahr}-${String(mm === 1 ? 12 : mm - 1).padStart(2, "0")}`;
   const danach = `${mm === 12 ? jahr + 1 : jahr}-${String(mm === 12 ? 1 : mm + 1).padStart(2, "0")}`;
 
-  const [alle, vorschlaege, regelliste, kontenliste] = await Promise.all([
+  const [alle, vorschlaege, regelliste, kontenliste, auszuege] = await Promise.all([
     ausgabenDesMonats(monat),
     vorschlaegeFuerMonat(monat),
     regeln(),
     konten(),
+    eingeleseneAuszuege(),
   ]);
 
   const stand = monatsstand(alle);
@@ -166,6 +168,37 @@ export default async function AbgleichSeite({
             </label>
             <Absendeknopf text="Abrechnung einlesen" laeuftText="Wird gelesen..." />
           </form>
+
+          {/*
+            Was schon eingelesen wurde.
+
+            Ohne diese Liste laedt irgendwann jemand dieselbe Abrechnung
+            ein zweites Mal hoch, sieht "0 neue Umsaetze" und weiss nicht,
+            ob er die falsche Datei erwischt hat oder ob nichts passiert
+            ist (Florian, 30.09.2026).
+          */}
+          {auszuege.length > 0 && (
+            <div className="mt-4 border-t border-linie pt-3">
+              <div className="text-xs font-medium">Schon eingelesen</div>
+              <ul className="mt-1 space-y-1 text-xs text-leise">
+                {auszuege.map((a) => (
+                  <li key={a.id} className="flex flex-wrap gap-x-2">
+                    <span className="tabular-nums">{datumDe(a.angelegtAm)}</span>
+                    <span className="min-w-0 flex-1 truncate">{a.dateiname || "ohne Namen"}</span>
+                    {a.konto && <span>Konto {a.konto}</span>}
+                    <span className="tabular-nums">
+                      {a.vonDatum && a.bisDatum
+                        ? `${datumDe(a.vonDatum)} bis ${datumDe(a.bisDatum)}`
+                        : "Zeitraum unbekannt"}
+                    </span>
+                    <span className="tabular-nums">
+                      {a.umsaetze} Umsätze, {a.neu} neu
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </details>
       )}
 
