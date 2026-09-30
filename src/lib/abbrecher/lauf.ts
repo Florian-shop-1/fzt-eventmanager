@@ -22,7 +22,7 @@ import { db } from "@/lib/db/client";
 import { offeneNachfuehren } from "@/lib/db/shop-buchungen";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { widersprochene } from "@/lib/db/werbewiderspruch";
-import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, type Abbrecher } from "./db";
+import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, heuteAngeschrieben, type Abbrecher } from "./db";
 import { geschenkVersprechen, passendesGeschenk, type GeschenkArt } from "./geschenk";
 import { abmeldenLink, angebotMail, frageMail } from "./mails";
 
@@ -39,6 +39,8 @@ export interface AbbrecherLauf {
   /** Hat Glas oder Zauberstab bekommen. */
   getroestet: number;
   uebersprungen: number;
+  /** Weitere Körbe derselben Adresse, die ohne eigene Mail mit abgehakt wurden. */
+  zusammengefasst: number;
   fehler: string[];
 }
 
@@ -70,7 +72,7 @@ function ziehen<T>(liste: T[], wieviele: number): T[] {
 }
 
 export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
-  const ergebnis: AbbrecherLauf = { gefragt: 0, gezogen: 0, getroestet: 0, uebersprungen: 0, fehler: [] };
+  const ergebnis: AbbrecherLauf = { gefragt: 0, gezogen: 0, getroestet: 0, uebersprungen: 0, zusammengefasst: 0, fehler: [] };
 
   // Aus heisst aus: keine Mail, auch nicht die naechtliche.
   const e = await abbruchEinstellung();
@@ -91,6 +93,20 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   const alle = await abbrecher(30);
 
   /*
+    Eine Mail am Tag je Adresse, mehr nicht.
+
+    Wer drei Termine durchprobiert hat, hat drei liegengebliebene Körbe,
+    ist aber ein Mensch. Am 30.09.2026 gingen dadurch acht Mails "Was hat
+    dich abgehalten?" innerhalb einer Minute an dieselbe Adresse hinaus
+    (Florian). Die weiteren Körbe werden deshalb still mit abgehakt: Sie
+    gelten als erledigt und lösen auch morgen keine Mail mehr aus.
+
+    Der Stand kommt aus der Datenbank und nicht nur aus diesem Lauf, damit
+    auch ein zweiter Lauf am selben Tag nichts doppelt schickt.
+  */
+  const heuteSchon = await heuteAngeschrieben();
+
+  /*
     Wer nicht widersprochen hat und noch nicht gekauft hat.
 
     Ein eigenes Haekchen im Shop gibt es seit dem 23.09.2026 nicht mehr:
@@ -105,7 +121,15 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   /* 1. Die Frage, frühestens vier Stunden und spätestens drei Tage danach. */
   const fragen = offen.filter((a) => !a.frageAm && stundenSeit(a.eingegangenAm) >= 4 && stundenSeit(a.eingegangenAm) <= 72);
   for (const a of fragen) {
+    const adresse = a.email.toLowerCase();
+    if (heuteSchon.has(adresse)) {
+      // Schon angeschrieben: Korb abhaken, keine zweite Mail.
+      if (!probelauf) await frageVermerken(a.id);
+      ergebnis.zusammengefasst++;
+      continue;
+    }
     if (probelauf) {
+      heuteSchon.add(adresse);
       ergebnis.gefragt++;
       continue;
     }
@@ -122,6 +146,7 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
         abmeldenLink: abmeldenLink(a),
       });
       await frageVermerken(a.id);
+      heuteSchon.add(adresse);
       ergebnis.gefragt++;
       uebrig--;
     } catch (f) {
@@ -144,7 +169,15 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
 
   for (const a of kandidaten) {
     const art = gezogene.has(a.id) ? "baendchen" : passendesGeschenk(a.show);
+    const adresse = a.email.toLowerCase();
+    if (heuteSchon.has(adresse)) {
+      // Diese Adresse hat ihre Mail heute schon, der Korb ist damit erledigt.
+      if (!probelauf) await angebotVermerken(a.id);
+      ergebnis.zusammengefasst++;
+      continue;
+    }
     if (probelauf) {
+      heuteSchon.add(adresse);
       if (art === "baendchen") ergebnis.gezogen++;
       else ergebnis.getroestet++;
       continue;
@@ -152,6 +185,7 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
     if (uebrig <= 0) break;
     try {
       await angebotSchicken(a, art);
+      heuteSchon.add(adresse);
       uebrig--;
       if (art === "baendchen") ergebnis.gezogen++;
       else ergebnis.getroestet++;

@@ -24,10 +24,13 @@ export async function GET(request: Request) {
     // die Frage, und drei Tage spaeter wird das Getraenkepaket verlost.
     const a = await abbrecherLauf().catch((f) => {
       console.error("[abbrecher] Lauf fehlgeschlagen:", f);
-      return { gefragt: 0, gezogen: 0, getroestet: 0, uebersprungen: 0, fehler: [] };
+      return { gefragt: 0, gezogen: 0, getroestet: 0, uebersprungen: 0, zusammengefasst: 0, fehler: [] };
     });
-    if (a.gefragt || a.gezogen || a.getroestet)
-      console.log(`[abbrecher] ${a.gefragt} gefragt, ${a.gezogen} gezogen, ${a.getroestet} mit Glas oder Zauberstab`);
+    if (a.gefragt || a.gezogen || a.getroestet || a.zusammengefasst)
+      console.log(
+        `[abbrecher] ${a.gefragt} gefragt, ${a.gezogen} gezogen, ${a.getroestet} mit Glas oder Zauberstab`
+        + (a.zusammengefasst ? `, ${a.zusammengefasst} weitere Körbe ohne eigene Mail abgehakt` : ""),
+      );
     console.log(
       `[bewertung] ${e.datum}: ${e.ausgeschaltet ? "ausgeschaltet" : `${e.verschickt.length} verschickt, ${e.uebersprungen.length} übersprungen, ${e.fehler.length} Fehler`}`,
     );

@@ -167,6 +167,27 @@ export async function grundMerken(token: string, grund: string, text: string): P
   return z.length > 0;
 }
 
+/**
+ * Wer heute schon eine Abbrecher-Mail bekommen hat.
+ *
+ * Eine Adresse kann mehrere liegengebliebene Körbe haben, etwa wenn
+ * jemand drei Termine durchprobiert. Ohne diese Abfrage bekäme er für
+ * jeden Korb eine eigene Mail: Am 30.09.2026 waren es acht Stück
+ * innerhalb einer Minute an dieselbe Adresse.
+ *
+ * Gezählt wird nach Kalendertag und über beide Mailarten hinweg, Frage
+ * wie Angebot. Mehr als eine Mail am Tag bekommt niemand.
+ */
+export async function heuteAngeschrieben(): Promise<Set<string>> {
+  const z = (await db()`
+    select distinct lower(email) as email
+      from shop_buchung
+     where (frage_am::date = current_date or angebot_am::date = current_date)
+       and email <> ''
+  `) as Array<{ email: string }>;
+  return new Set(z.map((r) => r.email));
+}
+
 export async function frageVermerken(id: string): Promise<void> {
   await db()`update shop_buchung set frage_am = now() where id = ${id}`;
 }
