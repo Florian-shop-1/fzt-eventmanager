@@ -157,7 +157,20 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 9 Kündigung",
+    /*
+      Ein Satz, mehr nicht.
+
+      "schreib rein Urlaub - es gelten die gesetzlichen regelungen, mehr
+      nicht. nur diesen einen satz zum urlaub" (Florian, 30.09.2026). Der
+      Paragraph fehlte ganz, und das Nachweisgesetz verlangt eine Angabe
+      zum Urlaub. Mehr als den Verweis auf das Gesetz wollte Florian
+      ausdruecklich nicht.
+    */
+    titel: "§ 9 Urlaub",
+    absaetze: ["(1) Es gelten die gesetzlichen Regelungen."],
+  },
+  {
+    titel: "§ 10 Kündigung",
     absaetze: [
       "(1) Das Arbeitsverhältnis endet grundsätzlich automatisch zum in § 2 vereinbarten Zeitpunkt.",
       "(2) Die ordentliche Kündigung wird während der Vertragslaufzeit ausdrücklich zugelassen.",
@@ -169,13 +182,13 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 10 Pflichten des Arbeitnehmers",
+    titel: "§ 11 Pflichten des Arbeitnehmers",
     absaetze: [
       "(1) Der Arbeitnehmer verpflichtet sich, die ihm übertragenen Aufgaben sorgfältig und gewissenhaft auszuführen, Weisungen des Arbeitgebers und seiner Beauftragten zu beachten, Sicherheits-, Hygiene-, Datenschutz- und Brandschutzregelungen einzuhalten, pünktlich und arbeitsfähig zum Dienst zu erscheinen, betriebliche Einrichtungen und Arbeitsmittel sorgfältig zu behandeln und betriebliche Störungen, Schäden oder besondere Vorkommnisse unverzüglich zu melden.",
     ],
   },
   {
-    titel: "§ 11 Verschwiegenheit und magische Geheimnisse",
+    titel: "§ 12 Verschwiegenheit und magische Geheimnisse",
     absaetze: [
       "(1) Der Arbeitnehmer ist verpflichtet, über sämtliche nicht öffentlich bekannten betrieblichen Angelegenheiten Stillschweigen zu bewahren.",
       "(2) Dies betrifft insbesondere Methoden und Funktionsweisen von Illusionen und Zauberkunststücken, Tricktechnik und Requisiten, Showabläufe und Regieinformationen, technische Einrichtungen, interne betriebliche Abläufe, Kunden- und Gästedaten sowie sonstige Geschäfts- und Betriebsgeheimnisse.",
@@ -186,14 +199,14 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 12 Social Media und Öffentlichkeit",
+    titel: "§ 13 Social Media und Öffentlichkeit",
     absaetze: [
       "(1) Interne Vorgänge, Showgeheimnisse, Requisiten, Backstage-Bereiche, technische Einrichtungen, Gästedaten, Mitarbeiterdaten oder sonstige nicht öffentliche betriebliche Informationen dürfen ohne vorherige Zustimmung des Arbeitgebers weder veröffentlicht noch Dritten zugänglich gemacht werden.",
       "(2) Der Arbeitnehmer ist nicht berechtigt, im Namen des Arbeitgebers öffentliche Erklärungen abzugeben.",
     ],
   },
   {
-    titel: "§ 13 Arbeitsmittel",
+    titel: "§ 14 Arbeitsmittel",
     absaetze: [
       "(1) Überlassene Arbeitsmittel bleiben Eigentum des Arbeitgebers.",
       "(2) Sämtliche Schlüssel, Zugangskarten, Geräte, Kostüme, Requisiten, Dokumente und sonstigen Arbeitsmittel sind spätestens am letzten Arbeitstag vollständig zurückzugeben.",
@@ -201,7 +214,7 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 14 Nebentätigkeiten und weitere Beschäftigungen",
+    titel: "§ 15 Nebentätigkeiten und weitere Beschäftigungen",
     absaetze: [
       "(1) Weitere Beschäftigungen, insbesondere weitere kurzfristige Beschäftigungen, sind dem Arbeitgeber vor Aufnahme bzw. unverzüglich nach Bekanntwerden anzuzeigen.",
       "(2) Dies gilt unabhängig davon, ob sie bei einem anderen Arbeitgeber oder im Rahmen einer selbstständigen Tätigkeit ausgeübt werden.",
@@ -209,7 +222,7 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 15 Ausschlussfristen",
+    titel: "§ 16 Ausschlussfristen",
     absaetze: [
       "(1) Ansprüche aus dem Arbeitsverhältnis sind innerhalb von drei Monaten nach Fälligkeit mindestens in Textform gegenüber der anderen Vertragspartei geltend zu machen.",
       "(2) Wird der Anspruch zurückgewiesen oder nicht innerhalb von zwei Wochen beantwortet, muss er innerhalb weiterer drei Monate gerichtlich geltend gemacht werden.",
@@ -217,7 +230,7 @@ const KURZFRISTIG: Abschnitt[] = [
     ],
   },
   {
-    titel: "§ 16 Schlussbestimmungen",
+    titel: "§ 17 Schlussbestimmungen",
     absaetze: [
       "(1) Dieser Vertrag tritt mit seiner Unterzeichnung an die Stelle sämtlicher zuvor zwischen den Parteien geschlossener Vorverträge, Vertragsentwürfe und früherer Vertragsfassungen, soweit diese dasselbe Beschäftigungsverhältnis betreffen.",
       "(2) Bei mehreren von beiden Parteien unterzeichneten Vertragsfassungen gilt ausschließlich die zeitlich zuletzt von beiden Parteien unterzeichnete Fassung, sofern darin nicht ausdrücklich etwas anderes bestimmt ist.",
@@ -321,7 +334,7 @@ const TEILZEIT: Abschnitt[] = [
       "(1) Der Arbeitnehmer erhält ausschließlich den gesetzlichen Mindesturlaub, sofern nicht ausdrücklich schriftlich zusätzlicher Urlaub vereinbart wird.",
       "(2) Die Höhe des gesetzlichen Urlaubsanspruchs richtet sich nach der tatsächlichen bzw. regelmäßigen Zahl der Arbeitstage pro Woche und den gesetzlichen Bestimmungen.",
       "(3) Bei einer regelmäßigen Vier-Tage-Woche entspricht dies derzeit 16 Arbeitstagen gesetzlichen Mindesturlaubs pro Kalenderjahr.",
-      "(4) Bei Eintritt oder Ausscheiden während des Kalenderjahres richtet sich der Teilurlaubsanspruch nach den gesetzlichen Bestimmungen.",
+      "(4) Bei Eintritt oder Ausscheiden während des Kalenderjahres richtet sich der Teilurlaubsanspruch nach den gesetzlichen Bestimmungen. Für jeden vollen Monat des Bestehens des Arbeitsverhältnisses entsteht ein Urlaubsanspruch in Höhe von 1/12 des Jahresurlaubs. Bruchteile von Urlaubstagen von mindestens einem halben Tag werden auf volle Urlaubstage aufgerundet; geringere Bruchteile verfallen.",
       "(5) Urlaub ist vor Antritt zu beantragen und bedarf der Genehmigung des Arbeitgebers.",
       "(6) Der Arbeitgeber kann unter Berücksichtigung der gesetzlichen Vorgaben Betriebsferien festlegen.",
       "(7) Aufgrund des Theaterbetriebes soll Urlaub nach Möglichkeit insbesondere während spiel- bzw. veranstaltungsarmer Zeiten und während einer betrieblichen Sommerpause genommen werden.",
