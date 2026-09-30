@@ -5,8 +5,9 @@ import { bewirtungLesen, entwurfAnlegen, moeglicheDubletten } from "@/lib/bewirt
 import { darfGesellschaftWaehlen, istGesellschaft } from "@/lib/bewirtung/gesellschaft";
 
 /**
- * Nimmt das Belegfoto vom Handy entgegen, lässt es von Claude lesen und legt
- * einen Entwurf an. Das Handy verkleinert vorher auf höchstens 2200 Pixel.
+ * Nimmt den Beleg entgegen, lässt ihn von Claude lesen und legt einen
+ * Entwurf an. Vom Handy kommt ein Foto, auf höchstens 2200 Pixel
+ * verkleinert; vom Rechner oft ein PDF, das unverändert hereinkommt.
  */
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,19 @@ export async function POST(request: Request) {
   const datei = form?.get("foto");
   if (!(datei instanceof File)) return NextResponse.json({ ok: false, fehler: "Kein Foto." }, { status: 400 });
   if (datei.size > HOECHSTENS) return NextResponse.json({ ok: false, fehler: "Das Foto ist zu groß." }, { status: 413 });
-  if (!["image/jpeg", "image/png", "image/webp"].includes(datei.type)) {
-    return NextResponse.json({ ok: false, fehler: "Bitte ein Foto (JPEG oder PNG)." }, { status: 415 });
+  /*
+    Foto oder PDF.
+
+    Das Handy schickt ein verkleinertes JPEG, der Rechner oft ein PDF:
+    Rechnungen von Lieferanten, Meta oder Google kommen so per Mail.
+    Beides liest dasselbe Modell, beides wird unveraendert gespeichert
+    (Florian, 30.09.2026).
+  */
+  if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(datei.type)) {
+    return NextResponse.json(
+      { ok: false, fehler: "Bitte ein Foto (JPEG oder PNG) oder ein PDF." },
+      { status: 415 },
+    );
   }
 
   /*

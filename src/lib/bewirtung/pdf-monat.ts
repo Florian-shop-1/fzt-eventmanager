@@ -301,16 +301,58 @@ export async function belegeMonatsPdf(d: MonatsPdfDaten): Promise<Buffer> {
     const platzHoehe = y - UNTEN;
     if (foto && platzHoehe > 80) {
       try {
-        const bild = foto.typ.includes("png")
-          ? await pdf.embedPng(foto.bytes)
-          : await pdf.embedJpg(foto.bytes);
         const maxBreite = RECHTS - LINKS;
-        const faktor = Math.min(maxBreite / bild.width, platzHoehe / bild.height);
-        const w = bild.width * faktor;
-        const h = bild.height * faktor;
-        s.drawImage(bild, { x: LINKS + (maxBreite - w) / 2, y: y - h, width: w, height: h });
+        /*
+          Ein Beleg als PDF wird Seite fuer Seite uebernommen.
+
+          Rechnungen von Lieferanten, Meta oder Google kommen als PDF,
+          und seit dem 30.09.2026 laesst sich auch am Scanner eines
+          hochladen. Als Bild einzubetten geht dann nicht; frueher stand
+          hier deshalb "liess sich nicht einbetten", und im Monatsblatt
+          fuers Steuerbuero fehlte ausgerechnet die Rechnung.
+
+          Die erste Seite kommt unter den Beleg, jede weitere bekommt
+          eine eigene Seite: Ein mehrseitiger Vertrag soll vollstaendig
+          in der Mappe liegen.
+        */
+        if (foto.typ.includes("pdf")) {
+          const quelle = await PDFDocument.load(new Uint8Array(foto.bytes));
+          const seitenzahlQuelle = quelle.getPageCount();
+          const eingebettet = await pdf.embedPdf(
+            quelle,
+            Array.from({ length: seitenzahlQuelle }, (_, i) => i),
+          );
+          eingebettet.forEach((seite, i) => {
+            if (i === 0) {
+              const faktor = Math.min(maxBreite / seite.width, platzHoehe / seite.height);
+              s.drawPage(seite, {
+                x: LINKS + (maxBreite - seite.width * faktor) / 2,
+                y: y - seite.height * faktor,
+                width: seite.width * faktor,
+                height: seite.height * faktor,
+              });
+              return;
+            }
+            const weiter = pdf.addPage([BREITE, HOEHE]);
+            const faktor = Math.min(maxBreite / seite.width, (HOEHE - 2 * UNTEN) / seite.height);
+            weiter.drawPage(seite, {
+              x: LINKS + (maxBreite - seite.width * faktor) / 2,
+              y: UNTEN,
+              width: seite.width * faktor,
+              height: seite.height * faktor,
+            });
+          });
+        } else {
+          const bild = foto.typ.includes("png")
+            ? await pdf.embedPng(foto.bytes)
+            : await pdf.embedJpg(foto.bytes);
+          const faktor = Math.min(maxBreite / bild.width, platzHoehe / bild.height);
+          const wBild = bild.width * faktor;
+          const hBild = bild.height * faktor;
+          s.drawImage(bild, { x: LINKS + (maxBreite - wBild) / 2, y: y - hBild, width: wBild, height: hBild });
+        }
       } catch {
-        schreib("Das Belegfoto liess sich nicht einbetten.", LINKS, y - 12, 8, normal, GRAU);
+        schreib("Der Beleg liess sich nicht einbetten.", LINKS, y - 12, 8, normal, GRAU);
       }
     } else if (!foto) {
       schreib("Zu diesem Beleg liegt kein Foto vor.", LINKS, y - 12, 8, normal, GRAU);

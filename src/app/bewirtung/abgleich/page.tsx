@@ -17,6 +17,12 @@ import { loesen, ohneBeleg, regelSpeichern, regelWeg, zuordnen } from "./aktione
 
 export const metadata = { title: "Belege abgleichen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
+/*
+  Ein PDF zu lesen dauert laenger als ein Formular abzuschicken: Das
+  Modell sieht sich mehrere Seiten an. Ohne diese Zeile bricht Vercel
+  mitten im Lesen ab (Florian, 30.09.2026).
+*/
+export const maxDuration = 120;
 
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const datumDe = (iso: string) => iso.slice(0, 10).split("-").reverse().join(".");
@@ -127,15 +133,25 @@ export default async function AbgleichSeite({
           --------------------------------------------------------------- */}
       {kontenliste.some((k) => k.art === "kreditkarte" && k.aktiv) && (
         <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
-          <summary className="cursor-pointer font-medium">Kreditkartenabrechnung hochladen</summary>
+          <summary className="cursor-pointer font-medium">
+            Kreditkartenabrechnung hochladen (PDF oder CSV)
+          </summary>
           <p className="mt-2 max-w-prose text-xs text-leise">
-            Im OnlineBanking die Umsatzliste der Karte als CSV oder camt herunterladen und hier einlesen.
-            Danach stehen die einzelnen Kartenzahlungen in dieser Liste und bekommen ihren Beleg, genau wie
-            die Abbuchungen vom Konto.
+            Im OnlineBanking die Abrechnung der Karte herunterladen und hier einlesen, als PDF oder als CSV.
+            Das PDF liest dieselbe Erkennung, die auch die Belege liest; die Summen und der Lastschrifteinzug
+            bleiben dabei draußen, sonst stünde jeder Betrag doppelt in den Büchern. Danach stehen die
+            einzelnen Kartenzahlungen in dieser Liste und bekommen ihren Beleg, genau wie die Abbuchungen
+            vom Konto.
           </p>
           <form action={dateiEinlesen} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="zurueck" value={`/bewirtung/abgleich?m=${monat}`} />
-            <input type="file" name="datei" accept=".csv,.xml,.sta,.txt,.mt940" required className="text-sm" />
+            <input
+              type="file"
+              name="datei"
+              accept=".pdf,.csv,.xml,.sta,.txt,.mt940"
+              required
+              className="text-sm"
+            />
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Karte</span>
               <select name="konto" className="w-56" defaultValue={kontenliste.find((k) => k.art === "kreditkarte")?.endetAuf ?? ""}>

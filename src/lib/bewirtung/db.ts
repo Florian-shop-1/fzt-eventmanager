@@ -13,6 +13,14 @@ export interface Bewirtung {
   erstelltAm: string;
   erstelltVon: string;
   fotoHash: string;
+  /**
+   * Womit der Beleg hereinkam: image/jpeg, image/png oder application/pdf.
+   *
+   * Die Anzeige braucht das. Ein PDF in ein Bildfeld zu haengen ergibt
+   * ein kaputtes Symbol, und der Beleg sieht aus, als waere er weg
+   * (Florian, 30.09.2026).
+   */
+  fotoTyp: string;
   datum: string | null;
   restaurant: string;
   anschrift: string;
@@ -46,7 +54,7 @@ export interface Bewirtung {
   stornoGrund: string | null;
 }
 
-const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, datum::text as datum, restaurant, anschrift, gesellschaft,
+const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, foto_typ, datum::text as datum, restaurant, anschrift, gesellschaft,
   brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, art, kategorie, zweck, zahlweg,
   privat_ausgelegt, anlass, teilnehmer, bewirtender,
   ort_der_bewirtung, lesung, notiz, unterschrift, unterschrieben_am, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
@@ -61,6 +69,7 @@ function baue(z: Record<string, unknown>): Bewirtung {
     erstelltAm: t(z.erstellt_am)!,
     erstelltVon: String(z.erstellt_von),
     fotoHash: String(z.foto_hash),
+    fotoTyp: String(z.foto_typ ?? "image/jpeg"),
     datum: (z.datum as string) ?? null,
     restaurant: String(z.restaurant ?? ""),
     anschrift: String(z.anschrift ?? ""),

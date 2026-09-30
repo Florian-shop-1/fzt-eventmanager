@@ -23,7 +23,8 @@ import {
   zahlungEintragen,
   zahlungLoesen,
 } from "@/lib/rechnung/db";
-import { ausDatei, umsaetzeUebernehmen } from "@/lib/rechnung/bankimport";
+import { ausDatei, umsaetzeUebernehmen, type RoherUmsatz } from "@/lib/rechnung/bankimport";
+import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kartenauszug";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -165,23 +166,30 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
   const roh = Buffer.from(await datei.arrayBuffer());
 
   /*
-    Ein PDF sagt es besser selbst.
+    CSV oder PDF, beides geht.
 
-    Die Abrechnung laesst sich im OnlineBanking als PDF oder als CSV
-    herunterladen, und das PDF ist der naheliegendere Knopf. Gelesen
-    werden kann es hier nicht, und "keine lesbaren Umsaetze" laesst
-    jemanden ratlos zurueck, der alles richtig gemacht zu haben glaubt.
+    Im OnlineBanking liegt die Kartenabrechnung als PDF naeher als die
+    CSV, und wer sie heruntergeladen hat, soll sie hochladen koennen,
+    ohne noch einmal loszuziehen (Florian, 30.09.2026). Das PDF liest
+    dasselbe Modell, das auch die Belege liest.
   */
+  let liste: RoherUmsatz[];
+  let ausPdf = "";
   if (roh.subarray(0, 4).toString("latin1") === "%PDF") {
-    zurueck(
-      ziel,
-      "Das ist ein PDF, daraus kann ich die einzelnen Buchungen nicht lesen. " +
-        "Bitte im OnlineBanking dieselbe Abrechnung als CSV herunterladen.",
-    );
+    if (!auszugsleserEingerichtet()) {
+      zurueck(ziel, "Das Lesen von PDFs ist hier nicht eingerichtet (ANTHROPIC_API_KEY fehlt).");
+    }
+    try {
+      const lesung = await kartenauszugLesen(roh.toString("base64"));
+      liste = lesung.umsaetze;
+      ausPdf = lesung.hinweis;
+    } catch (f) {
+      zurueck(ziel, f instanceof Error ? f.message : "Das PDF liess sich nicht lesen.");
+    }
+  } else {
+    liste = ausDatei(roh.toString("utf8"));
   }
 
-  const inhalt = roh.toString("utf8");
-  const liste = ausDatei(inhalt);
   if (liste.length === 0) {
     zurueck(ziel, "In dieser Datei standen keine lesbaren Umsätze.");
   }
@@ -208,7 +216,14 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
   zurueck(
     ziel,
     `${e.neu} neue Umsätze, davon ${e.zugeordnet} automatisch zugeordnet, ${e.offen} offen` +
-      `${e.schonBekannt > 0 ? `, ${e.schonBekannt} waren schon bekannt` : ""}.`,
+      `${e.schonBekannt > 0 ? `, ${e.schonBekannt} waren schon bekannt` : ""}.` +
+      /*
+        Was beim Lesen unsicher war, gehoert dazu.
+
+        Eine aus dem PDF gelesene Zeile kann falsch sein, und wer das
+        erst beim Steuerbuero erfaehrt, hat den Monat schon abgehakt.
+      */
+      `${ausPdf ? ` Hinweis zum PDF: ${ausPdf}` : ""}`,
   );
 }
 

@@ -218,8 +218,31 @@ export default async function BelegSeite({
           </form>
 
           <div className="space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/bewirtung/foto/${b.id}`} alt="Beleg" className="w-full rounded-lg border border-linie" />
+            {/*
+              Bild oder PDF, beides soll man sehen.
+
+              Rechnungen aus dem Postfach sind PDFs. Im Bildfeld blieb
+              davon ein kaputtes Symbol, und wer den Entwurf prüfen soll,
+              sah seinen Beleg nicht (Florian, 30.09.2026).
+            */}
+            {b.fotoTyp.includes("pdf") ? (
+              <object
+                data={`/bewirtung/foto/${b.id}`}
+                type="application/pdf"
+                className="h-[70vh] w-full rounded-lg border border-linie"
+                aria-label="Beleg als PDF"
+              >
+                <p className="p-4 text-sm">
+                  Dieses Gerät zeigt PDFs nicht im Browser.{" "}
+                  <a href={`/bewirtung/foto/${b.id}`} className="underline">
+                    Beleg öffnen
+                  </a>
+                </p>
+              </object>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/bewirtung/foto/${b.id}`} alt="Beleg" className="w-full rounded-lg border border-linie" />
+            )}
             <form action={belegVerwerfen}>
               <input type="hidden" name="id" value={b.id} />
               <button type="submit" className="text-xs text-leise underline">
