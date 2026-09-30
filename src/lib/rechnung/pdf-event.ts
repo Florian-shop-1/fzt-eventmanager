@@ -1,5 +1,5 @@
 /**
- * Die Rechnung zu einer Veranstaltung als PDF.
+ * Das Geschäftspapier des Hauses: Rechnungen und alles, was so aussehen soll.
  *
  * Bisher kam sie aus Lexware Office. Jetzt entsteht sie hier, aus den
  * Positionen des angenommenen Angebots, und sieht aus wie das Angebot:
@@ -21,6 +21,25 @@ import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import type { Absender } from "@/lib/angebot/pdf";
 
 export interface RechnungsPdfDaten {
+  /**
+   * Was oben drübersteht: "Rechnung" (Standard) oder etwa "Angebot".
+   *
+   * Damit dasselbe Blatt später auch andere Schriftstücke tragen kann,
+   * ohne dass jemand ein zweites Aussehen pflegen muss (Florian,
+   * 30.09.2026: "diese kannst du auch für die Angebote nehmen").
+   */
+  art?: string;
+  /**
+   * Sind die Einzelpreise brutto oder netto?
+   *
+   * Im Veranstaltungsgeschäft sind Preise Bruttopreise, der Kunde sieht,
+   * was er zahlt. Die Monatsrechnung an die Gastro rechnet dagegen netto
+   * und schlägt die Umsatzsteuer auf. Beides muss dieses Blatt können,
+   * sonst gäbe es wieder zwei.
+   */
+  preise?: "brutto" | "netto";
+  /** Der Satz ganz unten. Leer lassen für den Standardsatz. */
+  schluss?: string;
   nummer: string;
   rechnungsdatum: string;
   faelligAm: string;
@@ -92,9 +111,42 @@ function umbrechen(text: string, font: PDFFont, groesse: number, breite: number)
 const ibanLesbar = (iban: string) =>
   iban.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/(.{4})/g, "$1 ").trim();
 
+/**
+ * Dieselbe Rechnung, nur von unten gerechnet.
+ *
+ * `angebotssumme` nimmt Bruttopreise und holt die Steuer heraus. Hier sind
+ * die Preise netto und die Steuer kommt obendrauf. Getrennt nach Satz,
+ * weil beides auf der Rechnung getrennt ausgewiesen werden muss.
+ */
+function nettoSumme(positionen: Position[]): {
+  bruttoCent: number;
+  nettoCent: number;
+  ustNachSatz: Array<{ satz: number; nettoCent: number; ustCent: number }>;
+} {
+  const nachSatz = new Map<number, { nettoCent: number; ustCent: number }>();
+  for (const p of positionen) {
+    const netto = positionsSumme(p);
+    const bisher = nachSatz.get(p.ust) ?? { nettoCent: 0, ustCent: 0 };
+    nachSatz.set(p.ust, {
+      nettoCent: bisher.nettoCent + netto,
+      ustCent: bisher.ustCent + Math.round(netto * p.ust),
+    });
+  }
+  const ustNachSatz = [...nachSatz.entries()]
+    .map(([satz, werte]) => ({ satz, ...werte }))
+    .sort((a, b) => a.satz - b.satz);
+  const nettoCent = ustNachSatz.reduce((n, e) => n + e.nettoCent, 0);
+  const ustCent = ustNachSatz.reduce((n, e) => n + e.ustCent, 0);
+  return { nettoCent, bruttoCent: nettoCent + ustCent, ustNachSatz };
+}
+
 export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
+  const art = d.art ?? "Rechnung";
+  const netto = d.preise === "netto";
+  const istRechnung = art === "Rechnung";
+
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Rechnung ${d.nummer}`);
+  pdf.setTitle(`${art} ${d.nummer}`);
   pdf.setProducer("FZT Eventmanager");
 
   const normal = await pdf.embedFont(StandardFonts.Helvetica);
@@ -123,12 +175,47 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
       y: yy, size: groesse, font: f, color: farbe,
     });
 
+  /*
+    Der Briefkopf: Logo in der Mitte, darunter HOME OF MAGIC.
+
+    Mittig und nicht in der Ecke, weil es ein Briefbogen ist und kein
+    Formular: So sieht die Rechnung aus wie das Anschreiben und der
+    Gutschein, die auch aus der Mitte heraus gesetzt sind (Florian,
+    30.09.2026).
+
+    Der Untertitel steht gesperrt, weil pdf-lib keinen Zeichenabstand
+    kennt: Die Buchstaben werden einzeln mit Leerzeichen gesetzt. Das
+    ist keine Spielerei, ungesperrt sähen sieben Buchstaben in 7 Punkt
+    wie ein Fleck aus.
+  */
+  const UNTERTITEL = "HOME OF MAGIC".split("").join(" ").replace(/   /g, "    ");
+
   const neueSeite = (): void => {
     if (seiten.length > 0) s = pdf.addPage([BREITE, HOEHE]);
     seiten.push(s);
+    const erste = seiten.length === 1;
+
+    if (erste) {
+      const h = 27;
+      const breite = logo ? (logo.width * h) / logo.height : 0;
+      if (logo) {
+        s.drawImage(logo, { x: (BREITE - breite) / 2, y: HOEHE - 52 - h, width: breite, height: h });
+      }
+      const u = normal.widthOfTextAtSize(UNTERTITEL, 6.5);
+      schreib(UNTERTITEL, (BREITE - u) / 2, HOEHE - 92, 6.5, normal, GOLD);
+      s.drawLine({
+        start: { x: LINKS, y: HOEHE - 106 },
+        end: { x: RECHTS, y: HOEHE - 106 },
+        thickness: 0.6,
+        color: LINIE,
+      });
+      y = HOEHE - 64;
+      return;
+    }
+
     y = HOEHE - 64;
     if (logo) {
-      const h = seiten.length === 1 ? 22 : 16;
+      const h = 16;
       s.drawImage(logo, {
         x: RECHTS - (logo.width * h) / logo.height,
         y: y - 4,
@@ -136,10 +223,8 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
         height: h,
       });
     }
-    if (seiten.length > 1) {
-      schreib(`Rechnung ${d.nummer}`, LINKS, y, 11, fett);
-      y -= 24;
-    }
+    schreib(`${art} ${d.nummer}`, LINKS, y, 11, fett);
+    y -= 24;
   };
 
   const platz = (hoehe: number): void => {
@@ -150,7 +235,7 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
      Kopf
      ------------------------------------------------------------------ */
   neueSeite();
-  y = HOEHE - 120;
+  y = HOEHE - 132;
 
   schreib(
     `${d.absender.firma}, ${d.absender.strasse}, ${d.absender.plz} ${d.absender.ort}`,
@@ -174,15 +259,28 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
     rechtsB(v, RECHTS, yr, 9.5, fett);
     yr -= 14;
   };
-  eck("Rechnungsnr.", d.nummer);
-  eck("Rechnungsdatum", datumDe(d.rechnungsdatum));
+  eck(`${art}snr.`, d.nummer);
+  eck(`${art}sdatum`, datumDe(d.rechnungsdatum));
   if (d.leistungszeitpunkt) eck("Leistungsdatum", datumDe(d.leistungszeitpunkt));
-  eck("Zahlbar bis", datumDe(d.faelligAm));
+  /*
+    Auf einem Angebot ist noch nichts zu zahlen, da ist das Datum eine
+    Frist: bis dahin gilt der Preis.
+  */
+  eck(istRechnung ? "Zahlbar bis" : "Gültig bis", datumDe(d.faelligAm));
 
-  y = Math.min(y, yr) - 30;
+  y = Math.min(y, yr) - 34;
 
-  schreib(`Rechnung ${d.nummer}`, LINKS, y, 18, fett);
-  y -= 8;
+  /*
+    Erst das Wort, dann die Nummer.
+
+    Die Zeile "RECHNUNG" gesperrt und klein darüber, die Nummer gross
+    darunter: So erkennt man auf einen Meter Abstand, was das Blatt ist,
+    und aus der Hand, welches.
+  */
+  schreib(art.toUpperCase().split("").join(" "), LINKS, y, 7.5, normal, GOLD);
+  y -= 20;
+  schreib(d.nummer, LINKS, y, 19, fett);
+  y -= 9;
   s.drawRectangle({ x: LINKS, y: y - 4, width: 44, height: 2.5, color: GOLD });
   y -= 24;
 
@@ -199,7 +297,7 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
     schreib("Bezeichnung", LINKS + 26, y, 8, fett, GRAU);
     rechtsB("Menge", 352, y, 8, fett, GRAU);
     schreib("Einheit", 372, y, 8, fett, GRAU);
-    rechtsB("Einzel €", 452, y, 8, fett, GRAU);
+    rechtsB(netto ? "Einzel netto" : "Einzel €", 452, y, 8, fett, GRAU);
     rechtsB("USt", 492, y, 8, fett, GRAU);
     rechtsB("Gesamt €", RECHTS, y, 8, fett, GRAU);
     y -= 6;
@@ -253,16 +351,42 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
   /* ------------------------------------------------------------------
      Summe und Steuerausweis
      ------------------------------------------------------------------ */
-  const summe = angebotssumme(positionen);
+  /*
+    Netto oder brutto gerechnet.
+
+    Bei Bruttopreisen steckt die Steuer im Preis und wird herausgerechnet.
+    Bei Nettopreisen kommt sie obendrauf. Beides muss sauber je Steuersatz
+    getrennt bleiben, das verlangt § 14 UStG.
+  */
+  const summe = netto ? nettoSumme(positionen) : angebotssumme(positionen);
   const anzahlung = d.anzahlungCent ?? 0;
   const offen = summe.bruttoCent - anzahlung;
 
   platz(120);
   y -= 8;
 
-  const kastenHoehe = 30 + (anzahlung > 0 ? 28 : 0);
+  /*
+    Bei Nettopreisen gehoert der Aufbau in den Kasten.
+
+    Wer netto rechnet, will Nettobetrag, Steuer und Endbetrag
+    untereinander sehen; das ist die Ansicht, die das Steuerbuero prueft.
+  */
+  const nettoZeilen = netto ? 14 + summe.ustNachSatz.length * 14 : 0;
+  const kastenHoehe = 30 + nettoZeilen + (anzahlung > 0 ? 28 : 0);
   s.drawRectangle({ x: 300, y: y - kastenHoehe + 14, width: RECHTS - 300 + 8, height: kastenHoehe, color: FLAECHE });
-  schreib(anzahlung > 0 ? "Rechnungsbetrag" : "Rechnungsbetrag", 312, y, 11, fett);
+
+  if (netto) {
+    schreib("Nettobetrag", 312, y, 9.5, normal, GRAU);
+    rechtsB(`${eur(summe.nettoCent)} €`, RECHTS, y, 9.5);
+    y -= 14;
+    for (const e of summe.ustNachSatz) {
+      schreib(`zzgl. USt ${Math.round(e.satz * 100)} %`, 312, y, 9.5, normal, GRAU);
+      rechtsB(`${eur(e.ustCent)} €`, RECHTS, y, 9.5);
+      y -= 14;
+    }
+  }
+
+  schreib(`${art}sbetrag`, 312, y, 11, fett);
   rechtsB(`${eur(summe.bruttoCent)} €`, RECHTS, y, anzahlung > 0 ? 11 : 13, fett);
   y -= 16;
 
@@ -280,8 +404,10 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
     .map((e) => `USt ${Math.round(e.satz * 100)} % (${eur(e.ustCent)} € auf Netto ${eur(e.nettoCent)} €)`)
     .join(", ");
   for (const zeile of umbrechen(
-    `Im Rechnungsbetrag von ${eur(summe.bruttoCent)} € (Netto: ${eur(summe.nettoCent)} €) sind ${steuersatz} enthalten. ` +
-      "Alle Preise sind Bruttopreise inklusive der gesetzlichen Mehrwertsteuer.",
+    netto
+      ? `Alle Einzelpreise sind Nettopreise. Auf den Nettobetrag von ${eur(summe.nettoCent)} € entfallen ${steuersatz}.`
+      : `Im ${art}sbetrag von ${eur(summe.bruttoCent)} € (Netto: ${eur(summe.nettoCent)} €) sind ${steuersatz} enthalten. ` +
+        "Alle Preise sind Bruttopreise inklusive der gesetzlichen Mehrwertsteuer.",
     normal, 8, RECHTS - LINKS,
   )) {
     schreib(zeile, LINKS, y, 8, normal, GRAU);
@@ -295,7 +421,10 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
   platz(96);
 
   s.drawRectangle({ x: LINKS, y: y - 74, width: RECHTS - LINKS, height: 92, color: FLAECHE });
-  schreib(`Bitte bis zum ${datumDe(d.faelligAm)} überweisen`, LINKS + 14, y, 11, fett);
+  schreib(
+    istRechnung ? `Bitte bis zum ${datumDe(d.faelligAm)} überweisen` : "Unsere Bankverbindung",
+    LINKS + 14, y, 11, fett,
+  );
   y -= 16;
 
   for (const zeile of umbrechen(d.hinweis, normal, 9, RECHTS - LINKS - 28)) {
@@ -320,9 +449,16 @@ export async function rechnungsPdfEvent(d: RechnungsPdfDaten): Promise<Buffer> {
   /* ------------------------------------------------------------------
      Schluss und Fußzeile
      ------------------------------------------------------------------ */
+  /*
+    Der Schlusssatz ist schmueckend, und nur fuer ihn eine zweite Seite
+    anzufangen waere albern: Ein Blatt mit einer einzigen goldenen Zeile
+    kam am 30.09.2026 tatsaechlich aus dem Drucker. Passt er nicht mehr,
+    entfaellt er.
+  */
   y -= 20;
-  platz(30);
-  schreib("Vielen Dank für euer Vertrauen. Wir freuen uns auf euch.", LINKS, y, 10, kursiv, GOLD);
+  if (y - 14 >= UNTEN) {
+    schreib(d.schluss ?? "Vielen Dank für euer Vertrauen. Wir freuen uns auf euch.", LINKS, y, 10, kursiv, GOLD);
+  }
 
   const a = d.absender;
   const spalte1 = [a.firma, a.strasse, `${a.plz} ${a.ort}`, `Tel.: ${a.telefon}`, a.email, a.web];
