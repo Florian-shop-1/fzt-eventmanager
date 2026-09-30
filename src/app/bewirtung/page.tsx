@@ -15,6 +15,7 @@ import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
 import {
   alleBereitenFestschreiben,
   belegeMitAbbuchungFreigeben,
+  eigeneRechnungenVerwerfen,
   postHolen,
   unterschriftSpeichern,
 } from "./aktionen";
@@ -51,6 +52,10 @@ export default async function BewirtungSeite({
 
   const alle = await bewirtungenDesJahres(jahr);
   const entwuerfe = alle.filter((x) => x.status === "entwurf");
+  // Weitergeleitete Ausgangsrechnungen: erkennbar an uns selbst als Geschäft.
+  const eigeneRechnungen = entwuerfe.filter((x) =>
+    x.restaurant.toLowerCase().includes("florian zimmer theater"),
+  ).length;
   const belege = alle.filter((x) => x.status !== "entwurf");
 
   /*
@@ -198,6 +203,18 @@ export default async function BewirtungSeite({
                   Alle vollständigen festschreiben
                 </button>
               </form>
+              {/*
+                Unsere eigenen Ausgangsrechnungen sind keine Belege. Sie
+                landen im Postfach, weil jemand sie weiterleitet, und
+                warten sonst ewig auf eine Zuordnung, die nie kommt.
+              */}
+              {eigeneRechnungen > 0 && (
+                <form action={eigeneRechnungenVerwerfen}>
+                  <button type="submit" className="text-sm underline text-leise">
+                    {eigeneRechnungen} eigene Rechnungen aus der Liste nehmen
+                  </button>
+                </form>
+              )}
             </div>
           </div>
           <p className="max-w-prose text-xs text-leise">

@@ -288,6 +288,34 @@ export async function belegeMitAbbuchungFreigeben(): Promise<void> {
   redirect(`/bewirtung?meldung=${encodeURIComponent(teile.join(", ") + ".")}`);
 }
 
+/**
+ * Unsere eigenen Ausgangsrechnungen aus der Belegliste werfen.
+ *
+ * Im Postfach landen auch Rechnungen, die wir selbst gestellt haben,
+ * weitergeleitet von Kevin oder vom Ticketbuero. Sie sind keine Belege
+ * fuer Ausgaben, es gibt keine Abbuchung dazu, und sie warten deshalb
+ * ewig auf eine Zuordnung. Kuenftig erkennt die Erkennung sie selbst;
+ * die vorhandenen raeumt dieser Knopf weg (30.09.2026).
+ *
+ * Verworfen werden nur Entwuerfe. Ein festgeschriebener Beleg wird nie
+ * geloescht, der wird storniert.
+ */
+export async function eigeneRechnungenVerwerfen(): Promise<void> {
+  await zugang();
+  const z = (await db()`
+    delete from bewirtung
+     where status = 'entwurf'
+       and restaurant ilike '%florian zimmer theater%'
+     returning id
+  `) as Array<{ id: string }>;
+  revalidatePath("/bewirtung");
+  redirect(
+    `/bewirtung?meldung=${encodeURIComponent(
+      `${z.length} eigene ${z.length === 1 ? "Rechnung" : "Rechnungen"} aus der Belegliste genommen.`,
+    )}`,
+  );
+}
+
 export async function belegVerwerfen(f: FormData): Promise<void> {
   await zugang();
   await entwurfVerwerfen(text(f, "id", 40));

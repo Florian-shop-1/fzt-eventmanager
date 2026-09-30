@@ -214,6 +214,25 @@ export async function postAbholen(o: {
         const typ = (a.contentType ?? "application/pdf").toLowerCase();
 
         const lesung = await belegLesen(a.contentBytes, typ).catch(() => null);
+
+        /*
+          Unsere eigenen Rechnungen sind keine Belege.
+
+          Im Postfach landen auch Ausgangsrechnungen, die Kevin oder das
+          Ticketbuero weiterleiten. Sie sehen aus wie Rechnungen, sind
+          aber unsere eigenen: Zu ihnen gibt es keine Abbuchung, und in
+          der Belegliste standen elf davon herum und warteten auf eine
+          Zuordnung, die nie kommen konnte (gefunden am 30.09.2026).
+        */
+        if (lesung?.eigene_rechnung) {
+          await vermerken({
+            id: n.id, von, betreff, empfangen,
+            stand: "eigene_rechnung",
+            notiz: "Unsere eigene Ausgangsrechnung, kein Beleg für eine Ausgabe.",
+          });
+          continue;
+        }
+
         const { id, doppelt } = await entwurfAnlegen(
           a.contentBytes,
           typ,
