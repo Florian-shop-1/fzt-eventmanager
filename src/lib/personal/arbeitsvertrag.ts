@@ -95,6 +95,7 @@ const KURZFRISTIG: Abschnitt[] = [
       "(2) Das vereinbarte Vertragsende ist verbindlich.",
       "(3) Eine Fortsetzung über das Vertragsende hinaus bedarf einer ausdrücklichen vorherigen Vereinbarung.",
       "(4) Ein Anspruch auf weitere Beschäftigung oder Abschluss eines Folgevertrages besteht nicht.",
+      "(5) Der Arbeitnehmer wird darauf hingewiesen, dass er sich spätestens drei Monate vor dem vereinbarten Ende des Arbeitsverhältnisses persönlich bei der Agentur für Arbeit arbeitssuchend melden muss. Liegen zwischen der Kenntnis des Beendigungszeitpunkts und der Beendigung weniger als drei Monate, hat die Meldung innerhalb von drei Tagen zu erfolgen.",
     ],
   },
   {
@@ -164,6 +165,7 @@ const KURZFRISTIG: Abschnitt[] = [
       "(4) Im Übrigen gelten die gesetzlichen Kündigungsfristen.",
       "(5) Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.",
       "(6) Kündigungen bedürfen der gesetzlich vorgeschriebenen Form.",
+      "(7) Will der Arbeitnehmer geltend machen, dass eine Kündigung unwirksam ist, muss er grundsätzlich innerhalb von drei Wochen nach Zugang der schriftlichen Kündigung Klage beim zuständigen Arbeitsgericht erheben. Im Übrigen gelten die gesetzlichen Vorschriften.",
     ],
   },
   {
@@ -180,6 +182,7 @@ const KURZFRISTIG: Abschnitt[] = [
       "(3) Die Anfertigung und Weitergabe von Foto-, Video- oder Tonaufnahmen aus Backstage-, Technik-, Requisiten-, Lager-, Bühnen- oder Probenbereichen ist ohne Zustimmung des Arbeitgebers untersagt.",
       "(4) Die Verschwiegenheitspflicht besteht nach Beendigung des Arbeitsverhältnisses fort, soweit weiterhin ein berechtigtes Geheimhaltungsinteresse besteht.",
       "(5) Gesetzliche Unterlassungs-, Herausgabe- und Schadensersatzansprüche bleiben unberührt.",
+      "(6) Bei einem schuldhaften Verstoß gegen die Verschwiegenheitspflicht wird eine Vertragsstrafe in Höhe des Zweifachen der durchschnittlichen monatlichen Bruttovergütung der letzten drei Abrechnungsmonate fällig. Die Geltendmachung eines darüber hinausgehenden Schadens bleibt unberührt; die Vertragsstrafe wird auf einen Schadensersatzanspruch angerechnet.",
     ],
   },
   {
@@ -224,6 +227,8 @@ const KURZFRISTIG: Abschnitt[] = [
       "(6) Individuelle Vereinbarungen der Parteien bleiben hiervon unberührt.",
       "(7) Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.",
       "(8) Es gelten die gesetzlichen Bestimmungen der Bundesrepublik Deutschland.",
+      "(9) Auf das Arbeitsverhältnis finden keine Tarifverträge Anwendung, sofern nicht deren zwingende Geltung gesetzlich angeordnet ist. In ihrer jeweils geltenden Fassung sind die rechtmäßig eingeführten betrieblichen Regelungen zu beachten.",
+      "(10) Der Arbeitnehmer erhält eine von beiden Vertragsparteien unterzeichnete Ausfertigung dieses Vertrages. Wird der Vertrag im Eventmanager unterzeichnet, steht sie ihm dort dauerhaft als PDF zum Herunterladen bereit.",
     ],
   },
 ];
@@ -238,6 +243,7 @@ const TEILZEIT: Abschnitt[] = [
       "(4) Voraussetzung für die Wirksamkeit der Befristung ist die Unterzeichnung dieses Vertrages vor Aufnahme der Tätigkeit.",
       "(5) Eine Fortsetzung des Arbeitsverhältnisses über das vereinbarte Vertragsende hinaus bedarf einer ausdrücklichen Vereinbarung. Der Arbeitnehmer darf seine Tätigkeit nach Vertragsende nicht ohne vorherige Zustimmung des Arbeitgebers fortsetzen.",
       "(6) Ein Anspruch auf Abschluss eines Folgevertrages für eine weitere Spielzeit besteht nicht.",
+      "(7) Der Arbeitnehmer wird darauf hingewiesen, dass er sich spätestens drei Monate vor dem vereinbarten Ende des Arbeitsverhältnisses persönlich bei der Agentur für Arbeit arbeitssuchend melden muss. Liegen zwischen der Kenntnis des Beendigungszeitpunkts und der Beendigung weniger als drei Monate, hat die Meldung innerhalb von drei Tagen zu erfolgen.",
     ],
   },
   {
@@ -343,6 +349,7 @@ const TEILZEIT: Abschnitt[] = [
       "(5) Verlängert sich die gesetzliche Kündigungsfrist für eine Kündigung durch den Arbeitgeber aufgrund der Dauer der Betriebszugehörigkeit, gilt dieselbe verlängerte Frist auch für eine Kündigung durch den Arbeitnehmer, soweit gesetzlich zulässig.",
       "(6) Das Recht zur außerordentlichen Kündigung bleibt unberührt.",
       "(7) Kündigungen bedürfen zu ihrer Wirksamkeit der gesetzlich vorgeschriebenen Form.",
+      "(8) Will der Arbeitnehmer geltend machen, dass eine Kündigung unwirksam ist, muss er grundsätzlich innerhalb von drei Wochen nach Zugang der schriftlichen Kündigung Klage beim zuständigen Arbeitsgericht erheben. Im Übrigen gelten die gesetzlichen Vorschriften.",
     ],
   },
   {
@@ -369,6 +376,7 @@ const TEILZEIT: Abschnitt[] = [
       "(3) Insbesondere dürfen Methoden von Illusionen, Tricks oder geheimhaltungsbedürftigen Showelementen nicht fotografiert, gefilmt, kopiert, veröffentlicht, weitergegeben oder Dritten zugänglich gemacht werden.",
       "(4) Die Verpflichtung gilt auch nach Beendigung des Arbeitsverhältnisses fort, soweit es sich um rechtlich geschützte bzw. weiterhin berechtigterweise geheim gehaltene Informationen handelt.",
       "(5) Gesetzliche Schadensersatz-, Unterlassungs- und sonstige Ansprüche des Arbeitgebers bleiben unberührt.",
+      "(6) Bei einem schuldhaften Verstoß gegen die Verschwiegenheitspflicht wird eine Vertragsstrafe in Höhe von zwei Bruttomonatsgehältern fällig. Die Geltendmachung eines darüber hinausgehenden Schadens bleibt unberührt; die Vertragsstrafe wird auf einen Schadensersatzanspruch angerechnet.",
     ],
   },
   {
@@ -434,6 +442,8 @@ const TEILZEIT: Abschnitt[] = [
       "(6) Individuelle Vereinbarungen der Vertragsparteien bleiben hiervon unberührt.",
       "(7) Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.",
       "(8) Es gelten die gesetzlichen Bestimmungen der Bundesrepublik Deutschland.",
+      "(9) Auf das Arbeitsverhältnis finden keine Tarifverträge Anwendung, sofern nicht deren zwingende Geltung gesetzlich angeordnet ist. In ihrer jeweils geltenden Fassung sind die rechtmäßig eingeführten betrieblichen Regelungen zu beachten.",
+      "(10) Der Arbeitnehmer erhält eine von beiden Vertragsparteien unterzeichnete Ausfertigung dieses Vertrages. Wird der Vertrag im Eventmanager unterzeichnet, steht sie ihm dort dauerhaft als PDF zum Herunterladen bereit.",
     ],
   },
 ];
