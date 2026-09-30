@@ -41,6 +41,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/*
+  Die Anwendung soll dort laufen, wo ihre Daten liegen.
+
+  Gemessen am 30.09.2026: Die Funktionen liefen in iad1, also in
+  Washington, die Neon-Datenbank steht in eu-central-1, also in
+  Frankfurt. Jede Abfrage ist damit ueber den Atlantik gereist, rund
+  hundert Millisekunden statt fuenfundzwanzig, und eine Seite stellt
+  schnell ein Dutzend davon.
+
+  Der Eintrag in vercel.json allein hat nichts bewirkt, deshalb steht es
+  hier zusaetzlich: Next.js gibt preferredRegion aus dem Wurzel-Layout an
+  alle Seiten darunter weiter.
+*/
+export const preferredRegion = "fra1";
+
 export const metadata: Metadata = {
   title: "FZT Eventmanager",
   description: "Internes Programm für Firmenevents im Florian Zimmer Theater",
