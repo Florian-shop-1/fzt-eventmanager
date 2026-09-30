@@ -22,6 +22,7 @@ export function ScanHase({
   stimmung,
   dauer,
   onWeg,
+  onSchliessen,
   oben = false,
 }: {
   text: string;
@@ -29,6 +30,14 @@ export function ScanHase({
   /** Millisekunden bis zum Ausblenden. Ohne Angabe bleibt er, bis man ihn schließt. */
   dauer?: number;
   onWeg: () => void;
+  /**
+   * Nur schliessen, ohne zuzusagen.
+   *
+   * Bei manchen Hinweisen tut "Mach ich!" etwas: Der Scan-Hinweis springt
+   * damit zum Scanner. Das Kreuz soll nur wegraeumen, deshalb ein eigener
+   * Weg. Fehlt er, schliesst das Kreuz wie der Knopf (Florian, 30.09.2026).
+   */
+  onSchliessen?: () => void;
   /** Oben statt unten, etwa über dem Kamerabild, damit der Auslöser frei bleibt. */
   oben?: boolean;
 }) {
@@ -108,6 +117,26 @@ export function ScanHase({
         </svg>
       </div>
       <div className="sh-blase">
+        {/*
+          Das Kreuz zum Schliessen, immer da.
+
+          "Mach ich!" heisst zusagen. Wer den Hasen nur wegklicken will,
+          ohne etwas zu versprechen, hatte bisher keinen Weg, und bei einer
+          Meldung mit Zeitablauf gab es gar keinen Knopf (Florian,
+          30.09.2026).
+        */}
+        <button
+          type="button"
+          onClick={() => {
+            setGeht(true);
+            setTimeout(() => (onSchliessen ?? onWeg)(), 350);
+          }}
+          className="sh-kreuz"
+          aria-label="Hinweis schließen"
+          title="Schließen"
+        >
+          &times;
+        </button>
         <p>{text}</p>
         {!dauer && (
           <button type="button" onClick={onWeg} className="sh-zu">

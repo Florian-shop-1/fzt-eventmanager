@@ -45,6 +45,8 @@ export function ScanErinnerung({ tage, vorname }: { tage: number; vorname: strin
         setZeigen(false);
         router.push("/scanner");
       }}
+      // Das Kreuz raeumt nur weg, es springt nicht zum Scanner.
+      onSchliessen={() => setZeigen(false)}
     />
   );
 }

@@ -392,6 +392,38 @@ textarea:focus {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   pointer-events: auto;
 }
+/*
+  Das Kreuz oben rechts in der Sprechblase.
+
+  Sitzt im Rand, damit es den Text nicht verdraengt, und ist gross genug
+  fuer einen Daumen auf dem Tablet (Florian, 30.09.2026).
+*/
+.sh-kreuz {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.3rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.sh-kreuz:hover,
+.sh-kreuz:focus-visible {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Der Text darf nicht unter dem Kreuz durchlaufen. */
+.sh-blase > p {
+  padding-right: 1.5rem;
+}
+
 .sh-blase::before {
   content: "";
   position: absolute;

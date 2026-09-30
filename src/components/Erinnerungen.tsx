@@ -77,6 +77,8 @@ export function Erinnerungen({ offen, vorname }: { offen: Erinnerung[]; vorname:
             setHase(false);
             router.push(erste.href);
           }}
+          // Das Kreuz raeumt nur weg, ohne auf die Seite zu springen.
+          onSchliessen={() => setHase(false)}
         />
       )}
     </>
