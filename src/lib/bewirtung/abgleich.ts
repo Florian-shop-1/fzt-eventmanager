@@ -202,6 +202,56 @@ export async function vorschlaegeFuerMonat(
   return karte;
 }
 
+/**
+ * Was eindeutig zusammengehoert, gleich abhaken.
+ *
+ * "wenn es passt, kannst du selber den haken gleich setzen" (Florian,
+ * 30.09.2026). Gemeint sind die Rechnungen, die per Mail hereinkommen:
+ * Huss Licht + Ton schickt die Rechnung, bucht per Lastschrift ab, und
+ * beides passt auf den Cent. Dafuer muss niemand klicken.
+ *
+ * Automatisch wird nur zugeordnet, was keine zweite Moeglichkeit hat:
+ * genau ein Vorschlag, Betrag auf den Cent gleich, und entweder passt
+ * der Name oder das Datum liegt dicht beieinander. Alles andere bleibt
+ * liegen und wartet auf einen Menschen. Ein falsch gesetzter Haken ist
+ * schlimmer als ein fehlender: Er sieht aus wie Arbeit, die getan ist.
+ *
+ * Rueckgaengig geht es immer: In der Liste steht "doch nicht" daneben,
+ * und wer automatisch zugeordnet hat, steht dabei.
+ */
+export async function automatischZuordnen(monat?: string): Promise<{ zugeordnet: number; namen: string[] }> {
+  const liste = monat
+    ? (await ausgabenDesMonats(monat)).filter((a) => a.stand === "offen" && !a.regel)
+    : await offeneAusgaben();
+
+  const namen: string[] = [];
+  for (const a of liste) {
+    const v = await vorschlaegeZu(a.id);
+    if (v.length !== 1) continue;
+    if (v[0].guete < 90) continue;
+    if (v[0].betragCent !== a.betragCent) continue;
+    await belegZuordnen(a.id, v[0].belegId, "automatisch");
+    namen.push(`${a.gegenname || "Abbuchung"} ${(a.betragCent / 100).toFixed(2).replace(".", ",")} €`);
+  }
+  return { zugeordnet: namen.length, namen };
+}
+
+/** Alle offenen Ausgaben, unabhaengig vom Monat. Fuer den automatischen Lauf. */
+async function offeneAusgaben(): Promise<Ausgabe[]> {
+  const monate = (await db()`
+    select distinct to_char(buchungstag, 'YYYY-MM') as m
+      from bank_umsatz
+     where betrag_cent < 0 and beleg_stand = 'offen'
+     order by m desc
+     limit 6
+  `.catch(() => [])) as Array<{ m: string }>;
+  const alle: Ausgabe[] = [];
+  for (const { m } of monate) {
+    alle.push(...(await ausgabenDesMonats(m)).filter((a) => a.stand === "offen" && !a.regel));
+  }
+  return alle;
+}
+
 export async function belegZuordnen(umsatzId: string, belegId: string, wer: string): Promise<void> {
   await db()`
     update bank_umsatz

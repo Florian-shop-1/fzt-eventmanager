@@ -321,6 +321,12 @@ function Zeile({
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
           <span style={{ color: "var(--gut)" }}>
             Beleg {a.belegNummer ?? ""} {a.belegGeschaeft ? `· ${a.belegGeschaeft}` : ""}
+            {/*
+              Wer den Haken gesetzt hat, gehoert dazu: Ein automatisch
+              gesetzter Haken darf nicht aussehen wie einer, den jemand
+              geprueft hat (Florian, 30.09.2026).
+            */}
+            {a.wer === "automatisch" && <span className="text-leise"> · automatisch zugeordnet</span>}
           </span>
           {a.belegId && (
             <Link href={`/bewirtung/${a.belegId}`} className="text-xs underline">

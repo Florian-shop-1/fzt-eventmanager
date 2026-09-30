@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { postAbholen } from "@/lib/bewirtung/posteingang";
+import { automatischZuordnen } from "@/lib/bewirtung/abgleich";
 import { postlaufMerken } from "@/lib/bewirtung/eingangsrechnung";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 
@@ -29,6 +30,8 @@ export async function GET(request: Request) {
 
   try {
     const lauf = await postAbholen({ tage, wer: vonDerUhr ? "Posteingang" : "Posteingang (von Hand)" });
+    // Was eindeutig zusammengehoert, gleich abhaken (Florian, 30.09.2026).
+    const auto = await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] }));
     // Festhalten, dass der Lauf war und was er gefunden hat: Sonst sieht
     // morgens niemand, ob er ueberhaupt lief (Florian, 30.09.2026).
     await postlaufMerken({

@@ -17,6 +17,7 @@ import {
   type Angaben,
 } from "@/lib/bewirtung/db";
 import { postAbholen } from "@/lib/bewirtung/posteingang";
+import { automatischZuordnen } from "@/lib/bewirtung/abgleich";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -179,7 +180,18 @@ export async function postHolen(f?: FormData): Promise<void> {
   const tage = gewuenscht >= 1 && gewuenscht <= 365 ? gewuenscht : 30;
   try {
     const lauf = await postAbholen({ tage, hoechstens: 50, wer: b.name });
+    /*
+      Was eindeutig passt, gleich abhaken.
+
+      Die Rechnung kommt per Mail, die Lastschrift steht auf dem Konto,
+      und beides stimmt auf den Cent. Dafuer muss niemand klicken
+      (Florian, 30.09.2026).
+    */
+    const auto = await automatischZuordnen().catch(() => ({ zugeordnet: 0, namen: [] }));
     const teile = [
+      auto.zugeordnet > 0
+        ? `${auto.zugeordnet} ${auto.zugeordnet === 1 ? "Abbuchung" : "Abbuchungen"} automatisch abgehakt`
+        : "",
       `${lauf.neu} ${lauf.neu === 1 ? "neuer Beleg" : "neue Belege"} aus dem Postfach der letzten ${tage} Tage`,
       lauf.ohneAnhang > 0 ? `${lauf.ohneAnhang} Mails ohne Rechnung im Anhang` : "",
       lauf.fehler > 0 ? `${lauf.fehler} konnten nicht gelesen werden` : "",
