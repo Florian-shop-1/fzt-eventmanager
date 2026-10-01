@@ -8,6 +8,7 @@ import { StatusSchild, euro, faelligText, tagKurz } from "@/components/RechnungS
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { zeitpunkt } from "@/lib/zeit";
 import {
+  erinnerungSenden,
   faelligAendern,
   manuellBezahlt,
   rechnungStornieren,
@@ -102,6 +103,36 @@ export default async function RechnungSeite({
               </span>
             )}
           </div>
+
+          {/*
+            Die freundliche Erinnerung.
+
+            Sie geht nach Ablauf der Frist von selbst raus, höchstens
+            dreimal und mit einer Woche Abstand (Florian, 01.10.2026).
+            Hier steht, was war, und hier lässt sie sich auch früher
+            auslösen.
+          */}
+          {r.status !== "PAID" && r.status !== "CANCELLED" && r.versendetAm && (
+            <div className="flex flex-wrap items-center gap-3 rounded border border-linie p-3 text-sm">
+              <span>
+                {r.erinnerungen === 0
+                  ? r.tageUeberfaellig > 0
+                    ? "Noch keine Erinnerung verschickt."
+                    : `Erinnerung geht automatisch raus, wenn die Frist am ${r.faelligAm.split("-").reverse().join(".")} abgelaufen ist.`
+                  : `${r.erinnerungen}. Erinnerung verschickt${
+                      r.erinnertAm ? ` am ${new Date(r.erinnertAm).toLocaleDateString("de-DE")}` : ""
+                    }.`}
+              </span>
+              {r.kundeEmail && (
+                <form action={erinnerungSenden}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-xs hover:bg-gold-hell">
+                    Erinnerung jetzt senden
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
 
           <details className="rounded border border-gold bg-gold-hell/40 p-3">
             <summary className="cursor-pointer text-sm font-medium text-gold-dunkel">

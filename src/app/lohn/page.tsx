@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { alsDezimal, alsStunden, zeitenImZeitraum, type Mitarbeiterzeiten } from "@/lib/lohn/auswertung";
+import { alsStunden, zeitenImZeitraum, type Mitarbeiterzeiten } from "@/lib/lohn/auswertung";
 import { einstellungLesen, meldungLesen } from "@/lib/lohn/meldung";
 import {
   istZeitraumSchluessel,
@@ -118,7 +118,7 @@ export default async function LohnSeite({
             </p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-semibold tabular-nums">{alsDezimal(summe)}</div>
+            <div className="text-2xl font-semibold tabular-nums">{alsStunden(summe)}</div>
             <div className="text-xs text-leise">
               Stunden für {leute.length} {leute.length === 1 ? "Mitarbeiter" : "Mitarbeiter"}
             </div>
@@ -344,7 +344,7 @@ function Person({
     <details open={offen} className="rounded-lg border border-linie bg-flaeche">
       <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-3">
         <span className="font-medium">{p.name}</span>
-        <span className="ml-auto text-lg font-semibold tabular-nums">{alsDezimal(p.arbeitMinuten)}</span>
+        <span className="ml-auto text-lg font-semibold tabular-nums">{alsStunden(p.arbeitMinuten)}</span>
         <span className="text-xs text-leise">Stunden</span>
         {/*
           Der Lohn steht nur hier, in der Stundenmeldung, und die sehen

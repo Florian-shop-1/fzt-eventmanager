@@ -13,7 +13,7 @@
 import { db } from "@/lib/db/client";
 import type { Zeitraum } from "./zeitraum";
 import type { Mitarbeiterzeiten } from "./auswertung";
-import { alsDezimal } from "./auswertung";
+import { alsStunden } from "./auswertung";
 
 export interface Meldung {
   zeitraum: string;
@@ -98,8 +98,8 @@ export async function versandMerken(
 ): Promise<void> {
   const stand = leute.map((p) => ({
     name: p.name,
-    stunden: alsDezimal(p.arbeitMinuten),
-    pause: alsDezimal(p.pauseMinuten),
+    stunden: alsStunden(p.arbeitMinuten),
+    pause: alsStunden(p.pauseMinuten),
     arbeitstage: p.arbeitstage,
     urlaubstage: p.urlaubstage,
     kranktage: p.kranktage,

@@ -2,12 +2,12 @@
  * Die Stundenliste in der Form, die ein Steuerbüro verarbeiten kann.
  *
  * Frau Buschow bekommt eine Tabelle, keine hübsche Seite: eine Zeile je
- * Mitarbeiter, Stunden als Dezimalzahl mit Komma, dazu Urlaubs- und
+ * Mitarbeiter, Stunden und Minuten wie 7:45, dazu Urlaubs- und
  * Kranktage. Das lässt sich in jedes Lohnprogramm einlesen
  * (Florian, 29.09.2026).
  */
 
-import { alsDezimal, type Mitarbeiterzeiten } from "./auswertung";
+import { alsStunden, type Mitarbeiterzeiten } from "./auswertung";
 import type { Zeitraum } from "./zeitraum";
 
 /** Semikolon und Windows-Zeilenenden: So erwartet Excel es hierzulande. */
@@ -42,8 +42,8 @@ export function summenListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string {
         p.name,
         z.von.split("-").reverse().join("."),
         z.bis.split("-").reverse().join("."),
-        alsDezimal(p.arbeitMinuten),
-        alsDezimal(p.pauseMinuten),
+        alsStunden(p.arbeitMinuten),
+        alsStunden(p.pauseMinuten),
         p.arbeitstage,
         p.urlaubstage,
         p.kranktage,
@@ -81,8 +81,8 @@ export function protokollListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string 
           "Arbeit",
           kommen,
           gehen,
-          alsDezimal(t.arbeitMinuten),
-          alsDezimal(t.pauseMinuten),
+          alsStunden(t.arbeitMinuten),
+          alsStunden(t.pauseMinuten),
           t.offen
             ? "Ausstempeln fehlt, nicht gezaehlt"
             : t.unplausibel && !t.bestaetigt

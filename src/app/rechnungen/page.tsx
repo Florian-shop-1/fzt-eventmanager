@@ -4,7 +4,7 @@ import { angemeldeterBenutzer, darfBuchhaltung, darfKaufmaennisches } from "@/li
 import { alleRechnungen, einstellung } from "@/lib/rechnung/db";
 import { StatusSchild, euro, faelligText, tagKurz } from "@/components/RechnungStatus";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { zahlungszielSpeichern } from "./aktionen";
+import { handRechnungErstellen, zahlungszielSpeichern } from "./aktionen";
 
 export const metadata = { title: "Rechnungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic";
  * wissen will: Wer, wie viel, ob die Mail raus ist, wann sie fällig ist
  * und was davon bezahlt wurde. Der Rest steht auf der Detailseite.
  */
+const heuteIso = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+
 export default async function RechnungenSeite({
   searchParams,
 }: {
@@ -117,6 +119,101 @@ export default async function RechnungenSeite({
           farbe={abgleichAlt ? "warnung" : "neutral"}
         />
       </div>
+
+      {/*
+        Eine Rechnung, die nicht aus einem Angebot kommt.
+
+        "bei ausgangsrechnung soll es möglich sein, dass wir eine von hand
+        erstellen" (Florian, 01.10.2026). Sie bekommt dieselbe Nummer aus
+        demselben Kreis und denselben Hausbrief; danach läuft sie den
+        gewohnten Weg mit Versand, Zahlungsabgleich und Erinnerung.
+      */}
+      <details className="rounded-lg border border-linie bg-flaeche p-5">
+        <summary className="cursor-pointer font-semibold">Rechnung von Hand schreiben</summary>
+        <form action={handRechnungErstellen} className="mt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Kunde (Rechnungsempfänger)</span>
+              <input name="kunde" required maxLength={200} placeholder="Muster GmbH" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Ansprechpartner</span>
+              <input name="ansprechpartner" maxLength={120} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">E-Mail</span>
+              <input name="email" type="email" maxLength={200} />
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Straße</span>
+              <input name="strasse" maxLength={200} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">PLZ</span>
+              <input name="plz" maxLength={10} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Ort</span>
+              <input name="ort" maxLength={120} />
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs text-leise">Leistung (Überschrift auf der Rechnung)</span>
+              <input name="leistung" maxLength={300} placeholder="Technikgestellung" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Leistungszeitraum</span>
+              <input name="leistungszeitraum" maxLength={100} placeholder="September 2026" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Rechnungsdatum</span>
+              <input type="date" name="rechnungsdatum" defaultValue={heuteIso()} />
+            </label>
+          </div>
+
+          <div>
+            <div className="mb-1 text-xs text-leise">Positionen (Preise brutto)</div>
+            <div className="space-y-2">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="grid gap-2 sm:grid-cols-12">
+                  <input
+                    name={`bezeichnung${i}`}
+                    maxLength={200}
+                    placeholder={i === 0 ? "Bezeichnung" : ""}
+                    className="sm:col-span-5"
+                  />
+                  <input name={`menge${i}`} inputMode="decimal" placeholder="Menge" defaultValue={i === 0 ? "1" : ""} className="sm:col-span-2" />
+                  <input name={`einheit${i}`} maxLength={20} placeholder="Einheit" className="sm:col-span-2" />
+                  <input name={`preis${i}`} inputMode="decimal" placeholder="Preis €" className="sm:col-span-2" />
+                  <select name={`ust${i}`} defaultValue="19" className="sm:col-span-1">
+                    <option value="19">19 %</option>
+                    <option value="7">7 %</option>
+                    <option value="0">0 %</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Zahlungsziel in Tagen</span>
+              <input name="zahlungsziel" inputMode="numeric" defaultValue={String(e.zahlungszielTage)} />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs text-leise">Notiz (nur für uns)</span>
+              <input name="notiz" maxLength={300} />
+            </label>
+          </div>
+
+          <Absendeknopf text="Rechnung anlegen" laeuftText="Wird angelegt..." />
+        </form>
+      </details>
 
       <nav className="flex flex-wrap gap-1 text-sm">
         {[

@@ -12,7 +12,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { Absender } from "@/lib/angebot/pdf";
-import { alsDezimal, alsStunden, type Mitarbeiterzeiten } from "./auswertung";
+import { alsStunden, type Mitarbeiterzeiten } from "./auswertung";
 import type { Zeitraum } from "./zeitraum";
 
 const SCHWARZ = rgb(0.07, 0.07, 0.07);
@@ -147,8 +147,8 @@ export async function lohnPdf(d: LohnPdfDaten): Promise<Buffer> {
       kopfzeile();
     }
     schreib(p.name, X_NAME, y, 9.5);
-    rechtsB(alsDezimal(p.arbeitMinuten), X_STD, y, 9.5, fett);
-    rechtsB(alsDezimal(p.pauseMinuten), X_PAUSE, y, 9);
+    rechtsB(alsStunden(p.arbeitMinuten), X_STD, y, 9.5, fett);
+    rechtsB(alsStunden(p.pauseMinuten), X_PAUSE, y, 9);
     rechtsB(String(p.arbeitstage), X_TAGE, y, 9);
     rechtsB(p.urlaubstage ? String(p.urlaubstage) : "-", X_URLAUB, y, 9);
     rechtsB(p.kranktage ? String(p.kranktage) : "-", X_KRANK, y, 9);
@@ -160,10 +160,10 @@ export async function lohnPdf(d: LohnPdfDaten): Promise<Buffer> {
   s.drawLine({ start: { x: LINKS, y }, end: { x: RECHTS, y }, thickness: 0.5, color: LINIE });
   y -= 14;
   schreib(`Summe (${d.leute.length} Mitarbeiter)`, X_NAME, y, 9, fett);
-  rechtsB(alsDezimal(summe), X_STD, y, 9.5, fett);
+  rechtsB(alsStunden(summe), X_STD, y, 9.5, fett);
   y -= 24;
 
-  schreib("Stunden als Dezimalzahl, zum Beispiel 7,75 fuer 7 Stunden 45 Minuten.", LINKS, y, 8, normal, HELLGRAU);
+  schreib("Stunden und Minuten, zum Beispiel 7:45 fuer 7 Stunden 45 Minuten.", LINKS, y, 8, normal, HELLGRAU);
   y -= 12;
 
   const zuBestaetigen = d.leute.filter((p) => p.unplausibleTage.length > 0);

@@ -77,6 +77,9 @@ export interface Rechnung {
   zuerstGeoeffnetAm: string | null;
   /** Wann die Bestätigung nach dem Zahlungseingang rausging. */
   dankMailAm: string | null;
+  /** Wann zuletzt freundlich erinnert wurde, und wie oft insgesamt. */
+  erinnertAm: string | null;
+  erinnerungen: number;
   /** Summe aller Zahlungen. */
   bezahltCent: number;
   /** Was noch aussteht, nie negativ. */
@@ -193,6 +196,8 @@ function baue(r: Record<string, unknown>, zahlungen: Zahlung[]): Rechnung {
       ? new Date(r.zuerst_geoeffnet_am as string).toISOString()
       : null,
     dankMailAm: r.dank_mail_am ? new Date(r.dank_mail_am as string).toISOString() : null,
+    erinnertAm: r.erinnert_am ? new Date(r.erinnert_am as string).toISOString() : null,
+    erinnerungen: Number(r.erinnerungen ?? 0),
     bezahltCent,
     offenCent: Math.max(0, betragCent - bezahltCent),
     ueberzahlungCent: bezahltCent > betragCent ? bezahltCent - betragCent : null,

@@ -261,7 +261,12 @@ export function alsStunden(minuten: number): string {
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
 }
 
-/** Dezimalstunden, wie das Steuerbüro sie rechnet: 465 Minuten sind 7,75. */
-export function alsDezimal(minuten: number): string {
-  return (Math.max(0, minuten) / 60).toFixed(2).replace(".", ",");
-}
+/*
+  Industrieminuten gibt es hier nicht mehr.
+
+  "wir möchten bei den arbeitszeiten keine industrieminuten, sondern die
+  echte arbeitszeit. also kein quatsch wie 23,68 stunden" (Florian,
+  01.10.2026). Überall, wo früher 7,75 stand, steht jetzt 7:45. Das ist
+  die Zeit, die auf der Uhr stand, und nur die lässt sich mit einem
+  Dienstplan vergleichen.
+*/

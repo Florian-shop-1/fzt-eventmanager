@@ -100,7 +100,14 @@ export async function rechnungPerMail(
   const betreff = String(formData.get("betreff") ?? "").trim();
   const text = String(formData.get("text") ?? "").trim();
 
-  let ziel = `/vorgaenge/${vorgangId}?mail=weg&an=${encodeURIComponent(an)}`;
+  /*
+    Wohin es nach dem Versand zurueckgeht.
+
+    Eine Rechnung von Hand haengt an keinem Vorgang; sie fuehrt zurueck
+    auf ihre eigene Seite (Florian, 01.10.2026).
+  */
+  const seite = vorgangId ? `/vorgaenge/${vorgangId}` : `/rechnungen/${rechnungId}`;
+  let ziel = `${seite}?mail=weg&an=${encodeURIComponent(an)}`;
 
   try {
     if (!an) throw new Error("Für diesen Kunden ist keine Mailadresse hinterlegt.");
@@ -129,10 +136,11 @@ export async function rechnungPerMail(
   } catch (f) {
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     await versandMerken({ rechnungId, an, fehler: meldung, wer }).catch(() => {});
-    ziel = `/vorgaenge/${vorgangId}?mail=fehler&meldung=${encodeURIComponent(meldung.slice(0, 400))}`;
+    ziel = `${seite}?mail=fehler&meldung=${encodeURIComponent(meldung.slice(0, 400))}`;
   }
 
-  revalidatePath(`/vorgaenge/${vorgangId}`);
+  if (vorgangId) revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/rechnungen");
+  revalidatePath(`/rechnungen/${rechnungId}`);
   redirect(ziel);
 }

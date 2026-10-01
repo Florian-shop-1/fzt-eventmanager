@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { faelligeErinnerungen } from "@/lib/rechnung/erinnerung";
 
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
 import { automatischZuordnen } from "@/lib/bewirtung/abgleich";
@@ -85,6 +86,13 @@ const MORGEN: Teil[] = [
       menues: await taeglicheMenuepruefung(),
     }),
   },
+  /*
+    Die freundliche Erinnerung an offene Rechnungen.
+
+    Morgens, nachdem die Kontoumsaetze da sind: Wer gestern Abend bezahlt
+    hat, bekommt heute frueh keine Mahnung mehr (Florian, 01.10.2026).
+  */
+  { name: "rechnungserinnerung", tun: () => faelligeErinnerungen() },
   {
     name: "bewertung",
     tun: async () => ({

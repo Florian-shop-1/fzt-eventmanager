@@ -27,6 +27,8 @@ import { ausDatei, umsaetzeUebernehmen, type RoherUmsatz } from "@/lib/rechnung/
 import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kartenauszug";
 import { auszugMitAbdruck, auszugVermerken, dateiAbdruck } from "@/lib/rechnung/auszuege";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
+import { handRechnungAnlegen } from "@/lib/rechnung/hand";
+import { erinnerungVerschicken } from "@/lib/rechnung/erinnerung";
 
 const text = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -294,4 +296,71 @@ export async function kontoUmschalten(f: FormData): Promise<void> {
 
   revalidatePath("/zahlungseingaenge");
   redirect("/zahlungseingaenge?meldung=" + encodeURIComponent("Gespeichert."));
+}
+
+/**
+ * Eine Ausgangsrechnung von Hand anlegen.
+ *
+ * Fuer alles, was nicht aus einem Angebot kommt. Sie bekommt dieselbe
+ * Nummer aus demselben Kreis und denselben Hausbrief, und ab da laeuft
+ * sie den gewohnten Weg: verschicken, Zahlungseingang abgleichen,
+ * erinnern (Florian, 01.10.2026).
+ */
+export async function handRechnungErstellen(f: FormData): Promise<void> {
+  const b = await darf();
+
+  const positionen = [];
+  for (let i = 0; i < 8; i++) {
+    const bezeichnung = text(f, `bezeichnung${i}`, 200);
+    if (!bezeichnung) continue;
+    const menge = Number(text(f, `menge${i}`, 10).replace(",", ".")) || 0;
+    const preis = centAus(text(f, `preis${i}`, 20)) ?? 0;
+    const ust = Number(text(f, `ust${i}`, 5)) || 0;
+    positionen.push({
+      bezeichnung,
+      menge,
+      einheit: text(f, `einheit${i}`, 20) || "Stück",
+      einzelBruttoCent: preis,
+      ust,
+    });
+  }
+
+  try {
+    const r = await handRechnungAnlegen({
+      kunde: text(f, "kunde", 200),
+      ansprechpartner: text(f, "ansprechpartner", 120),
+      email: text(f, "email", 200),
+      strasse: text(f, "strasse", 200),
+      plz: text(f, "plz", 10),
+      ort: text(f, "ort", 120),
+      leistung: text(f, "leistung", 300),
+      leistungszeitraum: text(f, "leistungszeitraum", 100),
+      rechnungsdatum: text(f, "rechnungsdatum", 10) || undefined,
+      zahlungszielTage: Number(text(f, "zahlungsziel", 4)) || undefined,
+      notiz: text(f, "notiz", 300),
+      positionen,
+      von: b.name ?? "Büro",
+    });
+    zurueck(`/rechnungen/${r.id}`, `Rechnung ${r.nummer} angelegt. Sieh sie dir an und verschick sie.`);
+  } catch (fehler) {
+    if (fehler instanceof Error && !("digest" in fehler)) {
+      zurueck("/rechnungen", fehler.message);
+    }
+    throw fehler;
+  }
+}
+
+/** Die freundliche Erinnerung von Hand ausloesen. */
+export async function erinnerungSenden(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = text(f, "id", 40);
+  try {
+    const an = await erinnerungVerschicken(id, b.name ?? "Büro");
+    zurueck(`/rechnungen/${id}`, `Erinnerung an ${an} verschickt.`);
+  } catch (fehler) {
+    if (fehler instanceof Error && !("digest" in fehler)) {
+      zurueck(`/rechnungen/${id}`, `Die Erinnerung ging nicht raus: ${fehler.message}`);
+    }
+    throw fehler;
+  }
 }

@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { angebotsAbsender } from "@/lib/angebot/pdfdaten";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { alsDezimal, zeitenImZeitraum } from "@/lib/lohn/auswertung";
+import { alsStunden, zeitenImZeitraum } from "@/lib/lohn/auswertung";
 import { dateiname, protokollListe, summenListe } from "@/lib/lohn/liste";
 import {
   bestaetigen,
@@ -119,7 +119,7 @@ export async function anSteuerbueroSchicken(f: FormData): Promise<void> {
     ]
       .filter(Boolean)
       .join(", ");
-    return `- ${p.name}: ${alsDezimal(p.arbeitMinuten)} Stunden${dazu ? ` (${dazu})` : ""}`;
+    return `- ${p.name}: ${alsStunden(p.arbeitMinuten)} Stunden${dazu ? ` (${dazu})` : ""}`;
   });
 
   const text = [
@@ -129,7 +129,7 @@ export async function anSteuerbueroSchicken(f: FormData): Promise<void> {
     "",
     ...zeilen,
     "",
-    `Zusammen ${alsDezimal(summe)} Stunden für ${leute.length} Mitarbeiter.`,
+    `Zusammen ${alsStunden(summe)} Stunden für ${leute.length} Mitarbeiter.`,
     "",
     "Im Anhang liegen die Übersicht als PDF sowie zwei Tabellen: die Liste mit den",
     "Summen je Mitarbeiter und das Protokoll mit den einzelnen Tagen.",

@@ -29,6 +29,9 @@ interface Zeile {
   strasse: string | null;
   plz: string | null;
   ort: string | null;
+  /** Bei einer Rechnung von Hand steht die Anschrift an der Rechnung selbst. */
+  kunde_anschrift: { ansprechpartner?: string; strasse?: string; plz?: string; ort?: string } | null;
+  quelle: string;
 }
 
 const ABFRAGE = `
@@ -36,7 +39,7 @@ const ABFRAGE = `
          to_char(r.rechnungsdatum, 'YYYY-MM-DD') as rechnungsdatum,
          to_char(r.faellig_am, 'YYYY-MM-DD')     as faellig_am,
          r.zahlungsziel_tage, r.leistung, r.leistungszeitraum, r.kunde,
-         r.positionen, r.absender,
+         r.positionen, r.absender, r.kunde_anschrift, r.quelle,
          (select coalesce(sum(z.betrag_cent), 0) from rechnung_zahlung z
            where z.rechnung_id = r.id)           as bezahlt_cent,
          k.ansprechpartner, k.strasse, k.plz, k.ort
@@ -58,15 +61,18 @@ async function bauen(z: Zeile | undefined): Promise<RechnungsPdfDaten | null> {
     leistungszeitpunkt: z.leistungszeitraum || null,
     kunde: {
       name: z.kunde,
-      ansprechpartner: z.ansprechpartner,
-      strasse: z.strasse,
-      plz: z.plz,
-      ort: z.ort,
+      // Erst der Kunde am Vorgang, sonst die Anschrift an der Rechnung.
+      ansprechpartner: z.ansprechpartner || z.kunde_anschrift?.ansprechpartner || null,
+      strasse: z.strasse || z.kunde_anschrift?.strasse || null,
+      plz: z.plz || z.kunde_anschrift?.plz || null,
+      ort: z.ort || z.kunde_anschrift?.ort || null,
     },
     positionen: z.positionen,
     // Eine Anzahlung mindert den offenen Betrag, nicht den Rechnungsbetrag.
     anzahlungCent: Number(z.bezahlt_cent ?? 0),
-    hinweis: RESERVIERUNGSHINWEIS,
+    // Der Hinweis auf die reservierte Veranstaltung passt nur zu einer
+    // Veranstaltung. Eine Rechnung von Hand kommt ohne ihn aus.
+    hinweis: z.quelle === "hand" ? "" : RESERVIERUNGSHINWEIS,
     absender: z.absender ?? (await angebotsAbsender()),
   };
 }
