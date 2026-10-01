@@ -27,6 +27,7 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
   if (!v) notFound();
 
   const geladen = await downloads(v.id);
+  const tag = (iso: string) => iso.slice(0, 10).split("-").reverse().join(".");
   const zeit = (iso: string) =>
     new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" });
 
@@ -75,13 +76,31 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {v.unterschriebenAm && (
+      {v.unterschriebenAm && !v.aufPapier && (
         <div
           className="rounded-lg border px-4 py-3 text-sm print:hidden"
           style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
         >
           <strong>Unterschrieben am {zeit(v.unterschriebenAm)} Uhr.</strong> Der Wortlaut, den {v.name}
           dabei vor sich hatte, ist mitgespeichert (Fingerabdruck {v.textstand}).
+        </div>
+      )}
+
+      {/*
+        Ein Vertrag aus der Zeit vor dem Eventmanager.
+
+        Er steht hier nur, damit das Haus weiß, was vereinbart ist. Die
+        heutige Vorlage zu zeigen wäre falsch: Unterschrieben wurde ein
+        anderes Blatt, und das liegt im Ordner (Florian, 01.10.2026).
+      */}
+      {v.aufPapier && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm print:hidden"
+          style={{ borderColor: "var(--info)", background: "var(--info-hell)" }}
+        >
+          <strong>Auf Papier geschlossen.</strong> Dieser Vertrag wurde außerhalb des Eventmanagers
+          unterschrieben und hier nur nachgetragen, damit Laufzeit und Lohn im Haus bekannt sind. Der
+          Wortlaut ist die Datei{v.quelle ? `: ${v.quelle}` : "."} Unterschreiben muss hier niemand mehr.
         </div>
       )}
 
@@ -114,6 +133,27 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {v.aufPapier ? (
+        <dl className="grid gap-x-6 gap-y-2 rounded-lg border border-linie bg-flaeche p-6 text-sm sm:grid-cols-2">
+          <Zeile k="Art" w={v.art === "teilzeit" ? "Teilzeit" : "Kurzfristige Beschäftigung"} />
+          <Zeile k="Tätigkeit" w={v.position || v.taetigkeit} />
+          <Zeile k="Laufzeit" w={`${tag(v.beginn)} bis ${tag(v.ende)}`} />
+          <Zeile
+            k="Vergütung"
+            w={
+              v.stundenlohnCent
+                ? `${(v.stundenlohnCent / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} je Stunde`
+                : v.festgehaltCent
+                  ? `${(v.festgehaltCent / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} im Monat`
+                  : "nicht hinterlegt"
+            }
+          />
+          <Zeile k="Anschrift" w={v.personalien?.anschrift ?? ""} />
+          <Zeile k="Geburtsdatum" w={v.personalien?.geburtsdatum ?? ""} />
+          <Zeile k="Nachgetragen" w={`${v.angelegtVon}, ${tag(v.angelegtAm)}`} />
+          <Zeile k="Unterlage" w={v.quelle} />
+        </dl>
+      ) : (
       <div className="rounded-lg border border-linie bg-flaeche p-6 print:border-0 print:p-0">
         <Vertragstext
           art={v.art}
@@ -123,6 +163,7 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
           arbeitgeberUnterschrift={v.unterschriebenAm ? v.arbeitgeberUnterschrift : null}
         />
       </div>
+      )}
 
       {/*
         Wer die Ausfertigung geholt hat und wann.
@@ -144,6 +185,17 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/** Eine Zeile in den Eckdaten eines Papiervertrags. */
+function Zeile({ k, w }: { k: string; w: string }) {
+  if (!w) return null;
+  return (
+    <div>
+      <dt className="text-xs text-leise">{k}</dt>
+      <dd className="font-medium">{w}</dd>
     </div>
   );
 }

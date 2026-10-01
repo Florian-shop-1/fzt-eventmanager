@@ -46,8 +46,14 @@ export default async function BenutzerSeite() {
            startpasswort, whatsapp, art, personalbogen_am
       from benutzer order by rolle
   `) as Zeile[];
-  // Innerhalb der Rolle nach Familienname, wie ueberall (Florian, 29.09.2026).
-  benutzer.sort((a, b) => a.rolle.localeCompare(b.rolle, "de") || nachFamilienname(a, b));
+  /*
+    Nach Familienname, ohne Umweg ueber die Rolle.
+
+    Vorher kam zuerst die Rolle, und damit stand die Liste in einer
+    Reihenfolge, die beim Suchen nichts hilft: "bitte immer wenn mehre
+    sind, in reihenfolge nach nachname" (Florian, 01.10.2026).
+  */
+  benutzer.sort(nachFamilienname);
   const offeneLinks = await offeneEinladungen();
 
   return (

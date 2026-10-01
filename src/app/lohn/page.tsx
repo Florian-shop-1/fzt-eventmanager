@@ -82,7 +82,11 @@ export default async function LohnSeite({
             <Link href="/stempeluhr" className="underline">
               Zeiterfassung
             </Link>
-            ; hier wird nur gemeldet.
+            ; hier wird nur gemeldet. Das{" "}
+            <Link href="/stempeluhr#konto" className="underline">
+              Arbeitszeitkonto der Festangestellten
+            </Link>{" "}
+            steht daneben.
           </p>
         </div>
         <span className="flex gap-3 text-sm">

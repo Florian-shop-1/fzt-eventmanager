@@ -108,7 +108,7 @@ export default async function VertraegeSeite({
       {fertig.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
-            Unterschrieben ({fertig.length})
+            Unterschrieben und nachgetragen ({fertig.length})
           </h2>
           <ul className="space-y-2">
             {fertig.map((v) => (
@@ -117,8 +117,13 @@ export default async function VertraegeSeite({
                   {v.name}
                 </Link>{" "}
                 <span style={{ color: "var(--gut)" }}>
-                  unterschrieben am {tag(v.unterschriebenAm!)}
+                  {v.aufPapier
+                    ? `auf Papier geschlossen, ab ${tag(v.beginn)}`
+                    : `unterschrieben am ${tag(v.unterschriebenAm!)}`}
                 </span>
+                {v.aufPapier && (
+                  <span className="text-leise"> · nachgetragen aus {v.quelle || "den Papierunterlagen"}</span>
+                )}
               </li>
             ))}
           </ul>

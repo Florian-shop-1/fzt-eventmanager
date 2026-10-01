@@ -26,6 +26,7 @@ import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 import { SPIELZEIT_ENDE, type Vertragsart } from "@/lib/personal/arbeitsvertrag";
 import { angabenVon } from "@/lib/db/personal";
+import { bogenVon } from "@/lib/db/personalbogen";
 
 const text = (f: FormData, k: string, max = 300) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -68,6 +69,10 @@ export async function vertragErstellen(f: FormData): Promise<void> {
     sonst in einem unterschriebenen Vertrag (Florian, 30.09.2026).
   */
   const angaben = await angabenVon(benutzerId).catch(() => null);
+  // Und falls die Geheimhaltung fehlt: der Personalbogen. Dort steht
+  // dasselbe, und auch ihn hat die Person selbst ausgefüllt
+  // (Florian, 01.10.2026).
+  const bogen = await bogenVon(benutzerId).catch(() => null);
   const person = (await db()`select name from benutzer where id = ${benutzerId}`) as Array<{ name: string }>;
   if (!person[0]) zurueck("Diese Person gibt es nicht.");
 
@@ -76,11 +81,24 @@ export async function vertragErstellen(f: FormData): Promise<void> {
     die Person selbst eingetragen. Fehlen sie, traegt das Buero sie hier
     ein; leer bleibt keine Luecke, sie faellt im Entwurf sofort auf.
   */
-  const name = text(f, "name", 120) || angaben?.name || person[0].name;
+  const ausBogen = bogen
+    ? [
+        bogen.daten.strasse,
+        [bogen.daten.plz, bogen.daten.ort].filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const name =
+    text(f, "name", 120) ||
+    angaben?.name ||
+    [bogen?.daten.vorname, bogen?.daten.nachname].filter(Boolean).join(" ") ||
+    person[0].name;
   const anschrift =
     text(f, "anschrift", 200) ||
-    (angaben ? [angaben.strasse, [angaben.plz, angaben.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "");
-  const geburtsdatum = text(f, "geburtsdatum", 10) || angaben?.geburtsdatum || "";
+    (angaben ? [angaben.strasse, [angaben.plz, angaben.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "") ||
+    ausBogen;
+  const geburtsdatum = text(f, "geburtsdatum", 10) || angaben?.geburtsdatum || bogen?.daten.geburtsdatum || "";
 
   const personalien: Record<string, string> = { name, anschrift, geburtsdatum };
 

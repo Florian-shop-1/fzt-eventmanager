@@ -3,9 +3,10 @@
 /**
  * Personalbogen absenden: prüfen, an das Lohnbüro mailen, Datum merken.
  *
- * Die Angaben werden nicht gespeichert. Geht die Mail schief, bleibt das
- * Formular im Browser ausgefüllt, und man kann es einfach noch einmal
- * absenden.
+ * Seit dem 01.10.2026 bleiben die Angaben auch im Haus liegen, damit
+ * niemand den Mitarbeiter ein zweites Mal danach fragen muss. Geht die
+ * Mail schief, bleibt das Formular im Browser ausgefüllt, und man kann es
+ * einfach noch einmal absenden.
  */
 
 import { revalidatePath } from "next/cache";
@@ -13,6 +14,7 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { LEER, pruefen, zeilen, type Personalbogen } from "@/lib/personal/personalbogen";
+import { bogenSpeichern } from "@/lib/db/personalbogen";
 
 /** Das Lohnbüro. Florian, 18.09.2026. */
 const LOHNBUERO = ["w.zimmer@florianzimmer.com", "sabinebuschow@aol.com"];
@@ -71,6 +73,14 @@ ${gruppen
   }
 
   await db()`update benutzer set personalbogen_am = now() where id = ${benutzer.id}`;
+
+  // Und ab in die Ablage, damit das Büro nicht noch einmal fragen muss.
+  await bogenSpeichern({
+    benutzerId: benutzer.id,
+    daten: b,
+    quelle: "selbst ausgefüllt",
+    von: benutzer.name,
+  }).catch((e) => console.error("[personalbogen] nicht abgelegt:", e));
 
   // Kurze Bestätigung an den Mitarbeiter, ohne die Angaben selbst.
   try {

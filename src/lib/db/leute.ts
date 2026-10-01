@@ -7,6 +7,7 @@
  */
 
 import { db } from "./client";
+import { nachFamilienname } from "@/lib/domain/namen";
 
 export async function namenDerMitarbeiter(): Promise<string[]> {
   const z = (await db()`
@@ -15,5 +16,6 @@ export async function namenDerMitarbeiter(): Promise<string[]> {
        and rolle not in ('gastro', 'kiosk', 'agentur')
      order by name
   `.catch(() => [])) as Array<{ name: string }>;
-  return z.map((r) => String(r.name));
+  // Nach Familienname, wie ueberall, wo mehrere Leute stehen.
+  return z.map((r) => ({ name: String(r.name) })).sort(nachFamilienname).map((r) => r.name);
 }

@@ -69,6 +69,35 @@ export default async function MeinVertrag({
             </p>
           )}
 
+          {/*
+            Ein Vertrag von früher, auf Papier geschlossen. Dann hier die
+            heutige Vorlage zu zeigen wäre schlicht falsch: Unterschrieben
+            wurde ein anderes Blatt (Florian, 01.10.2026).
+          */}
+          {v.aufPapier ? (
+            <div className="rounded-lg border border-linie bg-flaeche p-6 text-sm">
+              <p>
+                Dein Arbeitsvertrag wurde auf Papier geschlossen und liegt im Büro. Hier steht nur, was
+                vereinbart ist:
+              </p>
+              <ul className="mt-3 space-y-1">
+                <li>
+                  Laufzeit: {v.beginn.split("-").reverse().join(".")} bis {v.ende.split("-").reverse().join(".")}
+                </li>
+                <li>Tätigkeit: {v.position || v.taetigkeit}</li>
+                {v.stundenlohnCent ? (
+                  <li>
+                    Vergütung:{" "}
+                    {(v.stundenlohnCent / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} je
+                    Stunde
+                  </li>
+                ) : null}
+              </ul>
+              <p className="mt-3 text-leise">
+                Brauchst du eine Kopie, sag im Büro Bescheid. Unterschreiben musst du hier nichts.
+              </p>
+            </div>
+          ) : (
           <div className="rounded-lg border border-linie bg-flaeche p-6 print:border-0 print:p-0">
             <Vertragstext
               art={v.art}
@@ -78,6 +107,7 @@ export default async function MeinVertrag({
               arbeitgeberUnterschrift={v.unterschriebenAm ? v.arbeitgeberUnterschrift : null}
             />
           </div>
+          )}
 
           {!v.unterschriebenAm ? (
             <form
@@ -97,7 +127,7 @@ export default async function MeinVertrag({
               <Unterschriftsfeld name="unterschrift" />
               <Absendeknopf text="Vertrag unterschreiben" laeuftText="Wird gespeichert..." />
             </form>
-          ) : (
+          ) : v.aufPapier ? null : (
             <form action={ausfertigungGeholt} className="print:hidden">
               <Absendeknopf text="Meine Ausfertigung öffnen" laeuftText="Wird geöffnet..." />
               <p className="mt-2 text-xs text-leise">

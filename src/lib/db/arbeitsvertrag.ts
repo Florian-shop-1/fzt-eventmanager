@@ -14,6 +14,7 @@
 
 import { createHash } from "node:crypto";
 import { db } from "./client";
+import { nachFamilienname } from "@/lib/domain/namen";
 import {
   ganzerVertragstext,
   type Luecken,
@@ -60,6 +61,10 @@ export interface Arbeitsvertrag {
   hasenText: string;
   zurueckgezogenAm: string | null;
   zurueckgezogenVon: string | null;
+  /** Auf Papier geschlossen, lange vor dem Eventmanager. */
+  aufPapier: boolean;
+  /** Woher der Eintrag stammt, etwa der Dateiname des Papiervertrags. */
+  quelle: string;
   /** Abgelöst durch einen neueren Vertrag; der hier gilt dann nicht mehr. */
   abgeloestAm: string | null;
   abgeloestDurch: string | null;
@@ -98,6 +103,8 @@ function baue(z: Record<string, unknown>): Arbeitsvertrag {
     hasenText: String(z.hase_text ?? ""),
     zurueckgezogenAm: zeit(z.zurueckgezogen_am),
     zurueckgezogenVon: (z.zurueckgezogen_von as string) ?? null,
+    aufPapier: z.auf_papier === true,
+    quelle: String(z.quelle ?? ""),
     abgeloestAm: zeit(z.abgeloest_am),
     abgeloestDurch: (z.abgeloest_durch as string) ?? null,
   };
@@ -122,6 +129,7 @@ export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | n
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           v.auf_papier, v.quelle,
            b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null and v.abgeloest_am is null
@@ -141,6 +149,7 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           v.auf_papier, v.quelle,
            b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.id = ${id}::uuid
@@ -158,12 +167,13 @@ export async function vertraege(): Promise<Arbeitsvertrag[]> {
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           v.auf_papier, v.quelle,
            b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.zurueckgezogen_am is null and v.abgeloest_am is null
-     order by v.unterschrieben_am nulls first, b.name
+     order by v.unterschrieben_am nulls first
   `) as Array<Record<string, unknown>>;
-  return z.map(baue);
+  return z.map(baue).sort(nachFamilienname);
 }
 
 /**
@@ -211,7 +221,6 @@ export async function fuerVertrag(): Promise<VertragsKandidat[]> {
      where b.aktiv
        and coalesce(b.art, 'intern') = 'intern'
        and b.rolle not in ('gastro', 'kiosk', 'agentur')
-     order by b.name
   `) as Array<Record<string, unknown>>;
 
   return z.map((r) => ({
@@ -229,7 +238,7 @@ export async function fuerVertrag(): Promise<VertragsKandidat[]> {
           unterschriebenAm: r.unterschrieben_am ? new Date(r.unterschrieben_am as string).toISOString() : null,
         }
       : null,
-  }));
+  })).sort(nachFamilienname);
 }
 
 /**
@@ -247,6 +256,7 @@ export async function abgeloesteVertraege(): Promise<Arbeitsvertrag[]> {
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           v.auf_papier, v.quelle,
            b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.abgeloest_am is not null and v.zurueckgezogen_am is null
@@ -303,6 +313,35 @@ export async function vertragAnlegen(o: NeuerVertrag): Promise<string> {
             ${o.wochenstunden ?? null}, ${o.festgehaltCent ?? null}, ${o.probezeitMonate ?? null},
             ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon}, ${erhoehung},
             ${(o.hasenText ?? "").slice(0, 300)})
+    returning id
+  `) as Array<{ id: string }>;
+  return String(z[0].id);
+}
+
+/**
+ * Einen Vertrag nachtragen, der auf Papier geschlossen wurde.
+ *
+ * Es gibt ihn schon, mit Unterschrift, in einem Ordner. Hier steht er
+ * nur, damit das Haus weiss, was vereinbart ist: Laufzeit, Lohn,
+ * Taetigkeit. Unterschrieben wird nichts mehr, und der Wortlaut bleibt
+ * die Datei; deshalb zeigt die Vertragsseite bei diesen Eintraegen auch
+ * nicht die heutige Vorlage (Florian, 01.10.2026).
+ */
+export async function papierVertragNachtragen(
+  o: NeuerVertrag & { quelle: string; geschlossenAm?: string },
+): Promise<string> {
+  const z = (await db()`
+    insert into arbeitsvertrag (benutzer_id, art, taetigkeit, aufgaben, position, beginn, ende,
+                                stundenlohn_cent, monatsstunden, wochenstunden, festgehalt_cent,
+                                probezeit_monate, personalien, angelegt_von, erhoehung, hase_text,
+                                auf_papier, quelle, freigegeben_am, freigegeben_von, unterschrieben_am)
+    values (${o.benutzerId}::uuid, ${o.art}, ${o.taetigkeit}, ${o.aufgaben}, ${o.position},
+            ${o.beginn}::date, ${o.ende}::date, ${o.stundenlohnCent ?? null}, ${o.monatsstunden ?? null},
+            ${o.wochenstunden ?? null}, ${o.festgehaltCent ?? null}, ${o.probezeitMonate ?? null},
+            ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon}, false, '',
+            true, ${o.quelle},
+            ${o.geschlossenAm ?? o.beginn}::date, ${o.angelegtVon},
+            ${o.geschlossenAm ?? o.beginn}::date)
     returning id
   `) as Array<{ id: string }>;
   return String(z[0].id);

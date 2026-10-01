@@ -377,6 +377,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         */
         if (g.titel === "Mitarbeiter" && darfVertraege(benutzer)) {
           punkte.unshift({ href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
+          /*
+            Die Unterlagen von früher: Papierverträge und Papierbögen, so
+            wie sie hereinkamen, dazu die abgelegten Angaben aus dem
+            Personalbogen (Florian, 01.10.2026).
+          */
+          punkte.splice(1, 0, { href: "/unterlagen", label: "Personalunterlagen", rollen: [] });
         }
         if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
           punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });

@@ -21,6 +21,7 @@
  */
 
 import { db } from "@/lib/db/client";
+import { nachFamilienname } from "@/lib/domain/namen";
 import { zeitenImZeitraum } from "./auswertung";
 
 export interface Sollzeit {
@@ -72,9 +73,9 @@ export async function sollzeiten(): Promise<Sollzeit[]> {
            b.name, b.email
       from arbeitszeit_soll s join benutzer b on b.id = s.benutzer_id
      where b.aktiv
-     order by b.name
   `.catch(() => [])) as Array<Record<string, unknown>>;
-  return z.map(baue);
+  // Nach Familienname, wie ueberall, wo mehrere Leute stehen.
+  return z.map(baue).sort(nachFamilienname);
 }
 
 export async function sollzeitVon(benutzerId: string): Promise<Sollzeit | null> {
@@ -151,6 +152,19 @@ export async function kontostand(person: Sollzeit): Promise<Kontostand> {
   let saldo = 0;
 
   for (const monat of monate) {
+    /*
+      Im ersten Monat zaehlt nur, was nach Vertragsbeginn liegt.
+
+      Olena hat am 18. September angefangen; die vollen 70 Stunden fuer
+      September zu verlangen waere Unsinn. Gerechnet wird nach Tagen, ganz
+      schlicht: "rechne das einfach aus, wieviele das waeren (dreisatz)"
+      (Florian, 01.10.2026). 13 von 30 Tagen sind 30:20 statt 70:00.
+    */
+    const tageImMonat = Number(monatsgrenzen(monat).bis.slice(8));
+    const anteilig =
+      monat === person.seit.slice(0, 7)
+        ? Math.round((sollMinuten * (tageImMonat - Number(person.seit.slice(8)) + 1)) / tageImMonat)
+        : sollMinuten;
     const { von, bis } = monatsgrenzen(monat);
     const zeiten = await zeitenImZeitraum({
       schluessel: monat,
@@ -161,15 +175,25 @@ export async function kontostand(person: Sollzeit): Promise<Kontostand> {
     const meine = zeiten.find((z) => z.benutzerId === person.benutzerId);
     const ist = meine?.arbeitMinuten ?? 0;
 
-    const abweichung = ist - sollMinuten;
+    const abweichung = ist - anteilig;
     const abgegolten = abweichung > 0 ? Math.min(abweichung, korridorMinuten) : 0;
     const plus = abweichung > 0 ? Math.max(0, abweichung - korridorMinuten) : 0;
     const minus = abweichung < 0 ? -abweichung : 0;
 
-    saldo += plus - minus;
+    /*
+      Der laufende Monat zaehlt nicht in den Saldo.
+
+      Am ersten Oktober steht noch nichts auf der Uhr; ihn mitzurechnen
+      haette geheissen, dass Olena mit 70 Stunden Schulden ins Monat
+      startet. Er steht in der Tabelle, grau, und wird am Monatsende von
+      selbst scharf.
+    */
+    const laeuft = monat === heute.slice(0, 7);
+    if (!laeuft) saldo += plus - minus;
+
     zeilen.push({
       monat,
-      sollMinuten,
+      sollMinuten: anteilig,
       istMinuten: ist,
       abgegoltenMinuten: abgegolten,
       plusMinuten: plus,
