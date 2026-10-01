@@ -2,6 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { PersonalbogenFormular } from "@/components/PersonalbogenFormular";
+import { Absendeknopf } from "@/components/Absendeknopf";
+import { db } from "@/lib/db/client";
+import { bogenVon } from "@/lib/db/personalbogen";
+import { svNummerNachtragen } from "./aktionen";
 
 export const metadata = { title: "Personalbogen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -16,6 +20,21 @@ export default async function PersonalbogenSeite() {
 
   const [vorname, ...rest] = benutzer.name.split(" ");
 
+  /*
+    Die eine Ausnahme: Personalbogen ohne Versicherungsnummer.
+
+    Wer zum ersten Mal arbeitet, bekommt sie erst mit der ersten Meldung.
+    Ihn deshalb gar nicht anfangen zu lassen, hilft niemandem
+    (Florian, 01.10.2026). Nachgetragen wird sie hier, und das Programm
+    erinnert alle paar Tage daran.
+  */
+  const z = (await db()`
+    select sv_nummer_spaeter from benutzer where id = ${benutzer.id}
+  `.catch(() => [])) as Array<{ sv_nummer_spaeter: boolean }>;
+  const ohneSvNummer = Boolean(z[0]?.sv_nummer_spaeter);
+  const bogen = ohneSvNummer ? await bogenVon(benutzer.id).catch(() => null) : null;
+  const svFehlt = ohneSvNummer && !bogen?.daten.svNummer;
+
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <header>
@@ -25,6 +44,25 @@ export default async function PersonalbogenSeite() {
           Minuten. Leg dir am besten Krankenkassenkarte, Bankkarte und Steuer-ID bereit.
         </p>
       </header>
+
+      {/*
+        Die Nummer fehlt noch: ein kurzes Feld, mehr nicht.
+      */}
+      {benutzer.personalbogenAm && svFehlt && (
+        <form
+          action={svNummerNachtragen}
+          className="space-y-3 rounded-lg border px-5 py-4"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <div className="font-semibold">Deine Sozialversicherungsnummer fehlt noch</div>
+          <p className="text-sm">
+            Sobald du sie hast, trag sie hier ein. Sie steht auf dem Sozialversicherungsausweis oder hinten
+            auf der Karte der Krankenkasse.
+          </p>
+          <input name="svNummer" maxLength={20} placeholder="65 170839 J 003" autoCapitalize="characters" />
+          <Absendeknopf text="Nummer nachtragen" laeuftText="Wird gespeichert..." />
+        </form>
+      )}
 
       {benutzer.personalbogenAm ? (
         <div className="rounded-lg border px-5 py-6 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
@@ -36,7 +74,12 @@ export default async function PersonalbogenSeite() {
           <Link href="/" className="mt-3 inline-block underline">Zurück</Link>
         </div>
       ) : (
-        <PersonalbogenFormular vorname={vorname ?? ""} nachname={rest.join(" ")} email={benutzer.email} />
+        <PersonalbogenFormular
+          vorname={vorname ?? ""}
+          nachname={rest.join(" ")}
+          email={benutzer.email}
+          ohneSvNummer={ohneSvNummer}
+        />
       )}
     </div>
   );

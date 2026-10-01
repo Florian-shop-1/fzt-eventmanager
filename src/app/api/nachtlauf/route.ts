@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { svErinnerungen } from "@/lib/personal/sv-erinnerung";
 import { amazonEingerichtet } from "@/lib/amazon/api";
 import { amazonLauf } from "@/lib/amazon/sync";
 import { faelligeErinnerungen } from "@/lib/rechnung/erinnerung";
@@ -95,6 +96,8 @@ const MORGEN: Teil[] = [
     hat, bekommt heute frueh keine Mahnung mehr (Florian, 01.10.2026).
   */
   { name: "rechnungserinnerung", tun: () => faelligeErinnerungen() },
+  // Nachhaken, wo die Sozialversicherungsnummer noch fehlt.
+  { name: "sv_nummer", tun: () => svErinnerungen() },
   /*
     Die Amazon-Rechnungen.
 

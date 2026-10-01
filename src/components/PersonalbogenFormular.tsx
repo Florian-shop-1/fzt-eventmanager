@@ -29,7 +29,18 @@ const SCHRITTE: Array<{ titel: string; felder: Feld[] }> = [
 const KASSEN = ["AOK Baden-Württemberg", "AOK Bayern", "Techniker Krankenkasse (TK)", "Barmer", "DAK-Gesundheit", "IKK classic", "KKH", "hkk", "BKK Mobil", "Audi BKK", "SBK", "HEK"];
 const BERUFE = ["Servicekraft", "Foyer / Einlass", "Küche", "Bar", "Technik", "Büro", "Künstler/in", "Reinigung"];
 
-export function PersonalbogenFormular({ vorname, nachname, email }: { vorname: string; nachname: string; email: string }) {
+export function PersonalbogenFormular({
+  vorname,
+  nachname,
+  email,
+  ohneSvNummer = false,
+}: {
+  vorname: string;
+  nachname: string;
+  email: string;
+  /** Für den, der noch keine Sozialversicherungsnummer hat (Florian, 01.10.2026). */
+  ohneSvNummer?: boolean;
+}) {
   const router = useRouter();
   const [b, setB] = useState<Personalbogen>({ ...LEER, vorname, nachname, email });
   const [schritt, setSchritt] = useState(0);
@@ -45,7 +56,7 @@ export function PersonalbogenFormular({ vorname, nachname, email }: { vorname: s
   };
 
   function weiter() {
-    const alle = pruefen(b);
+    const alle = pruefen(b, { ohneSvNummer });
     const hier = Object.fromEntries(Object.entries(alle).filter(([k]) => SCHRITTE[schritt].felder.includes(k as Feld)));
     if (Object.keys(hier).length > 0) {
       setFehler(hier);
@@ -209,6 +220,12 @@ export function PersonalbogenFormular({ vorname, nachname, email }: { vorname: s
               "Steht auf deinem Sozialversicherungsausweis oder deiner Krankenkassenkarte (Rückseite, „Rentenversicherungsnummer“).",
             )}
             {sv && !fehler.svNummer && <p className="-mt-2 text-xs" style={{ color: "var(--warnung)" }}>{sv}</p>}
+            {ohneSvNummer && !b.svNummer.trim() && (
+              <p className="-mt-2 text-xs text-leise">
+                Du hast noch keine? Dann lass das Feld frei und mach weiter. Wir erinnern dich später daran,
+                die Nummer nachzutragen.
+              </p>
+            )}
             {text(
               "steuerId",
               "Steuer-Identifikationsnummer",

@@ -10,10 +10,11 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { LEER, pruefen, zeilen, type Personalbogen } from "@/lib/personal/personalbogen";
+import { LEER, pruefen, svFormOk, zeilen, type Personalbogen } from "@/lib/personal/personalbogen";
 import { bogenSpeichern } from "@/lib/db/personalbogen";
 
 /** Das Lohnbüro. Florian, 18.09.2026. */
@@ -34,7 +35,18 @@ export async function personalbogenAbsenden(roh: Personalbogen): Promise<Absende
   for (const k of Object.keys(LEER) as Array<keyof Personalbogen>) {
     b[k] = String(roh?.[k] ?? "").trim().slice(0, 200);
   }
-  const felder = pruefen(b);
+  /*
+    Darf dieser Mensch den Bogen ohne Versicherungsnummer abgeben?
+
+    Das steht an der Person, nicht an der Vorlage: Sonst fehlt die Nummer
+    am Ende überall und niemand merkt es (Florian, 01.10.2026).
+  */
+  const z = (await db()`
+    select sv_nummer_spaeter from benutzer where id = ${benutzer.id}
+  `.catch(() => [])) as Array<{ sv_nummer_spaeter: boolean }>;
+  const ohneSvNummer = Boolean(z[0]?.sv_nummer_spaeter);
+
+  const felder = pruefen(b, { ohneSvNummer });
   if (Object.keys(felder).length > 0) {
     return { ok: false, fehler: "Bitte die markierten Felder prüfen.", felder };
   }
@@ -101,4 +113,47 @@ ${gruppen
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Die Versicherungsnummer nachtragen.
+ *
+ * Nur für den, dem sie erlassen wurde, und nur solange sie fehlt. Das
+ * Lohnbüro bekommt sie sofort, denn darauf wartet es.
+ */
+export async function svNummerNachtragen(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) throw new Error("Nicht angemeldet.");
+
+  const nummer = String(f.get("svNummer") ?? "").toUpperCase().replace(/\s/g, "").slice(0, 20);
+  if (!svFormOk(nummer)) {
+    redirect(`/personalbogen?meldung=${encodeURIComponent("Die Nummer sieht nicht richtig aus. Zwölf Zeichen, zum Beispiel 65 170839 J 003.")}`);
+  }
+
+  await bogenSpeichern({
+    benutzerId: benutzer.id,
+    daten: { svNummer: nummer },
+    quelle: "selbst nachgetragen",
+    von: benutzer.name,
+  });
+  await db()`
+    update benutzer set sv_nummer_spaeter = false, sv_erinnert_am = null where id = ${benutzer.id}
+  `;
+
+  await mailVerschicken({
+    an: LOHNBUERO,
+    betreff: `Sozialversicherungsnummer nachgereicht: ${benutzer.name}`,
+    text: [
+      `${benutzer.name} hat die Sozialversicherungsnummer nachgetragen:`,
+      "",
+      nummer,
+      "",
+      "Der übrige Personalbogen liegt euch bereits vor.",
+    ].join(String.fromCharCode(10)),
+    antwortAn: benutzer.email,
+  }).catch((e) => console.error("[personalbogen] Nachtrag nicht gemeldet:", e));
+
+  revalidatePath("/personalbogen");
+  revalidatePath("/", "layout");
+  redirect(`/personalbogen?meldung=${encodeURIComponent("Danke, die Nummer ist angekommen. Damit ist dein Personalbogen vollständig.")}`);
 }

@@ -129,15 +129,27 @@ export function svHinweis(b: Personalbogen): string | null {
   return null;
 }
 
-/** Pflichtfelder und harte Fehler. Leeres Objekt heißt: alles in Ordnung. */
-export function pruefen(b: Personalbogen): Record<string, string> {
+/**
+ * Pflichtfelder und harte Fehler. Leeres Objekt heißt: alles in Ordnung.
+ *
+ * `ohneSvNummer` ist die eine Ausnahme: Wer zum ersten Mal arbeitet, hat
+ * noch keine Sozialversicherungsnummer und bekommt sie erst mit der
+ * ersten Meldung. Ihn deshalb gar nicht erst anfangen zu lassen, hilft
+ * niemandem; die Nummer wird nachgetragen (Florian, 01.10.2026).
+ */
+export function pruefen(
+  b: Personalbogen,
+  optionen: { ohneSvNummer?: boolean } = {},
+): Record<string, string> {
   const f: Record<string, string> = {};
   const pflicht: Array<keyof Personalbogen> = [
     "nachname", "vorname", "strasse", "plz", "ort", "geburtsdatum", "geburtsort", "familienstand",
-    "staatsangehoerigkeit", "email", "svNummer", "iban", "beschaeftigung", "schulabschluss",
+    "staatsangehoerigkeit", "email", "iban", "beschaeftigung", "schulabschluss",
     "ausbildung", "steuerId", "steuerklasse", "konfession", "krankenversicherung", "krankenkasse",
   ];
   for (const k of pflicht) if (!String(b[k] ?? "").trim()) f[k] = "Bitte ausfüllen";
+  // Die Versicherungsnummer ist Pflicht, außer sie wurde ausdrücklich erlassen.
+  if (!optionen.ohneSvNummer && !b.svNummer.trim()) f.svNummer = "Bitte ausfüllen";
   if (istMinijob(b)) {
     if (!b.statusMinijob) f.statusMinijob = "Bitte auswählen";
     if (!b.rentenbefreiung) f.rentenbefreiung = "Bitte auswählen";
