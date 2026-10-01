@@ -66,6 +66,20 @@ const OHNE_ANMELDUNG = [
   // Der Bankabruf läuft auf einem Rechner im Haus und hat keinen Benutzer.
   // Die Route lässt nur durch, wer das BANK_IMPORT_SECRET mitschickt.
   "/api/bank",
+  /*
+    Die beiden Sammelläufe und der Postfachlauf.
+
+    Sie fehlten hier, und das hiess: Die Uhr von Vercel schickt ihre
+    Anfrage ohne Anmeldecookie, der Proxy leitet sie zur Anmeldeseite um,
+    und der Lauf fand nie statt. Zusammen mit den acht Cronjobs im
+    Hobby-Tarif war das der zweite Grund, warum nachts nichts passierte
+    (gefunden am 01.10.2026).
+
+    Sicher ist das trotzdem: Beide Adressen prüfen selbst das
+    CRON_SECRET und lassen ohne es nur die Buchhaltung durch.
+  */
+  "/api/nachtlauf",
+  "/api/belege",
 ];
 
 /**
