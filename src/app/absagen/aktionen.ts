@@ -20,6 +20,7 @@ import {
   gastAnlegen,
   gastLesen,
   gaesteFuerAbsage,
+  rueckrufErledigt,
   umgebuchtMarkieren,
 } from "@/lib/absage/db";
 import { geschenkVersprechen } from "@/lib/abbrecher/geschenk";
@@ -58,7 +59,7 @@ export async function showAbsagen(f: FormData): Promise<void> {
 
   const [buchungen, kommende] = await Promise.all([buchungenFuerTag(termin.datum), kommendeTermine(60)]);
   const betroffen = buchungen.filter((b) => b.ditixEventId === termin.ditixEventId && b.bestaetigt && b.email);
-  const { selberTag, weitere } = alternativenAufteilen(termin, kommende);
+  const alternativen = alternativenAufteilen(termin, kommende);
 
   for (const buchung of betroffen) {
     const sitzplatzPosten = buchung.posten.find((p) => p.gruppe === "sitzplatz") ?? buchung.posten[0];
@@ -87,8 +88,7 @@ export async function showAbsagen(f: FormData): Promise<void> {
       vorname: (buchung.name || "Gast").split(" ")[0],
       abgesagt: termin,
       grund,
-      selberTag,
-      weitere,
+      alternativen,
       link,
       kompensationArt,
       neueKategorie,
@@ -197,4 +197,46 @@ export async function alternativeGewaehltMelden(o: {
       text: zeilen.join("\n"),
     }).catch(() => undefined);
   }
+}
+
+/**
+ * Ein Gast bittet um Rückruf: Florian und Kevin erfahren es sofort.
+ */
+export async function rueckrufMelden(o: {
+  gastName: string;
+  gastEmail: string;
+  nummer: string;
+  notiz: string;
+  plaetze: number;
+  abgesagteShow: string;
+  abgesagtesDatum: string;
+}): Promise<void> {
+  const an = await absageZuInformieren();
+  const zeilen = [
+    `${o.gastName} (${o.gastEmail}) bittet um einen Rückruf.`,
+    "",
+    `Nummer: ${o.nummer}`,
+    o.notiz ? `Anmerkung: ${o.notiz}` : "",
+    `Plätze: ${o.plaetze}`,
+    o.abgesagteShow ? `Ausgefallen: ${o.abgesagteShow} am ${o.abgesagtesDatum}` : "",
+    "",
+    "Die Bitte steht auch in der Absage im Eventmanager und bleibt dort, bis sie jemand abhakt.",
+  ].filter(Boolean);
+  for (const p of an) {
+    await mailVerschicken({
+      an: p.email,
+      betreff: `Bitte zurückrufen: ${o.gastName}, ${o.nummer}`,
+      text: zeilen.join("\n"),
+    }).catch(() => undefined);
+  }
+}
+
+/** Jemand hat zurückgerufen, der Zettel ist weg. */
+export async function rueckrufAbhaken(f: FormData): Promise<void> {
+  const benutzer = await nurChefOderKevin();
+  const id = text(f, "id", 40);
+  const gast = await gastLesen(id);
+  if (!gast) throw new Error("Diesen Gast-Eintrag gibt es nicht.");
+  await rueckrufErledigt(id, benutzer.name);
+  revalidatePath(`/absagen/${gast.absageId}`);
 }

@@ -3,7 +3,7 @@ import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { absageLesen, gaesteFuerAbsage, type AbsageGast } from "@/lib/absage/db";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { alleSenden, entwurfAktualisieren, mailSenden, umbuchungErledigt } from "../aktionen";
+import { alleSenden, entwurfAktualisieren, mailSenden, rueckrufAbhaken, umbuchungErledigt } from "../aktionen";
 
 export const metadata = { title: "Show-Absage | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -149,6 +149,36 @@ function GastKarte({ gast }: { gast: AbsageGast }) {
           </span>
         )}
       </div>
+
+      {/*
+        Ein Rückrufwunsch steht hier auffällig, bis jemand zurückgerufen
+        hat. Er ist das Dringendste auf der Seite: Da wartet jemand
+        (Florian, 01.10.2026).
+      */}
+      {gast.rueckrufAm && !gast.rueckrufErledigtAm && (
+        <div
+          className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <span>
+            <strong>Bittet um Rückruf:</strong> {gast.rueckrufNummer}
+            {gast.rueckrufNotiz ? ` (${gast.rueckrufNotiz})` : ""}
+          </span>
+          <form action={rueckrufAbhaken}>
+            <input type="hidden" name="id" value={gast.id} />
+            <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-xs hover:bg-gold-hell">
+              zurückgerufen
+            </button>
+          </form>
+        </div>
+      )}
+
+      {gast.rueckrufErledigtAm && (
+        <p className="mt-2 text-xs text-leise">
+          zurückgerufen von {gast.rueckrufErledigtVon} am{" "}
+          {new Date(gast.rueckrufErledigtAm).toLocaleDateString("de-DE")}
+        </p>
+      )}
     </li>
   );
 }

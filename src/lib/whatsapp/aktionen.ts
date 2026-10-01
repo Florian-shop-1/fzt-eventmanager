@@ -157,8 +157,60 @@ export async function anderweitigErledigt(waId: string): Promise<void> {
   const benutzer = await verlangeWhatsApp();
   if (!istKennung(waId)) redirect("/whatsapp");
   await alsErledigtMarkieren(waId, benutzer.name);
+
+  /*
+    Mit dem Haken ist der Vorgang auch fuer die Abbrecherstrecke erledigt.
+
+    Marc Habel hatte sich verklickt, telefonisch auf den naechsten Abend
+    umgebucht und uns das freundlich geschrieben. Der Vorgang stand danach
+    im Posteingang auf erledigt, der liegengebliebene Korb aber unberuehrt:
+    Am naechsten Morgen waere "Was hat dich abgehalten?" hinausgegangen
+    und drei Tage spaeter das Souvenirglas (Florian, 01.10.2026).
+
+    Deshalb wird hier auch der Korb geschlossen. Wer telefonisch umgebucht
+    hat, hat gebucht; das ist "gewonnen" und nicht "verloren".
+  */
+  await koerbeSchliessen(waId, benutzer.name).catch((f) =>
+    console.warn("[whatsapp] Korb nicht geschlossen:", f),
+  );
+
   revalidatePath("/whatsapp");
+  revalidatePath("/abbrueche");
   redirect(`/whatsapp?mit=${waId}`);
+}
+
+/**
+ * Die liegengebliebenen Koerbe hinter einem erledigten Vorgang schliessen.
+ *
+ * Verknuepft wird ueber die Mailadresse und die Telefonnummer der
+ * Unterhaltung: Beides steht am Korb, und beides steht am Vorgang.
+ * Geschlossen wird nur, was noch offen ist; ein bereits bearbeiteter Korb
+ * behaelt seinen Stand.
+ */
+async function koerbeSchliessen(waId: string, wer: string): Promise<void> {
+  const z = (await db()`
+    select email, telefon from wa_unterhaltung where wa_id = ${waId} limit 1
+  `) as Array<{ email: string | null; telefon: string | null }>;
+  const u = z[0];
+  if (!u) return;
+
+  const email = (u.email ?? "").trim().toLowerCase();
+  const telefon = (u.telefon ?? "").replace(/\D/g, "").slice(-9);
+  if (!email && !telefon) return;
+
+  await db()`
+    update shop_buchung
+       set vertrieb_status = 'gewonnen',
+           vertrieb_am = now(),
+           vertrieb_notiz = ${`Im Posteingang von ${wer} als anderweitig geklärt abgehakt`}
+     where not bestaetigt
+       and vertrieb_status in ('neu', 'anrufen', 'nicht_erreicht', 'im_gespraech')
+       and eingegangen_am > now() - interval '30 days'
+       and (
+         (${email} <> '' and lower(email) = ${email})
+         or (${telefon} <> '' and right(regexp_replace(coalesce(telefon, ''), '\D', '', 'g'), 9) = ${telefon})
+       )
+  `;
 }
 
 /** Nur der Inhaber vergibt die Freigabe, wie alle Zugänge. */

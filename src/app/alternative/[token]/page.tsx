@@ -3,7 +3,8 @@ import { kommendeTermine } from "@/lib/ditix/spielplan";
 import { alternativenAufteilen } from "@/lib/absage/mailtext";
 import { datumLang } from "@/lib/zeit";
 import { FARBEN, GastSeite, Kasten, Kontaktzeile, Wortzeile } from "@/components/GastSeite";
-import { terminWaehlen } from "./aktionen";
+import { Absendeknopf } from "@/components/Absendeknopf";
+import { rueckrufErbitten, terminWaehlen } from "./aktionen";
 
 export const metadata = { title: "Euer Ausweichtermin | Florian Zimmer Theater" };
 export const dynamic = "force-dynamic";
@@ -53,14 +54,16 @@ export default async function AlternativeSeite({ params }: { params: Promise<{ t
           </p>
         </Kasten>
         <p className="mt-5 text-sm leading-relaxed">
-          Wir buchen euch dort in den nächsten Tagen von Hand um und melden uns, falls es Fragen gibt.
+          Wir buchen euch dort um und melden uns, sobald das erledigt ist. Passt doch etwas nicht, ruft uns
+          an oder lasst euch zurückrufen.
         </p>
+        <Rueckruf token={token} nummer={gast.rueckrufNummer} gebetenAm={gast.rueckrufAm} />
         <Kontaktzeile />
       </Rahmen>
     );
   }
 
-  const kommende = await kommendeTermine(60);
+  const kommende = await kommendeTermine(120);
   const abgesagterTermin = {
     ditixEventId: absage.ditixEventId,
     datum: absage.datum,
@@ -69,7 +72,14 @@ export default async function AlternativeSeite({ params }: { params: Promise<{ t
     ausverkauft: false,
     beginn: new Date(),
   };
-  const { selberTag, weitere } = alternativenAufteilen(abgesagterTermin, kommende);
+  // Auf der Seite steht der ganze Showkalender, nicht nur eine Auswahl:
+  // "oder natürlich auch jeder andere termin aus dem showkalender"
+  // (Florian, 01.10.2026).
+  const { selberTag, tagDavor, tagDanach, weitere } = alternativenAufteilen(
+    abgesagterTermin,
+    kommende,
+    120,
+  );
 
   return (
     <Rahmen>
@@ -90,40 +100,115 @@ export default async function AlternativeSeite({ params }: { params: Promise<{ t
         </p>
       </Kasten>
 
-      {selberTag.length > 0 && (
-        <div className="mt-8 text-left">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: FARBEN.gold }}>
-            Noch am selben Tag
-          </p>
-          <div className="mt-3 space-y-3">
-            {selberTag.map((t) => (
-              <TerminZeile key={t.ditixEventId} token={token} ditixEventId={t.ditixEventId} datum={t.datum} uhrzeit={t.uhrzeit} name={t.name} />
-            ))}
-          </div>
-        </div>
-      )}
+      <Terminblock titel="Noch am selben Tag" termine={selberTag} token={token} />
+      <Terminblock titel="Der Abend davor" termine={tagDavor} token={token} />
+      <Terminblock titel="Der Tag danach" termine={tagDanach} token={token} />
+      <Terminblock titel="Alle weiteren Termine" termine={weitere} token={token} />
 
-      {weitere.length > 0 && (
-        <div className="mt-8 text-left">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: FARBEN.gold }}>
-            Die nächsten Termine
-          </p>
-          <div className="mt-3 space-y-3">
-            {weitere.map((t) => (
-              <TerminZeile key={t.ditixEventId} token={token} ditixEventId={t.ditixEventId} datum={t.datum} uhrzeit={t.uhrzeit} name={t.name} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {selberTag.length === 0 && weitere.length === 0 && (
+      {selberTag.length === 0 && tagDavor.length === 0 && tagDanach.length === 0 && weitere.length === 0 && (
         <p className="mt-6 text-sm leading-relaxed">
           Gerade sehen wir keine passenden Termine. Meldet euch bei uns, wir finden gemeinsam einen Abend.
         </p>
       )}
 
+      <Rueckruf token={token} nummer={gast.rueckrufNummer} gebetenAm={gast.rueckrufAm} />
+
       <Kontaktzeile />
     </Rahmen>
+  );
+}
+
+/**
+ * Ein Block Termine mit Überschrift. Ist er leer, steht er gar nicht da.
+ */
+function Terminblock({
+  titel,
+  termine,
+  token,
+}: {
+  titel: string;
+  termine: Array<{ ditixEventId: string; datum: string; uhrzeit: string; name: string }>;
+  token: string;
+}) {
+  if (termine.length === 0) return null;
+  return (
+    <div className="mt-8 text-left">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: FARBEN.gold }}>
+        {titel}
+      </p>
+      <div className="mt-3 space-y-3">
+        {termine.map((t) => (
+          <TerminZeile
+            key={t.ditixEventId}
+            token={token}
+            ditixEventId={t.ditixEventId}
+            datum={t.datum}
+            uhrzeit={t.uhrzeit}
+            name={t.name}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Lieber sprechen als klicken.
+ *
+ * "Rückrufmöglichkeit usw." (Florian, 01.10.2026): Manchen passt keiner
+ * der Termine, manche haben Fragen, die eine Liste nicht beantwortet. Die
+ * sollen nicht in der Warteschleife landen, sondern eine Nummer
+ * hinterlassen können.
+ */
+function Rueckruf({
+  token,
+  nummer,
+  gebetenAm,
+}: {
+  token: string;
+  nummer: string;
+  gebetenAm: string | null;
+}) {
+  if (gebetenAm) {
+    return (
+      <Kasten className="mt-8 text-left">
+        <p className="text-sm">
+          Wir rufen euch zurück{nummer ? ` unter ${nummer}` : ""}. Meist noch am selben Tag, spätestens am
+          nächsten Werktag.
+        </p>
+      </Kasten>
+    );
+  }
+
+  return (
+    <div className="mt-10 text-left">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: FARBEN.gold }}>
+        Lieber persönlich?
+      </p>
+      <p className="mt-2 text-sm leading-relaxed">
+        Passt kein Termin oder habt ihr Fragen? Hinterlasst uns eure Nummer, wir rufen zurück.
+      </p>
+      <form action={rueckrufErbitten} className="mt-3 space-y-3">
+        <input type="hidden" name="token" value={token} />
+        <input
+          name="nummer"
+          inputMode="tel"
+          required
+          maxLength={40}
+          placeholder="Eure Telefonnummer"
+          className="w-full rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: FARBEN.linie, background: FARBEN.karte, color: FARBEN.weiss }}
+        />
+        <input
+          name="notiz"
+          maxLength={300}
+          placeholder="Wann erreichen wir euch am besten? (freiwillig)"
+          className="w-full rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: FARBEN.linie, background: FARBEN.karte, color: FARBEN.weiss }}
+        />
+        <Absendeknopf text="Bitte ruft uns zurück" laeuftText="Wird gesendet..." />
+      </form>
+    </div>
   );
 }
 

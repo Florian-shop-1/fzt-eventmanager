@@ -152,5 +152,36 @@ export async function vorfreudeVerschicken(
 
 /** Der Lauf, wie ihn die Uhr auslöst: der Tag, der jetzt an der Reihe ist. */
 export async function taeglicherLauf(): Promise<LaufErgebnis> {
-  return vorfreudeVerschicken(zieldatum());
+  const haupt = await vorfreudeVerschicken(zieldatum());
+
+  /*
+    Die Nachzuegler.
+
+    Wer drei Tage vor der Show bucht, ist am Stichtag noch gar nicht da
+    gewesen und faellt sonst durchs Raster: Seine Vorfreude-Mail waere
+    schon hinaus, bevor er gebucht hat (Florian, 01.10.2026).
+
+    Deshalb werden danach auch die naechsten vier Tage durchgegangen.
+    Verschickt wird dabei nichts doppelt: Wer die Mail schon hat, faellt
+    mit dem Grund "schon geschrieben" heraus, genau wie Unbezahltes,
+    Abgemeldete und abgesagte Shows. Uebrig bleiben die, die erst
+    kuerzlich gebucht haben.
+
+    Der Showtag selbst bleibt aussen vor. Wer heute Abend kommt, hat
+    seinen Abend geplant; eine Mail "buch doch noch das Menue dazu" waere
+    an diesem Tag nur noch Druck.
+  */
+  const heute = new Date();
+  for (let tage = 1; tage < VORLAUF_TAGE; tage++) {
+    const tag = new Date(`${isoDatum(heute)}T12:00:00Z`);
+    tag.setUTCDate(tag.getUTCDate() + tage);
+    const nach = await vorfreudeVerschicken(tag.toISOString().slice(0, 10)).catch(() => null);
+    if (!nach) continue;
+    haupt.gefunden += nach.gefunden;
+    haupt.verschickt.push(...nach.verschickt);
+    haupt.uebersprungen.push(...nach.uebersprungen);
+    haupt.fehler.push(...nach.fehler);
+  }
+
+  return haupt;
 }

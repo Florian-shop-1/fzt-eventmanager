@@ -36,6 +36,12 @@ export interface AbsageGast {
   gewaehltAm: string | null;
   umgebuchtVon: string | null;
   umgebuchtAm: string | null;
+  /** Der Gast bittet um einen Rückruf statt selbst zu wählen. */
+  rueckrufNummer: string;
+  rueckrufNotiz: string;
+  rueckrufAm: string | null;
+  rueckrufErledigtVon: string | null;
+  rueckrufErledigtAm: string | null;
 }
 
 function baueAbsage(r: Record<string, unknown>): ShowAbsage {
@@ -71,6 +77,11 @@ function baueGast(r: Record<string, unknown>): AbsageGast {
     gewaehltAm: r.gewaehlt_am ? new Date(r.gewaehlt_am as string).toISOString() : null,
     umgebuchtVon: (r.umgebucht_von as string) ?? null,
     umgebuchtAm: r.umgebucht_am ? new Date(r.umgebucht_am as string).toISOString() : null,
+    rueckrufNummer: String(r.rueckruf_nummer ?? ""),
+    rueckrufNotiz: String(r.rueckruf_notiz ?? ""),
+    rueckrufAm: r.rueckruf_am ? new Date(r.rueckruf_am as string).toISOString() : null,
+    rueckrufErledigtVon: (r.rueckruf_erledigt_von as string) ?? null,
+    rueckrufErledigtAm: r.rueckruf_erledigt_am ? new Date(r.rueckruf_erledigt_am as string).toISOString() : null,
   };
 }
 
@@ -163,6 +174,35 @@ export async function alternativeWaehlen(token: string, terminId: string, termin
     returning *
   `) as Array<Record<string, unknown>>;
   return z[0] ? baueGast(z[0]) : null;
+}
+
+/**
+ * Der Gast bittet um einen Rückruf.
+ *
+ * Eine zweite Bitte überschreibt die erste: Wer noch einmal schreibt, hat
+ * meist eine neue Nummer oder einen Nachtrag, und zwei offene Zettel zur
+ * selben Person helfen niemandem (Florian, 01.10.2026).
+ */
+export async function rueckrufBitten(
+  token: string,
+  nummer: string,
+  notiz: string,
+): Promise<AbsageGast | null> {
+  const z = (await db()`
+    update absage_gast
+       set rueckruf_nummer = ${nummer}, rueckruf_notiz = ${notiz}, rueckruf_am = now(),
+           rueckruf_erledigt_von = null, rueckruf_erledigt_am = null
+     where zugang_token = ${token}
+    returning *
+  `) as Array<Record<string, unknown>>;
+  return z[0] ? baueGast(z[0]) : null;
+}
+
+/** Jemand hat zurückgerufen. */
+export async function rueckrufErledigt(id: string, von: string): Promise<void> {
+  await db()`
+    update absage_gast set rueckruf_erledigt_von = ${von}, rueckruf_erledigt_am = now() where id = ${id}
+  `;
 }
 
 export async function umgebuchtMarkieren(id: string, von: string): Promise<void> {

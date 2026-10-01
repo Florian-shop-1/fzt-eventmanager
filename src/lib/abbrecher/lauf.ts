@@ -142,7 +142,26 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
     Mail, und wer ihn nutzt, steht hier heraus.
   */
   const abgemeldet = await widersprochene(alle.map((a) => a.email));
-  const offen = alle.filter((a) => !a.spaeterGekauft && !abgemeldet.has(a.email.toLowerCase()));
+
+  /*
+    Wer schon geklaert ist, bekommt nichts mehr.
+
+    Marc Habel hatte sich verklickt, telefonisch auf den naechsten Abend
+    umgebucht und uns das freundlich geschrieben. Trotzdem waere am
+    naechsten Morgen die Frage "Was hat dich abgehalten?" hinausgegangen
+    und drei Tage spaeter das Souvenirglas: Der Vorgang stand im
+    Posteingang auf erledigt, der liegengebliebene Korb aber unberuehrt
+    (Florian, 01.10.2026).
+
+    Gewonnen, verloren und unqualifiziert heissen alle dasselbe fuer die
+    Mails: Hier ist nichts mehr zu tun. "spaeterGekauft" deckt nur ab,
+    wer ueber den Shop gebucht hat; wer am Telefon umgebucht wurde,
+    taucht dort nie auf.
+  */
+  const ERLEDIGT = new Set(["gewonnen", "verloren", "unqualifiziert", "anderweitig"]);
+  const offen = alle.filter(
+    (a) => !a.spaeterGekauft && !ERLEDIGT.has(a.status) && !abgemeldet.has(a.email.toLowerCase()),
+  );
   ergebnis.uebersprungen = alle.length - offen.length;
 
   /* 1. Die Frage, frühestens vier Stunden und spätestens drei Tage danach. */
