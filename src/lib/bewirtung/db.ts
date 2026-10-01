@@ -43,6 +43,16 @@ export interface Bewirtung {
    */
   zahlweg: "" | "karte" | "bar" | "konto";
   privatAusgelegt: boolean;
+  /**
+   * Geschenk an "mitarbeiter" oder "partner", sonst leer.
+   *
+   * Sachbezuege an Mitarbeiter bleiben bis 50 Euro im Monat je Person
+   * steuerfrei. Dafuer muss nachvollziehbar sein, wer wann was bekommen
+   * hat, und deshalb steht beides am Beleg (Florian, 01.10.2026).
+   */
+  geschenk: "" | "mitarbeiter" | "partner";
+  /** Fuer wen das Geschenk war. Bei Mitarbeitern der Name. */
+  geschenkFuer: string;
   anlass: string;
   teilnehmer: string;
   bewirtender: string;
@@ -62,6 +72,7 @@ export interface Bewirtung {
 
 const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, foto_typ, datum::text as datum, restaurant, anschrift, gesellschaft,
   brutto_cent, mwst7_cent, mwst19_cent, trinkgeld_cent, zahlart, art, kategorie, zweck, zahlweg,
+  geschenk, geschenk_fuer,
   privat_ausgelegt, anlass, teilnehmer, bewirtender,
   ort_der_bewirtung, lesung, notiz, unterschrift, unterschrieben_am, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
   storniert_von, storno_grund`;
@@ -88,6 +99,8 @@ function baue(z: Record<string, unknown>): Bewirtung {
     kategorie: String(z.kategorie ?? ""),
     zweck: String(z.zweck ?? ""),
     zahlweg: (z.zahlweg as Bewirtung["zahlweg"]) ?? "",
+    geschenk: (z.geschenk as Bewirtung["geschenk"]) ?? "",
+    geschenkFuer: String(z.geschenk_fuer ?? ""),
     privatAusgelegt: Boolean(z.privat_ausgelegt),
     anlass: String(z.anlass ?? ""),
     teilnehmer: String(z.teilnehmer ?? ""),
@@ -183,6 +196,8 @@ export interface Angaben {
   zweck: string;
   zahlweg: "" | "karte" | "bar" | "konto";
   privatAusgelegt: boolean;
+  geschenk: "" | "mitarbeiter" | "partner";
+  geschenkFuer: string;
   anlass: string;
   teilnehmer: string;
   bewirtender: string;
@@ -200,6 +215,7 @@ export async function entwurfSpeichern(id: string, a: Angaben): Promise<void> {
       teilnehmer = ${a.teilnehmer}, bewirtender = ${a.bewirtender}, ort_der_bewirtung = ${a.ortDerBewirtung},
       notiz = ${a.notiz}, art = ${a.art}, kategorie = ${a.kategorie}, zweck = ${a.zweck},
       zahlweg = ${a.zahlweg}, privat_ausgelegt = ${a.privatAusgelegt},
+      geschenk = ${a.geschenk}, geschenk_fuer = ${a.geschenkFuer},
       gesellschaft = coalesce(${a.gesellschaft ?? null}, gesellschaft)
     where id = ${id} and status = 'entwurf'
   `;

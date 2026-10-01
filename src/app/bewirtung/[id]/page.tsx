@@ -1,3 +1,4 @@
+import { namenDerMitarbeiter } from "@/lib/db/leute";
 import Link from "next/link";
 import { darfGesellschaftWaehlen, GESELLSCHAFTEN } from "@/lib/bewirtung/gesellschaft";
 import { notFound, redirect } from "next/navigation";
@@ -32,6 +33,8 @@ export default async function BelegSeite({
   const l = b.lesung;
   const dubletten = b.status === "entwurf" ? await moeglicheDubletten(b) : [];
   const hinterlegt = b.status === "entwurf" ? await hinterlegteUnterschrift() : { png: null, von: null, am: null };
+  // Fuer die Vorschlagsliste beim Geschenk: unsere eigenen Leute.
+  const mitarbeiter = await namenDerMitarbeiter().catch(() => [] as string[]);
   const warnungen = [
     l && !l.beleg_ok && "Die KI war sich nicht sicher, ob das ein lesbarer Beleg ist.",
     l && !l.maschinell && b.art === "bewirtung" && "Der Beleg scheint handschriftlich zu sein. Das Finanzamt verlangt bei Bewirtungen in der Regel einen maschinellen Beleg.",
@@ -211,6 +214,71 @@ export default async function BelegSeite({
                 <input type="checkbox" name="privat" defaultChecked={b.privatAusgelegt} />
                 Privat ausgelegt (mit eigenem Geld, die Firma erstattet)
               </label>
+            </fieldset>
+
+            {/*
+              Geschenk oder nicht.
+
+              Ein Tankgutschein fuer einen Mitarbeiter ist steuerlich
+              etwas anderes als Druckerpapier: Sachbezuege bleiben bis 50
+              Euro im Monat je Person steuerfrei, und dafuer muss
+              nachvollziehbar sein, wer wann was bekommen hat (Florian,
+              01.10.2026). Deshalb steht die Frage gleich hier und nicht
+              in einer Notiz.
+            */}
+            <fieldset
+              className="space-y-2 rounded-lg border p-4"
+              style={
+                l?.geschenk && !b.geschenk
+                  ? { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+                  : { borderColor: "var(--linie)", background: "var(--flaeche)" }
+              }
+            >
+              <legend className="px-1 text-sm font-semibold">
+                Geschenk?{" "}
+                {l?.geschenk && !b.geschenk && (
+                  <span className="font-normal" style={{ color: "var(--warnung)" }}>
+                    Sieht nach einem Gutschein aus. Für wen war er?
+                  </span>
+                )}
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ["", "Kein Geschenk"],
+                  ["mitarbeiter", "Für Mitarbeiter"],
+                  ["partner", "Für Geschäftspartner"],
+                ] as const).map(([wert, titel]) => (
+                  <label
+                    key={wert}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-linie bg-flaeche px-4 py-2 has-[:checked]:border-gold has-[:checked]:bg-gold-hell"
+                  >
+                    <input type="radio" name="geschenk" value={wert} defaultChecked={b.geschenk === wert} />
+                    <span className="text-sm font-medium">{titel}</span>
+                  </label>
+                ))}
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">
+                  Für wen? Bei Mitarbeitern den Namen, sonst die Firma oder die Person
+                </span>
+                <input
+                  name="geschenkFuer"
+                  defaultValue={b.geschenkFuer}
+                  list="leute"
+                  maxLength={120}
+                  placeholder="z. B. Sarah Herold"
+                  className="w-full"
+                />
+              </label>
+              <datalist id="leute">
+                {mitarbeiter.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              <p className="text-xs text-leise">
+                Bei Mitarbeitern zählt die Grenze von 50 Euro im Monat je Person. Was zusammenkommt, steht
+                in der Belegübersicht unter „Geschenke“.
+              </p>
             </fieldset>
 
             <fieldset className="space-y-3 rounded-lg border border-linie bg-flaeche p-4">

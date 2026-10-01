@@ -361,6 +361,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           punkte.push({ href: "/bewirtung/abgleich", label: "Belege abgleichen", rollen: [] });
           // Was wir schulden und was schon bezahlt ist (Florian, 30.09.2026).
           punkte.push({ href: "/bewirtung/rechnungen", label: "Eingangsrechnungen", rollen: [] });
+          // Was an Mitarbeiter und Partner verschenkt wurde, samt der
+          // 50-Euro-Grenze je Person und Monat (Florian, 01.10.2026).
+          punkte.push({ href: "/bewirtung/geschenke", label: "Geschenke", rollen: [] });
         }
         return { titel: g.titel, punkte };
       }).filter((g) => g.punkte.length > 0)

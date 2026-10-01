@@ -62,8 +62,14 @@ function angabenAus(f: FormData, darfFirma: boolean): Angaben | string {
     art: text(f, "art") === "einkauf" ? "einkauf" : "bewirtung",
     kategorie: text(f, "kategorie", 60),
     zweck: text(f, "zweck", 300),
-    zahlweg: (["karte", "bar"].includes(text(f, "zahlweg")) ? text(f, "zahlweg") : "") as Angaben["zahlweg"],
+    zahlweg: (["karte", "bar", "konto"].includes(text(f, "zahlweg"))
+      ? text(f, "zahlweg")
+      : "") as Angaben["zahlweg"],
     privatAusgelegt: Boolean(f.get("privat")),
+    geschenk: (["mitarbeiter", "partner"].includes(text(f, "geschenk"))
+      ? text(f, "geschenk")
+      : "") as Angaben["geschenk"],
+    geschenkFuer: text(f, "geschenkFuer", 120),
     anlass: text(f, "anlass", 500),
     teilnehmer: text(f, "teilnehmer", 1000),
     bewirtender: text(f, "bewirtender", 100) || "Florian Zimmer",
