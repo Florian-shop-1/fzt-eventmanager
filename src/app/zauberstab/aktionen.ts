@@ -28,11 +28,11 @@ function zurueck(meldung: string, ziel = "/zauberstab"): never {
   redirect(`${weg}?meldung=${encodeURIComponent(meldung)}`);
 }
 
-/** Päckchen ist raus. */
+/** Umschlag ist raus. */
 export async function abhaken(f: FormData): Promise<void> {
   const b = await zugang();
   await zauberstabAbhaken(text(f, "id"), b.name);
-  zurueck("Abgehakt, das Päckchen ist raus.", text(f, "ziel"));
+  zurueck("Abgehakt, der Umschlag ist raus.", text(f, "ziel"));
 }
 
 export async function dochNicht(f: FormData): Promise<void> {
@@ -53,7 +53,7 @@ export async function vonHand(f: FormData): Promise<void> {
   const teile = name.split(/\s+/).filter(Boolean);
 
   if (!text(f, "strasse") || !text(f, "plz") || !text(f, "ort")) {
-    zurueck("Ohne vollständige Anschrift geht das Päckchen nicht raus.");
+    zurueck("Ohne vollständige Anschrift geht der Umschlag nicht raus.");
   }
 
   await zauberstabEintragen({

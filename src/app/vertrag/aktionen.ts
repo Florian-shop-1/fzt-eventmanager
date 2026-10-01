@@ -15,6 +15,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { downloadMerken, vertragUnterschreiben, vertragVon } from "@/lib/db/arbeitsvertrag";
 import { luecken } from "@/lib/personal/vertragsdaten";
+import { hinterlegteUnterschrift } from "@/lib/bewirtung/db";
 
 function zurueck(meldung: string): never {
   revalidatePath("/vertrag");
@@ -41,12 +42,19 @@ export async function vertragSignieren(f: FormData): Promise<void> {
   if (bild.length < 1200) zurueck("Das Feld ist noch leer. Zeichne deinen Namenszug hinein.");
 
   const kopf = await headers();
+  /*
+    Die Unterschrift des Arbeitgebers wird in derselben Sekunde
+    daruntergesetzt. Vorher bekommt der Mitarbeiter sie nicht zu sehen und
+    kann sie auch nicht aus der Seite holen (Florian, 01.10.2026).
+  */
+  const chef = await hinterlegteUnterschrift().catch(() => ({ png: null }));
   const ok = await vertragUnterschreiben({
     id: v.id,
     benutzerId: b.id,
     bild,
     art: v.art,
     luecken: luecken(v),
+    arbeitgeber: chef.png,
     ip: (kopf.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unbekannt",
     geraet: (kopf.get("user-agent") ?? "unbekannt").slice(0, 300),
   });

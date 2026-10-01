@@ -4,6 +4,8 @@ import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { ohneVertrag, vertraege } from "@/lib/db/arbeitsvertrag";
 import { SPIELZEIT_ENDE } from "@/lib/personal/arbeitsvertrag";
+import { HASE_ERHOEHUNG, HASE_VERTRAG } from "@/lib/personal/hasensatz";
+import { StellenWahl } from "@/components/StellenWahl";
 import { vertragErstellen } from "./aktionen";
 
 export const metadata = { title: "Arbeitsverträge | FZT Eventmanager" };
@@ -154,27 +156,12 @@ export default async function VertraegeSeite({
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs text-leise">Stelle (steht intern in der Liste)</span>
-                <input name="position" placeholder="Foyer, Showteam, Technik" maxLength={60} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-leise">Tätigkeitsbezeichnung (steht im Vertrag)</span>
-                <input name="taetigkeit" placeholder="Servicekraft im Foyer" maxLength={120} required />
-              </label>
-            </div>
-
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Aufgaben (steht im Vertrag)</span>
-              <textarea
-                name="aufgaben"
-                rows={2}
-                maxLength={600}
-                placeholder="Gästeservice, Vorbereitung und Betreuung des Foyer- und Barbetriebs, Verkauf und Ausschank"
-                required
-              />
-            </label>
+            {/*
+              Stelle waehlen, Taetigkeit und Aufgaben fuellen sich mit
+              den Formulierungen, die Florian vorgegeben hat. Aendern
+              geht weiterhin (Florian, 01.10.2026).
+            */}
+            <StellenWahl />
 
             <div className="grid gap-3 sm:grid-cols-4">
               <label className="block">
@@ -230,6 +217,24 @@ export default async function VertraegeSeite({
                 </label>
               </div>
             </details>
+
+            {/*
+              Was der Hase sagt, wenn der Vertrag bereitliegt.
+
+              Leer heisst: der Standardsatz, und bei einer Erhoehung
+              freut er sich von selbst. Wer einen eigenen Satz schreibt,
+              dessen Satz gilt (Florian, 01.10.2026).
+            */}
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">
+                Botschaft vom Hasi individualisieren (freiwillig)
+              </span>
+              <input
+                name="hasenText"
+                maxLength={300}
+                placeholder={`Ohne Eintrag sagt er: „${HASE_VERTRAG}“ oder bei mehr Lohn „${HASE_ERHOEHUNG}“`}
+              />
+            </label>
 
             <Absendeknopf text="Entwurf anlegen und ansehen" laeuftText="Wird angelegt..." />
           </form>

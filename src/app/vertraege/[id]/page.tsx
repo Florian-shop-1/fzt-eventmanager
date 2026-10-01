@@ -103,6 +103,7 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
           luecken={luecken(v)}
           unterschrift={v.unterschrift}
           unterschriebenAm={v.unterschriebenAm}
+          arbeitgeberUnterschrift={v.unterschriebenAm ? v.arbeitgeberUnterschrift : null}
         />
       </div>
 

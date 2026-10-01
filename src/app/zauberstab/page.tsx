@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  *
  * Wer beim Eurowings-Gewinnspiel mitmacht, bekommt einen erscheinenden
  * Zauberstab nach Hause geschickt. Die Anschrift kommt aus dem Shop, hier
- * steht sie in einer Liste zum Abarbeiten: Päckchen packen, Schreiben
+ * steht sie in einer Liste zum Abarbeiten: Umschlag fertig machen, Schreiben
  * dazulegen, abhaken (Florian, 30.09.2026).
  *
  * Aufgebaut wie der Gutscheinversand, damit niemand zweierlei lernen muss.
@@ -43,7 +43,7 @@ export default async function ZauberstabSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Zauberstäbe</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Die Begleitschreiben zum Ausdrucken. Wer noch ein Päckchen bekommt, steht zusammen mit den
+            Die Begleitschreiben zum Ausdrucken. Wer noch einen Umschlag bekommt, steht zusammen mit den
             Gutscheinen in der{" "}
             <Link href="/versand" className="underline">
               Versandliste

@@ -3,7 +3,7 @@
  *
  * Wer beim Gewinnspiel mitgemacht, aber keine Anschrift dagelassen hat,
  * bekommt am Tag darauf diese eine Mail. Sie verkauft nichts, sie fragt
- * nach drei Zeilen Anschrift, damit das Päckchen rausgehen kann
+ * nach drei Zeilen Anschrift, damit der Umschlag rausgehen kann
  * (Florian, 30.09.2026).
  *
  * Genau eine Erinnerung, nicht mehr: Wer sie ignoriert, will den

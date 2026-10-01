@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { vertragVon } from "@/lib/db/arbeitsvertrag";
+import { hasensatz } from "@/lib/personal/hasensatz";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -128,8 +129,6 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
       { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
       { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
-      { href: "/rechnungen", label: "Rechnungen", rollen: ["chef", "team", "buchhaltung"] },
-      { href: "/zahlungseingaenge", label: "Zahlungseingänge", rollen: ["chef", "team", "buchhaltung"] },
     ],
   },
   {
@@ -149,6 +148,26 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/funktionsheet", label: "Funktionsheet", rollen: ["chef", "team", "gastro"] },
       { href: "/belegung", label: "Belegung", rollen: ["chef", "team", "gastro"] },
       { href: "/kiosk", label: "Food-Kiosk", rollen: ["chef", "team", "kiosk"] },
+    ],
+  },
+  /*
+    Alles, was mit Geld und Belegen zu tun hat, an einem Ort.
+
+    "bitte mache einen Reiter, den du Buchhaltung nennst, dort packst du
+    die dinge wie die Belege, eingang und ausgangsrechnungen rein"
+    (Florian, 01.10.2026). Vorher hing das alles unter Sonstiges, hinter
+    Shortcuts und Merkzettel, und die Ausgangsrechnungen standen sogar
+    unter Events.
+
+    Wer die Punkte sieht, entscheidet sich weiter unten je Punkt: Die
+    Belege und die Geschenke sehen nur Werner und Florian, die
+    Rechnungen auch das Buero.
+  */
+  {
+    titel: "Buchhaltung",
+    punkte: [
+      { href: "/rechnungen", label: "Ausgangsrechnungen", rollen: ["chef", "team", "buchhaltung"] },
+      { href: "/zahlungseingaenge", label: "Zahlungseingänge", rollen: ["chef", "team", "buchhaltung"] },
     ],
   },
   /*
@@ -265,9 +284,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           01.10.2026). Eine Gehaltserhoehung ist eine gute Nachricht, und
           die darf auch so klingen.
         */
-        hase: vertrag.erhoehung
-          ? "Gute Nachrichten! Dein neuer Vertrag liegt bereit, und du verdienst darin mehr als bisher. Schau ihn dir an."
-          : "Dein Arbeitsvertrag liegt bereit. Lies ihn in Ruhe durch und unterschreib ihn hier.",
+        hase: hasensatz({ erhoehung: vertrag.erhoehung, eigener: vertrag.hasenText }),
       });
     }
 
@@ -364,14 +381,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
           punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });
         }
-        if (g.titel === "Sonstiges" && darfBuchhaltung(benutzer)) {
-          punkte.push({ href: "/bewirtung", label: "Belege", rollen: [] });
-          // Welche Ausgabe hat noch keinen Beleg (Florian, 29.09.2026).
-          punkte.push({ href: "/bewirtung/abgleich", label: "Belege abgleichen", rollen: [] });
-          // Was wir schulden und was schon bezahlt ist (Florian, 30.09.2026).
-          punkte.push({ href: "/bewirtung/rechnungen", label: "Eingangsrechnungen", rollen: [] });
-          // Was an Mitarbeiter und Partner verschenkt wurde, samt der
-          // 50-Euro-Grenze je Person und Monat (Florian, 01.10.2026).
+        if (g.titel === "Buchhaltung" && darfBuchhaltung(benutzer)) {
+          /*
+            Die Reihenfolge folgt dem Weg eines Belegs: erst scannen, dann
+            dem Konto zuordnen, dann sehen, was offen ist. Die Geschenke
+            stehen zuletzt, sie sind eine Auswertung und keine Arbeit.
+          */
+          punkte.unshift(
+            { href: "/bewirtung", label: "Belege scannen", rollen: [] },
+            { href: "/bewirtung/abgleich", label: "Belege abgleichen", rollen: [] },
+            { href: "/bewirtung/rechnungen", label: "Eingangsrechnungen", rollen: [] },
+          );
           punkte.push({ href: "/bewirtung/geschenke", label: "Geschenke", rollen: [] });
         }
         return { titel: g.titel, punkte };

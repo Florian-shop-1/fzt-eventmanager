@@ -1,7 +1,7 @@
 /**
  * Das Begleitschreiben zum Zauberstab.
  *
- * Es liegt dem Päckchen bei, das an die Teilnehmer des Eurowings-
+ * Es liegt dem Umschlag bei, der an die Teilnehmer des Eurowings-
  * Gewinnspiels geht. Gedacht ist es wie das Schreiben bei den Gutscheinen:
  * kein Werbezettel, sondern ein paar Zeilen von Florian (Florian,
  * 30.09.2026).

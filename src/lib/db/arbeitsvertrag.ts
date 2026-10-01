@@ -43,10 +43,21 @@ export interface Arbeitsvertrag {
   textstand: string | null;
   unterschrift: string | null;
   unterschriebenAm: string | null;
+  /**
+   * Die Unterschrift des Arbeitgebers.
+   *
+   * Steht erst da, wenn der Mitarbeiter unterschrieben hat. Vorher ist
+   * sie nicht nur unsichtbar, sie existiert am Vertrag gar nicht: Sonst
+   * koennte jemand an ein Blatt kommen, auf dem nur der Chef
+   * unterschrieben hat (Florian, 01.10.2026).
+   */
+  arbeitgeberUnterschrift: string | null;
   freigegebenAm: string | null;
   freigegebenVon: string | null;
   /** Verdient die Person mit diesem Vertrag mehr als mit dem letzten? */
   erhoehung: boolean;
+  /** Der Satz, den der Hase sagt. Leer heisst: der Standardsatz. */
+  hasenText: string;
   zurueckgezogenAm: string | null;
   zurueckgezogenVon: string | null;
 }
@@ -77,9 +88,11 @@ function baue(z: Record<string, unknown>): Arbeitsvertrag {
     textstand: (z.textstand as string) ?? null,
     unterschrift: (z.unterschrift as string) ?? null,
     unterschriebenAm: zeit(z.unterschrieben_am),
+    arbeitgeberUnterschrift: (z.arbeitgeber_unterschrift as string) ?? null,
     freigegebenAm: zeit(z.freigegeben_am),
     freigegebenVon: (z.freigegeben_von as string) || null,
     erhoehung: z.erhoehung === true,
+    hasenText: String(z.hase_text ?? ""),
     zurueckgezogenAm: zeit(z.zurueckgezogen_am),
     zurueckgezogenVon: (z.zurueckgezogen_von as string) ?? null,
   };
@@ -92,7 +105,8 @@ export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | n
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
+           v.arbeitgeber_unterschrift,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null
@@ -107,7 +121,8 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
+           v.arbeitgeber_unterschrift,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.id = ${id}::uuid
@@ -122,7 +137,8 @@ export async function vertraege(): Promise<Arbeitsvertrag[]> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
+           v.arbeitgeber_unterschrift,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.zurueckgezogen_am is null
@@ -175,6 +191,8 @@ export interface NeuerVertrag {
   probezeitMonate?: number | null;
   personalien: Record<string, string>;
   angelegtVon: string;
+  /** Eigener Satz fuer den Hasen. Leer heisst: der Standardsatz. */
+  hasenText?: string;
 }
 
 export async function vertragAnlegen(o: NeuerVertrag): Promise<string> {
@@ -200,11 +218,12 @@ export async function vertragAnlegen(o: NeuerVertrag): Promise<string> {
   const z = (await db()`
     insert into arbeitsvertrag (benutzer_id, art, taetigkeit, aufgaben, position, beginn, ende,
                                 stundenlohn_cent, monatsstunden, wochenstunden, festgehalt_cent,
-                                probezeit_monate, personalien, angelegt_von, erhoehung)
+                                probezeit_monate, personalien, angelegt_von, erhoehung, hase_text)
     values (${o.benutzerId}::uuid, ${o.art}, ${o.taetigkeit}, ${o.aufgaben}, ${o.position},
             ${o.beginn}::date, ${o.ende}::date, ${o.stundenlohnCent ?? null}, ${o.monatsstunden ?? null},
             ${o.wochenstunden ?? null}, ${o.festgehaltCent ?? null}, ${o.probezeitMonate ?? null},
-            ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon}, ${erhoehung})
+            ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon}, ${erhoehung},
+            ${(o.hasenText ?? "").slice(0, 300)})
     returning id
   `) as Array<{ id: string }>;
   return String(z[0].id);
@@ -224,16 +243,28 @@ export async function vertragUnterschreiben(o: {
   bild: string;
   art: Vertragsart;
   luecken: Luecken;
+  /** Die hinterlegte Unterschrift des Arbeitgebers. */
+  arbeitgeber?: string | null;
   ip: string;
   geraet: string;
 }): Promise<boolean> {
   const text = ganzerVertragstext(o.art, o.luecken);
   const stand = createHash("sha256").update(text).digest("hex").slice(0, 16);
 
+  /*
+    Die Unterschrift des Arbeitgebers kommt in derselben Sekunde dazu.
+
+    Vorher steht sie nirgends am Vertrag, auch nicht unsichtbar im
+    Quelltext der Seite. So kann niemand ein Blatt bekommen, auf dem nur
+    der Chef unterschrieben hat (Florian, 01.10.2026). Gespeichert wird
+    sie am Vertrag: Aendert sich spaeter die hinterlegte Unterschrift,
+    bleibt auf diesem Vertrag die von heute.
+  */
   const z = (await db()`
     update arbeitsvertrag
        set unterschrieben_am = now(),
            unterschrift = ${o.bild},
+           arbeitgeber_unterschrift = ${o.arbeitgeber ?? null},
            unterschrift_ip = ${o.ip},
            unterschrift_geraet = ${o.geraet},
            vertragstext = ${text},

@@ -110,6 +110,7 @@ export async function vertragErstellen(f: FormData): Promise<void> {
     probezeitMonate: teilzeit ? Math.round(Number(text(f, "probezeit", 3)) || 0) || null : null,
     personalien,
     angelegtVon: b.name,
+    hasenText: text(f, "hasenText", 300),
   }).catch((fehler) => {
     const m = fehler instanceof Error ? fehler.message : "";
     if (m.includes("arbeitsvertrag_einer_je_person")) {

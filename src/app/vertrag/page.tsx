@@ -75,6 +75,7 @@ export default async function MeinVertrag({
               luecken={luecken(v)}
               unterschrift={v.unterschrift}
               unterschriebenAm={v.unterschriebenAm}
+              arbeitgeberUnterschrift={v.unterschriebenAm ? v.arbeitgeberUnterschrift : null}
             />
           </div>
 

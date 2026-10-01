@@ -71,7 +71,7 @@ export async function zauberstaebe(alle = false): Promise<Zauberstab[]> {
   return z.map(baue);
 }
 
-/** Wie viele warten noch auf ihr Päckchen? Für den Zähler in der Leiste. */
+/** Wie viele warten noch auf ihren Umschlag? Für den Zähler in der Leiste. */
 export async function offeneZauberstaebe(): Promise<number> {
   const z = (await db()`
     select count(*)::int as n from zauberstab_versand where versendet_am is null

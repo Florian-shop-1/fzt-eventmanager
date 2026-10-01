@@ -20,12 +20,24 @@ export function Vertragstext({
   luecken,
   unterschrift,
   unterschriebenAm,
+  arbeitgeberUnterschrift,
 }: {
   art: Vertragsart;
   luecken: Luecken;
   unterschrift?: string | null;
   unterschriebenAm?: string | null;
+  /**
+   * Die Unterschrift des Arbeitgebers.
+   *
+   * Sie wird nur gezeigt, wenn der Mitarbeiter unterschrieben hat. Die
+   * Regel steht zweimal im Weg: Die Seiten geben sie vorher gar nicht
+   * erst mit, und hier wird sie zusaetzlich geprueft. Ein Blatt, auf dem
+   * nur der Chef unterschrieben hat, soll es nicht geben koennen
+   * (Florian, 01.10.2026).
+   */
+  arbeitgeberUnterschrift?: string | null;
 }) {
+  const chefZeigen = Boolean(unterschriebenAm && arbeitgeberUnterschrift);
   const abschnitte = vertragsAbschnitte(art, luecken);
   const kopf = UEBERSCHRIFT[art];
 
@@ -80,9 +92,20 @@ export function Vertragstext({
         <div>Neu-Ulm, {datumDe(unterschriebenAm ?? new Date().toISOString())}</div>
         <div className="grid gap-8 sm:grid-cols-2">
           <div>
-            <div className="h-16 border-b border-text" />
+            {chefZeigen ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={arbeitgeberUnterschrift!}
+                alt="Unterschrift Florian Zimmer"
+                className="h-16 border-b border-text"
+              />
+            ) : (
+              <div className="h-16 border-b border-text" />
+            )}
             <div className="mt-1 text-sm">Florian Zimmer Theater GmbH</div>
-            <div className="text-xs text-leise">Arbeitgeber</div>
+            <div className="text-xs text-leise">
+              Arbeitgeber{chefZeigen ? ", Florian Zimmer" : ""}
+            </div>
           </div>
           <div>
             {unterschrift ? (

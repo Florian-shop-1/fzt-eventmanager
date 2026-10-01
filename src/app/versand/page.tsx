@@ -294,7 +294,7 @@ export default async function VersandSeite({
         <Kachel
           zahl={staebeOffen.filter((z) => !z.offen).length}
           was="Zauberstäbe"
-          hinweis="Päckchen packen"
+          hinweis="Umschlag fertig machen"
         />
       </section>
 
@@ -493,7 +493,7 @@ function ZauberstabKarte({ stab }: { stab: Zauberstab }) {
                   className="rounded-md px-4 py-2 font-semibold text-white"
                   style={{ background: "var(--gut)" }}
                 >
-                  Päckchen ist raus
+                  Umschlag ist raus
                 </button>
               </form>
             )
