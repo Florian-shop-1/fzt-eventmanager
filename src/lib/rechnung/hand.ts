@@ -15,7 +15,8 @@ import { db } from "@/lib/db/client";
 import type { Position } from "@/lib/domain/vorgang";
 import { angebotsAbsender } from "@/lib/angebot/pdfdaten";
 import { naechsteRechnungsnummer } from "./aus-angebot";
-import { einstellung, rechnungAnlegen, rechnungLesen, type Rechnung } from "./db";
+import { einstellung, merken, rechnungAnlegen, rechnungLesen, type Rechnung } from "./db";
+import { kundeNachBrevo } from "@/lib/marketing/brevo-kontakte";
 
 export interface HandPosition {
   bezeichnung: string;
@@ -104,6 +105,29 @@ export async function handRechnungAnlegen(o: HandRechnung): Promise<Rechnung> {
            geaendert_am = now()
      where id = ${rechnung.id}
   `;
+
+  /*
+    Und der Kunde wandert in den Newsletter.
+
+    "schnapp dir auch die daten und lege diese in brevo ab ... wir wollen
+    auf jeden fall, dass jeder kunde auch im newsletter ist" (Florian,
+    01.10.2026). Das darf die Rechnung nicht aufhalten: Was dabei
+    herauskommt, steht als Vermerk an der Rechnung, nicht als Fehler auf
+    dem Bildschirm.
+  */
+  if (o.email) {
+    const ergebnis = await kundeNachBrevo({
+      name: o.kunde,
+      email: o.email,
+      ansprechpartner: o.ansprechpartner,
+    });
+    await merken({
+      rechnungId: rechnung.id,
+      art: "brevo",
+      text: `Kunde ${o.email}: ${ergebnis}`,
+      wer: o.von,
+    }).catch(() => undefined);
+  }
 
   return (await rechnungLesen(rechnung.id))!;
 }

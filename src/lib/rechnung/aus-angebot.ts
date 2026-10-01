@@ -16,7 +16,8 @@ import { db } from "@/lib/db/client";
 import { holeAngebot } from "@/lib/angebot/lesen";
 import { angebotssumme } from "@/lib/angebot/erstellen";
 import { angebotsAbsender } from "@/lib/angebot/pdfdaten";
-import { rechnungAnlegen, rechnungLesen, type Rechnung } from "./db";
+import { merken, rechnungAnlegen, rechnungLesen, type Rechnung } from "./db";
+import { kundeNachBrevo } from "@/lib/marketing/brevo-kontakte";
 
 /** Zahlungsziel für Firmenrechnungen: sieben Tage. */
 export const ZAHLUNGSZIEL_TAGE = 7;
@@ -113,6 +114,21 @@ export async function rechnungAusAngebot(angebotId: string, wer: string): Promis
            geaendert_am = now()
      where id = ${rechnung.id}
   `;
+
+  // Auch der Veranstaltungskunde gehoert in den Newsletter.
+  if (angebot.kunde.email) {
+    const ergebnis = await kundeNachBrevo({
+      name: angebot.kunde.name,
+      email: angebot.kunde.email,
+      ansprechpartner: angebot.kunde.ansprechpartner ?? "",
+    });
+    await merken({
+      rechnungId: rechnung.id,
+      art: "brevo",
+      text: `Kunde ${angebot.kunde.email}: ${ergebnis}`,
+      wer,
+    }).catch(() => undefined);
+  }
 
   return (await rechnungLesen(rechnung.id))!;
 }

@@ -44,10 +44,24 @@ export default async function RechnungSeite({
 
   // Nur Rechnungen aus einem Angebot haben Positionen und damit ein PDF.
   const hatPositionen = (await rechnungsPdfDaten(id)) !== null;
+  /*
+    Das Anschreiben steht offen da, bevor die Mail rausgeht.
+
+    "bei der Rechnungserstellung auch das anschreiben zeigen, dass man da
+    noch drauf einfluss nehmen kann" (Florian, 01.10.2026). Solange die
+    Rechnung noch nicht verschickt ist, ist der Kasten deshalb
+    aufgeklappt, und unter der Mail steht der Name dessen, der gerade
+    angemeldet ist.
+  */
   const vorschlag = await rechnungsMailtext({
+    ansprechpartner: r.kundeAnsprechpartner || null,
     nummer: r.nummer,
     faelligAm: r.faelligAm,
     betragCent: r.betragCent,
+    leistung: r.leistung,
+    quelle: r.quelle,
+    absender: b.name,
+    zahlungszielTage: r.zahlungszielTage,
   });
 
   return (
@@ -134,7 +148,7 @@ export default async function RechnungSeite({
             </div>
           )}
 
-          <details className="rounded border border-gold bg-gold-hell/40 p-3">
+          <details open={!r.versendetAm} className="rounded border border-gold bg-gold-hell/40 p-3">
             <summary className="cursor-pointer text-sm font-medium text-gold-dunkel">
               {r.mailStatus === "gesendet" ? "Rechnung noch einmal verschicken" : "Rechnung per Mail verschicken"}
             </summary>

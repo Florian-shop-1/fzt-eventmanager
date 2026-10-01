@@ -80,6 +80,8 @@ export interface Rechnung {
   /** Wann zuletzt freundlich erinnert wurde, und wie oft insgesamt. */
   erinnertAm: string | null;
   erinnerungen: number;
+  /** Bei einer Rechnung von Hand: wer dort angeschrieben wird. */
+  kundeAnsprechpartner: string;
   /** Summe aller Zahlungen. */
   bezahltCent: number;
   /** Was noch aussteht, nie negativ. */
@@ -198,6 +200,9 @@ function baue(r: Record<string, unknown>, zahlungen: Zahlung[]): Rechnung {
     dankMailAm: r.dank_mail_am ? new Date(r.dank_mail_am as string).toISOString() : null,
     erinnertAm: r.erinnert_am ? new Date(r.erinnert_am as string).toISOString() : null,
     erinnerungen: Number(r.erinnerungen ?? 0),
+    kundeAnsprechpartner: String(
+      (r.kunde_anschrift as { ansprechpartner?: string } | null)?.ansprechpartner ?? "",
+    ),
     bezahltCent,
     offenCent: Math.max(0, betragCent - bezahltCent),
     ueberzahlungCent: bezahltCent > betragCent ? bezahltCent - betragCent : null,

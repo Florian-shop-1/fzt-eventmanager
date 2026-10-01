@@ -32,6 +32,7 @@ function rechnung(o: Partial<Rechnung> & { nummer: string; betragCent: number })
     dankMailAm: null,
   erinnertAm: null,
   erinnerungen: 0,
+  kundeAnsprechpartner: "",
     kunde: o.kunde ?? "Musterfirma GmbH",
     kundeEmail: "",
     kundeIban: o.kundeIban ?? "",

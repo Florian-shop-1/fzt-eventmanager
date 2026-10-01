@@ -24,6 +24,10 @@ export interface EingelesenerAuszug {
   neu: number;
   wer: string;
   angelegtAm: string;
+  /** Ob die Datei selbst noch da ist, zum Nachschlagen. */
+  hatDatei: boolean;
+  typ: string;
+  groesse: number;
 }
 
 function baue(z: Record<string, unknown>): EingelesenerAuszug {
@@ -38,6 +42,9 @@ function baue(z: Record<string, unknown>): EingelesenerAuszug {
     neu: Number(z.neu ?? 0),
     wer: String(z.wer ?? ""),
     angelegtAm: new Date(z.angelegt_am as string).toISOString(),
+    hatDatei: Number(z.groesse ?? 0) > 0,
+    typ: String(z.typ ?? ""),
+    groesse: Number(z.groesse ?? 0),
   };
 }
 
@@ -50,7 +57,7 @@ export function dateiAbdruck(inhalt: Buffer): string {
 export async function auszugMitAbdruck(hash: string): Promise<EingelesenerAuszug | null> {
   const z = (await db()`
     select id, hash, dateiname, konto, von_datum::text as von_datum, bis_datum::text as bis_datum,
-           umsaetze, neu, wer, angelegt_am
+           umsaetze, neu, wer, angelegt_am, typ, groesse
       from kontoauszug_datei where hash = ${hash} limit 1
   `.catch(() => [])) as Array<Record<string, unknown>>;
   return z[0] ? baue(z[0]) : null;
@@ -65,20 +72,48 @@ export async function auszugVermerken(o: {
   umsaetze: number;
   neu: number;
   wer: string;
+  /** Die Datei selbst, damit man sie später ansehen kann. */
+  inhalt?: Buffer;
+  typ?: string;
 }): Promise<void> {
   await db()`
-    insert into kontoauszug_datei (hash, dateiname, konto, von_datum, bis_datum, umsaetze, neu, wer)
+    insert into kontoauszug_datei (hash, dateiname, konto, von_datum, bis_datum, umsaetze, neu, wer,
+                                   inhalt, typ, groesse)
     values (${o.hash}, ${o.dateiname}, ${o.konto}, ${o.vonDatum}::date, ${o.bisDatum}::date,
-            ${o.umsaetze}, ${o.neu}, ${o.wer})
+            ${o.umsaetze}, ${o.neu}, ${o.wer},
+            decode(${o.inhalt ? o.inhalt.toString("base64") : ""}, 'base64'),
+            ${o.typ ?? ""}, ${o.inhalt?.length ?? 0})
     on conflict (hash) do nothing
   `;
+}
+
+/**
+ * Die Datei selbst, zum Ansehen.
+ *
+ * Wer im November wissen will, was im September auf der Karte stand,
+ * soll nicht ins OnlineBanking muessen (Florian, 01.10.2026).
+ */
+export async function auszugDatei(
+  id: string,
+): Promise<{ bytes: Buffer; typ: string; dateiname: string } | null> {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
+  const z = (await db()`
+    select encode(inhalt, 'base64') as inhalt, typ, dateiname
+      from kontoauszug_datei where id = ${id}::uuid and inhalt is not null
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  if (!z[0]) return null;
+  return {
+    bytes: Buffer.from(String(z[0].inhalt), "base64"),
+    typ: String(z[0].typ) || "application/octet-stream",
+    dateiname: String(z[0].dateiname) || "Abrechnung",
+  };
 }
 
 /** Die zuletzt eingelesenen Dateien, neueste zuerst. */
 export async function eingeleseneAuszuege(hoechstens = 25): Promise<EingelesenerAuszug[]> {
   const z = (await db()`
     select id, hash, dateiname, konto, von_datum::text as von_datum, bis_datum::text as bis_datum,
-           umsaetze, neu, wer, angelegt_am
+           umsaetze, neu, wer, angelegt_am, typ, groesse
       from kontoauszug_datei
      order by angelegt_am desc
      limit ${hoechstens}

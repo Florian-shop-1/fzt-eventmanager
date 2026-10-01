@@ -242,6 +242,10 @@ export async function dateiEinlesen(f: FormData): Promise<void> {
     umsaetze: liste.length,
     neu: e.neu,
     wer: b.name,
+    // Die Datei selbst bleibt liegen, damit man sie spaeter ansehen kann
+    // (Florian, 01.10.2026).
+    inhalt: roh,
+    typ: datei.type || (roh.subarray(0, 4).toString("latin1") === "%PDF" ? "application/pdf" : "text/plain"),
   }).catch((f) => console.warn("[bank] Auszug nicht vermerkt:", f));
   await merken({
     rechnungId: null,

@@ -15,6 +15,7 @@
  */
 
 import type { Lead } from "@/lib/shop/leads";
+import { db } from "@/lib/db/client";
 
 const BREVO = "https://api.brevo.com/v3";
 
@@ -250,4 +251,103 @@ export async function dateiUebertragen(o: {
   }
 
   return e;
+}
+
+/*
+  Die Kundenliste.
+
+  "wir wollen auf jeden fall, dass jeder kunde auch im newsletter ist"
+  (Florian, 01.10.2026). Wer eine Rechnung von uns bekommt, wandert also
+  nach Brevo. Welche Liste das ist, steht nicht im Code: Florian waehlt
+  sie einmal aus, und bis dahin geht nichts hinaus. Eine im Code
+  festgenagelte Listennummer waere beim naechsten Umbau in Brevo stumm
+  falsch.
+*/
+
+export interface KundenListe {
+  id: number | null;
+  name: string;
+}
+
+export async function kundenListe(): Promise<KundenListe> {
+  const z = (await db()`
+    select kunden_liste_id, kunden_liste_name from brevo_einstellung where id = 1
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return {
+    id: z[0]?.kunden_liste_id ? Number(z[0].kunden_liste_id) : null,
+    name: String(z[0]?.kunden_liste_name ?? ""),
+  };
+}
+
+export async function kundenListeSetzen(id: number | null, name: string, wer: string): Promise<void> {
+  await db()`
+    insert into brevo_einstellung (id, kunden_liste_id, kunden_liste_name, geaendert_von)
+    values (1, ${id}, ${name}, ${wer})
+    on conflict (id) do update
+      set kunden_liste_id = ${id}, kunden_liste_name = ${name},
+          geaendert_von = ${wer}, geaendert_am = now()
+  `;
+}
+
+/** Firmen haben keinen Vornamen. */
+function istFirma(name: string): boolean {
+  return /\b(gmbh|ug|ag|kg|ohg|e\. ?v\.?|mbh|gbr|ltd|inc|co\.|stiftung|verein|schule|hotel)\b/i.test(name);
+}
+
+/**
+ * Einen Rechnungskunden nach Brevo legen.
+ *
+ * Gibt zurueck, was passiert ist, und wirft nie: Eine Rechnung darf nicht
+ * daran scheitern, dass Brevo gerade nicht erreichbar ist. Steht keine
+ * Liste fest, passiert nichts, und das sagt die Rueckgabe auch.
+ */
+export async function kundeNachBrevo(o: {
+  name: string;
+  email: string;
+  ansprechpartner?: string;
+  telefon?: string;
+}): Promise<string> {
+  const email = (o.email ?? "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "keine brauchbare Mailadresse, nichts an Brevo";
+
+  const liste = await kundenListe();
+  if (!liste.id) return "keine Brevo-Kundenliste eingestellt, nichts uebertragen";
+
+  const person = (o.ansprechpartner ?? "").trim() || (istFirma(o.name) ? "" : o.name.trim());
+  const teile = person.split(/\s+/).filter(Boolean);
+
+  try {
+    const antwort = await fetch(`${BREVO}/contacts/import`, {
+      method: "POST",
+      headers: {
+        "api-key": schluessel(),
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        listIds: [liste.id],
+        updateExistingContacts: true,
+        emptyContactsAttributes: false,
+        jsonBody: [
+          {
+            email,
+            attributes: {
+              VORNAME: teile.length > 1 ? teile[0] : "",
+              NACHNAME: teile.length > 1 ? teile.slice(1).join(" ") : o.name.trim(),
+              SMS: o.telefon?.trim() || undefined,
+              HERKUNFT: "Rechnung",
+            },
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!antwort.ok) {
+      const text = await antwort.text().catch(() => "");
+      return `Brevo hat den Kontakt abgelehnt (${antwort.status}). ${text.slice(0, 150)}`;
+    }
+    return `in der Brevo-Liste ${liste.name || liste.id} abgelegt`;
+  } catch (f) {
+    return `Brevo nicht erreicht: ${f instanceof Error ? f.message : "unbekannter Fehler"}`;
+  }
 }

@@ -184,7 +184,24 @@ export default async function AbgleichSeite({
                 {auszuege.map((a) => (
                   <li key={a.id} className="flex flex-wrap gap-x-2">
                     <span className="tabular-nums">{datumDe(a.angelegtAm)}</span>
-                    <span className="min-w-0 flex-1 truncate">{a.dateiname || "ohne Namen"}</span>
+                    {/*
+                      Der Dateiname fuehrt zur Datei: "dass man sie auch
+                      anklicken kann zum angucken später" (Florian,
+                      01.10.2026). Bei alten Eintraegen liegt noch keine
+                      Datei, die stehen weiter nur als Text da.
+                    */}
+                    {a.hatDatei ? (
+                      <a
+                        href={`/bewirtung/abrechnung/${a.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 flex-1 truncate underline"
+                      >
+                        {a.dateiname || "ohne Namen"}
+                      </a>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate">{a.dateiname || "ohne Namen"}</span>
+                    )}
                     {a.konto && <span>Konto {a.konto}</span>}
                     <span className="tabular-nums">
                       {a.vonDatum && a.bisDatum

@@ -20,7 +20,19 @@ import { rechnungAusAngebot, ZAHLUNGSZIEL_TAGE } from "./aus-angebot";
 
 const UMBRUCH = String.fromCharCode(10);
 
-/** Der Vorschlagstext. Er lässt sich vor dem Abschicken ändern. */
+/**
+ * Der Vorschlagstext. Er lässt sich vor dem Abschicken ändern.
+ *
+ * Unterschrieben wird mit dem Namen dessen, der die Mail abschickt:
+ * "unterschrieben von dem der es im eventmanager ausgefüllt hat, also
+ * steht unten in der mail Werner Zimmer, wenn er diese versendet hat"
+ * (Florian, 01.10.2026). Eine Rechnung, unter der ein Name steht, ist
+ * eine Nachricht von einem Menschen; eine ohne ist Behördenpost.
+ *
+ * Eine Rechnung aus einem Angebot spricht vom reservierten Termin. Eine
+ * Rechnung von Hand kann alles Mögliche sein, da bleibt der Text
+ * freundlich und allgemein.
+ */
 export async function rechnungsMailtext(o: {
   ansprechpartner?: string | null;
   nummer: string;
@@ -28,28 +40,68 @@ export async function rechnungsMailtext(o: {
   betragCent: number;
   show?: string | null;
   datum?: string | null;
+  /** Worum es geht, bei einer Rechnung von Hand. */
+  leistung?: string | null;
+  /** "hand" für eine selbst geschriebene Rechnung. */
+  quelle?: string | null;
+  /** Wer sie verschickt. Steht unter der Mail. */
+  absender?: string | null;
+  zahlungszielTage?: number;
 }): Promise<{ betreff: string; text: string }> {
   const betrag = (o.betragCent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 });
   const faellig = o.faelligAm.split("-").reverse().join(".");
+  const ziel = o.zahlungszielTage ?? ZAHLUNGSZIEL_TAGE;
+  const anrede = o.ansprechpartner ? `Hallo ${o.ansprechpartner},` : "Hallo,";
+  const unterschrift = [o.absender, "Florian Zimmer Theater"].filter(Boolean) as string[];
+
+  if (o.quelle === "hand") {
+    /*
+      Der Betreff nennt, worum es geht.
+
+      "bei betreff hast du Rechnung für abend im Fz Theater. das ist nicht
+      gut - ausser es wäre für einen abend. bei dem test hatten wir akku
+      angegeben" (Florian, 01.10.2026). Steht eine Leistung in der
+      Rechnung, steht sie auch im Betreff.
+    */
+    return {
+      betreff: o.leistung
+        ? `Eure Rechnung ${o.nummer} für ${o.leistung}`
+        : `Eure Rechnung ${o.nummer} vom Florian Zimmer Theater`,
+      text: [
+        anrede,
+        "",
+        o.leistung
+          ? `vielen Dank für die gute Zusammenarbeit. Im Anhang findet ihr unsere Rechnung ${o.nummer} für ${o.leistung}.`
+          : `vielen Dank für die gute Zusammenarbeit. Im Anhang findet ihr unsere Rechnung ${o.nummer}.`,
+        "",
+        `Bitte überweist die ${betrag} Euro bis zum ${faellig}.`,
+        "",
+        "Wenn etwas unklar ist oder nicht stimmt, meldet euch einfach, wir klären das gern.",
+        "",
+        "Herzliche Grüße",
+        ...unterschrift,
+      ].join(UMBRUCH),
+    };
+  }
 
   return {
     betreff: `Eure Rechnung ${o.nummer} für den Abend im Florian Zimmer Theater`,
     text: [
-      o.ansprechpartner ? `Hallo ${o.ansprechpartner},` : "Hallo,",
+      anrede,
       "",
       "schön, dass wir uns einig sind. Im Anhang findet ihr die Rechnung.",
       "",
       o.datum && o.show
         ? `Euer Termin am ${o.datum.split("-").reverse().join(".")} für ${o.show} ist reserviert.`
         : "Euer Termin ist reserviert.",
-      `Bitte überweist die ${betrag} Euro innerhalb von ${ZAHLUNGSZIEL_TAGE} Tagen, also bis zum ${faellig}.`,
+      `Bitte überweist die ${betrag} Euro innerhalb von ${ziel} Tagen, also bis zum ${faellig}.`,
       "Sobald das Geld bei uns ist, ist eure Veranstaltung fest gebucht, und ihr bekommt von uns",
       "noch einmal eine Bestätigung.",
       "",
       "Bei Fragen sind wir gerne für euch da.",
       "",
       "Herzliche Grüße",
-      "Florian Zimmer Theater",
+      ...unterschrift,
     ].join(UMBRUCH),
   };
 }

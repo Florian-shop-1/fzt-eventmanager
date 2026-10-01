@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { holeLeads, istStoerung, type Lead } from "@/lib/shop/leads";
-import { listen, type BrevoListe } from "@/lib/marketing/brevo-kontakte";
-import { dateiZuBrevo, probelauf, uebertragen } from "./aktionen";
+import { kundenListe, listen, type BrevoListe } from "@/lib/marketing/brevo-kontakte";
+import { dateiZuBrevo, kundenlisteSpeichern, probelauf, uebertragen } from "./aktionen";
 
 export const metadata = { title: "Anfragen zu Brevo | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -39,6 +39,7 @@ export default async function BrevoSeite({
     leadFehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }
 
+  const kunden = await kundenListe();
   let brevoListen: BrevoListe[] = [];
   let brevoFehler: string | null = null;
   try {
@@ -114,6 +115,43 @@ export default async function BrevoSeite({
           </Link>
         ))}
       </nav>
+
+      {/*
+        Welche Liste die Kundenliste ist.
+
+        "wir wollen auf jeden fall, dass jeder kunde auch im newsletter
+        ist" (Florian, 01.10.2026). Wer eine Rechnung bekommt, wandert
+        automatisch in diese eine Liste. Steht hier nichts, geht auch
+        nichts hinaus; eine im Code festgenagelte Liste wäre beim nächsten
+        Umbau in Brevo stumm falsch.
+      */}
+      <section className="space-y-3 rounded-lg border border-linie bg-flaeche px-5 py-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
+          Kundenliste für Rechnungen
+        </h2>
+        <p className="text-sm text-leise">
+          Jeder Kunde, für den wir eine Rechnung schreiben, wird in diese Liste eingetragen.
+          {kunden.id
+            ? ` Zurzeit: ${kunden.name || kunden.id}.`
+            : " Zurzeit ist keine Liste gewählt, es wird niemand übertragen."}
+        </p>
+        {brevoListen.length > 0 && (
+          <form action={kundenlisteSpeichern} className="flex flex-wrap items-end gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Liste</span>
+              <select name="liste" defaultValue={kunden.id ? String(kunden.id) : ""}>
+                <option value="">keine, nichts übertragen</option>
+                {brevoListen.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} ({l.anzahl})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Absendeknopf text="Merken" laeuftText="Wird gemerkt..." />
+          </form>
+        )}
+      </section>
 
       <section className="space-y-4 rounded-lg border border-linie bg-flaeche px-5 py-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">In welche Liste?</h2>

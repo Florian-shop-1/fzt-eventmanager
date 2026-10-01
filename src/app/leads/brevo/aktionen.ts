@@ -13,7 +13,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { holeLeads, istStoerung } from "@/lib/shop/leads";
-import { bekannteAdressen, dateiUebertragen, leadsUebertragen } from "@/lib/marketing/brevo-kontakte";
+import {
+  bekannteAdressen,
+  dateiUebertragen,
+  kundenListeSetzen,
+  leadsUebertragen,
+  listen,
+} from "@/lib/marketing/brevo-kontakte";
 import { leadsAusCsv } from "@/lib/marketing/lead-csv";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -147,4 +153,22 @@ export async function dateiZuBrevo(f: FormData): Promise<void> {
     if (fehler && typeof fehler === "object" && "digest" in fehler) throw fehler;
     zurueck(fehler instanceof Error ? fehler.message : "Das hat nicht geklappt.", listeId);
   }
+}
+
+/**
+ * Welche Liste die Kundenliste ist.
+ *
+ * In sie wandert jeder, fuer den wir eine Rechnung schreiben
+ * (Florian, 01.10.2026).
+ */
+export async function kundenlisteSpeichern(f: FormData): Promise<void> {
+  const b = await zugang();
+  const roh = text(f, "liste");
+  const id = Number(roh) || null;
+  const name = id ? ((await listen().catch(() => [])).find((l) => l.id === id)?.name ?? "") : "";
+  await kundenListeSetzen(id, name, b.name ?? "Büro");
+  zurueck(
+    id ? `Kunden landen jetzt in der Liste ${name || id}.` : "Es wird kein Kunde mehr nach Brevo übertragen.",
+    roh,
+  );
 }
