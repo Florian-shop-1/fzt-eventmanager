@@ -149,7 +149,7 @@ export default async function BestellungenSeite({
       )}
 
       {(z.uebergeben || z.bestellen) && (
-        <Leihware darfLoeschen={z.verwalten} imBuero={z.uebergeben} />
+        <Leihware darfLoeschen={z.verwalten} imBuero={z.uebergeben} foyer={b?.rolle === "foyer"} />
       )}
 
       {z.verwalten && <Abrechnung monat={monat} />}
@@ -486,7 +486,23 @@ async function RechnungsEinrichtung() {
  * (Florian, 30.09.2026). Bei etwas, das nicht im Katalog steht, traegt
  * sie nur ein, was es war; den Preis ergaenzt das Buero.
  */
-async function Leihware({ darfLoeschen, imBuero }: { darfLoeschen: boolean; imBuero: boolean }) {
+async function Leihware({
+  darfLoeschen,
+  imBuero,
+  foyer,
+}: {
+  darfLoeschen: boolean;
+  imBuero: boolean;
+  /**
+   * Das Foyer gibt die Ware heraus und traegt sie deshalb selbst ein.
+   *
+   * "wenn ein Foyer Mitarbeiter Ware an die Magicuisine zur verfuegung
+   * gestellt hat, muss er das auch eintragen koennen bei sich" (Florian,
+   * 01.10.2026). Duerfen konnte das Foyer es schon, nur stand da der Text
+   * fuers Buero, und der klingt, als ginge es um jemand anderen.
+   */
+  foyer?: boolean;
+}) {
   const [katalog, liste] = await Promise.all([leihArtikel(), leihen({})]);
   const offeneSumme = liste.filter((l) => l.status === "offen").reduce((n, l) => n + l.menge * l.preisCent, 0);
   const ohnePreis = liste.filter((l) => l.status === "offen" && l.preisCent <= 0);
@@ -499,9 +515,11 @@ async function Leihware({ darfLoeschen, imBuero }: { darfLoeschen: boolean; imBu
         {offeneSumme > 0 && <span className="text-sm text-leise">offen: {euro(offeneSumme)}</span>}
       </div>
       <p className="text-sm text-leise">
-        {imBuero
-          ? "Wenn sich die Gastro etwas nimmt, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet es nichts. Sonst kommt sie mit einem Aufschlag von 10 Prozent auf die Monatsrechnung."
-          : "Was ihr euch aus unserem Bestand nehmt, bitte hier eintragen, zum Beispiel eine Flasche Aperol. Bringt ihr die Ware zurück, kostet sie nichts. Alles andere kommt auf die Monatsrechnung."}
+        {foyer
+          ? "Was du der Magicuisine aus unserem Bestand gegeben hast, hier eintragen, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet sie nichts. Alles andere steht am Monatsende auf der Rechnung an die Gastro."
+          : imBuero
+            ? "Wenn sich die Gastro etwas nimmt, zum Beispiel eine Flasche Aperol. Kommt sie zurück, kostet es nichts. Sonst kommt sie mit einem Aufschlag von 10 Prozent auf die Monatsrechnung."
+            : "Was ihr euch aus unserem Bestand nehmt, bitte hier eintragen, zum Beispiel eine Flasche Aperol. Bringt ihr die Ware zurück, kostet sie nichts. Alles andere kommt auf die Monatsrechnung."}
       </p>
 
       {imBuero && ohnePreis.length > 0 && (
