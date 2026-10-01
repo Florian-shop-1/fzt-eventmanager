@@ -86,6 +86,9 @@ function spracherkennungsKlasse(): (new () => SpracherkennungsMotor) | null {
  */
 const STILLE_MS = 900;
 
+/** So viele Zeichen Zusammenhang laufen mit, etwa zwei bis drei Saetze. */
+const VORLAUF_ZEICHEN = 400;
+
 /**
  * Live-Stichwort-Erkennung für den Bühnentechniker backstage.
  *
@@ -106,6 +109,8 @@ export function HoereZu() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pufferRef = useRef("");
+  /** Das kurze Gedaechtnis: der Wortlaut davor, fuer den Zusammenhang. */
+  const vorlaufRef = useRef("");
   const ergebnisseRef = useRef<Ergebnis[]>([]);
   const laeuftGeradeRef = useRef(false);
 
@@ -127,10 +132,22 @@ export function HoereZu() {
   }, []);
 
   const auswerten = useCallback(async () => {
-    const text = pufferRef.current.trim();
+    const frisch = pufferRef.current.trim();
     pufferRef.current = "";
     const offen = offeneKategorien();
-    if (!text || offen.length === 0 || laeuftGeradeRef.current) return;
+    if (!frisch || offen.length === 0 || laeuftGeradeRef.current) return;
+
+    /*
+      Die Frage steht oft im Stueck davor.
+
+      Der Zauberer fragt "was war dein groesstes Abenteuer?", der Gast
+      macht eine Pause, und erst danach kommt "Fallschirmspringen". Wird
+      nur das letzte Stueck geschickt, fehlt genau das Wort, an dem die
+      Frage haengt (Florian, 01.10.2026). Deshalb laeuft ein kurzes
+      Gedaechtnis mit: die letzten Saetze davor, nur als Zusammenhang.
+    */
+    const text = `${vorlaufRef.current} ${frisch}`.trim();
+    vorlaufRef.current = text.slice(-VORLAUF_ZEICHEN);
 
     laeuftGeradeRef.current = true;
     try {
@@ -142,6 +159,9 @@ export function HoereZu() {
       const daten = await antwort.json().catch(() => null);
       const treffer = daten?.ergebnis as { kategorie: Kategorie; ergebnis: string } | null | undefined;
       if (treffer && offeneKategorien().includes(treffer.kategorie)) {
+        // Frage beantwortet: Das Gedaechtnis wird geleert, sonst zieht die
+        // alte Frage die naechste Antwort zu sich herueber.
+        vorlaufRef.current = "";
         setErgebnisse((vorher) =>
           vorher.some((e) => e.kategorie === treffer.kategorie)
             ? vorher

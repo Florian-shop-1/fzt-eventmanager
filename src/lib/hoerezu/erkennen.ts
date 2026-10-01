@@ -10,6 +10,33 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { KATEGORIEN, type Kategorie } from "./kategorien";
 
+/*
+  Das Stichwort haengt an der Frage, nicht am Satzbau.
+
+  "im prinzip immer gucken ob inspiriert, Abenteuer, groß bin, magischster
+  erwähnt wurde und dann das passende wort dazu" (Florian, 01.10.2026).
+  Die Frage stellt der Zauberer laut, und zwar jedes Mal anders: mal "wer
+  hat dich inspiriert", mal "wer hat mich inspiriert", mal "das groesste
+  Abenteuer", mal "was wolltest du werden, wenn du gross bist". Was immer
+  gleich bleibt, ist das eine Wort darin. Danach wird hier gesucht, bevor
+  das Modell ueberhaupt gefragt wird.
+*/
+const SIGNALE: Array<{ kategorie: Kategorie; muster: RegExp }> = [
+  { kategorie: "inspiriert", muster: /inspirier|inspiration|vorbild/i },
+  { kategorie: "abenteuer", muster: /abenteuer|aufregendst|verr(ü|ue)cktest/i },
+  {
+    kategorie: "beruf",
+    muster:
+      /gro(ß|ss)\s+(bin|bist|war|wird|werde|werden)|werden\s+woll|woll(te|test|ten|en)\b[^.?!]{0,40}\bwerden|berufswunsch|urspr(ü|ue)nglich\s+werden/i,
+  },
+  { kategorie: "magischster_moment", muster: /magischst|magische[rn]?\s+moment|zauberhaftest/i },
+];
+
+/** Welche Fragen im Text anklingen. Leer heisst: keine erkannt. */
+export function erkannteFragen(text: string): Kategorie[] {
+  return SIGNALE.filter((s) => s.muster.test(text)).map((s) => s.kategorie);
+}
+
 const MODELL = "claude-haiku-4-5-20251001";
 
 let client: Anthropic | null = null;
@@ -22,7 +49,7 @@ export function hoerzuEingerichtet(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
-function system(offen: Kategorie[]): string {
+function system(offen: Kategorie[], signale: Kategorie[]): string {
   return `Du hörst live mit, wie ein Zuschauer bei einer Zaubershow im Florian Zimmer Theater auf eine von vier möglichen Fragen antwortet. Aus seiner Antwort filterst du das entscheidende Stichwort heraus. Ein Bühnentechniker liest dieses Stichwort direkt vom Bildschirm ab und schreibt es auf Papier, deshalb muss es kurz, korrekt und ohne Zusätze sein.
 
 Die vier möglichen Fragen und ihre Kategorien:
@@ -43,6 +70,17 @@ WICHTIG: Oft antwortet nicht der Zuschauer selbst verständlich, sondern der Zau
 Ebenso zählt eine Antwort, die nur aus dem Stichwort besteht, ohne ganzen Satz: "Sänger." → SÄNGER. Warte nicht auf eine vollständig formulierte Antwort; sobald das Stichwort klar dasteht, gib es zurück.
 
 Aktuell noch offen, nur diese Kategorien kommen infrage, alle anderen wurden in dieser Show schon beantwortet: ${offen.join(", ")}.
+
+Im Text steht oft auch die Frage selbst, weil der Zauberer sie laut stellt, bevor der Zuschauer antwortet. Das Fragewort verrät die Kategorie: "inspiriert" oder "Vorbild" bedeutet inspiriert, "Abenteuer" oder "aufregendstes" bedeutet abenteuer, "wenn ich groß bin" oder "werden wollte" bedeutet beruf, "magischster" bedeutet magischster_moment. Dabei ist es gleichgültig, ob die Frage in der Ich-Form, in der Du-Form oder über eine dritte Person gestellt wird: "Wer hat mich inspiriert", "Wer hat dich inspiriert", "Wer hat ihn inspiriert" sind dieselbe Frage. Beispiele für ganze Abschnitte:
+- "Was war denn dein größtes Abenteuer? Also, ich war mal in Kenia auf Safari." → abenteuer, SAFARI
+- "Und wer hat dich am meisten inspiriert? Meine Oma auf jeden Fall." → inspiriert, OMA
+- "Was wolltest du werden, wenn du groß bist? Tierärztin." → beruf, TIERARZT
+- "Dein magischster Moment? Als meine Tochter zur Welt kam." → magischster_moment, GEBURT DER TOCHTER
+${
+    signale.length > 0
+      ? `In diesem Text klingt eindeutig diese Frage an: ${signale.join(", ")}. Nimm diese Kategorie, wenn sie noch offen ist, und suche das passende Wort dazu.`
+      : "In diesem Text ist kein Fragewort zu erkennen. Dann entscheidet allein der Inhalt der Antwort."
+  }
 
 Ordne den Text genau einer dieser offenen Kategorien zu und gib das kurze Stichwort in GROSSBUCHSTABEN zurück. Erfinde nichts: Passt der Text zu keiner offenen Kategorie eindeutig, oder wirkt die Antwort noch unvollständig, setze erkannt auf false und lass kategorie und ergebnis leer. Gib niemals mehr als die entscheidende Information zurück, keine ganzen Sätze, keine Anführungszeichen, keinen Punkt am Ende.`;
 }
@@ -77,10 +115,12 @@ export interface Stichwort {
 export async function stichwortErkennen(text: string, offen: Kategorie[]): Promise<Stichwort | null> {
   if (!text.trim() || offen.length === 0) return null;
 
+  const signale = erkannteFragen(text).filter((k) => offen.includes(k));
+
   const antwort = await anthropic().messages.create({
     model: MODELL,
     max_tokens: 300,
-    system: system(offen),
+    system: system(offen, signale),
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
     messages: [{ role: "user", content: text.trim() }],
   });
@@ -89,7 +129,17 @@ export async function stichwortErkennen(text: string, offen: Kategorie[]): Promi
   const lesung = JSON.parse(roh) as Lesung;
   if (!lesung.erkannt) return null;
 
-  const kategorie = lesung.kategorie as Kategorie;
+  let kategorie = lesung.kategorie as Kategorie;
+
+  /*
+    Steht die Frage im Text, gilt die Frage.
+
+    Das Modell schaut auf die Antwort, und "meine Oma" klingt nach
+    inspiriert, auch wenn gerade nach dem magischsten Moment gefragt war.
+    Ist genau ein Fragewort gefallen, zaehlt es mehr als die Vermutung
+    (Florian, 01.10.2026).
+  */
+  if (signale.length === 1 && kategorie !== signale[0]) kategorie = signale[0];
   if (!offen.includes(kategorie)) return null;
 
   const ergebnis = lesung.ergebnis.trim();
