@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { ohneVertrag, vertraege } from "@/lib/db/arbeitsvertrag";
+import { abgeloesteVertraege, fuerVertrag, vertraege } from "@/lib/db/arbeitsvertrag";
 import { SPIELZEIT_ENDE } from "@/lib/personal/arbeitsvertrag";
 import { HASE_ERHOEHUNG, HASE_VERTRAG } from "@/lib/personal/hasensatz";
 import { StellenWahl } from "@/components/StellenWahl";
@@ -18,8 +18,10 @@ export const dynamic = "force-dynamic";
  * Entwurf, den nur das Büro sieht, und erst wenn Florian ihn gelesen hat,
  * wird er freigegeben und beim Mitarbeiter sichtbar (Florian, 30.09.2026).
  *
- * In der Auswahl steht nur, wer noch keinen Vertrag hat. So kann niemand
- * aus Versehen einen zweiten anlegen.
+ * In der Auswahl steht jeder, auch wer schon einen Vertrag hat: Ein neuer
+ * Vertrag ersetzt den alten, so wie es im Vertragstext steht, und genau so
+ * läuft eine Gehaltserhöhung (Florian, 01.10.2026). Der alte gilt weiter,
+ * bis der neue unterschrieben ist, und bleibt danach als Beleg stehen.
  */
 export default async function VertraegeSeite({
   searchParams,
@@ -30,7 +32,7 @@ export default async function VertraegeSeite({
   if (!darfVertraege(b)) redirect("/");
   const { meldung } = await searchParams;
 
-  const [liste, offen] = await Promise.all([vertraege(), ohneVertrag()]);
+  const [liste, leute, abgeloest] = await Promise.all([vertraege(), fuerVertrag(), abgeloesteVertraege()]);
   const entwuerfe = liste.filter((v) => !v.freigegebenAm);
   const wartend = liste.filter((v) => v.freigegebenAm && !v.unterschriebenAm);
   const fertig = liste.filter((v) => v.unterschriebenAm);
@@ -124,12 +126,13 @@ export default async function VertraegeSeite({
       )}
 
       <section className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
-        <h2 className="font-semibold">Neuen Vertrag anlegen</h2>
-        {offen.length === 0 ? (
-          <p className="text-sm text-leise">
-            Alle internen Mitarbeiter haben einen Vertrag. Soll jemand einen neuen bekommen, zieh den alten
-            auf seiner Seite zurück.
-          </p>
+        <h2 className="font-semibold" id="anlegen">Neuen Vertrag anlegen</h2>
+        <p className="text-sm text-leise">
+          Hat die Person schon einen Vertrag, ersetzt der neue ihn, sobald sie unterschrieben hat. Bis
+          dahin gilt der alte weiter. Für eine Gehaltserhöhung legst du also einfach einen neuen an.
+        </p>
+        {leute.length === 0 ? (
+          <p className="text-sm text-leise">Es gibt niemanden, für den ein Vertrag infrage kommt.</p>
         ) : (
           <form action={vertragErstellen} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -139,9 +142,14 @@ export default async function VertraegeSeite({
                   <option value="" disabled>
                     bitte wählen
                   </option>
-                  {offen.map((p) => (
+                  {leute.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
+                      {p.aktuell
+                        ? ` (hat ${euro(p.aktuell.stundenlohnCent ?? p.aktuell.festgehaltCent)}${
+                            p.aktuell.stundenlohnCent ? " je Stunde" : " im Monat"
+                          } seit ${tag(p.aktuell.beginn)})`
+                        : ""}
                       {p.bogenAm ? "" : " (Personalbogen fehlt)"}
                     </option>
                   ))}
@@ -240,6 +248,32 @@ export default async function VertraegeSeite({
           </form>
         )}
       </section>
+
+      {/*
+        Die abgelösten Verträge bleiben nachschlagbar. Wer wissen will, was
+        jemand vorher verdient hat, findet es hier (Florian, 01.10.2026).
+      */}
+      {abgeloest.length > 0 && (
+        <details className="rounded-lg border border-linie bg-flaeche p-5">
+          <summary className="cursor-pointer text-sm font-medium">
+            Frühere Verträge, abgelöst ({abgeloest.length})
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {abgeloest.map((v) => (
+              <li key={v.id} className="text-sm">
+                <Link href={`/vertraege/${v.id}`} className="underline">
+                  {v.name}
+                </Link>{" "}
+                <span className="text-leise">
+                  {v.art === "teilzeit" ? "Teilzeit" : "Kurzfristig"} · ab {tag(v.beginn)} ·{" "}
+                  {v.art === "teilzeit" ? euro(v.festgehaltCent) : `${euro(v.stundenlohnCent)} je Stunde`} ·
+                  abgelöst am {tag(v.abgeloestAm!)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

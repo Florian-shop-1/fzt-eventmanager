@@ -45,6 +45,7 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
         >
           <strong>Entwurf, nur für euch sichtbar.</strong> {v.name} weiß nichts davon und kann nichts
           unterschreiben. Lies den Vertrag durch; stimmt etwas nicht, zieh ihn zurück und leg ihn neu an.
+          Ein früherer Vertrag gilt weiter, bis dieser hier unterschrieben ist.
         </div>
       )}
 
@@ -55,6 +56,22 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
         >
           <strong>Freigegeben.</strong> {v.name} sieht den Vertrag seit {zeit(v.freigegebenAm)} Uhr und kann
           unterschreiben. Freigegeben von {v.freigegebenVon}.
+        </div>
+      )}
+
+      {v.abgeloestAm && (
+        <div className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm print:hidden">
+          <strong>Abgelöst.</strong> Dieser Vertrag gilt nicht mehr; seit dem{" "}
+          {zeit(v.abgeloestAm)} Uhr gilt ein neuerer. Er bleibt hier stehen, damit nachvollziehbar
+          bleibt, was vorher vereinbart war.
+          {v.abgeloestDurch && (
+            <>
+              {" "}
+              <Link href={`/vertraege/${v.abgeloestDurch}`} className="underline">
+                zum neuen Vertrag
+              </Link>
+            </>
+          )}
         </div>
       )}
 

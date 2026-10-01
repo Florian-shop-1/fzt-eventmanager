@@ -60,6 +60,9 @@ export interface Arbeitsvertrag {
   hasenText: string;
   zurueckgezogenAm: string | null;
   zurueckgezogenVon: string | null;
+  /** Abgelöst durch einen neueren Vertrag; der hier gilt dann nicht mehr. */
+  abgeloestAm: string | null;
+  abgeloestDurch: string | null;
 }
 
 function baue(z: Record<string, unknown>): Arbeitsvertrag {
@@ -95,10 +98,21 @@ function baue(z: Record<string, unknown>): Arbeitsvertrag {
     hasenText: String(z.hase_text ?? ""),
     zurueckgezogenAm: zeit(z.zurueckgezogen_am),
     zurueckgezogenVon: (z.zurueckgezogen_von as string) ?? null,
+    abgeloestAm: zeit(z.abgeloest_am),
+    abgeloestDurch: (z.abgeloest_durch as string) ?? null,
   };
 }
 
-/** Der Vertrag einer Person, sofern es einen gibt. */
+/**
+ * Der Vertrag einer Person, sofern es einen gibt.
+ *
+ * Es kann zwei geben: den unterschriebenen, der heute gilt, und einen
+ * neuen, der zur Unterschrift bereitliegt. Dann zählt der neue, denn
+ * dort wartet etwas auf die Person. Ein Entwurf, den das Büro noch nicht
+ * freigegeben hat, zählt nie: Sonst verschwände der gültige Vertrag vom
+ * Bildschirm, nur weil im Büro jemand etwas vorbereitet
+ * (Florian, 01.10.2026).
+ */
 export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | null> {
   const z = (await db()`
     select v.id, v.benutzer_id, v.art, v.taetigkeit, v.aufgaben, v.position,
@@ -107,9 +121,12 @@ export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | n
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
-           v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
+           v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
-     where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null
+     where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null and v.abgeloest_am is null
+     order by case when v.unterschrieben_am is null and v.freigegeben_am is not null then 0 else 1 end,
+              v.unterschrieben_am desc nulls last, v.beginn desc, v.angelegt_am desc
      limit 1
   `) as Array<Record<string, unknown>>;
   return z[0] ? baue(z[0]) : null;
@@ -123,7 +140,8 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
-           v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
+           v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.id = ${id}::uuid
   `) as Array<Record<string, unknown>>;
@@ -139,41 +157,102 @@ export async function vertraege(): Promise<Arbeitsvertrag[]> {
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
            v.arbeitgeber_unterschrift,
            v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
-           v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
+           v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
-     where v.zurueckgezogen_am is null
+     where v.zurueckgezogen_am is null and v.abgeloest_am is null
      order by v.unterschrieben_am nulls first, b.name
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
 }
 
 /**
- * Wer noch keinen Vertrag hat.
+ * Wer einen Vertrag bekommen kann: alle eigenen Leute.
  *
  * Nur eigene, interne Leute: Die Gastronomie und der Food-Kiosk gehören
- * zu anderen Betrieben, Externe schreiben Rechnungen. Wer schon einen
- * gültigen Vertrag hat, steht nicht mehr in der Liste, damit niemand aus
- * Versehen einen zweiten anlegt (Florian, 30.09.2026).
+ * zu anderen Betrieben, Externe schreiben Rechnungen.
+ *
+ * Wer schon einen Vertrag hat, steht weiter in der Liste. Ein neuer
+ * Vertrag ersetzt den alten, genau wie es im Vertragstext steht, und das
+ * ist der Weg für eine Gehaltserhöhung (Florian, 01.10.2026: "nur so kann
+ * ich gehaltserhöhungen durchführen"). Was die Person heute hat, steht
+ * daneben, damit niemand versehentlich schlechter stellt, was schon
+ * besser war.
  */
-export async function ohneVertrag(): Promise<Array<{ id: string; name: string; email: string; bogenAm: string | null }>> {
+export interface VertragsKandidat {
+  id: string;
+  name: string;
+  email: string;
+  bogenAm: string | null;
+  /** Der Vertrag, der heute gilt, falls es einen gibt. */
+  aktuell: {
+    id: string;
+    art: Vertragsart;
+    beginn: string;
+    stundenlohnCent: number | null;
+    festgehaltCent: number | null;
+    unterschriebenAm: string | null;
+  } | null;
+}
+
+export async function fuerVertrag(): Promise<VertragsKandidat[]> {
   const z = (await db()`
-    select b.id, b.name, b.email, b.personalbogen_am
+    select b.id, b.name, b.email, b.personalbogen_am,
+           v.id as vertrag_id, v.art, v.beginn::text as beginn, v.stundenlohn_cent,
+           v.festgehalt_cent, v.unterschrieben_am
       from benutzer b
+      left join lateral (
+        select v.id, v.art, v.beginn, v.stundenlohn_cent, v.festgehalt_cent, v.unterschrieben_am
+          from arbeitsvertrag v
+         where v.benutzer_id = b.id and v.zurueckgezogen_am is null and v.abgeloest_am is null
+         order by v.unterschrieben_am nulls first, v.beginn desc, v.angelegt_am desc
+         limit 1
+      ) v on true
      where b.aktiv
        and coalesce(b.art, 'intern') = 'intern'
        and b.rolle not in ('gastro', 'kiosk', 'agentur')
-       and not exists (
-         select 1 from arbeitsvertrag v
-          where v.benutzer_id = b.id and v.zurueckgezogen_am is null
-       )
      order by b.name
   `) as Array<Record<string, unknown>>;
+
   return z.map((r) => ({
     id: String(r.id),
     name: String(r.name),
     email: String(r.email),
     bogenAm: r.personalbogen_am ? new Date(r.personalbogen_am as string).toISOString() : null,
+    aktuell: r.vertrag_id
+      ? {
+          id: String(r.vertrag_id),
+          art: (r.art as Vertragsart) ?? "kurzfristig",
+          beginn: String(r.beginn),
+          stundenlohnCent: r.stundenlohn_cent === null ? null : Number(r.stundenlohn_cent),
+          festgehaltCent: r.festgehalt_cent === null ? null : Number(r.festgehalt_cent),
+          unterschriebenAm: r.unterschrieben_am ? new Date(r.unterschrieben_am as string).toISOString() : null,
+        }
+      : null,
   }));
+}
+
+/**
+ * Die abgelösten Verträge, neueste zuerst.
+ *
+ * Sie bleiben stehen, auch wenn sie nicht mehr gelten: Wer wissen will,
+ * was jemand im letzten Jahr verdient hat, findet es hier.
+ */
+export async function abgeloesteVertraege(): Promise<Arbeitsvertrag[]> {
+  const z = (await db()`
+    select v.id, v.benutzer_id, v.art, v.taetigkeit, v.aufgaben, v.position,
+           v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
+           v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
+           v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
+           v.arbeitgeber_unterschrift,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
+           v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           b.name, b.email
+      from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
+     where v.abgeloest_am is not null and v.zurueckgezogen_am is null
+     order by v.abgeloest_am desc
+  `) as Array<Record<string, unknown>>;
+  return z.map(baue);
 }
 
 export interface NeuerVertrag {
@@ -275,7 +354,24 @@ export async function vertragUnterschreiben(o: {
        and zurueckgezogen_am is null
      returning id
   `) as Array<{ id: string }>;
-  return z.length > 0;
+  if (z.length === 0) return false;
+
+  /*
+    Der neue Vertrag ersetzt die früheren.
+
+    Genau das steht auch in jedem Vertrag drin, und erst jetzt ist es so
+    weit: Bis zur Unterschrift gilt noch der alte (Florian, 01.10.2026).
+    Stehen bleibt er trotzdem, nur eben als abgelöst.
+  */
+  await db()`
+    update arbeitsvertrag
+       set abgeloest_am = now(), abgeloest_durch = ${o.id}::uuid
+     where benutzer_id = ${o.benutzerId}::uuid
+       and id <> ${o.id}::uuid
+       and abgeloest_am is null
+       and zurueckgezogen_am is null
+  `;
+  return true;
 }
 
 /**
@@ -353,7 +449,8 @@ export async function loehne(): Promise<
   const z = (await db()`
     select benutzer_id, art, stundenlohn_cent, festgehalt_cent, beginn::text as beginn
       from arbeitsvertrag
-     where zurueckgezogen_am is null
+     where zurueckgezogen_am is null and abgeloest_am is null
+     order by beginn, angelegt_am
   `.catch(() => [])) as Array<Record<string, unknown>>;
 
   const karte = new Map<

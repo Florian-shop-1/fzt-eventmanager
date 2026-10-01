@@ -113,8 +113,10 @@ export async function vertragErstellen(f: FormData): Promise<void> {
     hasenText: text(f, "hasenText", 300),
   }).catch((fehler) => {
     const m = fehler instanceof Error ? fehler.message : "";
-    if (m.includes("arbeitsvertrag_einer_je_person")) {
-      zurueck("Für diese Person gibt es schon einen Vertrag.");
+    if (m.includes("arbeitsvertrag_ein_offener_je_person") || m.includes("arbeitsvertrag_einer_je_person")) {
+      zurueck(
+        "Für diese Person liegt schon ein Vertrag zur Unterschrift bereit. Zieh ihn zurück oder warte die Unterschrift ab, dann geht der neue.",
+      );
     }
     throw fehler;
   });

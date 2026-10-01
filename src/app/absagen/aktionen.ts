@@ -163,8 +163,13 @@ export async function umbuchungErledigt(f: FormData): Promise<void> {
 }
 
 /**
- * Der Gast hat auf der öffentlichen Seite einen Termin gewählt: Florian
- * und Kevin bekommen eine Aufgabe, das in Ditix von Hand umzubuchen.
+ * Der Gast hat auf der öffentlichen Seite einen Termin gewählt.
+ *
+ * Umgebucht wird im Haus, von Hand, und genau deshalb muss die Nachricht
+ * ankommen: "wir buchen die selber um. wichtig ist aber, dass wir da eine
+ * info kriegen (vor allem Kevin, dass die umgebucht werden müssen von
+ * Hand!" (Florian, 01.10.2026). Die Mail geht an Florian und Kevin, und
+ * in der Absage steht der Vorgang offen, bis jemand ihn abhakt.
  */
 export async function alternativeGewaehltMelden(o: {
   gastName: string;
@@ -188,12 +193,14 @@ export async function alternativeGewaehltMelden(o: {
       ? `Bitte beim Umbuchen auf ${o.neueKategorie} upgraden (bisher ${o.alteKategorie}), ohne Aufpreis.`
       : `Bitte in der bisherigen Kategorie (${o.alteKategorie}) umbuchen. Entschädigung: ${o.plaetze === 1 ? "ein Souvenirglas" : `${o.plaetze} Souvenirgläser`} (steht schon unter Abbrecher-Geschenke).`,
     "",
-    "Bitte in Ditix von Hand umbuchen, solange es noch keine direkte Anbindung gibt.",
+    "Das muss von Hand in Ditix umgebucht werden, eine direkte Anbindung gibt es nicht.",
+    "",
+    `Danach im Eventmanager abhaken: ${APP}/absagen`,
   ];
   for (const p of an) {
     await mailVerschicken({
       an: p.email,
-      betreff: `Bitte umbuchen: ${o.gastName} von ausgefallener Show`,
+      betreff: `Von Hand umbuchen: ${o.gastName}, ${o.terminName}`,
       text: zeilen.join("\n"),
     }).catch(() => undefined);
   }
