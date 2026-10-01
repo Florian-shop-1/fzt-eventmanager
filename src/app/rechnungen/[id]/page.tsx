@@ -330,6 +330,13 @@ export default async function RechnungSeite({
                 <span className="mb-1 block text-xs text-leise">Grund für den Storno</span>
                 <input name="grund" maxLength={200} placeholder="zum Beispiel doppelt gestellt" />
               </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="melden" value="ja" defaultChecked={Boolean(r.versendetAm)} />
+                <span>
+                  Kunde benachrichtigen
+                  {r.kundeEmail ? ` (${r.kundeEmail})` : " (keine Mailadresse hinterlegt)"}
+                </span>
+              </label>
               <button type="submit" className="rounded-md border border-linie px-3 py-1.5" style={{ color: "var(--blocker)" }}>
                 Rechnung stornieren
               </button>

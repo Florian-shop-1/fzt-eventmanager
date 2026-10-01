@@ -27,6 +27,7 @@ import { ausDatei, umsaetzeUebernehmen, type RoherUmsatz } from "@/lib/rechnung/
 import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kartenauszug";
 import { auszugMitAbdruck, auszugVermerken, dateiAbdruck } from "@/lib/rechnung/auszuege";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
+import { mailVerschicken } from "@/lib/mail/versand";
 import { handRechnungAnlegen } from "@/lib/rechnung/hand";
 import { erinnerungVerschicken } from "@/lib/rechnung/erinnerung";
 
@@ -86,12 +87,63 @@ export async function zahlungEntfernen(f: FormData): Promise<void> {
   zurueck(`/rechnungen/${rechnung}`, "Zuordnung gelöst.");
 }
 
+/**
+ * Eine Rechnung stornieren.
+ *
+ * Wenn gewuenscht, erfaehrt der Kunde davon: "dann bitte mail an Kunden,
+ * dass sie storniert wurde. bitte anklickbar machen ob nachricht an
+ * empfaenger gehen soll" (Florian, 01.10.2026). Anklickbar deshalb, weil
+ * eine Rechnung, die nie beim Kunden war, auch keine Stornonachricht
+ * braucht; der wuesste gar nicht, wovon die Rede ist.
+ */
 export async function rechnungStornieren(f: FormData): Promise<void> {
   const b = await darf();
   const id = text(f, "id", 40);
   const grund = text(f, "grund") || "ohne Angabe";
+  const melden = String(f.get("melden") ?? "") === "ja";
+
+  const r = await rechnungLesen(id);
+  if (!r) zurueck("/rechnungen", "Diese Rechnung gibt es nicht.");
+
   await stornieren(id, grund, b.name);
-  zurueck(`/rechnungen/${id}`, "Rechnung storniert.");
+
+  let hinweis = "";
+  if (melden && r.kundeEmail) {
+    try {
+      await mailVerschicken({
+        an: r.kundeEmail,
+        betreff: `Rechnung ${r.nummer} ist storniert`,
+        text: [
+          r.kundeAnsprechpartner ? `Hallo ${r.kundeAnsprechpartner},` : "Hallo,",
+          "",
+          `unsere Rechnung ${r.nummer} vom ${r.rechnungsdatum.split("-").reverse().join(".")} über ${(
+            r.betragCent / 100
+          ).toLocaleString("de-DE", { minimumFractionDigits: 2 })} Euro haben wir storniert.`,
+          grund && grund !== "ohne Angabe" ? `Grund: ${grund}.` : "",
+          "",
+          "Ihr müsst nichts weiter tun; falls ihr sie schon bezahlt habt, melden wir uns wegen der Rückzahlung.",
+          "",
+          "Entschuldigt die Umstände. Bei Fragen sind wir gerne für euch da.",
+          "",
+          "Herzliche Grüße",
+          b.name ?? "Florian Zimmer Theater",
+          "Florian Zimmer Theater",
+        ]
+          .filter((z, i, alle) => z !== "" || alle[i - 1] !== "")
+          .join(String.fromCharCode(10)),
+      });
+      await merken({ rechnungId: id, art: "storno_mail", text: `Stornonachricht an ${r.kundeEmail}`, wer: b.name });
+      hinweis = ` ${r.kundeEmail} hat Bescheid bekommen.`;
+    } catch (fehler) {
+      hinweis = ` Die Nachricht an ${r.kundeEmail} ging nicht raus: ${
+        fehler instanceof Error ? fehler.message : "unbekannter Fehler"
+      }`;
+    }
+  } else if (melden) {
+    hinweis = " Für diesen Kunden ist keine Mailadresse hinterlegt, es ging keine Nachricht raus.";
+  }
+
+  zurueck(`/rechnungen/${id}`, `Rechnung storniert.${hinweis}`);
 }
 
 export async function faelligAendern(f: FormData): Promise<void> {
