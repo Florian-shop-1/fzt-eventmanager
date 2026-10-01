@@ -86,11 +86,14 @@ export default async function MeinVertrag({
               style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
             >
               <div className="font-semibold">Hier unterschreiben</div>
-              <p className="text-sm">
-                Mit deiner Unterschrift nimmst du diesen Vertrag an. Gespeichert wird dabei auch der
-                Wortlaut, den du gerade vor dir hast, damit später niemand behaupten kann, es habe etwas
-                anderes darin gestanden.
-              </p>
+              {/*
+                Hier stand einmal ein Satz darüber, dass der Wortlaut
+                mitgespeichert wird. Er ist raus: "das ist nicht notwendig
+                das zu sagen und schreit danach, dass irgendein kack
+                drinsteht" (Florian, 01.10.2026). Gespeichert wird er
+                weiterhin, siehe vertragUnterschreiben.
+              */}
+              <p className="text-sm">Mit deiner Unterschrift nimmst du diesen Vertrag an.</p>
               <Unterschriftsfeld name="unterschrift" />
               <Absendeknopf text="Vertrag unterschreiben" laeuftText="Wird gespeichert..." />
             </form>
