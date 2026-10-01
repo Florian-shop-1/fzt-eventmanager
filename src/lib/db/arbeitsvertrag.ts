@@ -45,6 +45,8 @@ export interface Arbeitsvertrag {
   unterschriebenAm: string | null;
   freigegebenAm: string | null;
   freigegebenVon: string | null;
+  /** Verdient die Person mit diesem Vertrag mehr als mit dem letzten? */
+  erhoehung: boolean;
   zurueckgezogenAm: string | null;
   zurueckgezogenVon: string | null;
 }
@@ -77,6 +79,7 @@ function baue(z: Record<string, unknown>): Arbeitsvertrag {
     unterschriebenAm: zeit(z.unterschrieben_am),
     freigegebenAm: zeit(z.freigegeben_am),
     freigegebenVon: (z.freigegeben_von as string) || null,
+    erhoehung: z.erhoehung === true,
     zurueckgezogenAm: zeit(z.zurueckgezogen_am),
     zurueckgezogenVon: (z.zurueckgezogen_von as string) ?? null,
   };
@@ -89,7 +92,7 @@ export async function vertragVon(benutzerId: string): Promise<Arbeitsvertrag | n
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.benutzer_id = ${benutzerId} and v.zurueckgezogen_am is null
@@ -104,7 +107,7 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.id = ${id}::uuid
@@ -119,7 +122,7 @@ export async function vertraege(): Promise<Arbeitsvertrag[]> {
            v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
            v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
            v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
-           v.freigegeben_am, v.freigegeben_von,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung,
            v.zurueckgezogen_am, v.zurueckgezogen_von, b.name, b.email
       from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
      where v.zurueckgezogen_am is null
@@ -175,14 +178,33 @@ export interface NeuerVertrag {
 }
 
 export async function vertragAnlegen(o: NeuerVertrag): Promise<string> {
+  /*
+    Verdient die Person jetzt mehr als vorher?
+
+    Verglichen wird mit dem zuletzt angelegten Vertrag derselben Person,
+    auch wenn er zurueckgezogen wurde. Das muss beim Anlegen passieren:
+    Spaeter liesse es sich nicht mehr sauber sagen (Florian, 01.10.2026).
+  */
+  const vorher = (await db()`
+    select stundenlohn_cent, festgehalt_cent from arbeitsvertrag
+     where benutzer_id = ${o.benutzerId}::uuid
+     order by angelegt_am desc limit 1
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+
+  const alterSatz = vorher[0]
+    ? Number(vorher[0].stundenlohn_cent ?? vorher[0].festgehalt_cent ?? 0)
+    : 0;
+  const neuerSatz = o.stundenlohnCent ?? o.festgehaltCent ?? 0;
+  const erhoehung = alterSatz > 0 && neuerSatz > alterSatz;
+
   const z = (await db()`
     insert into arbeitsvertrag (benutzer_id, art, taetigkeit, aufgaben, position, beginn, ende,
                                 stundenlohn_cent, monatsstunden, wochenstunden, festgehalt_cent,
-                                probezeit_monate, personalien, angelegt_von)
+                                probezeit_monate, personalien, angelegt_von, erhoehung)
     values (${o.benutzerId}::uuid, ${o.art}, ${o.taetigkeit}, ${o.aufgaben}, ${o.position},
             ${o.beginn}::date, ${o.ende}::date, ${o.stundenlohnCent ?? null}, ${o.monatsstunden ?? null},
             ${o.wochenstunden ?? null}, ${o.festgehaltCent ?? null}, ${o.probezeitMonate ?? null},
-            ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon})
+            ${JSON.stringify(o.personalien)}::jsonb, ${o.angelegtVon}, ${erhoehung})
     returning id
   `) as Array<{ id: string }>;
   return String(z[0].id);
@@ -281,6 +303,41 @@ export async function vertragZurueckziehen(id: string, wer: string): Promise<voi
        set zurueckgezogen_am = now(), zurueckgezogen_von = ${wer}
      where id = ${id}::uuid
   `;
+}
+
+/**
+ * Was die Leute verdienen, zum Nachschlagen.
+ *
+ * Nur fuer die Stundenmeldung und nur fuer Werner, Kevin und Florian: Der
+ * Mitarbeiter sieht seinen Lohn in seinem Vertrag, aber niemand sieht den
+ * der anderen (Florian, 01.10.2026).
+ *
+ * Genommen wird der gueltige Vertrag, auch der noch nicht unterschriebene:
+ * Wer ab dem Ersten mehr bekommt, soll in der Meldung fuer diesen Monat
+ * schon mit dem neuen Satz auftauchen.
+ */
+export async function loehne(): Promise<
+  Map<string, { art: Vertragsart; stundenlohnCent: number | null; festgehaltCent: number | null; beginn: string }>
+> {
+  const z = (await db()`
+    select benutzer_id, art, stundenlohn_cent, festgehalt_cent, beginn::text as beginn
+      from arbeitsvertrag
+     where zurueckgezogen_am is null
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+
+  const karte = new Map<
+    string,
+    { art: Vertragsart; stundenlohnCent: number | null; festgehaltCent: number | null; beginn: string }
+  >();
+  for (const r of z) {
+    karte.set(String(r.benutzer_id), {
+      art: (r.art as Vertragsart) ?? "kurzfristig",
+      stundenlohnCent: r.stundenlohn_cent === null ? null : Number(r.stundenlohn_cent),
+      festgehaltCent: r.festgehalt_cent === null ? null : Number(r.festgehalt_cent),
+      beginn: String(r.beginn),
+    });
+  }
+  return karte;
 }
 
 /** Wie viele Verträge warten noch auf eine Unterschrift? */

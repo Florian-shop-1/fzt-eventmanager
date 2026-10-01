@@ -1,3 +1,4 @@
+import { loehne } from "@/lib/db/arbeitsvertrag";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
@@ -57,10 +58,11 @@ export default async function LohnSeite({
   const z = istZeitraumSchluessel(zeitraum) ? zeitraumVon(zeitraum) : laufenderZeitraum();
   const laeuft = z.schluessel === laufenderZeitraum().schluessel;
 
-  const [leute, stand, e] = await Promise.all([
+  const [leute, stand, e, loehneKarte] = await Promise.all([
     zeitenImZeitraum(z),
     meldungLesen(z.schluessel),
     einstellungLesen(),
+    loehne().catch(() => new Map()),
   ]);
 
   const summe = leute.reduce((s, p) => s + p.arbeitMinuten, 0);
@@ -193,7 +195,13 @@ export default async function LohnSeite({
       ) : (
         <div className="space-y-2">
           {leute.map((p) => (
-            <Person key={p.benutzerId} p={p} offen={wer === p.benutzerId} zeitraum={z.schluessel} />
+            <Person
+              key={p.benutzerId}
+              p={p}
+              offen={wer === p.benutzerId}
+              zeitraum={z.schluessel}
+              lohn={loehneKarte.get(p.benutzerId)}
+            />
           ))}
         </div>
       )}
@@ -304,7 +312,21 @@ function Haken({ an }: { an: boolean }) {
 }
 
 /** Eine Zeile je Mitarbeiter, aufklappbar zum Protokoll. */
-function Person({ p, offen, zeitraum }: { p: Mitarbeiterzeiten; offen: boolean; zeitraum: string }) {
+/** Euro aus Cent, ohne Waehrungszeichen davor. */
+const eur = (cent: number) =>
+  (cent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function Person({
+  p,
+  offen,
+  zeitraum,
+  lohn,
+}: {
+  p: Mitarbeiterzeiten;
+  offen: boolean;
+  zeitraum: string;
+  lohn?: { art: string; stundenlohnCent: number | null; festgehaltCent: number | null };
+}) {
   // Arbeitstage und Abwesenheiten in einer Liste, nach Datum.
   const gestempelt = new Set(p.protokoll.map((t) => t.datum));
   const tage = [
@@ -320,6 +342,24 @@ function Person({ p, offen, zeitraum }: { p: Mitarbeiterzeiten; offen: boolean; 
         <span className="font-medium">{p.name}</span>
         <span className="ml-auto text-lg font-semibold tabular-nums">{alsDezimal(p.arbeitMinuten)}</span>
         <span className="text-xs text-leise">Stunden</span>
+        {/*
+          Der Lohn steht nur hier, in der Stundenmeldung, und die sehen
+          ohnehin nur Werner, Kevin und Florian. Der Mitarbeiter sieht
+          seinen eigenen Satz in seinem Vertrag, aber niemand sieht den
+          der anderen (Florian, 01.10.2026).
+        */}
+        {lohn && lohn.stundenlohnCent ? (
+          <span className="text-xs text-leise">
+            · {eur(lohn.stundenlohnCent)} € je Stunde ={" "}
+            <strong className="tabular-nums">
+              {eur(Math.round((p.arbeitMinuten / 60) * lohn.stundenlohnCent))} €
+            </strong>
+          </span>
+        ) : lohn && lohn.festgehaltCent ? (
+          <span className="text-xs text-leise">· Festgehalt {eur(lohn.festgehaltCent)} € im Monat</span>
+        ) : (
+          <span className="text-xs text-leise">· kein Vertrag hinterlegt</span>
+        )}
         <span className="w-full text-xs text-leise">
           {p.arbeitstage} Arbeitstage
           {p.pauseMinuten > 0 && `, ${alsStunden(p.pauseMinuten)} Std Pause`}

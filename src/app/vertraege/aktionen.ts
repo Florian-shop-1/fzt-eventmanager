@@ -17,8 +17,12 @@ import {
   freigabeZurueck,
   vertragAnlegen,
   vertragFreigeben,
+  vertragLesen,
   vertragZurueckziehen,
 } from "@/lib/db/arbeitsvertrag";
+import { mailVerschicken } from "@/lib/mail/versand";
+
+const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 import { SPIELZEIT_ENDE, type Vertragsart } from "@/lib/personal/arbeitsvertrag";
 import { angabenVon } from "@/lib/db/personal";
 
@@ -120,7 +124,63 @@ export async function vertragFreigabe(f: FormData): Promise<void> {
   const b = await zugang();
   const id = text(f, "id", 40);
   await vertragFreigeben(id, b.name);
-  zurueck("Freigegeben. Der Mitarbeiter sieht den Vertrag jetzt und kann unterschreiben.", `/vertraege/${id}`);
+
+  /*
+    Der Mitarbeiter bekommt Bescheid.
+
+    Im Programm steht der Hinweisbalken, aber darauf allein kann man sich
+    nicht verlassen: Wer gerade keinen Dienst hat, oeffnet den
+    Eventmanager tagelang nicht (Florian, 01.10.2026). Scheitert die Mail,
+    bleibt die Freigabe trotzdem bestehen; der Vertrag liegt ja da.
+  */
+  const v = await vertragLesen(id);
+  let hinweis = "";
+  if (v?.email) {
+    const freude = v.erhoehung
+      ? "Dein Stundensatz liegt darin höher als bisher. Wir freuen uns, dass du dabei bist."
+      : "";
+    const text = [
+      `Hallo ${v.personalien?.name?.split(" ")[0] ?? v.name},`,
+      "",
+      "dein Arbeitsvertrag liegt im Eventmanager für dich bereit.",
+      freude,
+      "",
+      "Lies ihn in Ruhe durch. Unterschreiben kannst du direkt am Bildschirm, mit dem Finger oder",
+      "der Maus. Danach kannst du ihn jederzeit wieder aufrufen und ausdrucken.",
+      "",
+      `${APP}/vertrag`,
+      "",
+      "Wenn etwas nicht stimmt oder du Fragen hast, melde dich einfach bei uns, bevor du",
+      "unterschreibst.",
+      "",
+      "Herzliche Grüße",
+      "Florian Zimmer Theater",
+    ]
+      .filter((z) => z !== "")
+      .join(String.fromCharCode(10));
+
+    try {
+      await mailVerschicken({
+        an: v.email,
+        betreff: "Dein Arbeitsvertrag liegt zur Unterschrift bereit",
+        text,
+        html: text
+          .split(String.fromCharCode(10))
+          .map((z) =>
+            z.startsWith("http")
+              ? `<p style="margin:0 0 12px"><a href="${z}" style="display:inline-block;background:#c9a45c;color:#1d1b18;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px">Vertrag ansehen und unterschreiben</a></p>`
+              : `<p style="margin:0 0 10px">${z}</p>`,
+          )
+          .join(""),
+      });
+      hinweis = ` ${v.name} hat eine Mail an ${v.email} bekommen.`;
+    } catch (fehler) {
+      console.error("[vertrag] Mail nicht zugestellt:", fehler);
+      hinweis = " Die Mail ließ sich nicht verschicken, der Vertrag liegt aber bereit.";
+    }
+  }
+
+  zurueck(`Freigegeben. Der Mitarbeiter sieht den Vertrag jetzt und kann unterschreiben.${hinweis}`, `/vertraege/${id}`);
 }
 
 export async function vertragFreigabeZurueck(f: FormData): Promise<void> {

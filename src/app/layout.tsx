@@ -256,9 +256,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     if (vertrag && vertrag.freigegebenAm && !vertrag.unterschriebenAm) {
       aufgaben.push({
         href: "/vertrag",
-        leiste: "Dein Arbeitsvertrag liegt zur Unterschrift bereit.",
+        leiste: vertrag.erhoehung
+          ? "Dein neuer Arbeitsvertrag liegt bereit, mit einem höheren Satz als bisher."
+          : "Dein Arbeitsvertrag liegt zur Unterschrift bereit.",
         knopf: "Jetzt ansehen",
-        hase: "Dein Arbeitsvertrag liegt bereit. Lies ihn in Ruhe durch und unterschreib ihn hier.",
+        /*
+          Der Hase freut sich mit, wenn jemand mehr bekommt (Florian,
+          01.10.2026). Eine Gehaltserhoehung ist eine gute Nachricht, und
+          die darf auch so klingen.
+        */
+        hase: vertrag.erhoehung
+          ? "Gute Nachrichten! Dein neuer Vertrag liegt bereit, und du verdienst darin mehr als bisher. Schau ihn dir an."
+          : "Dein Arbeitsvertrag liegt bereit. Lies ihn in Ruhe durch und unterschreib ihn hier.",
       });
     }
 

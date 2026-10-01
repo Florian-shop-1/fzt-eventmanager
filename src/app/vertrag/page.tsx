@@ -60,6 +60,15 @@ export default async function MeinVertrag({
         <>
           {drucken === "1" && <SofortDrucken bereit bereich=".vertrag" />}
 
+          {v.erhoehung && !v.unterschriebenAm && (
+            <p
+              className="rounded-lg border px-4 py-3 text-sm print:hidden"
+              style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+            >
+              <strong>Gute Nachrichten:</strong> In diesem Vertrag verdienst du mehr als bisher.
+            </p>
+          )}
+
           <div className="rounded-lg border border-linie bg-flaeche p-6 print:border-0 print:p-0">
             <Vertragstext
               art={v.art}
