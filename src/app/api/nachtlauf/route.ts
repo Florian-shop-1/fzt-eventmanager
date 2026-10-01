@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { amazonEingerichtet } from "@/lib/amazon/api";
+import { amazonLauf } from "@/lib/amazon/sync";
 import { faelligeErinnerungen } from "@/lib/rechnung/erinnerung";
 
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
@@ -93,6 +95,14 @@ const MORGEN: Teil[] = [
     hat, bekommt heute frueh keine Mahnung mehr (Florian, 01.10.2026).
   */
   { name: "rechnungserinnerung", tun: () => faelligeErinnerungen() },
+  /*
+    Die Amazon-Rechnungen.
+
+    Laeuft morgens mit, nach den Belegen aus dem Postfach. Was Amazon noch
+    kein PDF gegeben hat, bleibt stehen und wird morgen wieder versucht
+    (Florian, 01.10.2026).
+  */
+  { name: "amazon", tun: () => (amazonEingerichtet().bereit ? amazonLauf() : Promise.resolve({ aus: true })) },
   {
     name: "bewertung",
     tun: async () => ({

@@ -42,6 +42,20 @@ export interface Bewirtung {
    * die Zahlung steht ohnehin auf dem Kontoauszug (Florian, 30.09.2026).
    */
   zahlweg: "" | "karte" | "bar" | "konto";
+  /**
+   * Woher der Beleg kommt: 'foto' vom Handy, 'mail' aus dem Postfach,
+   * 'amazon_business' von der Amazon-Schnittstelle. Am Beleg sichtbar,
+   * damit man ihm ansieht, dass ihn niemand von Hand hochgeladen hat
+   * (Florian, 01.10.2026).
+   */
+  herkunft: string;
+  istRechnung: boolean;
+  amazonOrderId: string;
+  amazonRechnungsnummer: string;
+  /** 'rechnung' oder 'gutschrift'. */
+  amazonDokumenttyp: string;
+  nettoCent: number | null;
+  verkaeufer: string;
   privatAusgelegt: boolean;
   /**
    * Geschenk an "mitarbeiter" oder "partner", sonst leer.
@@ -75,7 +89,8 @@ const SPALTEN = `id, nummer, erstellt_am, erstellt_von, foto_hash, foto_typ, dat
   geschenk, geschenk_fuer,
   privat_ausgelegt, anlass, teilnehmer, bewirtender,
   ort_der_bewirtung, lesung, notiz, unterschrift, unterschrieben_am, status, festgeschrieben_am, festgeschrieben_von, storniert_am,
-  storniert_von, storno_grund`;
+  storniert_von, storno_grund,
+  herkunft, ist_rechnung, amazon_order_id, amazon_rechnungsnummer, amazon_dokumenttyp, netto_cent, verkaeufer`;
 
 function baue(z: Record<string, unknown>): Bewirtung {
   const t = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
@@ -99,6 +114,13 @@ function baue(z: Record<string, unknown>): Bewirtung {
     kategorie: String(z.kategorie ?? ""),
     zweck: String(z.zweck ?? ""),
     zahlweg: (z.zahlweg as Bewirtung["zahlweg"]) ?? "",
+    herkunft: String(z.herkunft ?? "foto"),
+    istRechnung: Boolean(z.ist_rechnung),
+    amazonOrderId: String(z.amazon_order_id ?? ""),
+    amazonRechnungsnummer: String(z.amazon_rechnungsnummer ?? ""),
+    amazonDokumenttyp: String(z.amazon_dokumenttyp ?? ""),
+    nettoCent: z.netto_cent === null || z.netto_cent === undefined ? null : Number(z.netto_cent),
+    verkaeufer: String(z.verkaeufer ?? ""),
     geschenk: (z.geschenk as Bewirtung["geschenk"]) ?? "",
     geschenkFuer: String(z.geschenk_fuer ?? ""),
     privatAusgelegt: Boolean(z.privat_ausgelegt),

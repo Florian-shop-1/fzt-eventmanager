@@ -20,6 +20,9 @@ import {
   unterschriftSpeichern,
 } from "./aktionen";
 import { letztePost, RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
+import { amazonEingerichtet } from "@/lib/amazon/api";
+import { abgleichStand, gemerkteRechnungen } from "@/lib/amazon/sync";
+import { amazonAbgleichen, amazonVerbindungPruefen } from "./amazon";
 import { empfaengerAendern, monatSchicken } from "./versand";
 import { empfaengerLesen, sendungenDesJahres, type Empfaenger, type Sendung } from "@/lib/bewirtung/steuerbuero";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -115,6 +118,11 @@ export default async function BewirtungSeite({
           {meldung}
         </div>
       )}
+
+      {/* ---------------------------------------------------------------
+          Rechnungen direkt aus Amazon Business (Florian, 01.10.2026).
+          --------------------------------------------------------------- */}
+      <AmazonKasten />
 
       {/* ---------------------------------------------------------------
           Rechnungen, die per Mail hereinkommen (Florian, 29.09.2026).
@@ -237,6 +245,7 @@ export default async function BewirtungSeite({
                 <span className="ml-2 rounded px-1.5 py-0.5 text-[11px]" style={{ background: "var(--gold-hell)" }}>
                   {gesellschaftKurz(x.gesellschaft)}
                 </span>
+                <AmazonSchild herkunft={x.herkunft} />
                 <span className="text-leise">
                   {" · "}
                   {!x.zahlweg
@@ -459,6 +468,7 @@ function Firmenjahr({
                       >
                         {x.art === "einkauf" ? "Einkauf" : "Bewirtung"}
                       </span>
+                      <AmazonSchild herkunft={x.herkunft} />
                       <strong>{x.restaurant}</strong>
                       <span className="text-leise"> · {x.art === "einkauf" ? x.zweck : x.anlass}</span>
                       <span className="text-leise"> · {x.zahlweg === "bar" ? "bar" : "Karte"}{x.privatAusgelegt ? ", privat" : ""}</span>
@@ -567,6 +577,116 @@ async function UnterschriftEinrichten() {
           </form>
         )}
       </div>
+    </details>
+  );
+}
+
+/**
+ * Woher der Beleg kommt, wenn er nicht von Hand kam.
+ *
+ * "So kann ich sofort erkennen, dass der Beleg nicht manuell hochgeladen
+ * oder gescannt wurde" (Florian, 01.10.2026).
+ */
+function AmazonSchild({ herkunft }: { herkunft: string }) {
+  if (herkunft !== "amazon_business") return null;
+  return (
+    <span
+      className="mr-2 rounded px-1.5 py-0.5 text-[11px] font-medium"
+      style={{ background: "var(--info-hell)", color: "var(--info)" }}
+      title="Automatisch von Amazon Business importiert"
+    >
+      Amazon Business
+    </span>
+  );
+}
+
+/**
+ * Amazon Business: verbinden und abgleichen.
+ *
+ * Steht hier und nicht in einem eigenen Bereich, weil die Rechnungen
+ * hier landen. Was noch kein PDF hat, steht als "wartet auf das PDF" da;
+ * Amazon stellt es manchmal erst Tage nach der Lieferung bereit.
+ */
+async function AmazonKasten() {
+  const [stand, zugang, offene] = await Promise.all([
+    abgleichStand(),
+    Promise.resolve(amazonEingerichtet()),
+    gemerkteRechnungen(12),
+  ]);
+  const wartend = offene.filter((r) => r.stand === "offen");
+
+  return (
+    <details className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Rechnungen von Amazon Business
+        {wartend.length > 0 ? ` (${wartend.length} warten auf das PDF)` : ""}
+      </summary>
+
+      <p className="mt-2 max-w-prose text-xs text-leise">
+        Holt die Rechnungen aus dem Amazon-Business-Konto und legt sie hier als Entwürfe ab, mit
+        Bestellnummer, Rechnungsnummer, Netto, Steuer und dem Original-PDF. Eine Bestellung kann mehrere
+        Rechnungen haben, jede wird einzeln geholt. Gelesen wird nur, es wird nichts bestellt.
+      </p>
+
+      {zugang.bereit ? (
+        <p className="mt-2 text-xs" style={{ color: "var(--gut)" }}>
+          Verbunden.
+          {stand.zuletztAm
+            ? ` Zuletzt abgeglichen am ${new Date(stand.zuletztAm).toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+                dateStyle: "short",
+                timeStyle: "short",
+              })} Uhr, ${stand.zuletztNeu} neue Rechnungen.`
+            : " Der Abgleich lief noch nie."}
+        </p>
+      ) : (
+        <p className="mt-2 text-xs" style={{ color: "var(--warnung)" }}>
+          Noch nicht verbunden. Bei Vercel fehlen: {zugang.fehlt.join(", ")}.
+        </p>
+      )}
+
+      {stand.zuletztFehler && (
+        <p className="mt-1 text-xs" style={{ color: "var(--blocker)" }}>
+          Letzter Fehler: {stand.zuletztFehler}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <form action={amazonVerbindungPruefen}>
+          <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell">
+            Amazon Business verbinden
+          </button>
+        </form>
+        <form action={amazonAbgleichen}>
+          <Absendeknopf text="Amazon Rechnungen synchronisieren" laeuftText="Wird geholt..." />
+        </form>
+      </div>
+
+      {offene.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs">
+          {offene.map((r) => (
+            <li key={r.id} className="flex flex-wrap gap-2">
+              <span className="text-leise tabular-nums">
+                {r.rechnungsdatum ? datumKurz(r.rechnungsdatum) : "ohne Datum"}
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {r.dokumenttyp === "gutschrift" ? "Gutschrift" : "Rechnung"} {r.rechnungsnummer}
+                <span className="text-leise"> · Bestellung {r.orderId || "unbekannt"}</span>
+              </span>
+              <span className="tabular-nums">{euro(r.bruttoCent)}</span>
+              {r.belegId ? (
+                <Link href={`/bewirtung/${r.belegId}`} className="underline">
+                  Beleg
+                </Link>
+              ) : (
+                <span style={{ color: r.stand === "fehler" ? "var(--blocker)" : "var(--warnung)" }}>
+                  {r.stand === "fehler" ? r.letzterFehler.slice(0, 80) : "Amazon-PDF noch ausstehend"}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </details>
   );
 }

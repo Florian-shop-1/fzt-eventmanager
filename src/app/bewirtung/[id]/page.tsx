@@ -3,7 +3,7 @@ import Link from "next/link";
 import { darfGesellschaftWaehlen, GESELLSCHAFTEN } from "@/lib/bewirtung/gesellschaft";
 import { notFound, redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung } from "@/lib/auth/sitzung";
-import { bewirtungLesen, hinterlegteUnterschrift, moeglicheDubletten } from "@/lib/bewirtung/db";
+import { bewirtungLesen, euro, hinterlegteUnterschrift, moeglicheDubletten } from "@/lib/bewirtung/db";
 import { Unterschriftsfeld } from "@/components/Unterschriftsfeld";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { BewirtungsBlatt } from "@/components/BewirtungsBlatt";
@@ -67,6 +67,38 @@ export default async function BelegSeite({
       {meldung && (
         <div className="rounded-lg border px-4 py-3 text-sm print:hidden" style={{ borderColor: "var(--info)", background: "var(--info-hell)" }}>
           {meldung}
+        </div>
+      )}
+
+      {/*
+        Woher dieser Beleg kommt.
+
+        "So kann ich sofort erkennen, dass der Beleg nicht manuell
+        hochgeladen oder gescannt wurde" (Florian, 01.10.2026). Dazu alles,
+        was Amazon mitgeliefert hat; die Zahlen daneben lassen sich mit
+        dem PDF vergleichen, ohne es zu oeffnen.
+      */}
+      {b.herkunft === "amazon_business" && (
+        <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--info)", background: "var(--info-hell)" }}>
+          <strong>Automatisch von Amazon Business importiert.</strong>
+          <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            {[
+              ["Bestellnummer", b.amazonOrderId],
+              ["Rechnungsnummer", b.amazonRechnungsnummer],
+              ["Art", b.amazonDokumenttyp === "gutschrift" ? "Gutschrift" : "Rechnung"],
+              ["Verkäufer", b.verkaeufer],
+              ["Netto", b.nettoCent === null ? "" : euro(b.nettoCent)],
+              ["Umsatzsteuer", euro(b.mwst7Cent + b.mwst19Cent)],
+              ["Brutto", euro(b.bruttoCent)],
+            ]
+              .filter(([, wert]) => wert)
+              .map(([k, wert]) => (
+                <div key={k} className="flex justify-between gap-4">
+                  <dt className="text-leise">{k}</dt>
+                  <dd className="text-right tabular-nums">{wert}</dd>
+                </div>
+              ))}
+          </dl>
         </div>
       )}
 
