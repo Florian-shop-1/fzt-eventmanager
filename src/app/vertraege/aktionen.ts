@@ -21,6 +21,7 @@ import {
   vertragZurueckziehen,
 } from "@/lib/db/arbeitsvertrag";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 import { SPIELZEIT_ENDE, type Vertragsart } from "@/lib/personal/arbeitsvertrag";
@@ -162,6 +163,13 @@ export async function vertragFreigabe(f: FormData): Promise<void> {
     try {
       await mailVerschicken({
         an: v.email,
+        /*
+          Aus dem Personalpostfach, nicht aus dem Ticketpostfach: Wer eine
+          Frage zu seinem Vertrag hat, soll nicht beim Ticketverkauf
+          landen (Florian, 01.10.2026).
+        */
+        absender: postfachPersonal(),
+        antwortAn: antwortPersonal(),
         betreff: "Dein Arbeitsvertrag liegt zur Unterschrift bereit",
         text,
         html: text

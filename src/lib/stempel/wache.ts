@@ -28,6 +28,7 @@
  * Gemeldet wird höchstens einmal je Tag und Grund, nicht im Minutentakt.
  */
 
+import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { isoDatum } from "@/lib/zeit";
@@ -58,7 +59,13 @@ export async function melden(betreff: string, zeilen: string[]): Promise<void> {
   const text = `${zeilen.join("\n")}\n\nStempeluhr ansehen: ${APP}/stempeluhr`;
   for (const p of leute) {
     try {
-      await mailVerschicken({ an: p.email, betreff, text });
+      await mailVerschicken({
+        absender: postfachPersonal(),
+        antwortAn: antwortPersonal(),
+        an: p.email,
+        betreff,
+        text,
+      });
     } catch (f) {
       console.error("[stempel] Meldung an", p.email, "fehlgeschlagen:", f);
     }
@@ -124,6 +131,8 @@ async function schichtOffenMelden(o: {
   if (!p[0]?.email) return;
   try {
     await mailVerschicken({
+      absender: postfachPersonal(),
+      antwortAn: antwortPersonal(),
       an: p[0].email,
       betreff: "Du bist noch eingestempelt",
       text: [
@@ -229,6 +238,8 @@ export async function pausenPflichtPruefen(): Promise<{ erinnert: number }> {
     await meldungMerken(p.kommenId, "pause_faellig");
     try {
       await mailVerschicken({
+        absender: postfachPersonal(),
+        antwortAn: antwortPersonal(),
         an: p.email,
         betreff: "Bitte Pause machen",
         text: [
@@ -331,6 +342,8 @@ export async function unplausibelMelden(o: {
   if (!p[0]?.email) return;
   try {
     await mailVerschicken({
+      absender: postfachPersonal(),
+      antwortAn: antwortPersonal(),
       an: p[0].email,
       betreff: "Deine Zeiten von heute brauchen eine Bestaetigung",
       text: [

@@ -3,6 +3,7 @@
  * über Brevo: Es sind interne Mails an Mitarbeiter, keine Werbung.
  */
 
+import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
@@ -42,6 +43,8 @@ async function schicken(an: Person[], betreff: string, bau: (p: Person) => { abs
     const anrede = `Hallo ${p.vorname},`;
     try {
       await mailVerschicken({
+        absender: postfachPersonal(),
+        antwortAn: antwortPersonal(),
         an: p.email,
         betreff,
         text: [anrede, "", ...b.absaetze, "", ...b.liste.map((l) => `- ${l}`), "", `${b.knopf}: ${b.link}`].join("\n"),

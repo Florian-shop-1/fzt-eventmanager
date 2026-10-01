@@ -32,6 +32,19 @@ export interface Mail {
   html?: string;
   /** Wohin Antworten gehen sollen, falls nicht an den Absender. */
   antwortAn?: string;
+  /**
+   * Aus welchem Postfach die Mail kommt.
+   *
+   * Standard ist MAIL_ABSENDER, also das Ticketpostfach: Von dort kommen
+   * die Mails an Gaeste, und das ist richtig so. An die eigenen Leute
+   * passt es nicht; wer eine Frage zu seinem Vertrag hat, soll nicht beim
+   * Ticketverkauf landen (Florian, 01.10.2026).
+   *
+   * Deshalb kann jede Mail ihr Postfach nennen. Microsoft verschickt aus
+   * jedem Postfach des Mandanten, solange die Anwendung die Berechtigung
+   * dafuer hat.
+   */
+  absender?: string;
   /** Stille Kopie, etwa an das eigene Postfach. */
   blindkopie?: string | string[];
   /**
@@ -202,7 +215,16 @@ export async function mailVerschicken(mail: Mail): Promise<void> {
   const e = einstellungen();
   const zugang = await zugangstoken(e);
 
-  const antwort = await fetch(`${GRAPH}/users/${encodeURIComponent(e.absender)}/sendMail`, {
+  /*
+    Das Postfach dieser einen Mail.
+
+    Steht keines dabei, bleibt es beim eingerichteten Standard. So bleibt
+    alles Bestehende unveraendert, und nur wer es ausdruecklich sagt,
+    verschickt aus einem anderen Postfach.
+  */
+  const ausPostfach = mail.absender?.trim() || e.absender;
+
+  const antwort = await fetch(`${GRAPH}/users/${encodeURIComponent(ausPostfach)}/sendMail`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${zugang}`,
@@ -248,7 +270,7 @@ export async function mailVerschicken(mail: Mail): Promise<void> {
   }
   if (antwort.status === 404) {
     throw new Error(
-      `Das Postfach ${e.absender} wurde nicht gefunden. Stimmt die Adresse in MAIL_ABSENDER?`,
+      `Das Postfach ${ausPostfach} wurde nicht gefunden. Stimmt die Adresse in MAIL_ABSENDER?`,
     );
   }
   throw new Error(`Der Versand ist fehlgeschlagen (${antwort.status}). ${roh.slice(0, 300)}`);
