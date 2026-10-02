@@ -304,6 +304,18 @@ function baueAenderung(r: Record<string, unknown>): MenueAenderung {
   };
 }
 
+/*
+  Woran eine Bestellung erkannt wird.
+
+  In der Spalte "Bestellung" der Tabelle steht bei jeder Zeile derselbe
+  Linktext "Bestellung anzeigen". Wer damit storniert, trifft alle
+  (Florian, 02.10.2026). Die eindeutige Kennung ist die Bestellnummer
+  daneben; nur wenn die fehlt, bleibt der alte Wert als Notnagel.
+*/
+export function schluesselVon(b: { orderId: string; bestellung: string; kunde: string }): string {
+  return b.orderId.trim() || `${b.bestellung.trim()}|${b.kunde.trim()}`;
+}
+
 export async function menueAenderungen(): Promise<Map<string, MenueAenderung>> {
   const z = (await db()`
     select bestellung, kunde, art, classic, sea, veggy, kids, grund, wer, wann from menue_storno
@@ -341,7 +353,7 @@ export async function bestellungenDesAbends(ditixEventId: string): Promise<GeprÃ
   const [alle, aenderungen] = await Promise.all([holeShopBestellungen(), menueAenderungen()]);
   return alle
     .filter((b) => b.ditixEventId === ditixEventId)
-    .map((b) => anwenden(b, aenderungen.get(b.bestellung)));
+    .map((b) => anwenden(b, aenderungen.get(schluesselVon(b))));
 }
 
 export async function shopZusammenfassung(ditixEventId: string): Promise<ShopZusammenfassung> {

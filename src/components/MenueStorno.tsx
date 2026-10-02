@@ -1,5 +1,5 @@
 import { menueKorrigieren, menueStornieren, menueStornoZurueck } from "@/app/kueche/aktionen";
-import type { GeprüfteBestellung } from "@/lib/shop/menueliste";
+import { schluesselVon, type GeprüfteBestellung } from "@/lib/shop/menueliste";
 import type { MenueVariante } from "@/lib/domain/types";
 
 /**
@@ -58,13 +58,16 @@ export function MenueStorno({
         {aufgeteilt(bestellungen).map((b) => {
           const bestellt = mengenText(b.menues);
           const gilt = mengenText(b.menuesGueltig);
+          const schluessel = schluesselVon(b);
           return (
-            <li key={b.bestellung} className="rounded-md border border-linie px-3 py-2 text-sm">
+            <li key={schluessel} className="rounded-md border border-linie px-3 py-2 text-sm">
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <strong className={b.storniert ? "text-leise line-through" : ""}>
                   {b.kunde || "ohne Namen"}
                 </strong>
-                <span className="text-xs text-leise">{b.bestellung}</span>
+                <span className="text-xs text-leise" title={schluessel}>
+                  {b.orderId ? `Nr. ${b.orderId.slice(0, 8)}` : b.bestellung}
+                </span>
                 <span className={`ml-auto tabular-nums ${b.storniert ? "text-leise line-through" : ""}`}>
                   {gilt || "keine Menüs"}
                 </span>
@@ -84,7 +87,7 @@ export function MenueStorno({
                 <div className="mt-2 flex flex-wrap items-end gap-3">
                   {b.aenderung ? (
                     <form action={menueStornoZurueck}>
-                      <input type="hidden" name="bestellung" value={b.bestellung} />
+                      <input type="hidden" name="bestellung" value={schluessel} />
                       <input type="hidden" name="abend" value={eventId} />
                       <input type="hidden" name="woher" value={woher} />
                       <button type="submit" className="text-xs underline text-leise">
@@ -95,7 +98,7 @@ export function MenueStorno({
                     <>
                       {/* Mengen korrigieren: acht Menüs werden vier. */}
                       <form action={menueKorrigieren} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="bestellung" value={b.bestellung} />
+                        <input type="hidden" name="bestellung" value={schluessel} />
                         <input type="hidden" name="kunde" value={b.kunde} />
                         <input type="hidden" name="abend" value={eventId} />
                         <input type="hidden" name="woher" value={woher} />
@@ -117,7 +120,7 @@ export function MenueStorno({
                       </form>
 
                       <form action={menueStornieren} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="bestellung" value={b.bestellung} />
+                        <input type="hidden" name="bestellung" value={schluessel} />
                         <input type="hidden" name="kunde" value={b.kunde} />
                         <input type="hidden" name="abend" value={eventId} />
                         <input type="hidden" name="woher" value={woher} />
