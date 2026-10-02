@@ -9,7 +9,7 @@ import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
-import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import type { MenueVariante } from "@/lib/domain/types";
 
@@ -31,6 +31,8 @@ export default async function KuecheSeite({
   const { abend, monat, meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
   const kaufmaennisch = benutzer ? darfKaufmaennisches(benutzer.rolle) : false;
+  // Streichen und korrigieren duerfen nur Florian und Kevin.
+  const darfAendern = darfEinladen(benutzer);
   const termine = await alleShowtage();
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
   // Seiten: Adresse, dann der zuletzt angesehene Abend, dann heute.
@@ -47,7 +49,7 @@ export default async function KuecheSeite({
     Kueche einkauft (Florian, 02.10.2026).
   */
   const bestellungen =
-    kaufmaennisch && blatt?.ditixEventId
+    darfAendern && blatt?.ditixEventId
       ? await bestellungenDesAbends(blatt.ditixEventId).catch(() => [])
       : [];
 
@@ -99,6 +101,7 @@ export default async function KuecheSeite({
               kaufmaennisch={kaufmaennisch}
               bestellungen={bestellungen}
               meldung={meldung}
+              darfAendern={darfAendern}
             />
           )}
         </>
@@ -112,9 +115,12 @@ function Blatt({
   kaufmaennisch,
   bestellungen,
   meldung,
+  darfAendern,
 }: {
   blatt: NonNullable<Awaited<ReturnType<typeof holeKuechenblatt>>>;
   kaufmaennisch: boolean;
+  /** Streichen und korrigieren dürfen nur Florian und Kevin. */
+  darfAendern: boolean;
   /** Die einzelnen Shop-Bestellungen des Abends, zum Stornieren. */
   bestellungen: Array<Awaited<ReturnType<typeof bestellungenDesAbends>>[number]>;
   meldung?: string;
@@ -311,6 +317,7 @@ function Blatt({
               bestellungen={bestellungen}
               eventId={blatt.ditixEventId ?? ""}
               woher="kueche"
+              darfAendern={darfAendern}
             />
           </div>
         ) : null}

@@ -14,7 +14,7 @@ import { Logo } from "@/components/Logo";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { zeitpunkt } from "@/lib/zeit";
-import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen, darfEinladen} from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
 import { MenueStorno } from "@/components/MenueStorno";
@@ -110,7 +110,9 @@ export default async function FunktionsheetSeite({
   */
   const ersteShow = blatt.shows[0]?.ditixEventId ?? "";
   const bestellungen =
-    kaufmaennisch && ersteShow ? await bestellungenDesAbends(ersteShow).catch(() => []) : [];
+    darfEinladen(benutzer) && ersteShow
+      ? await bestellungenDesAbends(ersteShow).catch(() => [])
+      : [];
 
   const menueImShop = kochtHeute
     ? await menueBuchbarAmTag(blatt.shows.map((sh) => sh.ditixEventId))
@@ -310,7 +312,12 @@ export default async function FunktionsheetSeite({
               <Tagesablauf anteile={blatt.menuesJeShow} gesamtMenues={blatt.gesamtMenues} />
             </div>
           )}
-          <MenueStorno bestellungen={bestellungen} eventId={ersteShow} woher="funktionsheet" />
+          <MenueStorno
+            bestellungen={bestellungen}
+            eventId={ersteShow}
+            woher="funktionsheet"
+            darfAendern={darfEinladen(benutzer)}
+          />
 
         </section>
 

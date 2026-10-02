@@ -267,56 +267,88 @@ export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
 
 /** Zählt alle Shop-Bestellungen einer Vorstellung zusammen. */
 /*
-  Stornierte Bestellungen.
+  Stornos und Korrekturen an Shop-Bestellungen.
 
-  Die Tabelle, die der Shop schreibt, kennt keine Stornos: Wird eine
-  Buchung in Ditix abgesagt, bleibt die Zeile dort stehen. Die Küche würde
-  also für Gäste kochen, die abgesagt haben. Deshalb führt der
-  Eventmanager eine eigene Liste, und sie gilt überall, wo Menüs gezählt
-  werden (Florian, 02.10.2026).
+  Die Tabelle, die der Shop schreibt, kennt beides nicht: Wird eine
+  Buchung in Ditix abgesagt oder von acht auf vier Menüs geändert, bleibt
+  die Zeile dort unverändert stehen. Die Küche würde für Gäste kochen, die
+  abgesagt haben. Deshalb führt der Eventmanager eine eigene Liste, und
+  sie gilt überall, wo Menüs gezählt werden (Florian, 02.10.2026).
 */
-export interface MenueStorno {
+export interface MenueAenderung {
   bestellung: string;
   kunde: string;
+  /** "storno" streicht die ganze Bestellung, "korrektur" ändert die Mengen. */
+  art: "storno" | "korrektur";
+  mengen: Partial<Record<MenueVariante, number>>;
   grund: string;
   wer: string;
   wann: string;
 }
 
-export async function stornierteBestellungen(): Promise<Set<string>> {
-  const z = (await db()`select bestellung from menue_storno`.catch(() => [])) as Array<{
-    bestellung: string;
-  }>;
-  return new Set(z.map((r) => String(r.bestellung)));
-}
-
-export async function stornosDesAbends(ditixEventId: string): Promise<MenueStorno[]> {
-  const z = (await db()`
-    select bestellung, kunde, grund, wer, wann from menue_storno
-     where ditix_event_id = ${ditixEventId} order by wann desc
-  `.catch(() => [])) as Array<Record<string, unknown>>;
-  return z.map((r) => ({
+function baueAenderung(r: Record<string, unknown>): MenueAenderung {
+  const zahl = (w: unknown) => (w === null || w === undefined ? undefined : Number(w));
+  return {
     bestellung: String(r.bestellung),
     kunde: String(r.kunde ?? ""),
+    art: (r.art as "storno" | "korrektur") ?? "storno",
+    mengen: {
+      classic: zahl(r.classic),
+      sea: zahl(r.sea),
+      veggy: zahl(r.veggy),
+      kids: zahl(r.kids),
+    },
     grund: String(r.grund ?? ""),
     wer: String(r.wer ?? ""),
     wann: new Date(r.wann as string).toISOString(),
-  }));
+  };
 }
 
-/** Die einzelnen Bestellungen eines Abends, storniert oder nicht. */
-export async function bestellungenDesAbends(
-  ditixEventId: string,
-): Promise<Array<ShopBestellung & { storniert: boolean }>> {
-  const [alle, storniert] = await Promise.all([holeShopBestellungen(), stornierteBestellungen()]);
+export async function menueAenderungen(): Promise<Map<string, MenueAenderung>> {
+  const z = (await db()`
+    select bestellung, kunde, art, classic, sea, veggy, kids, grund, wer, wann from menue_storno
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return new Map(z.map((r) => [String(r.bestellung), baueAenderung(r)]));
+}
+
+/**
+ * Eine Bestellung, wie sie nach Storno und Korrektur zählt.
+ *
+ * Die ursprünglichen Mengen bleiben daneben stehen: Wer nachrechnet, soll
+ * sehen, was der Gast bestellt hatte und was daraus geworden ist.
+ */
+export type GeprüfteBestellung = ShopBestellung & {
+  storniert: boolean;
+  aenderung: MenueAenderung | null;
+  /** Die Mengen, die tatsächlich gelten. */
+  menuesGueltig: Partial<Record<MenueVariante, number>>;
+};
+
+function anwenden(b: ShopBestellung, a: MenueAenderung | undefined): GeprüfteBestellung {
+  if (!a) return { ...b, storniert: false, aenderung: null, menuesGueltig: b.menues };
+  if (a.art === "storno") {
+    return { ...b, storniert: true, aenderung: a, menuesGueltig: {} };
+  }
+  const menues: Partial<Record<MenueVariante, number>> = { ...b.menues };
+  for (const [variante, menge] of Object.entries(a.mengen)) {
+    if (menge !== undefined) menues[variante as MenueVariante] = menge;
+  }
+  return { ...b, storniert: false, aenderung: a, menuesGueltig: menues };
+}
+
+/** Die einzelnen Bestellungen eines Abends, mit Storno und Korrektur. */
+export async function bestellungenDesAbends(ditixEventId: string): Promise<GeprüfteBestellung[]> {
+  const [alle, aenderungen] = await Promise.all([holeShopBestellungen(), menueAenderungen()]);
   return alle
     .filter((b) => b.ditixEventId === ditixEventId)
-    .map((b) => ({ ...b, storniert: storniert.has(b.bestellung) }));
+    .map((b) => anwenden(b, aenderungen.get(b.bestellung)));
 }
 
 export async function shopZusammenfassung(ditixEventId: string): Promise<ShopZusammenfassung> {
-  const [alle, storniert] = await Promise.all([holeShopBestellungen(), stornierteBestellungen()]);
-  const passend = alle.filter((b) => b.ditixEventId === ditixEventId && !storniert.has(b.bestellung));
+  const geprueft = await bestellungenDesAbends(ditixEventId);
+  const passend = geprueft
+    .filter((b) => !b.storniert)
+    .map((b) => ({ ...b, menues: b.menuesGueltig }));
 
   const menues: Record<MenueVariante, number> = { classic: 0, sea: 0, veggy: 0, kids: 0 };
   let getraenkeArmbaender = 0;
