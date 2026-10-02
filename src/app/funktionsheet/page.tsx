@@ -17,6 +17,8 @@ import { zeitpunkt } from "@/lib/zeit";
 import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
+import { MenueStorno } from "@/components/MenueStorno";
+import { bestellungenDesAbends } from "@/lib/shop/menueliste";
 import { EigeneTermine } from "@/components/EigeneTermine";
 import { eigeneTermine } from "@/lib/db/eigenertermin";
 import { kochtNormalerweise, menueBuchbarAmTag } from "@/lib/shop/menuepruefung";
@@ -99,6 +101,17 @@ export default async function FunktionsheetSeite({
   // alles auf "nicht aktiv", findet ein Gast beim Nachbuchen nichts
   // (Florian, 21.09.2026).
   const kochtHeute = blatt.shows.some((sh) => kochtNormalerweise(sh.name));
+  /*
+    Die einzelnen Shop-Bestellungen, zum Streichen von Hand.
+
+    Die Gastro arbeitet mit dem Funktionsheet; wenn ein Gast absagt, soll
+    sie die Zahl hier korrigieren koennen und nicht erst das Kuechenblatt
+    suchen muessen (Florian, 02.10.2026).
+  */
+  const ersteShow = blatt.shows[0]?.ditixEventId ?? "";
+  const bestellungen =
+    kaufmaennisch && ersteShow ? await bestellungenDesAbends(ersteShow).catch(() => []) : [];
+
   const menueImShop = kochtHeute
     ? await menueBuchbarAmTag(blatt.shows.map((sh) => sh.ditixEventId))
     : true;
@@ -297,6 +310,8 @@ export default async function FunktionsheetSeite({
               <Tagesablauf anteile={blatt.menuesJeShow} gesamtMenues={blatt.gesamtMenues} />
             </div>
           )}
+          <MenueStorno bestellungen={bestellungen} eventId={ersteShow} woher="funktionsheet" />
+
         </section>
 
         {(blatt.unvertraeglichkeiten.length > 0 || shopHinweise.some((h) => h.hinweis.trim())) && (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
 import { bestellungenDesAbends } from "@/lib/shop/menueliste";
-import { menueStornieren, menueStornoZurueck } from "./aktionen";
+import { MenueStorno } from "@/components/MenueStorno";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { artikel } from "@/lib/domain/artikel";
@@ -307,76 +307,11 @@ function Blatt({
               ))}
             </ul>
 
-            {/*
-              Jede Bestellung einzeln, zum Stornieren.
-
-              Ein Storno in Ditix kommt hier nicht an: Die Tabelle, aus der
-              die Bestellungen stammen, schreibt der Shop und raeumt nichts
-              weg. Deshalb wird hier von Hand gestrichen, mit Grund und
-              Namen (Florian, 02.10.2026).
-            */}
-            {bestellungen.length > 0 && (
-              <div className="mt-4 border-t border-linie pt-3 print:hidden">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-leise">
-                  Einzelne Bestellungen
-                </p>
-                <ul className="space-y-2">
-                  {bestellungen.map((b) => {
-                    const menues = Object.entries(b.menues)
-                      .filter(([, n]) => (n ?? 0) > 0)
-                      .map(([k, n]) => `${n}x ${k}`)
-                      .join(", ");
-                    return (
-                      <li key={b.bestellung} className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className={b.storniert ? "text-leise line-through" : ""}>
-                          <strong>{b.kunde || "ohne Namen"}</strong>
-                          <span className="text-leise">
-                            {" "}
-                            · {b.bestellung}
-                            {menues ? ` · ${menues}` : " · keine Menüs"}
-                          </span>
-                        </span>
-                        {b.storniert ? (
-                          <form action={menueStornoZurueck} className="ml-auto flex items-center gap-2">
-                            <input type="hidden" name="bestellung" value={b.bestellung} />
-                            <input type="hidden" name="abend" value={blatt.ditixEventId ?? ""} />
-                            <span className="text-xs" style={{ color: "var(--blocker)" }}>
-                              storniert
-                            </span>
-                            <button type="submit" className="text-xs underline text-leise">
-                              zurücknehmen
-                            </button>
-                          </form>
-                        ) : (
-                          <form action={menueStornieren} className="ml-auto flex flex-wrap items-center gap-2">
-                            <input type="hidden" name="bestellung" value={b.bestellung} />
-                            <input type="hidden" name="kunde" value={b.kunde} />
-                            <input type="hidden" name="abend" value={blatt.ditixEventId ?? ""} />
-                            <input
-                              name="grund"
-                              maxLength={300}
-                              placeholder="Grund, zum Beispiel in Ditix storniert"
-                              className="w-56 text-xs"
-                            />
-                            <button
-                              type="submit"
-                              className="rounded-md border border-linie px-2 py-1 text-xs"
-                              style={{ color: "var(--blocker)" }}
-                            >
-                              stornieren
-                            </button>
-                          </form>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="mt-2 text-xs text-leise">
-                  Stornierte Bestellungen zählen im Küchenblatt, in der Belegung und auf dem Funktionsheet
-                  nicht mehr mit. In der Tabelle des Shops bleibt die Zeile unverändert stehen.
-                </p>
-              </div>
-            )}
+            <MenueStorno
+              bestellungen={bestellungen}
+              eventId={blatt.ditixEventId ?? ""}
+              woher="kueche"
+            />
           </div>
         ) : null}
       </section>

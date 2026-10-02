@@ -27,17 +27,27 @@ async function zugang() {
   return b;
 }
 
-function zurueck(abend: string, meldung: string): never {
+/*
+  Zurueck dorthin, wo storniert wurde.
+
+  Die Gastro arbeitet mit dem Funktionsheet, die Kueche mit dem
+  Kuechenblatt. Wer auf der einen Seite storniert, will nicht auf der
+  anderen landen (Florian, 02.10.2026). Angenommen wird nur ein bekannter
+  Weg, nichts aus dem Formular blind weitergereicht.
+*/
+function zurueck(abend: string, meldung: string, woher = ""): never {
   revalidatePath("/kueche");
   revalidatePath("/funktionsheet");
-  redirect(`/kueche?abend=${encodeURIComponent(abend)}&meldung=${encodeURIComponent(meldung)}`);
+  const seite = woher === "funktionsheet" ? "/funktionsheet" : "/kueche";
+  redirect(`${seite}?abend=${encodeURIComponent(abend)}&meldung=${encodeURIComponent(meldung)}`);
 }
 
 export async function menueStornieren(f: FormData): Promise<void> {
   const b = await zugang();
   const bestellung = text(f, "bestellung", 60);
   const abend = text(f, "abend", 60);
-  if (!bestellung) zurueck(abend, "Keine Bestellung angegeben.");
+  const woher = text(f, "woher", 20);
+  if (!bestellung) zurueck(abend, "Keine Bestellung angegeben.", woher);
 
   await db()`
     insert into menue_storno (bestellung, ditix_event_id, kunde, grund, wer)
@@ -46,13 +56,14 @@ export async function menueStornieren(f: FormData): Promise<void> {
       set grund = excluded.grund, wer = excluded.wer, wann = now()
   `;
 
-  zurueck(abend, `Bestellung ${bestellung} ist storniert und zählt nicht mehr mit.`);
+  zurueck(abend, `Bestellung ${bestellung} ist storniert und zählt nicht mehr mit.`, woher);
 }
 
 export async function menueStornoZurueck(f: FormData): Promise<void> {
   await zugang();
   const bestellung = text(f, "bestellung", 60);
   const abend = text(f, "abend", 60);
+  const woher = text(f, "woher", 20);
   await db()`delete from menue_storno where bestellung = ${bestellung}`;
-  zurueck(abend, `Bestellung ${bestellung} zählt wieder mit.`);
+  zurueck(abend, `Bestellung ${bestellung} zählt wieder mit.`, woher);
 }
