@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
+import { bestellungenDesAbends } from "@/lib/shop/menueliste";
+import { menueStornieren, menueStornoZurueck } from "./aktionen";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { artikel } from "@/lib/domain/artikel";
@@ -24,9 +26,9 @@ const VARIANTEN: Array<{ wert: MenueVariante; label: string }> = [
 export default async function KuecheSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; meldung?: string }>;
 }) {
-  const { abend, monat } = await searchParams;
+  const { abend, monat, meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
   const kaufmaennisch = benutzer ? darfKaufmaennisches(benutzer.rolle) : false;
   const termine = await alleShowtage();
@@ -37,6 +39,17 @@ export default async function KuecheSeite({
     monat,
   });
   const blatt = gewaehlt ? await holeKuechenblatt(gewaehlt) : null;
+
+  /*
+    Die einzelnen Shop-Bestellungen, zum Stornieren von Hand.
+
+    Nur fuer das Buero: Wer storniert, aendert die Zahl, nach der die
+    Kueche einkauft (Florian, 02.10.2026).
+  */
+  const bestellungen =
+    kaufmaennisch && blatt?.ditixEventId
+      ? await bestellungenDesAbends(blatt.ditixEventId).catch(() => [])
+      : [];
 
   const kopfzeile = blatt ? `${datumKurz(blatt.datum)} · ${blatt.show}` : undefined;
 
@@ -80,7 +93,14 @@ export default async function KuecheSeite({
             }))}
           />
 
-          {blatt && <Blatt blatt={blatt} kaufmaennisch={kaufmaennisch} />}
+          {blatt && (
+            <Blatt
+              blatt={blatt}
+              kaufmaennisch={kaufmaennisch}
+              bestellungen={bestellungen}
+              meldung={meldung}
+            />
+          )}
         </>
       )}
     </div>
@@ -90,9 +110,14 @@ export default async function KuecheSeite({
 function Blatt({
   blatt,
   kaufmaennisch,
+  bestellungen,
+  meldung,
 }: {
   blatt: NonNullable<Awaited<ReturnType<typeof holeKuechenblatt>>>;
   kaufmaennisch: boolean;
+  /** Die einzelnen Shop-Bestellungen des Abends, zum Stornieren. */
+  bestellungen: Array<Awaited<ReturnType<typeof bestellungenDesAbends>>[number]>;
+  meldung?: string;
 }) {
   const shopMenues = blatt.shop?.menuesGesamt ?? 0;
   const firmenMenues = blatt.firmen.reduce((s, f) => s + f.menuesGesamt, 0);
@@ -245,6 +270,14 @@ function Blatt({
 
       <section className="rounded-lg border border-linie bg-flaeche p-5">
         <h2 className="mb-3 text-sm font-semibold">Aus dem Shop</h2>
+        {meldung && (
+          <p
+            className="mb-3 rounded-lg border px-3 py-2 text-sm print:hidden"
+            style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+          >
+            {meldung}
+          </p>
+        )}
         {blatt.shopFehler ? (
           <p className="text-sm" style={{ color: "var(--blocker)" }}>
             {blatt.shopFehler}
@@ -273,6 +306,77 @@ function Blatt({
                 </li>
               ))}
             </ul>
+
+            {/*
+              Jede Bestellung einzeln, zum Stornieren.
+
+              Ein Storno in Ditix kommt hier nicht an: Die Tabelle, aus der
+              die Bestellungen stammen, schreibt der Shop und raeumt nichts
+              weg. Deshalb wird hier von Hand gestrichen, mit Grund und
+              Namen (Florian, 02.10.2026).
+            */}
+            {bestellungen.length > 0 && (
+              <div className="mt-4 border-t border-linie pt-3 print:hidden">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-leise">
+                  Einzelne Bestellungen
+                </p>
+                <ul className="space-y-2">
+                  {bestellungen.map((b) => {
+                    const menues = Object.entries(b.menues)
+                      .filter(([, n]) => (n ?? 0) > 0)
+                      .map(([k, n]) => `${n}x ${k}`)
+                      .join(", ");
+                    return (
+                      <li key={b.bestellung} className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className={b.storniert ? "text-leise line-through" : ""}>
+                          <strong>{b.kunde || "ohne Namen"}</strong>
+                          <span className="text-leise">
+                            {" "}
+                            · {b.bestellung}
+                            {menues ? ` · ${menues}` : " · keine Menüs"}
+                          </span>
+                        </span>
+                        {b.storniert ? (
+                          <form action={menueStornoZurueck} className="ml-auto flex items-center gap-2">
+                            <input type="hidden" name="bestellung" value={b.bestellung} />
+                            <input type="hidden" name="abend" value={blatt.ditixEventId ?? ""} />
+                            <span className="text-xs" style={{ color: "var(--blocker)" }}>
+                              storniert
+                            </span>
+                            <button type="submit" className="text-xs underline text-leise">
+                              zurücknehmen
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={menueStornieren} className="ml-auto flex flex-wrap items-center gap-2">
+                            <input type="hidden" name="bestellung" value={b.bestellung} />
+                            <input type="hidden" name="kunde" value={b.kunde} />
+                            <input type="hidden" name="abend" value={blatt.ditixEventId ?? ""} />
+                            <input
+                              name="grund"
+                              maxLength={300}
+                              placeholder="Grund, zum Beispiel in Ditix storniert"
+                              className="w-56 text-xs"
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-md border border-linie px-2 py-1 text-xs"
+                              style={{ color: "var(--blocker)" }}
+                            >
+                              stornieren
+                            </button>
+                          </form>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-2 text-xs text-leise">
+                  Stornierte Bestellungen zählen im Küchenblatt, in der Belegung und auf dem Funktionsheet
+                  nicht mehr mit. In der Tabelle des Shops bleibt die Zeile unverändert stehen.
+                </p>
+              </div>
+            )}
           </div>
         ) : null}
       </section>

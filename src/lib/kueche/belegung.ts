@@ -19,7 +19,7 @@ import { db } from "@/lib/db/client";
 import { kapazitaet } from "@/lib/domain/venue";
 import type { MenueVariante, Sicherheit } from "@/lib/domain/types";
 import { sicherheitAusStatus, type VorgangStatus } from "@/lib/domain/vorgang";
-import { holeShopBestellungen } from "@/lib/shop/menueliste";
+import { holeShopBestellungen, stornierteBestellungen } from "@/lib/shop/menueliste";
 import { findeTermin, kommendeTermine } from "@/lib/ditix/spielplan";
 
 export const ESSPLAETZE_GESAMT = kapazitaet("logen") + kapazitaet("eventgalerie");
@@ -99,7 +99,9 @@ export async function belegungKommenderAbende(maxAnzahl = 400): Promise<AbendBel
   // Menüs aus Ditix, einmal geholt und nach Vorstellung gruppiert.
   const ditixJeEvent = new Map<string, number>();
   try {
+    const storniert = await stornierteBestellungen();
     for (const b of await holeShopBestellungen()) {
+      if (storniert.has(b.bestellung)) continue;
       const anzahl = Object.values(b.menues).reduce((s, n) => s + (n ?? 0), 0);
       if (anzahl > 0) {
         ditixJeEvent.set(b.ditixEventId, (ditixJeEvent.get(b.ditixEventId) ?? 0) + anzahl);

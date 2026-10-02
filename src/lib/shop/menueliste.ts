@@ -15,6 +15,7 @@
  */
 
 import type { MenueVariante } from "@/lib/domain/types";
+import { db } from "@/lib/db/client";
 
 const TABELLE_ID =
   process.env.SHOP_MENUELISTE_ID ?? "1Ma0OxVsVdAhNmt9pl2xtx3Pbz2IPAVHkdORSPOUGg2g";
@@ -265,9 +266,57 @@ export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
 }
 
 /** Zählt alle Shop-Bestellungen einer Vorstellung zusammen. */
+/*
+  Stornierte Bestellungen.
+
+  Die Tabelle, die der Shop schreibt, kennt keine Stornos: Wird eine
+  Buchung in Ditix abgesagt, bleibt die Zeile dort stehen. Die Küche würde
+  also für Gäste kochen, die abgesagt haben. Deshalb führt der
+  Eventmanager eine eigene Liste, und sie gilt überall, wo Menüs gezählt
+  werden (Florian, 02.10.2026).
+*/
+export interface MenueStorno {
+  bestellung: string;
+  kunde: string;
+  grund: string;
+  wer: string;
+  wann: string;
+}
+
+export async function stornierteBestellungen(): Promise<Set<string>> {
+  const z = (await db()`select bestellung from menue_storno`.catch(() => [])) as Array<{
+    bestellung: string;
+  }>;
+  return new Set(z.map((r) => String(r.bestellung)));
+}
+
+export async function stornosDesAbends(ditixEventId: string): Promise<MenueStorno[]> {
+  const z = (await db()`
+    select bestellung, kunde, grund, wer, wann from menue_storno
+     where ditix_event_id = ${ditixEventId} order by wann desc
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    bestellung: String(r.bestellung),
+    kunde: String(r.kunde ?? ""),
+    grund: String(r.grund ?? ""),
+    wer: String(r.wer ?? ""),
+    wann: new Date(r.wann as string).toISOString(),
+  }));
+}
+
+/** Die einzelnen Bestellungen eines Abends, storniert oder nicht. */
+export async function bestellungenDesAbends(
+  ditixEventId: string,
+): Promise<Array<ShopBestellung & { storniert: boolean }>> {
+  const [alle, storniert] = await Promise.all([holeShopBestellungen(), stornierteBestellungen()]);
+  return alle
+    .filter((b) => b.ditixEventId === ditixEventId)
+    .map((b) => ({ ...b, storniert: storniert.has(b.bestellung) }));
+}
+
 export async function shopZusammenfassung(ditixEventId: string): Promise<ShopZusammenfassung> {
-  const alle = await holeShopBestellungen();
-  const passend = alle.filter((b) => b.ditixEventId === ditixEventId);
+  const [alle, storniert] = await Promise.all([holeShopBestellungen(), stornierteBestellungen()]);
+  const passend = alle.filter((b) => b.ditixEventId === ditixEventId && !storniert.has(b.bestellung));
 
   const menues: Record<MenueVariante, number> = { classic: 0, sea: 0, veggy: 0, kids: 0 };
   let getraenkeArmbaender = 0;
