@@ -84,7 +84,7 @@ function spracherkennungsKlasse(): (new () => SpracherkennungsMotor) | null {
  * Bremse gegen eine Claude-Anfrage bei jedem Zwischenwort: Erst wenn eine
  * Weile Ruhe ist, war die Antwort vermutlich vollständig (Florian, 28.09.2026).
  */
-const STILLE_MS = 900;
+const STILLE_MS = 450;
 
 /** So viele Zeichen Zusammenhang laufen mit, etwa zwei bis drei Saetze. */
 const VORLAUF_ZEICHEN = 400;
@@ -111,6 +111,10 @@ export function HoereZu() {
   const pufferRef = useRef("");
   /** Das kurze Gedaechtnis: der Wortlaut davor, fuer den Zusammenhang. */
   const vorlaufRef = useRef("");
+  /** Der Zwischenstand der Spracherkennung, noch nicht abgeschlossen. */
+  const interimRef = useRef("");
+  /** Wie lang der Zwischenstand bei der letzten Anfrage war. */
+  const zuletztGefragtRef = useRef(0);
   const ergebnisseRef = useRef<Ergebnis[]>([]);
   const laeuftGeradeRef = useRef(false);
 
@@ -132,10 +136,24 @@ export function HoereZu() {
   }, []);
 
   const auswerten = useCallback(async () => {
-    const frisch = pufferRef.current.trim();
+    /*
+      Auch das halbfertige Stueck zaehlt.
+
+      Die Spracherkennung macht aus einem Satz erst nach einer Pause ein
+      "fertiges" Stueck; bis dahin liegt er als Zwischenstand vor. Darauf
+      zu warten kostet ein bis zwei Sekunden, und genau die fehlen dem
+      Techniker (Florian, 02.10.2026). Deshalb geht der Zwischenstand mit,
+      und was dabei schon erkannt wird, steht sofort auf der Tafel.
+    */
+    const frisch = `${pufferRef.current} ${interimRef.current}`.trim();
     pufferRef.current = "";
     const offen = offeneKategorien();
-    if (!frisch || offen.length === 0 || laeuftGeradeRef.current) return;
+    if (!frisch || offen.length === 0) return;
+    if (laeuftGeradeRef.current) {
+      // Laeuft gerade eine Anfrage: nicht wegwerfen, gleich noch einmal.
+      pufferRef.current = `${pufferRef.current} ${frisch}`.trim();
+      return;
+    }
 
     /*
       Die Frage steht oft im Stueck davor.
@@ -154,7 +172,11 @@ export function HoereZu() {
       const antwort = await fetch("/hoerezu/erkennen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, offen }),
+        body: JSON.stringify({
+          text,
+          offen,
+          schonDa: ergebnisseRef.current.map((e) => e.text),
+        }),
       });
       const daten = await antwort.json().catch(() => null);
       const treffer = daten?.ergebnis as { kategorie: Kategorie; ergebnis: string } | null | undefined;
@@ -226,6 +248,20 @@ export function HoereZu() {
         }
       }
       setInterimText(interim);
+      interimRef.current = interim;
+      /*
+        Auch waehrend noch gesprochen wird: sobald genug Neues dasteht.
+
+        Nicht bei jedem Wort: Erst wenn seit der letzten Anfrage acht
+        Zeichen dazugekommen sind, lohnt sich eine neue. Sonst laeuft bei
+        jedem Atemzug eine Abfrage.
+      */
+      const stand = interim.trim();
+      if (stand.length >= 12 && stand.length - zuletztGefragtRef.current >= 8) {
+        zuletztGefragtRef.current = stand.length;
+        planeAuswertung();
+      }
+      if (stand.length === 0) zuletztGefragtRef.current = 0;
     };
 
     erkennung.onerror = (event) => {

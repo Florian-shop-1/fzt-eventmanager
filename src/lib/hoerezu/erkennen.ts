@@ -49,40 +49,49 @@ export function hoerzuEingerichtet(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
-function system(offen: Kategorie[], signale: Kategorie[]): string {
-  return `Du hörst live mit, wie ein Zuschauer bei einer Zaubershow im Florian Zimmer Theater auf eine von vier möglichen Fragen antwortet. Aus seiner Antwort filterst du das entscheidende Stichwort heraus. Ein Bühnentechniker liest dieses Stichwort direkt vom Bildschirm ab und schreibt es auf Papier, deshalb muss es kurz, korrekt und ohne Zusätze sein.
+function system(offen: Kategorie[], signale: Kategorie[], schonDa: string[]): string {
+  return `Du hörst live mit, wie ein Zuschauer bei einer Zaubershow im Florian Zimmer Theater auf eine von vier möglichen Fragen antwortet. Aus seiner Antwort filterst du das entscheidende Stichwort heraus. Ein Bühnentechniker liest dieses Stichwort direkt vom Bildschirm ab und schreibt es auf Papier, deshalb muss es kurz, konkret und ohne Zusätze sein.
+
+So läuft es immer ab: Zuerst stellt der Zauberer die Frage, oft mehrmals und in verschiedenen Worten. Danach antwortet der Zuschauer, manchmal undeutlich, und der Zauberer wiederholt die Antwort laut für den Saal. Dich interessiert nur die Antwort, nie die Frage.
+
+KONKRET UND KURZ, das ist die wichtigste Regel. Zwei, höchstens drei Wörter, und zwar die konkrete Sache, nicht die Gattung:
+- "Wir waren im Legoland, Achterbahn fahren" → ACHTERBAHN oder LEGOLAND, nicht FREIZEITPARK
+- "meine Reise nach Hawaii" → HAWAII, nicht REISE
+- "eine Safari in Kenia" → SAFARI
+- "als ich meine Frau kennengelernt habe, damals in Italien" → FRAU KENNENLERNEN oder FRAU, nicht KENNENLERNEN MEINER EHEFRAU IN ITALIEN
+- "die Geburt meiner Tochter" → GEBURT TOCHTER
+- "mein Fallschirmsprung über den Alpen" → FALLSCHIRMSPRUNG
 
 Die vier möglichen Fragen und ihre Kategorien:
-- inspiriert: "Wer hat mich am meisten inspiriert?" Gesucht wird eine Person oder Personengruppe. Beispiele: "meine Eltern" → ELTERN. "meine Mutter" → MUTTER. "mein Vater" → VATER. "meine Oma" → OMA. "mein Lehrer" → LEHRER. "Michael Jackson" → MICHAEL JACKSON.
-- abenteuer: "Was war mein aufregendstes Abenteuer?" Gesucht wird die Aktivität, Reise, das Erlebnis oder der entscheidende Ort. Beispiele: "eine Safari in Afrika" → SAFARI. "Fallschirmspringen" → FALLSCHIRMSPRINGEN. "meine Reise nach Australien" → AUSTRALIEN. "eine Weltreise" → WELTREISE. "Bungee Jumping" → BUNGEE JUMPING.
-- magischster_moment: "Was war mein magischster Moment?" Das Ergebnis darf etwas länger sein, aber nur die entscheidende Information enthalten. Beispiele: "die Geburt meiner Kinder" → GEBURT MEINER KINDER. "meine Hochzeit" → HOCHZEIT. "als ich meinen Mann kennengelernt habe" → KENNENLERNEN MEINES MANNES. "als mein Sohn geboren wurde" → GEBURT MEINES SOHNES.
-- beruf: "Was wollte ich werden, wenn ich groß bin?" Nur der Beruf, IMMER in männlicher Grundform, ohne Zusätze wie "ich wollte", "werden", "früher", "als Kind". Beispiele: Tierärztin → TIERARZT. Ärztin → ARZT. Lehrerin → LEHRER. Pilotin → PILOT. Polizistin → POLIZIST. Feuerwehrfrau → FEUERWEHRMANN. Profifußballerin → PROFIFUSSBALLER. Friseurin → FRISEUR. Schauspielerin → SCHAUSPIELER.
+- inspiriert: "Wer hat dich am meisten inspiriert?" Gesucht wird eine Person. Beispiele: "meine Eltern" → ELTERN. "meine Oma" → OMA. "Michael Jackson" → MICHAEL JACKSON.
+- abenteuer: "Was war dein aufregendstes Abenteuer?" Gesucht wird die konkrete Sache oder der Ort. Beispiele: "Fallschirmspringen" → FALLSCHIRMSPRINGEN. "unsere Reise nach Australien" → AUSTRALIEN. "Bungee Jumping in Neuseeland" → BUNGEE JUMPING.
+- magischster_moment: "Was war dein magischster Moment?" Beispiele: "meine Hochzeit" → HOCHZEIT. "als mein Sohn geboren wurde" → GEBURT SOHN. "als ich meinen Mann kennengelernt habe" → MANN KENNENLERNEN.
+- beruf: "Was wolltest du werden, wenn du groß bist?" NUR hier gilt: immer die männliche Grundform, ohne "ich wollte", "werden", "früher". Beispiele: Tierärztin → TIERARZT. Prinzessin → PRINZ. Ärztin → ARZT. Lehrerin → LEHRER. Pilotin → PILOT. Polizistin → POLIZIST. Feuerwehrfrau → FEUERWEHRMANN. Sängerin → SÄNGER. Schauspielerin → SCHAUSPIELER. In allen anderen Kategorien wird NICHT umgeformt: Bei inspiriert bleibt OMA eine Oma und MUTTER eine Mutter.
 
-Der Zuschauer spricht natürlich und aus eigener Perspektive, oft mit Füllwörtern wie "also", "ähm", "eigentlich", "ich glaube", "irgendwie", "würde ich sagen". Diese Füllwörter ignorierst du. Beispiel: "Also ähm, ich glaube, ich wollte eigentlich immer Tierärztin werden." → TIERARZT.
+Füllwörter wie "also", "ähm", "eigentlich", "ich glaube", "irgendwie" ignorierst du. Beispiel: "Also ähm, ich glaube, ich wollte eigentlich immer Tierärztin werden." → TIERARZT.
 
-WICHTIG: Oft antwortet nicht der Zuschauer selbst verständlich, sondern der Zauberer wiederholt die Antwort laut, damit der ganze Saal sie hört. Dann steht sie in der zweiten Person oder als Rückfrage. Das zählt genauso, und zwar ohne Abstriche:
+Wiederholt der Zauberer die Antwort, zählt sie genauso:
 - "Du wolltest Sänger werden, sehr schön." → SÄNGER
-- "Ach, Tierärztin wolltest du werden?" → TIERARZT
+- "Das Legoland, Achterbahn fahren, das stell ich mir aufregend vor." → ACHTERBAHN
 - "Deine Oma hat dich am meisten inspiriert." → OMA
-- "Eine Safari in Afrika, toll!" → SAFARI
-- "Die Geburt deiner Tochter war dein magischster Moment." → GEBURT DER TOCHTER
 
-Ebenso zählt eine Antwort, die nur aus dem Stichwort besteht, ohne ganzen Satz: "Sänger." → SÄNGER. Warte nicht auf eine vollständig formulierte Antwort; sobald das Stichwort klar dasteht, gib es zurück.
+Eine Antwort ohne ganzen Satz zählt auch: "Sänger." → SÄNGER.
 
-Aktuell noch offen, nur diese Kategorien kommen infrage, alle anderen wurden in dieser Show schon beantwortet: ${offen.join(", ")}.
+Noch offen sind nur diese Kategorien, alle anderen wurden in dieser Show schon beantwortet: ${offen.join(", ")}.${
+    schonDa.length > 0
+      ? `
 
-Im Text steht oft auch die Frage selbst, weil der Zauberer sie laut stellt, bevor der Zuschauer antwortet. Das Fragewort verrät die Kategorie: "inspiriert" oder "Vorbild" bedeutet inspiriert, "Abenteuer" oder "aufregendstes" bedeutet abenteuer, "wenn ich groß bin" oder "werden wollte" bedeutet beruf, "magischster" bedeutet magischster_moment. Dabei ist es gleichgültig, ob die Frage in der Ich-Form, in der Du-Form oder über eine dritte Person gestellt wird: "Wer hat mich inspiriert", "Wer hat dich inspiriert", "Wer hat ihn inspiriert" sind dieselbe Frage. Beispiele für ganze Abschnitte:
-- "Was war denn dein größtes Abenteuer? Also, ich war mal in Kenia auf Safari." → abenteuer, SAFARI
-- "Und wer hat dich am meisten inspiriert? Meine Oma auf jeden Fall." → inspiriert, OMA
-- "Was wolltest du werden, wenn du groß bist? Tierärztin." → beruf, TIERARZT
-- "Dein magischster Moment? Als meine Tochter zur Welt kam." → magischster_moment, GEBURT DER TOCHTER
-${
-    signale.length > 0
-      ? `In diesem Text klingt eindeutig diese Frage an: ${signale.join(", ")}. Nimm diese Kategorie, wenn sie noch offen ist, und suche das passende Wort dazu.`
-      : "In diesem Text ist kein Fragewort zu erkennen. Dann entscheidet allein der Inhalt der Antwort."
+Diese Stichwörter stehen schon auf der Tafel und dürfen NIE ein zweites Mal kommen, auch nicht in anderer Schreibweise oder für eine andere Kategorie: ${schonDa.join(", ")}. Taucht im Text nur eines davon auf, ist das die alte Antwort und keine neue: setze dann erkannt auf false.`
+      : ""
   }
 
-Ordne den Text genau einer dieser offenen Kategorien zu und gib das kurze Stichwort in GROSSBUCHSTABEN zurück. Erfinde nichts: Passt der Text zu keiner offenen Kategorie eindeutig, oder wirkt die Antwort noch unvollständig, setze erkannt auf false und lass kategorie und ergebnis leer. Gib niemals mehr als die entscheidende Information zurück, keine ganzen Sätze, keine Anführungszeichen, keinen Punkt am Ende.`;
+Das Fragewort verrät die Kategorie: "inspiriert" oder "Vorbild" bedeutet inspiriert, "Abenteuer" oder "aufregendstes" bedeutet abenteuer, "wenn du groß bist" oder "werden wolltest" bedeutet beruf, "magischster" bedeutet magischster_moment. Ob die Frage in der Ich-Form, der Du-Form oder über einen Dritten gestellt wird, ist gleichgültig.${
+    signale.length > 0
+      ? ` In diesem Text klingt eindeutig diese Frage an: ${signale.join(", ")}. Nimm diese Kategorie, wenn sie noch offen ist, und suche das passende Wort dazu.`
+      : " In diesem Text ist kein Fragewort zu erkennen. Dann entscheidet allein der Inhalt der Antwort."
+  }
+
+Steht im Text bisher nur die Frage und noch keine Antwort, setze erkannt auf false. Sobald eine Antwort erkennbar ist, gib sie zurück, auch wenn der Satz noch nicht zu Ende ist: Der Techniker wartet. Erfinde nichts. Gib das Stichwort in GROSSBUCHSTABEN zurück, zwei bis drei Wörter, ohne Anführungszeichen und ohne Punkt.`;
 }
 
 const SCHEMA = {
@@ -112,15 +121,21 @@ export interface Stichwort {
  * Eindeutiges erkannt wurde oder keine Kategorie mehr offen ist, statt
  * etwas zu erfinden.
  */
-export async function stichwortErkennen(text: string, offen: Kategorie[]): Promise<Stichwort | null> {
+export async function stichwortErkennen(
+  text: string,
+  offen: Kategorie[],
+  schonDa: string[] = [],
+): Promise<Stichwort | null> {
   if (!text.trim() || offen.length === 0) return null;
 
   const signale = erkannteFragen(text).filter((k) => offen.includes(k));
 
   const antwort = await anthropic().messages.create({
     model: MODELL,
-    max_tokens: 300,
-    system: system(offen, signale),
+    // Kurz halten: Es kommt ohnehin nur ein Stichwort zurueck, und jedes
+    // Token kostet Zeit, auf die der Techniker wartet.
+    max_tokens: 120,
+    system: system(offen, signale, schonDa),
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
     messages: [{ role: "user", content: text.trim() }],
   });
@@ -144,6 +159,15 @@ export async function stichwortErkennen(text: string, offen: Kategorie[]): Promi
 
   const ergebnis = lesung.ergebnis.trim();
   if (!ergebnis) return null;
+
+  /*
+    Was schon auf der Tafel steht, kommt nicht noch einmal.
+
+    Der Zauberer wiederholt die Antwort oft mehrmals, und das Modell
+    liefert sie dann brav erneut (Florian, 02.10.2026).
+  */
+  const schlicht = (w: string) => w.toUpperCase().replace(/[^A-ZÄÖÜß ]/g, "").trim();
+  if (schonDa.some((w) => schlicht(w) === schlicht(ergebnis))) return null;
 
   return { kategorie, ergebnis };
 }

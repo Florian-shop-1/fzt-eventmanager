@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 interface Anfrage {
   text?: string;
   offen?: string[];
+  /** Was schon auf der Tafel steht und nicht noch einmal kommen darf. */
+  schonDa?: string[];
 }
 
 export async function POST(request: Request) {
@@ -27,13 +29,14 @@ export async function POST(request: Request) {
   const d = (await request.json().catch(() => null)) as Anfrage | null;
   const text = (d?.text ?? "").slice(0, 2000);
   const offen = (d?.offen ?? []).filter((k): k is Kategorie => (KATEGORIEN as readonly string[]).includes(k));
+  const schonDa = (d?.schonDa ?? []).map((w) => String(w).slice(0, 60)).slice(0, 8);
 
   if (!text.trim() || offen.length === 0) {
     return NextResponse.json({ ok: true, ergebnis: null });
   }
 
   try {
-    const ergebnis = await stichwortErkennen(text, offen);
+    const ergebnis = await stichwortErkennen(text, offen, schonDa);
     return NextResponse.json({ ok: true, ergebnis });
   } catch (e) {
     return NextResponse.json(
