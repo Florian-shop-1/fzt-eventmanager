@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { abgeloesteVertraege, fuerVertrag, vertraege } from "@/lib/db/arbeitsvertrag";
-import { SPIELZEIT_ENDE } from "@/lib/personal/arbeitsvertrag";
+import { ARTNAME, SPIELZEIT_ENDE } from "@/lib/personal/arbeitsvertrag";
 import { HASE_ERHOEHUNG, HASE_VERTRAG } from "@/lib/personal/hasensatz";
 import { StellenWahl } from "@/components/StellenWahl";
 import { vertragErstellen } from "./aktionen";
@@ -73,7 +73,7 @@ export default async function VertraegeSeite({
                   {v.name}
                 </Link>{" "}
                 <span className="text-leise">
-                  {v.art === "teilzeit" ? "Teilzeit" : "Kurzfristig"} · {v.position || v.taetigkeit} · ab{" "}
+                  {ARTNAME[v.art]} · {v.position || v.taetigkeit} · ab{" "}
                   {tag(v.beginn)} · {v.art === "teilzeit" ? euro(v.festgehaltCent) : `${euro(v.stundenlohnCent)} je Stunde`}
                 </span>
                 <div className="mt-1 text-xs text-leise">
@@ -163,7 +163,8 @@ export default async function VertraegeSeite({
               <label className="block">
                 <span className="mb-1 block text-xs text-leise">Art des Vertrags</span>
                 <select name="art" defaultValue="kurzfristig">
-                  <option value="kurzfristig">Kurzfristige Beschäftigung</option>
+                  <option value="kurzfristig">Kurzfristige Beschäftigung (70 Tage)</option>
+                  <option value="minijob">Minijob (geringfügig entlohnt)</option>
                   <option value="teilzeit">Teilzeit / Saison mit Festgehalt</option>
                 </select>
               </label>
@@ -186,7 +187,7 @@ export default async function VertraegeSeite({
                 <input type="date" name="ende" defaultValue={SPIELZEIT_ENDE} required />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs text-leise">Stundenlohn € (kurzfristig)</span>
+                <span className="mb-1 block text-xs text-leise">Stundenlohn € (kurzfristig, Minijob)</span>
                 <input name="stundenlohn" inputMode="decimal" placeholder="14,50" />
               </label>
               <label className="block">
@@ -197,7 +198,7 @@ export default async function VertraegeSeite({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs text-leise">Monatsstunden (Teilzeit)</span>
+                <span className="mb-1 block text-xs text-leise">Monatsstunden (Teilzeit, Minijob)</span>
                 <input name="monatsstunden" inputMode="decimal" placeholder="80" />
               </label>
               <label className="block">
@@ -270,7 +271,7 @@ export default async function VertraegeSeite({
                   {v.name}
                 </Link>{" "}
                 <span className="text-leise">
-                  {v.art === "teilzeit" ? "Teilzeit" : "Kurzfristig"} · ab {tag(v.beginn)} ·{" "}
+                  {ARTNAME[v.art]} · ab {tag(v.beginn)} ·{" "}
                   {v.art === "teilzeit" ? euro(v.festgehaltCent) : `${euro(v.stundenlohnCent)} je Stunde`} ·
                   abgelöst am {tag(v.abgeloestAm!)}
                 </span>

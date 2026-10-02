@@ -6,6 +6,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Vertragstext } from "@/components/Vertragstext";
 import { downloads, vertragLesen } from "@/lib/db/arbeitsvertrag";
 import { luecken } from "@/lib/personal/vertragsdaten";
+import { ARTNAME } from "@/lib/personal/arbeitsvertrag";
 import { vertragFreigabe, vertragFreigabeZurueck, vertragWeg } from "../aktionen";
 
 export const metadata = { title: "Arbeitsvertrag | FZT Eventmanager" };
@@ -135,7 +136,7 @@ export default async function VertragSeite({ params }: { params: Promise<{ id: s
 
       {v.aufPapier ? (
         <dl className="grid gap-x-6 gap-y-2 rounded-lg border border-linie bg-flaeche p-6 text-sm sm:grid-cols-2">
-          <Zeile k="Art" w={v.art === "teilzeit" ? "Teilzeit" : "Kurzfristige Beschäftigung"} />
+          <Zeile k="Art" w={ARTNAME[v.art]} />
           <Zeile k="Tätigkeit" w={v.position || v.taetigkeit} />
           <Zeile k="Laufzeit" w={`${tag(v.beginn)} bis ${tag(v.ende)}`} />
           <Zeile

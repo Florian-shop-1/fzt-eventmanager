@@ -1,5 +1,5 @@
 /**
- * Die beiden Arbeitsverträge des Hauses.
+ * Die Arbeitsverträge des Hauses.
  *
  * Der Wortlaut stammt aus den Vorlagen, die Florian am 30.09.2026
  * übergeben hat (Master_Kurzfristige_Beschaeftigung_AKTUELL.docx und
@@ -12,6 +12,13 @@
  * Wert bekommt: In der Vorlage heissen zwei verschiedene Lücken beide
  * "[Datum]", und wer die eine mit dem Wert der anderen füllt, schreibt
  * ein falsches Vertragsende in einen unterschriebenen Vertrag.
+ *
+ * Der Minijob-Vertrag kam am 02.10.2026 dazu. Er folgt dem Vertrag für
+ * die kurzfristige Beschäftigung Wort für Wort, bis auf das, was sich
+ * zwischen den beiden Beschäftigungsarten tatsächlich unterscheidet: die
+ * Entgeltgrenze, die Rentenversicherung mit ihrem Befreiungsantrag und
+ * die Anzeige weiterer Minijobs. Alles andere ist derselbe Text, damit
+ * im Haus nicht zwei Regelwerke nebeneinanderstehen.
  *
  * Wer den Text ändert, ändert einen Vertrag. Das ist nichts, was
  * nebenbei passiert: Jede Änderung gehört mit Florian besprochen und
@@ -26,10 +33,11 @@ export const SPIELZEIT_ENDE = "2027-07-04";
 /** Die Anschrift der Gesellschaft, wie sie im Vertrag steht. */
 export const FIRMENANSCHRIFT = "Grethe-Weiser-Str. 2/1, 89231 Neu-Ulm";
 
-export type Vertragsart = "kurzfristig" | "teilzeit";
+export type Vertragsart = "kurzfristig" | "minijob" | "teilzeit";
 
 export const ARTNAME: Record<Vertragsart, string> = {
   kurzfristig: "Kurzfristige Beschäftigung",
+  minijob: "Minijob",
   teilzeit: "Teilzeit / Saison",
 };
 
@@ -38,6 +46,10 @@ export const UEBERSCHRIFT: Record<Vertragsart, { titel: string; unterzeile: stri
   kurzfristig: {
     titel: "ARBEITSVERTRAG",
     unterzeile: "Kurzfristige Beschäftigung gemäß § 8 Abs. 1 Nr. 2 SGB IV",
+  },
+  minijob: {
+    titel: "ARBEITSVERTRAG",
+    unterzeile: "Geringfügige Beschäftigung (Minijob) gemäß § 8 Abs. 1 Nr. 1 SGB IV",
   },
   teilzeit: {
     titel: "ARBEITSVERTRAG",
@@ -231,6 +243,188 @@ const KURZFRISTIG: Abschnitt[] = [
   },
   {
     titel: "§ 17 Schlussbestimmungen",
+    absaetze: [
+      "(1) Dieser Vertrag tritt mit seiner Unterzeichnung an die Stelle sämtlicher zuvor zwischen den Parteien geschlossener Vorverträge, Vertragsentwürfe und früherer Vertragsfassungen, soweit diese dasselbe Beschäftigungsverhältnis betreffen.",
+      "(2) Bei mehreren von beiden Parteien unterzeichneten Vertragsfassungen gilt ausschließlich die zeitlich zuletzt von beiden Parteien unterzeichnete Fassung, sofern darin nicht ausdrücklich etwas anderes bestimmt ist.",
+      "(3) Frühere Vereinbarungen bleiben nur insoweit bestehen, als dieser Vertrag ausdrücklich auf sie Bezug nimmt oder ihre Fortgeltung ausdrücklich schriftlich vereinbart wird.",
+      "(4) Nebenabreden bestehen nicht.",
+      "(5) Änderungen und Ergänzungen dieses Vertrages sollen mindestens in Textform erfolgen, soweit gesetzlich keine strengere Form vorgeschrieben ist.",
+      "(6) Individuelle Vereinbarungen der Parteien bleiben hiervon unberührt.",
+      "(7) Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.",
+      "(8) Es gelten die gesetzlichen Bestimmungen der Bundesrepublik Deutschland.",
+      "(9) Auf das Arbeitsverhältnis finden keine Tarifverträge Anwendung, sofern nicht deren zwingende Geltung gesetzlich angeordnet ist. In ihrer jeweils geltenden Fassung sind die rechtmäßig eingeführten betrieblichen Regelungen zu beachten.",
+      "(10) Der Arbeitnehmer erhält eine von beiden Vertragsparteien unterzeichnete Ausfertigung dieses Vertrages. Wird der Vertrag im Eventmanager unterzeichnet, steht sie ihm dort dauerhaft als PDF zum Herunterladen bereit.",
+    ],
+  },
+];
+
+const MINIJOB: Abschnitt[] = [
+  {
+    titel: "§ 1 Art der Beschäftigung",
+    absaetze: [
+      "(1) Der Arbeitnehmer wird als geringfügig entlohnt Beschäftigter im Sinne des § 8 Abs. 1 Nr. 1 SGB IV beschäftigt (Minijob).",
+      "(2) Die Vertragsparteien gehen davon aus, dass das regelmäßige monatliche Arbeitsentgelt die jeweils geltende Geringfügigkeitsgrenze nicht überschreitet.",
+      "(3) Arbeitszeit und Einsatzplanung werden so gestaltet, dass diese Grenze eingehalten wird. Ein gelegentliches und nicht vorhersehbares Überschreiten ist im gesetzlich zulässigen Rahmen unschädlich.",
+      "(4) Der Arbeitnehmer verpflichtet sich, dem Arbeitgeber vor Beginn der Tätigkeit sämtliche für die sozialversicherungsrechtliche Beurteilung erforderlichen Angaben vollständig und wahrheitsgemäß mitzuteilen.",
+      "(5) Hierzu gehören insbesondere Angaben über weitere geringfügige oder sonstige Beschäftigungen, Hauptbeschäftigungen, Arbeitslosigkeit bzw. Arbeitssuche, Schul-, Studien-, Ausbildungs- oder Rentenstatus sowie sonstige Umstände, die für die Beurteilung der Geringfügigkeit relevant sein können.",
+      "(6) Änderungen dieser Angaben sind dem Arbeitgeber unverzüglich mitzuteilen.",
+      "(7) Stellt sich aufgrund unrichtiger oder unvollständiger Angaben des Arbeitnehmers heraus, dass die Voraussetzungen einer geringfügigen Beschäftigung nicht vorlagen, bleiben gesetzliche Ersatz- und Rückgriffsansprüche des Arbeitgebers unberührt.",
+    ],
+  },
+{
+    titel: "§ 2 Vertragsbeginn und Vertragsende",
+    absaetze: [
+      "(1) Das Arbeitsverhältnis beginnt am {beginn} und endet automatisch mit Ablauf des {ende}, ohne dass es einer Kündigung bedarf.",
+      "(2) Das vereinbarte Vertragsende ist verbindlich.",
+      "(3) Eine Fortsetzung über das Vertragsende hinaus bedarf einer ausdrücklichen vorherigen Vereinbarung.",
+      "(4) Ein Anspruch auf weitere Beschäftigung oder Abschluss eines Folgevertrages besteht nicht.",
+      "(5) Der Arbeitnehmer wird darauf hingewiesen, dass er sich spätestens drei Monate vor dem vereinbarten Ende des Arbeitsverhältnisses persönlich bei der Agentur für Arbeit arbeitssuchend melden muss. Liegen zwischen der Kenntnis des Beendigungszeitpunkts und der Beendigung weniger als drei Monate, hat die Meldung innerhalb von drei Tagen zu erfolgen.",
+    ],
+  },
+{
+    titel: "§ 3 Tätigkeit",
+    absaetze: [
+      "(1) Der Arbeitnehmer wird als {taetigkeit} beschäftigt.",
+      "(2) Zu seinen Aufgaben gehören insbesondere: {aufgaben}.",
+      "(3) Der Arbeitgeber kann dem Arbeitnehmer andere gleichwertige und zumutbare Tätigkeiten übertragen.",
+    ],
+  },
+{
+    titel: "§ 4 Arbeitsort",
+    absaetze: [
+      "(1) Regelmäßiger Arbeitsort ist das Florian Zimmer Theater in Neu-Ulm.",
+      "(2) Der Arbeitnehmer kann bei betrieblichem Bedarf auch bei Proben, Außenveranstaltungen, Firmenveranstaltungen, Gastspielen, Auf- und Abbauten oder an anderen zumutbaren Einsatzorten beschäftigt werden.",
+    ],
+  },
+  {
+    titel: "§ 5 Arbeitszeit",
+    absaetze: [
+      "(1) Die Arbeitstage und Einsatzzeiten richten sich nach dem betrieblichen Dienst- und Veranstaltungsplan.",
+      "(2) Die Arbeitszeit beträgt im Monat voraussichtlich bis zu {monatsstunden} Stunden; maßgeblich ist, dass das regelmäßige monatliche Arbeitsentgelt die Geringfügigkeitsgrenze nicht überschreitet.",
+      "(3) Regelmäßige Einsatzzeiten liegen insbesondere von Donnerstag bis Sonntag sowie an Feiertagen und bei Sonderveranstaltungen.",
+      "(4) Beginn, Ende und Verteilung der Arbeitszeit werden vom Arbeitgeber im Rahmen der gesetzlichen und vertraglichen Vorgaben nach billigem Ermessen festgelegt.",
+      "(5) Der Arbeitnehmer ist verpflichtet, die ihm ordnungsgemäß zugewiesenen Dienste wahrzunehmen.",
+      "(6) Mehrarbeit ist nur zu leisten und wird nur vergütet, wenn sie vom Arbeitgeber angeordnet, genehmigt oder nachträglich anerkannt worden ist.",
+      "(7) Eigenmächtig geleistete Mehrarbeit begründet grundsätzlich keinen zusätzlichen Vergütungsanspruch.",
+    ],
+  },
+{
+    titel: "§ 6 Arbeitszeiterfassung",
+    absaetze: [
+      "(1) Der Arbeitnehmer ist verpflichtet, sämtliche Arbeitszeiten einschließlich Beginn, Ende und Pausen vollständig und wahrheitsgemäß über das vom Arbeitgeber festgelegte Verfahren zu dokumentieren.",
+      "(2) Die Arbeitszeiterfassung ist spätestens am jeweiligen Arbeitstag vorzunehmen.",
+      "(3) Manipulationen oder vorsätzlich falsche Angaben stellen eine erhebliche arbeitsvertragliche Pflichtverletzung dar.",
+    ],
+  },
+  {
+    titel: "§ 7 Vergütung",
+    absaetze: [
+      "(1) Der Arbeitnehmer erhält {stundenlohn} € brutto pro vergütungspflichtiger Arbeitsstunde.",
+      "(2) Der jeweils geltende gesetzliche Mindestlohn darf nicht unterschritten werden.",
+      "(3) Die Vergütung erfolgt monatlich nach den tatsächlich abzurechnenden bzw. gesetzlich vergütungspflichtigen Stunden.",
+      "(4) Die Auszahlung erfolgt per Überweisung auf das vom Arbeitnehmer angegebene Bankkonto.",
+      "(5) Die Abgaben für eine geringfügige Beschäftigung trägt der Arbeitgeber in dem gesetzlich vorgesehenen Umfang; die lohnsteuerliche Behandlung erfolgt nach den jeweils geltenden gesetzlichen Voraussetzungen.",
+      "(6) Für Sonn-, Feiertags-, Nacht- oder Mehrarbeit besteht kein zusätzlicher vertraglicher Zuschlagsanspruch, soweit nicht zwingende gesetzliche Vorschriften entgegenstehen.",
+      "(7) Sonderzahlungen, Prämien oder sonstige freiwillige Leistungen begründen auch bei wiederholter Gewährung keinen Rechtsanspruch für die Zukunft.",
+      "(8) Irrtümliche Überzahlungen sind zurückzuerstatten.",
+    ],
+  },
+  {
+    titel: "§ 8 Rentenversicherung",
+    absaetze: [
+      "(1) Die Beschäftigung ist in der gesetzlichen Rentenversicherung versicherungspflichtig. Der Arbeitgeber trägt den Pauschalbeitrag, der Arbeitnehmer den Differenzbetrag zum vollen Beitrag.",
+      "(2) Der Arbeitnehmer kann sich auf Antrag von der Versicherungspflicht in der Rentenversicherung befreien lassen (§ 6 Abs. 1b SGB VI).",
+      "(3) Der Antrag ist dem Arbeitgeber in Textform zu übergeben; die Befreiung wirkt frühestens ab dem gesetzlich vorgesehenen Zeitpunkt und gilt für die gesamte Dauer der Beschäftigung.",
+      "(4) Die Befreiung kann während der Beschäftigung nicht widerrufen werden.",
+      "(5) Der Arbeitnehmer wurde darauf hingewiesen, dass eine Befreiung Auswirkungen auf spätere Leistungen der gesetzlichen Rentenversicherung haben kann.",
+    ],
+  },
+{
+    titel: "§ 9 Krankheit",
+    absaetze: [
+      "(1) Jede Arbeitsunfähigkeit ist dem Arbeitgeber unverzüglich und grundsätzlich vor Beginn des vorgesehenen Dienstes mitzuteilen.",
+      "(2) Der Arbeitgeber ist berechtigt, einen gesetzlich vorgesehenen Nachweis der Arbeitsunfähigkeit ab dem ersten Krankheitstag zu verlangen.",
+      "(3) Während der ersten vier Wochen des ununterbrochenen Arbeitsverhältnisses besteht kein gesetzlicher Anspruch auf Entgeltfortzahlung durch den Arbeitgeber nach § 3 Abs. 3 Entgeltfortzahlungsgesetz.",
+      "(4) Nach Ablauf der gesetzlichen Wartezeit besteht Entgeltfortzahlung ausschließlich im gesetzlich vorgeschriebenen Umfang.",
+      "(5) Weitergehende vertragliche Ansprüche auf Entgeltfortzahlung werden nicht begründet.",
+    ],
+  },
+{
+    /*
+      Ein Satz, mehr nicht.
+
+      "schreib rein Urlaub - es gelten die gesetzlichen regelungen, mehr
+      nicht. nur diesen einen satz zum urlaub" (Florian, 30.09.2026). Der
+      Paragraph fehlte ganz, und das Nachweisgesetz verlangt eine Angabe
+      zum Urlaub. Mehr als den Verweis auf das Gesetz wollte Florian
+      ausdruecklich nicht.
+    */
+    titel: "§ 10 Urlaub",
+    absaetze: ["(1) Es gelten die gesetzlichen Regelungen."],
+  },
+{
+    titel: "§ 11 Kündigung",
+    absaetze: [
+      "(1) Das Arbeitsverhältnis endet grundsätzlich automatisch zum in § 2 vereinbarten Zeitpunkt.",
+      "(2) Die ordentliche Kündigung wird während der Vertragslaufzeit ausdrücklich zugelassen.",
+      "(3) Soweit der Arbeitnehmer lediglich zur vorübergehenden Aushilfe eingestellt ist und die gesetzlichen Voraussetzungen hierfür vorliegen, gelten die gesetzlich zulässigen Kündigungsfristen.",
+      "(4) Im Übrigen gelten die gesetzlichen Kündigungsfristen.",
+      "(5) Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.",
+      "(6) Kündigungen bedürfen der gesetzlich vorgeschriebenen Form.",
+      "(7) Will der Arbeitnehmer geltend machen, dass eine Kündigung unwirksam ist, muss er grundsätzlich innerhalb von drei Wochen nach Zugang der schriftlichen Kündigung Klage beim zuständigen Arbeitsgericht erheben. Im Übrigen gelten die gesetzlichen Vorschriften.",
+    ],
+  },
+{
+    titel: "§ 12 Pflichten des Arbeitnehmers",
+    absaetze: [
+      "(1) Der Arbeitnehmer verpflichtet sich, die ihm übertragenen Aufgaben sorgfältig und gewissenhaft auszuführen, Weisungen des Arbeitgebers und seiner Beauftragten zu beachten, Sicherheits-, Hygiene-, Datenschutz- und Brandschutzregelungen einzuhalten, pünktlich und arbeitsfähig zum Dienst zu erscheinen, betriebliche Einrichtungen und Arbeitsmittel sorgfältig zu behandeln und betriebliche Störungen, Schäden oder besondere Vorkommnisse unverzüglich zu melden.",
+    ],
+  },
+{
+    titel: "§ 13 Verschwiegenheit und magische Geheimnisse",
+    absaetze: [
+      "(1) Der Arbeitnehmer ist verpflichtet, über sämtliche nicht öffentlich bekannten betrieblichen Angelegenheiten Stillschweigen zu bewahren.",
+      "(2) Dies betrifft insbesondere Methoden und Funktionsweisen von Illusionen und Zauberkunststücken, Tricktechnik und Requisiten, Showabläufe und Regieinformationen, technische Einrichtungen, interne betriebliche Abläufe, Kunden- und Gästedaten sowie sonstige Geschäfts- und Betriebsgeheimnisse.",
+      "(3) Die Anfertigung und Weitergabe von Foto-, Video- oder Tonaufnahmen aus Backstage-, Technik-, Requisiten-, Lager-, Bühnen- oder Probenbereichen ist ohne Zustimmung des Arbeitgebers untersagt.",
+      "(4) Die Verschwiegenheitspflicht besteht nach Beendigung des Arbeitsverhältnisses fort, soweit weiterhin ein berechtigtes Geheimhaltungsinteresse besteht.",
+      "(5) Gesetzliche Unterlassungs-, Herausgabe- und Schadensersatzansprüche bleiben unberührt.",
+      "(6) Bei einem schuldhaften Verstoß gegen die Verschwiegenheitspflicht wird eine Vertragsstrafe in Höhe des Zweifachen der durchschnittlichen monatlichen Bruttovergütung der letzten drei Abrechnungsmonate fällig. Die Geltendmachung eines darüber hinausgehenden Schadens bleibt unberührt; die Vertragsstrafe wird auf einen Schadensersatzanspruch angerechnet.",
+    ],
+  },
+{
+    titel: "§ 14 Social Media und Öffentlichkeit",
+    absaetze: [
+      "(1) Interne Vorgänge, Showgeheimnisse, Requisiten, Backstage-Bereiche, technische Einrichtungen, Gästedaten, Mitarbeiterdaten oder sonstige nicht öffentliche betriebliche Informationen dürfen ohne vorherige Zustimmung des Arbeitgebers weder veröffentlicht noch Dritten zugänglich gemacht werden.",
+      "(2) Der Arbeitnehmer ist nicht berechtigt, im Namen des Arbeitgebers öffentliche Erklärungen abzugeben.",
+    ],
+  },
+{
+    titel: "§ 15 Arbeitsmittel",
+    absaetze: [
+      "(1) Überlassene Arbeitsmittel bleiben Eigentum des Arbeitgebers.",
+      "(2) Sämtliche Schlüssel, Zugangskarten, Geräte, Kostüme, Requisiten, Dokumente und sonstigen Arbeitsmittel sind spätestens am letzten Arbeitstag vollständig zurückzugeben.",
+      "(3) Bei Verlust oder Beschädigung gelten die gesetzlichen Haftungsregelungen.",
+    ],
+  },
+  {
+    titel: "§ 16 Nebentätigkeiten und weitere Beschäftigungen",
+    absaetze: [
+      "(1) Weitere Beschäftigungen, insbesondere weitere geringfügige Beschäftigungen bei anderen Arbeitgebern, sind dem Arbeitgeber vor Aufnahme bzw. unverzüglich nach Bekanntwerden anzuzeigen.",
+      "(2) Dies ist erforderlich, weil mehrere geringfügige Beschäftigungen zusammengerechnet werden und die Geringfügigkeit entfallen kann.",
+      "(3) Dies gilt unabhängig davon, ob sie bei einem anderen Arbeitgeber oder im Rahmen einer selbstständigen Tätigkeit ausgeübt werden.",
+      "(4) Der Arbeitnehmer darf keine konkurrierende Tätigkeit ausüben, soweit berechtigte Interessen des Arbeitgebers entgegenstehen.",
+    ],
+  },
+{
+    titel: "§ 17 Ausschlussfristen",
+    absaetze: [
+      "(1) Ansprüche aus dem Arbeitsverhältnis sind innerhalb von drei Monaten nach Fälligkeit mindestens in Textform gegenüber der anderen Vertragspartei geltend zu machen.",
+      "(2) Wird der Anspruch zurückgewiesen oder nicht innerhalb von zwei Wochen beantwortet, muss er innerhalb weiterer drei Monate gerichtlich geltend gemacht werden.",
+      "(3) Von diesen Ausschlussfristen ausgenommen sind insbesondere Ansprüche auf gesetzlichen Mindestlohn, Ansprüche aus vorsätzlichem Verhalten, Ansprüche wegen Verletzung von Leben, Körper oder Gesundheit sowie sonstige gesetzlich unverzichtbare Ansprüche.",
+    ],
+  },
+{
+    titel: "§ 18 Schlussbestimmungen",
     absaetze: [
       "(1) Dieser Vertrag tritt mit seiner Unterzeichnung an die Stelle sämtlicher zuvor zwischen den Parteien geschlossener Vorverträge, Vertragsentwürfe und früherer Vertragsfassungen, soweit diese dasselbe Beschäftigungsverhältnis betreffen.",
       "(2) Bei mehreren von beiden Parteien unterzeichneten Vertragsfassungen gilt ausschließlich die zeitlich zuletzt von beiden Parteien unterzeichnete Fassung, sofern darin nicht ausdrücklich etwas anderes bestimmt ist.",
@@ -463,6 +657,7 @@ const TEILZEIT: Abschnitt[] = [
 
 const VORLAGEN: Record<Vertragsart, Abschnitt[]> = {
   kurzfristig: KURZFRISTIG,
+  minijob: MINIJOB,
   teilzeit: TEILZEIT,
 };
 

@@ -52,7 +52,10 @@ export async function vertragErstellen(f: FormData): Promise<void> {
   const b = await zugang();
 
   const benutzerId = text(f, "benutzerId", 40);
-  const art = (text(f, "art", 20) === "teilzeit" ? "teilzeit" : "kurzfristig") as Vertragsart;
+  const gewaehlt = text(f, "art", 20);
+  const art = (["kurzfristig", "minijob", "teilzeit"].includes(gewaehlt)
+    ? gewaehlt
+    : "kurzfristig") as Vertragsart;
   const beginn = text(f, "beginn", 10);
   const ende = text(f, "ende", 10) || SPIELZEIT_ENDE;
 
@@ -103,6 +106,7 @@ export async function vertragErstellen(f: FormData): Promise<void> {
   const personalien: Record<string, string> = { name, anschrift, geburtsdatum };
 
   const teilzeit = art === "teilzeit";
+  const minijob = art === "minijob";
   const monatsstunden = Number(text(f, "monatsstunden", 8).replace(",", "."));
   const stundenlohnCent = cent(text(f, "stundenlohn", 12));
   const festgehaltCent = cent(text(f, "festgehalt", 12));
@@ -110,6 +114,12 @@ export async function vertragErstellen(f: FormData): Promise<void> {
   if (teilzeit && !(monatsstunden > 0)) zurueck("Bitte die Monatsstunden eintragen.");
   if (teilzeit && !(festgehaltCent > 0)) zurueck("Bitte das monatliche Bruttogehalt eintragen.");
   if (!teilzeit && !(stundenlohnCent > 0)) zurueck("Bitte den Stundenlohn eintragen.");
+  /*
+    Beim Minijob steht die Stundenzahl im Vertrag selbst (§ 5 Absatz 2).
+    Ohne sie bliebe dort eine Lücke, und eine Lücke in einem Vertrag ist
+    keine Kleinigkeit (Florian, 02.10.2026).
+  */
+  if (minijob && !(monatsstunden > 0)) zurueck("Bitte eintragen, wie viele Stunden im Monat vorgesehen sind.");
 
   const id = await vertragAnlegen({
     benutzerId,
@@ -120,7 +130,7 @@ export async function vertragErstellen(f: FormData): Promise<void> {
     beginn,
     ende,
     stundenlohnCent: teilzeit ? null : stundenlohnCent,
-    monatsstunden: teilzeit ? monatsstunden : null,
+    monatsstunden: teilzeit || minijob ? monatsstunden : null,
     // Vier Arbeitstage die Woche sind der Regelfall im Haus, also gut vier
     // Wochen im Monat. Die Wochenstunden folgen daraus.
     wochenstunden: teilzeit ? Math.round((monatsstunden / 4.33) * 100) / 100 : null,
