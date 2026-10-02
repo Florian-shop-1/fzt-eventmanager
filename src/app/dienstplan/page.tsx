@@ -283,6 +283,19 @@ function ShowKarte({
         <span className="text-sm text-leise">{t.name}</span>
         {tage <= 1 && <span className="ml-auto text-xs font-semibold" style={{ color: "var(--warnung)" }}>{tage === 0 ? "heute" : "morgen"}</span>}
       </div>
+      {/*
+        Wofür die Technik gebraucht wird.
+
+        Steht beim Dienst und nicht in einer Notiz irgendwo: Wer sich
+        einträgt, soll vorher wissen, ob es ums Einschalten geht oder um
+        eine Programmierung (Florian, 02.10.2026).
+      */}
+      {t.technikAufgaben && (
+        <p className="border-b border-linie px-4 py-2 text-xs" style={{ background: "var(--info-hell)" }}>
+          <strong>Technik:</strong> {t.technikAufgaben}
+        </p>
+      )}
+
       <ul className="divide-y divide-linie">
         {schicht.slots.map((slot) => (
           <SlotZeile

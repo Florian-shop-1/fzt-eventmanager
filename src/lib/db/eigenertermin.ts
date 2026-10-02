@@ -27,7 +27,27 @@ export interface EigenerTermin {
   mitShow: boolean;
   /** Ohne Show: Braucht der Abend trotzdem jemanden an der Technik? */
   brauchtTechnik: boolean;
+  /** Mit Show: welche. "ulmfassbar", "flozirkus" oder "andere". */
+  showArt: ShowArt;
+  /** Bei "andere": wie die Show heißt. */
+  showName: string;
+  /** Wofür der Techniker gebraucht wird, im Klartext. */
+  technikAufgaben: string;
 }
+
+/**
+ * Welche Show an so einem Abend läuft.
+ *
+ * Davon hängt die Einteilung ab: Den Flo-Zirkus macht Ben allein, die
+ * Ulmfassbar braucht das ganze Showteam (Florian, 02.10.2026).
+ */
+export type ShowArt = "" | "ulmfassbar" | "flozirkus" | "andere";
+
+export const SHOW_NAME: Record<Exclude<ShowArt, "">, string> = {
+  ulmfassbar: "ULMFASSBAR",
+  flozirkus: "Flo-Zirkus",
+  andere: "andere Show",
+};
 
 /** Erkennt einen eigenen Termin an seiner Kennung. */
 export function istEigenerTermin(ditixEventId: string): boolean {
@@ -45,6 +65,9 @@ function baue(z: Record<string, unknown>): EigenerTermin {
     angelegtVon: (z.angelegt_von as string) ?? null,
     mitShow: z.mit_show !== false,
     brauchtTechnik: Boolean(z.braucht_technik),
+    showArt: (z.show_art as ShowArt) ?? "",
+    showName: String(z.show_name ?? ""),
+    technikAufgaben: String(z.technik_aufgaben ?? ""),
   };
 }
 
@@ -52,7 +75,7 @@ function baue(z: Record<string, unknown>): EigenerTermin {
 export async function eigeneTermine(): Promise<EigenerTermin[]> {
   const z = (await db()`
     select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
-           mit_show, braucht_technik
+           mit_show, braucht_technik, show_art, show_name, technik_aufgaben
       from eigener_termin
      where aktiv and datum >= (now() at time zone 'Europe/Berlin')::date - 1
      order by datum, uhrzeit
@@ -64,7 +87,7 @@ export async function eigeneTermine(): Promise<EigenerTermin[]> {
 export async function alleEigenenTermine(): Promise<EigenerTermin[]> {
   const z = (await db()`
     select id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
-           mit_show, braucht_technik
+           mit_show, braucht_technik, show_art, show_name, technik_aufgaben
       from eigener_termin where aktiv order by datum, uhrzeit
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
@@ -78,14 +101,19 @@ export async function eigenenTerminAnlegen(o: {
   von: string;
   mitShow?: boolean;
   brauchtTechnik?: boolean;
+  showArt?: ShowArt;
+  showName?: string;
+  technikAufgaben?: string;
 }): Promise<EigenerTermin> {
   const eventId = `eigen-${randomBytes(6).toString("hex")}`;
   const z = (await db()`
-    insert into eigener_termin (event_id, datum, uhrzeit, name, notiz, angelegt_von, mit_show, braucht_technik)
+    insert into eigener_termin (event_id, datum, uhrzeit, name, notiz, angelegt_von, mit_show,
+                                braucht_technik, show_art, show_name, technik_aufgaben)
     values (${eventId}, ${o.datum}::date, ${o.uhrzeit}, ${o.name}, ${o.notiz}, ${o.von},
-            ${o.mitShow !== false}, ${Boolean(o.brauchtTechnik)})
+            ${o.mitShow !== false}, ${Boolean(o.brauchtTechnik)}, ${o.showArt ?? ""},
+            ${o.showName ?? ""}, ${o.technikAufgaben ?? ""})
     returning id, event_id, datum::text as datum, uhrzeit, name, notiz, angelegt_von,
-              mit_show, braucht_technik
+              mit_show, braucht_technik, show_art, show_name, technik_aufgaben
   `) as Array<Record<string, unknown>>;
   return baue(z[0]);
 }
@@ -98,12 +126,18 @@ export async function eigenenTerminAendern(o: {
   notiz: string;
   mitShow?: boolean;
   brauchtTechnik?: boolean;
+  showArt?: ShowArt;
+  showName?: string;
+  technikAufgaben?: string;
 }): Promise<void> {
   await db()`
     update eigener_termin
        set datum = ${o.datum}::date, uhrzeit = ${o.uhrzeit}, name = ${o.name}, notiz = ${o.notiz},
            mit_show = coalesce(${o.mitShow ?? null}, mit_show),
-           braucht_technik = coalesce(${o.brauchtTechnik ?? null}, braucht_technik)
+           braucht_technik = coalesce(${o.brauchtTechnik ?? null}, braucht_technik),
+           show_art = coalesce(${o.showArt ?? null}, show_art),
+           show_name = coalesce(${o.showName ?? null}, show_name),
+           technik_aufgaben = coalesce(${o.technikAufgaben ?? null}, technik_aufgaben)
      where id = ${o.id}
   `;
 }

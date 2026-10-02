@@ -39,6 +39,10 @@ export interface ShopVorstellung {
   seatingPlanVersionId?: string;
   /** Nur bei eigenen Terminen: Ist an dem Abend eine Show? */
   mitShow?: boolean;
+  /** Bei eigenen Terminen mit Show: welche Show (Florian, 02.10.2026). */
+  showArt?: string;
+  /** Bei eigenen Terminen ohne Show: wofür die Technik gebraucht wird. */
+  technikAufgaben?: string;
   /** Nur bei eigenen Terminen ohne Show: Braucht es jemanden an der Technik? */
   brauchtTechnik?: boolean;
 }
@@ -53,6 +57,10 @@ export interface Vorstellungstermin {
    * bloss das Haus, und es braucht kein Showteam (Florian, 30.09.2026).
    */
   mitShow?: boolean;
+  /** Bei eigenen Terminen mit Show: welche Show (Florian, 02.10.2026). */
+  showArt?: string;
+  /** Bei eigenen Terminen ohne Show: wofür die Technik gebraucht wird. */
+  technikAufgaben?: string;
   /** Ohne Show: Braucht der Abend trotzdem jemanden an der Technik? */
   brauchtTechnik?: boolean;
   /** Kennung des Saalplans. Wird für die Auslastung und die Preise gebraucht. */
@@ -104,6 +112,8 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
       kind: "eigen",
       mitShow: e.mitShow,
       brauchtTechnik: e.brauchtTechnik,
+      showArt: e.showArt,
+      technikAufgaben: e.technikAufgaben,
     })),
   ];
 }
@@ -156,6 +166,8 @@ function zuTermin(v: ShopVorstellung): Vorstellungstermin {
     // Nur bei eigenen Terminen gesetzt, sonst ist es immer eine Show.
     mitShow: v.mitShow !== false,
     brauchtTechnik: Boolean(v.brauchtTechnik),
+    showArt: v.showArt ?? "",
+    technikAufgaben: v.technikAufgaben ?? "",
     ausverkauft: v.ticketSaleState === "SOLD_OUT",
     beginn,
   };

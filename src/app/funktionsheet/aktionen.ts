@@ -14,6 +14,7 @@ import {
   eigenenTerminAendern,
   eigenenTerminAnlegen,
   eigenenTerminEntfernen,
+  type ShowArt,
 } from "@/lib/db/eigenertermin";
 
 const text = (f: FormData, k: string, max = 4000) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -104,6 +105,20 @@ export async function terminAnlegen(f: FormData): Promise<void> {
   const mitShow = text(f, "mitShow", 5) !== "nein";
   const brauchtTechnik = !mitShow && text(f, "technik", 5) === "ja";
 
+  /*
+    Welche Show, und wofuer die Technik.
+
+    Die Showart entscheidet ueber die Einteilung: Flo-Zirkus macht Ben
+    allein. Die Technikaufgaben stehen danach im Dienstplan, damit der
+    Eingeteilte weiss, worum es geht, statt am Showtag zu fragen
+    (Florian, 02.10.2026).
+  */
+  const showArt = mitShow ? (text(f, "showArt", 20) as ShowArt) : "";
+  const aufgaben = [...f.getAll("technikWas").map((w) => String(w)), text(f, "technikFrei", 300)]
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .join("; ");
+
   await eigenenTerminAnlegen({
     datum,
     uhrzeit,
@@ -112,6 +127,9 @@ export async function terminAnlegen(f: FormData): Promise<void> {
     von: b.name,
     mitShow,
     brauchtTechnik,
+    showArt: ["ulmfassbar", "flozirkus", "andere"].includes(showArt) ? showArt : "",
+    showName: showArt === "andere" ? text(f, "showName", 120) : "",
+    technikAufgaben: aufgaben.slice(0, 600),
   });
   revalidatePath("/", "layout");
   zurueck(f, `${name} am ${datum.split("-").reverse().join(".")} ist angelegt und steht jetzt überall im Programm.`);

@@ -94,13 +94,78 @@ export function EigeneTermine({
             <input type="radio" name="mitShow" value="nein" />
             Ohne Show, nur das Haus vermietet. Kein Showteam nötig.
           </label>
-          <label className="mt-2 flex items-center gap-2 text-sm">
+
+          {/*
+            Welche Show, das entscheidet über die Einteilung.
+
+            Den Flo-Zirkus macht Ben allein, die Ulmfassbar braucht das
+            ganze Showteam. Im Namen des Termins steht das nicht, also
+            wird gefragt (Florian, 02.10.2026).
+          */}
+          <div className="mt-3 border-t border-linie pt-2">
+            <span className="text-xs text-leise">Wenn mit Show: welche?</span>
+            <div className="mt-1 flex flex-wrap gap-4">
+              {[
+                ["ulmfassbar", "ULMFASSBAR"],
+                ["flozirkus", "Flo-Zirkus (macht Ben allein)"],
+                ["andere", "Andere"],
+              ].map(([wert, titel]) => (
+                <label key={wert} className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="showArt" value={wert} defaultChecked={wert === "ulmfassbar"} />
+                  {titel}
+                </label>
+              ))}
+            </div>
+            <input className="mt-2" name="showName" maxLength={120} placeholder="Bei „Andere“: welche Show?" />
+          </div>
+        </fieldset>
+
+        {/*
+          Die Technik, und zwar wofür genau.
+
+          "das muss so sein, dass der mitarbeiter der es anlegt gleich
+          dran denkt" (Florian, 02.10.2026). Deshalb stehen die üblichen
+          Fälle zum Anhaken da, statt eines leeren Feldes, vor dem man
+          sitzt und nichts einfällt.
+        */}
+        <fieldset className="rounded-md border border-linie px-3 py-2">
+          <legend className="px-1 text-xs text-leise">Braucht es einen Techniker?</legend>
+          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="technik" value="ja" />
-            <span>
-              Techniker einteilen
-              <span className="text-leise"> (nur bei Abenden ohne Show; Licht, Ton, Mikrofon)</span>
-            </span>
+            <span>Ja, ein Techniker wird eingeteilt</span>
           </label>
+
+          <div className="mt-2 space-y-1">
+            <span className="text-xs text-leise">Wofür genau? Bitte alles anhaken, was zutrifft.</span>
+            {[
+              "Showroom einschalten und Licht einstellen",
+              "Mikrofone für die Gäste",
+              "Präsentation über den eigenen Laptop der Gäste (HDMI einstecken)",
+              "Musik oder Einspieler vom Veranstalter",
+              "Programmierung von Licht oder Ton",
+            ].map((was) => (
+              <label key={was} className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="technikWas" value={was} className="mt-1" />
+                <span>{was}</span>
+              </label>
+            ))}
+            <input
+              name="technikFrei"
+              maxLength={300}
+              placeholder="Sonst noch etwas? Zum Beispiel: Gäste brauchen 2 Mikrofone"
+            />
+          </div>
+
+          {/*
+            Wer dafür infrage kommt. Steht hier und nicht in einem
+            Handbuch, weil hier die Entscheidung fällt.
+          */}
+          <p className="mt-2 rounded border border-linie px-2 py-1 text-xs text-leise">
+            <strong>Wen einteilen?</strong> Für Einschalten und Licht ist Ben die erste Wahl. Geht es um
+            Programmierung, muss Lenny (extern) gebucht werden oder Leeven, der sich inzwischen auch sehr
+            gut auskennt. Für eine reine Präsentation reicht ein Techniker, das ist sehr einfach. Und wenn
+            niemand kann: Den Showroom einschalten kann wirklich jeder.
+          </p>
         </fieldset>
 
         <Absendeknopf text="Termin anlegen" laeuftText="Wird angelegt..." />

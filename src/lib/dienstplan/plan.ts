@@ -56,7 +56,7 @@ export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donners
  */
 export function positionenDerShow(
   name: string,
-  termin?: { mitShow?: boolean; brauchtTechnik?: boolean },
+  termin?: { mitShow?: boolean; brauchtTechnik?: boolean; showArt?: string },
 ): FestePosition[] {
   /*
     Ein eigener Termin ohne Show braucht kein Showteam.
@@ -68,6 +68,17 @@ export function positionenDerShow(
   */
   if (termin && termin.mitShow === false) {
     return termin.brauchtTechnik ? ["TECHNIK"] : [];
+  }
+  /*
+    Bei einem eigenen Termin steht die Show nicht im Namen.
+
+    "Exklusiv: Firma Noerpel" sagt nichts darüber, ob die Ulmfassbar läuft
+    oder der Flo-Zirkus. Deshalb wird sie beim Anlegen gefragt und zählt
+    hier mehr als der Name (Florian, 02.10.2026).
+  */
+  if (termin?.showArt === "flozirkus") return ["T2"];
+  if (termin?.showArt === "ulmfassbar" || termin?.showArt === "andere") {
+    return ["FOH", "T1", "T2", "ZUSCHAUER"];
   }
   if (/regio\s*tv/i.test(name)) return [];
   if (/flo-?zirkus/i.test(name)) return ["T2"];
