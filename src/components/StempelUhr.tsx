@@ -123,6 +123,20 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         setStandortHinweis(e.standortHinweis);
         setStandortHinweisArt(e.standortHinweisArt ?? "unklar");
       }
+      /*
+        Ausgestempelt ausserhalb des Gelaendes: gleich fragen, wann es
+        wirklich war.
+
+        "wenn der mitarbeiter sich von daheim ausstempelt, dann kommt die
+        kontrollmitteilung an uns und er soll sagen wann er ausgestempelt
+        hat" (Florian, 03.10.2026). Die Meldung ans Buero laeuft schon auf
+        dem Server; hier geht das Nachmelde-Formular auf, offen und mit
+        dem heutigen Tag, statt dass der Hinweis nur darauf zeigt.
+      */
+      if (e.standortHinweisArt === "verlassen") {
+        const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+        router.push(`/stempeluhr?tag=${heute}#nachmelden`);
+      }
       router.refresh();
     } catch {
       setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
@@ -261,7 +275,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           <a href="#nachmelden" className="underline">
             „Nachmelden“
           </a>{" "}
-          ein, wann deine Arbeitszeit wirklich zu Ende war, dann prüfen wir das.
+          ein, wann deine Arbeitszeit wirklich zu Ende war. Das Feld ist unten schon offen, und Florian und
+          Kevin wissen bereits Bescheid.
         </p>
       )}
       {standortHinweis && standortHinweisArt === "unklar" && (
