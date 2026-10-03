@@ -16,7 +16,7 @@
  */
 
 import type { MenueVariante } from "@/lib/domain/types";
-import { csvZerlegen, pruefeTabelle } from "./menueliste";
+import { csvZerlegen, menueAenderungen, pruefeTabelle, type MenueAenderung } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
 
 const TABELLE_ID =
@@ -193,7 +193,33 @@ export async function holeShopGruppen(): Promise<ShopGruppe[]> {
     }
   }
 
-  return [...gruppen.values()];
+  /*
+    Storno und Korrektur gelten auch hier.
+
+    Diese Liste speist das Funktionsheet, das Kuechenblatt, den Sitzplan
+    und die Belegung. Wird eine Bestellung im Eventmanager gestrichen,
+    muss sie ueberall verschwinden und nicht nur in einer Summe
+    (Florian, 03.10.2026). Der Schluessel ist die Bestellnummer, dieselbe
+    wie in der Menueliste.
+  */
+  const aenderungen = await menueAenderungen().catch(() => new Map<string, MenueAenderung>());
+  const angepasst: ShopGruppe[] = [];
+  for (const g of gruppen.values()) {
+    const a = aenderungen.get(g.orderId);
+    if (a?.art === "storno") continue;
+    if (a?.art === "korrektur") {
+      const menues: Partial<Record<MenueVariante, number>> = { ...g.menues };
+      for (const [variante, menge] of Object.entries(a.mengen)) {
+        if (menge !== undefined) menues[variante as MenueVariante] = menge;
+      }
+      const gesamt = Object.values(menues).reduce((sum, n) => sum + (n ?? 0), 0);
+      angepasst.push({ ...g, menues, menuesGesamt: gesamt });
+      continue;
+    }
+    angepasst.push(g);
+  }
+
+  return angepasst;
 }
 
 /** Alle Shop-Gruppen einer Vorstellung, die ein Menü gebucht haben. */
