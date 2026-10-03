@@ -88,6 +88,14 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
     titel: "Show",
     punkte: [
       { href: "/dienstplan", label: "Dienstplan", rollen: ["chef", "team", "showteam"] },
+      /*
+        Die Checkliste des Abends, direkt unter dem Dienstplan.
+
+        "Diese Checklisten sind wichtig für alle, insbesondere aber für T1
+        und T2" (Florian, 03.10.2026). Deshalb steht sie weit oben und
+        nicht hinter Tipps & Tricks.
+      */
+      { href: "/showcheck", label: "Show-Check", rollen: ["chef", "team", "showteam"] },
       { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
       { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },

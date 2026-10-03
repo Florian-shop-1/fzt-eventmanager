@@ -20,6 +20,7 @@ import {
   type Position,
   type Schicht,
   type Slot,
+  istZusatz,
 } from "@/lib/dienstplan/plan";
 import {
   anfrageAbbrechen,
@@ -37,6 +38,8 @@ import {
   uebernehmen,
   urlaubEintragen,
   urlaubLoeschen,
+  zusatzEinteilen,
+  zusatzEntfernen,
 } from "./aktionen";
 
 export const metadata = { title: "Dienstplan | FZT Eventmanager" };
@@ -284,6 +287,51 @@ function ShowKarte({
         {tage <= 1 && <span className="ml-auto text-xs font-semibold" style={{ color: "var(--warnung)" }}>{tage === 0 ? "heute" : "morgen"}</span>}
       </div>
       {/*
+        Noch jemand dazu.
+
+        "also nicht schon Schluss nach 3 mitarbeitern" (Florian,
+        03.10.2026). Mit eigener Bezeichnung, damit alle wissen, wofuer
+        die Person da ist.
+      */}
+      {planer && (
+        <form action={zusatzEinteilen} className="flex flex-wrap items-end gap-2 border-b border-linie px-4 py-2 print:hidden">
+          <input type="hidden" name="vorstellung" value={t.ditixEventId} />
+          <input
+            name="bezeichnung"
+            maxLength={80}
+            placeholder="Wofür? z. B. Unterstützung bei Event"
+            className="min-w-[14rem] flex-1 text-sm"
+          />
+          <select name="wert" defaultValue="" required className="text-sm">
+            <option value="" disabled>
+              Wer?
+            </option>
+            {personen.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
+            Weitere Person einteilen
+          </button>
+        </form>
+      )}
+
+      {/*
+        Die Checkliste des Abends, von hier aus erreichbar.
+
+        "insbesondere aber für T1 und T2" (Florian, 03.10.2026): Wer hier
+        seinen Dienst sieht, soll mit einem Klick bei der Liste sein.
+      */}
+      <p className="border-b border-linie px-4 py-2 text-xs print:hidden">
+        <Link href={`/showcheck?abend=${t.ditixEventId}`} className="underline">
+          Show-Check für diesen Abend
+        </Link>
+        <span className="text-leise"> · vor der Show, in der Pause, nach der Show</span>
+      </p>
+
+      {/*
         Wofür die Technik gebraucht wird.
 
         Steht beim Dienst und nicht in einer Notiz irgendwo: Wer sich
@@ -395,10 +443,10 @@ function SlotZeile({
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5" style={meins ? { background: "var(--gold-hell)" } : undefined}>
       <span
-        className="w-16 shrink-0 text-sm font-semibold"
+        className={`shrink-0 text-sm font-semibold ${istZusatz(slot.position) ? "w-40" : "w-16"}`}
         title={ERKLAERUNG[slot.position]}
       >
-        {BEZEICHNUNG[slot.position]}
+        {istZusatz(slot.position) && slot.bezeichnung ? slot.bezeichnung : BEZEICHNUNG[slot.position]}
         {slot.position === "SHADOW" && slot.fuer && (
           <span className="block text-xs font-normal text-leise">für {BEZEICHNUNG[slot.fuer]}</span>
         )}
@@ -626,6 +674,15 @@ function SlotZeile({
           </details>
         )}
       </span>
+      {planer && istZusatz(slot.position) && (
+        <form action={zusatzEntfernen} className="print:hidden">
+          <input type="hidden" name="vorstellung" value={eventId} />
+          <input type="hidden" name="position" value={slot.position} />
+          <button type="submit" className="text-xs underline text-leise">
+            Platz entfernen
+          </button>
+        </form>
+      )}
     </li>
   );
 }

@@ -15,7 +15,27 @@ import { db } from "@/lib/db/client";
 import { nachFamilienname } from "@/lib/domain/namen";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
 
-export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "TECHNIK" | "SHADOW";
+/*
+  Die Positionen eines Abends.
+
+  ZUSATZ1 bis ZUSATZ5 sind die freien Plaetze: Wer an einem Abend eine
+  vierte oder fuenfte Person braucht, traegt sie dort ein und schreibt
+  dazu, wofuer, etwa "Unterstuetzung bei Event" (Florian, 03.10.2026).
+*/
+export type Zusatzposition = "ZUSATZ1" | "ZUSATZ2" | "ZUSATZ3" | "ZUSATZ4" | "ZUSATZ5";
+export type Position = "FOH" | "T2" | "T1" | "ZUSCHAUER" | "TECHNIK" | "SHADOW" | Zusatzposition;
+
+export const ZUSATZPOSITIONEN: Zusatzposition[] = [
+  "ZUSATZ1",
+  "ZUSATZ2",
+  "ZUSATZ3",
+  "ZUSATZ4",
+  "ZUSATZ5",
+];
+
+export function istZusatz(p: Position): p is Zusatzposition {
+  return (ZUSATZPOSITIONEN as string[]).includes(p);
+}
 export type FestePosition = Exclude<Position, "SHADOW">;
 
 export const POSITIONEN: FestePosition[] = ["FOH", "T1", "T2", "ZUSCHAUER"];
@@ -27,6 +47,11 @@ export const BEZEICHNUNG: Record<Position, string> = {
   ZUSCHAUER: "Zuschauer (nur erste Hälfte)",
   TECHNIK: "Technik",
   SHADOW: "Shadow",
+  ZUSATZ1: "Zusätzlich",
+  ZUSATZ2: "Zusätzlich",
+  ZUSATZ3: "Zusätzlich",
+  ZUSATZ4: "Zusätzlich",
+  ZUSATZ5: "Zusätzlich",
 };
 
 export const ERKLAERUNG: Record<Position, string> = {
@@ -42,6 +67,12 @@ export const ERKLAERUNG: Record<Position, string> = {
   // aus dem Showteam (Florian, 30.09.2026).
   TECHNIK: "Licht und Ton an einem Abend ohne Show",
   SHADOW: "erfahrener Kollege, begleitet den Rookie",
+  // Was die zusaetzliche Person tut, steht am Einsatz selbst.
+  ZUSATZ1: "zusätzlich eingeteilt",
+  ZUSATZ2: "zusätzlich eingeteilt",
+  ZUSATZ3: "zusätzlich eingeteilt",
+  ZUSATZ4: "zusätzlich eingeteilt",
+  ZUSATZ5: "zusätzlich eingeteilt",
 };
 
 export const WOCHENTAGE = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -142,6 +173,8 @@ export interface Einsatz {
   /** Eingetragen, aber lieber frei: springt nur ein, wenn es sein muss. */
   notnagel: boolean;
   notnagelGrund: string;
+  /** Nur bei den freien Plaetzen: wofuer die Person da ist. */
+  bezeichnung: string;
   /** Direkt angefragt: Diese Person soll zusagen oder absagen. */
   angefragtId: string | null;
   angefragtVonId: string | null;
@@ -186,7 +219,7 @@ export async function festeTage(): Promise<FesterTag[]> {
 export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
     select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
-           notnagel, notnagel_grund,
+           notnagel, notnagel_grund, bezeichnung,
            angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
@@ -198,6 +231,7 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     suchtErsatz: Boolean(r.sucht_ersatz),
     notnagel: Boolean(r.notnagel),
     notnagelGrund: String(r.notnagel_grund ?? ""),
+    bezeichnung: String(r.bezeichnung ?? ""),
     grund: (r.grund as string) ?? null,
     erinnertStufe: Number(r.erinnert_stufe ?? 0),
     angefragtId: (r.angefragt_id as string) ?? null,
@@ -276,17 +310,20 @@ export async function einsatzSetzen(e: {
   /** Springt nur ein, wenn sonst niemand kann. */
   notnagel?: boolean;
   notnagelGrund?: string;
+  /** Nur bei den freien Plaetzen: wofuer die Person da ist. */
+  bezeichnung?: string;
 }): Promise<void> {
   await db()`
-    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id, sucht_ersatz, grund, geaendert_von, geaendert_am, erinnert_stufe, notnagel, notnagel_grund)
+    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, benutzer_id, sucht_ersatz, grund, geaendert_von, geaendert_am, erinnert_stufe, notnagel, notnagel_grund, bezeichnung)
     values (${e.termin.ditixEventId}, ${e.position}, ${e.termin.datum}::date, ${e.termin.uhrzeit}, ${e.benutzerId},
             ${e.suchtErsatz}, ${e.grund}, ${e.von}, now(), ${e.erinnertStufe ?? 0},
-            ${e.notnagel ?? false}, ${e.notnagelGrund ?? ""})
+            ${e.notnagel ?? false}, ${e.notnagelGrund ?? ""}, ${e.bezeichnung ?? ""})
     on conflict (ditix_event_id, position) do update set
       benutzer_id = excluded.benutzer_id, sucht_ersatz = excluded.sucht_ersatz, grund = excluded.grund,
       geaendert_von = excluded.geaendert_von, geaendert_am = now(), erinnert_stufe = excluded.erinnert_stufe,
       datum = excluded.datum, uhrzeit = excluded.uhrzeit,
       notnagel = excluded.notnagel, notnagel_grund = excluded.notnagel_grund,
+      bezeichnung = case when excluded.bezeichnung <> '' then excluded.bezeichnung else dienst_einsatz.bezeichnung end,
       angefragt_id = null, angefragt_von_id = null, angefragt_notiz = null, angefragt_am = null
   `;
 }
@@ -339,6 +376,8 @@ export interface Slot {
   /** Wann die Kollegen wegen Ersatz gefragt wurden, und wie viele. */
   ersatzGefragtAm: string | null;
   ersatzGefragtAnzahl: number;
+  /** Nur bei den freien Plaetzen: wofuer die Person da ist. */
+  bezeichnung: string;
   /** Direkt angefragt und noch nicht beantwortet. */
   angefragt: Person | null;
   angefragtVon: Person | null;
@@ -386,6 +425,7 @@ export function planBauen(
           notnagel: Boolean(p && e?.notnagel),
           notnagelGrund: p ? (e?.notnagelGrund ?? "") : "",
           offen: !p || suchtErsatz,
+          bezeichnung: e?.bezeichnung ?? "",
           erinnertStufe: e?.erinnertStufe ?? 0,
           ersatzGefragtAm: e?.ersatzGefragtAm ?? null,
           ersatzGefragtAnzahl: e?.ersatzGefragtAnzahl ?? 0,
@@ -394,6 +434,36 @@ export function planBauen(
           angefragtNotiz: e?.angefragtNotiz ?? null,
         });
       }
+      /*
+        Die zusaetzlich eingeteilten Leute.
+
+        Sie entstehen nicht aus der Show, sondern dadurch, dass jemand sie
+        eingetragen hat. Deshalb stehen sie hier und nicht in
+        positionenDerShow (Florian, 03.10.2026).
+      */
+      for (const z of ZUSATZPOSITIONEN) {
+        const e = eintrag.get(`${termin.ditixEventId}|${z}`);
+        if (!e) continue;
+        const p = e.benutzerId ? (person.get(e.benutzerId) ?? null) : null;
+        slots.push({
+          position: z,
+          person: p,
+          fest: false,
+          suchtErsatz: Boolean(e.suchtErsatz && p),
+          grund: e.grund ?? null,
+          notnagel: Boolean(p && e.notnagel),
+          notnagelGrund: p ? e.notnagelGrund : "",
+          offen: !p || Boolean(e.suchtErsatz),
+          bezeichnung: e.bezeichnung,
+          erinnertStufe: e.erinnertStufe ?? 0,
+          ersatzGefragtAm: e.ersatzGefragtAm ?? null,
+          ersatzGefragtAnzahl: e.ersatzGefragtAnzahl ?? 0,
+          angefragt: e.angefragtId ? (person.get(e.angefragtId) ?? null) : null,
+          angefragtVon: e.angefragtVonId ? (person.get(e.angefragtVonId) ?? null) : null,
+          angefragtNotiz: e.angefragtNotiz ?? null,
+        });
+      }
+
       // Steht ein Rookie auf einer Position, geht jemand mit, der sie
       // allein kann. Nur dann gibt es die Shadow-Zeile, und dann ist sie
       // Pflicht. Gilt fuer FOH, T1 und T2 gleichermassen.
@@ -412,6 +482,7 @@ export function planBauen(
         const suchtErsatz = Boolean(sh?.suchtErsatz && shPerson);
         slots.push({
           position: "SHADOW",
+          bezeichnung: "",
           fuer: mitRookie.position as FestePosition,
           person: shPerson,
           fest: false,

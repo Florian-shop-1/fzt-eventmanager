@@ -51,6 +51,8 @@ import {
   type FestePosition,
   type Person,
   type Position,
+  ZUSATZPOSITIONEN,
+  istZusatz,
 } from "@/lib/dienstplan/plan";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -746,4 +748,68 @@ function gehoertZumShowteam(p: { rolle: string; kann: Map<string, boolean>; art?
   if (p.art === "extern") return false;
   if (["chef", "team", "showteam"].includes(p.rolle)) return true;
   return p.kann.size > 0;
+}
+
+/**
+ * Eine weitere Person fuer den Abend einteilen.
+ *
+ * "beim dienstplan soll es moeglich sein weitere personen hinzuzufuegen.
+ * also nicht schon Schluss nach 3 mitarbeitern" und dazu eine eigene
+ * Bezeichnung, etwa "Unterstuetzung bei Event" (Florian, 03.10.2026).
+ *
+ * Genommen wird der naechste freie Zusatzplatz. Fuenf sind vorgesehen;
+ * wer mehr braucht, sagt Bescheid, dann werden es mehr.
+ */
+export async function zusatzEinteilen(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer || (benutzer.rolle !== "chef" && benutzer.rolle !== "team")) {
+    throw new Error("Nicht erlaubt.");
+  }
+  const eventId = text(f, "vorstellung");
+  const bezeichnung = text(f, "bezeichnung").slice(0, 80);
+  const wert = text(f, "wert");
+
+  const { schichten, personen } = await planLaden();
+  const schicht = schichten.find((s) => s.termin.ditixEventId === eventId);
+  if (!schicht) zurueck(eventId, "Diesen Abend gibt es nicht mehr.");
+
+  const belegt = new Set(schicht.slots.map((s) => s.position));
+  const frei = ZUSATZPOSITIONEN.find((z) => !belegt.has(z));
+  if (!frei) zurueck(eventId, "Mehr zusätzliche Plätze gibt es nicht. Sag Bescheid, dann baue ich mehr ein.");
+
+  const p = personen.find((x) => x.id === wert);
+  if (!p) zurueck(eventId, "Bitte eine Person wählen.");
+
+  await einsatzSetzen({
+    termin: schicht.termin,
+    position: frei,
+    benutzerId: p.id,
+    suchtErsatz: false,
+    grund: null,
+    von: benutzer.name,
+    bezeichnung: bezeichnung || "Zusätzlich",
+  });
+  if (p.id !== benutzer.id) {
+    await eingeteiltMail({
+      an: p,
+      wer: benutzer.name,
+      termin: schicht.termin,
+      position: frei,
+      notiz: bezeichnung || null,
+    }).catch(() => undefined);
+  }
+  zurueck(eventId, `${p.name} ist zusätzlich eingeteilt${bezeichnung ? ` (${bezeichnung})` : ""}.`);
+}
+
+/** Einen zusätzlichen Platz wieder herausnehmen. */
+export async function zusatzEntfernen(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer || (benutzer.rolle !== "chef" && benutzer.rolle !== "team")) {
+    throw new Error("Nicht erlaubt.");
+  }
+  const eventId = text(f, "vorstellung");
+  const position = text(f, "position") as Position;
+  if (!istZusatz(position)) zurueck(eventId, "Das ist kein zusätzlicher Platz.");
+  await einsatzLoeschen(eventId, position);
+  zurueck(eventId, "Der zusätzliche Platz ist weg.");
 }
