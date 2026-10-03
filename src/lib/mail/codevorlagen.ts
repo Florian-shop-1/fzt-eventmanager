@@ -57,7 +57,7 @@ export const CODEVORLAGEN: Codevorlage[] = [
   {
     schluessel: "schlemmerblock",
     name: "Schlemmerblock",
-    wofuer: "Zwei Karten, eine davon gratis. Bietet das zweite Menü per Antwortmail an.",
+    wofuer: "Zwei Karten, eine davon gratis. Menüs für beide gehen direkt im Shop.",
     betreff: "Deine Freikarte zum Schlemmerblock",
     einleitung: z(
       "Hallo,",
@@ -78,12 +78,19 @@ export const CODEVORLAGEN: Codevorlage[] = [
       "ihn beim Einlass ab. Ohne ihn können wir die Freikarte leider nicht",
       "anerkennen.",
       "",
+      /*
+        Beide Menues gehen direkt im Shop.
+
+        Hier stand lange, man koenne zur Freikarte kein Menue waehlen und
+        muesse es per Antwortmail nachbestellen. Das ist falsch: Im Shop
+        lassen sich zu den zwei Karten auch zwei Menues buchen (Florian,
+        03.10.2026).
+      */
       "Noch eine Sache, damit ihr beide etwas zu essen habt:",
       "",
-      "Im Shop lässt sich pro Ticket nur ein Menü dazubuchen. Zur Freikarte",
-      "kannst du dort also keines auswählen. Wenn ihr zu zweit essen möchtet,",
-      "antworte einfach auf diese Mail und schreib uns, welches Menü es sein",
-      "soll. Wir buchen es von Hand dazu und melden uns bei dir.",
+      "Zu beiden Karten könnt ihr direkt im Shop ein Menü dazubuchen, auch",
+      "zur Freikarte. Wählt dort einfach beide Menüs aus, dann steht am",
+      "Abend für jeden etwas auf dem Tisch.",
       "",
       "Ein Blick in die Karte lohnt sich, unsere Küche ist mehr als ein",
       "Beiwerk zur Show.",

@@ -8,6 +8,7 @@
     "start": "cross-env NODE_OPTIONS=--use-system-ca next start",
     "lint": "eslint",
     "migrate": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/migrate.ts",
+    "spielplan:nachtragen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/spielplan-nachtragen.ts",
     "test:sitzplan": "tsx scripts/test-sitzplaner.ts",
     "test:angebot": "tsx scripts/test-angebot.ts",
     "test:datenbank": "tsx scripts/test-datenbank.ts",

@@ -19,6 +19,7 @@
 
 import { isoDatum, uhrzeit, ZEITZONE } from "@/lib/zeit";
 import { alleEigenenTermine, beginnAls } from "@/lib/db/eigenertermin";
+import { gemerkteTermine, termineMerken } from "@/lib/ditix/gedaechtnis";
 
 const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
 
@@ -95,12 +96,30 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
 
   const ausDemShop = (await antwort.json()) as ShopVorstellung[];
 
+  /*
+    Was der Shop nennt, merken wir uns.
+
+    Der Shop listet nur Vorstellungen, für die man noch Karten kaufen
+    kann. Sobald eine Show begonnen hat, ist sie dort weg, und mit ihr
+    waere im Eventmanager der ganze Abend verschwunden: Funktionsheet,
+    Sitzplan, Einlassliste (Florian, 03.10.2026). Deshalb schreiben wir
+    jeden Termin mit und holen die vergessenen wieder dazu.
+  */
+  await termineMerken(ausDemShop);
+
   // Dazu die eigenen Termine: exklusiv gebuchte Abende, für die es keine
   // Karten im Shop gibt (siehe lib/db/eigenertermin.ts). Ab hier ist kein
   // Unterschied mehr zu sehen, alles Weitere läuft gleich.
   const eigene = await alleEigenenTermine().catch(() => []);
+
+  // Aus dem Gedaechtnis kommt nur, was weder der Shop noch die eigenen
+  // Termine schon nennen: Sonst stuende derselbe Abend zweimal im Plan.
+  const bekannt = new Set([...ausDemShop.map((v) => v.id), ...eigene.map((e) => e.eventId)]);
+  const vergessene = (await gemerkteTermine()).filter((v) => !bekannt.has(v.id));
+
   return [
     ...ausDemShop,
+    ...vergessene,
     ...eigene.map((e) => ({
       id: e.eventId,
       code: "",
@@ -134,23 +153,48 @@ export async function kommendeTermine(maxAnzahl = 200): Promise<Vorstellungsterm
 }
 
 /**
- * Wie kommendeTermine, nur bleibt der heutige Spieltag den ganzen Tag
- * stehen, auch nachdem die Show begonnen hat.
+ * Wie kommendeTermine, nur bleibt ein Spieltag stehen, bis der naechste
+ * beginnt.
  *
  * Upgrades, Funktionsheet, Küchenblatt, Foyer, Parkplätze und
  * Einlassliste drehen sich um den ganzen Abend, nicht nur um den Moment
  * vor Showbeginn: Wer nach Beginn noch Gäste umsetzt oder den Saalplan
  * braucht, soll ihn weiter sehen (Florian, 28.09.2026).
+ *
+ * Und auch danach noch. Abgerechnet, nachgezaehlt und besprochen wird am
+ * Morgen nach der Show, da ist der Tag laengst vorbei. Ein Spieltag
+ * verschwindet deshalb erst, wenn der naechste anfaengt (Florian,
+ * 03.10.2026: "ich sollte also auch morgen früh noch in die 3.10. show
+ * gucken können").
+ *
+ * Gerechnet wird in ganzen Tagen, nicht in einzelnen Vorstellungen: Sonst
+ * fiele bei zwei Shows am Tag die Nachmittagsvorstellung abends aus der
+ * Liste, obwohl der Tag noch laeuft.
  */
 export async function showtageAbHeute(maxAnzahl = 400): Promise<Vorstellungstermin[]> {
-  const heute = isoDatum(new Date());
-  const alle = await holeSpielplan();
-
-  return alle
+  const jetzt = Date.now();
+  const alle = (await holeSpielplan())
     .map(zuTermin)
-    .filter((t) => t.datum >= heute)
-    .sort((a, b) => a.beginn.getTime() - b.beginn.getTime())
-    .slice(0, maxAnzahl);
+    .sort((a, b) => a.beginn.getTime() - b.beginn.getTime());
+
+  // Der erste Beginn je Tag. Er sagt, ab wann der Tag angefangen hat.
+  const beginnJeTag = new Map<string, number>();
+  for (const t of alle) {
+    const bisher = beginnJeTag.get(t.datum);
+    const b = t.beginn.getTime();
+    if (bisher === undefined || b < bisher) beginnJeTag.set(t.datum, b);
+  }
+
+  // Der letzte Tag, der schon angefangen hat. Er bleibt stehen, bis der
+  // naechste beginnt.
+  const angefangen = [...beginnJeTag.entries()]
+    .filter(([, b]) => b <= jetzt)
+    .map(([d]) => d)
+    .sort();
+
+  const ab = angefangen.at(-1) ?? isoDatum(new Date(jetzt));
+
+  return alle.filter((t) => t.datum >= ab).slice(0, maxAnzahl);
 }
 
 function zuTermin(v: ShopVorstellung): Vorstellungstermin {
