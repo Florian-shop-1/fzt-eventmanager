@@ -118,6 +118,47 @@ export function nebenDemZuschauer(sitz: { reihe: string; name: string }): "links
   return null;
 }
 
+/**
+ * Die Plätze, die den Eingeweihten umgeben: daneben und dahinter.
+ *
+ * "wir müssen leute an den zuschauer ran setzen.. gut zumindest von einer
+ * seite, oder mindestens dahinter" (Florian, 03.10.2026). Allein in einer
+ * leeren Ecke faellt er auf, und darum geht es bei ihm.
+ *
+ * Hinter ihm liegt Reihe 5; dort zaehlen Platz 3 und die beiden daneben,
+ * denn gesehen wird aus der Reihe dahinter ohnehin schraeg.
+ */
+export function umDenZuschauer(sitz: { reihe: string; name: string }): "links" | "rechts" | "hinten" | null {
+  const seite = nebenDemZuschauer(sitz);
+  if (seite) return seite;
+  if (sitz.reihe.trim() === "5" && ["2", "3", "4"].includes(sitz.name.trim())) return "hinten";
+  return null;
+}
+
+/**
+ * Wie schwer ein Platz rund um den Eingeweihten wiegt.
+ *
+ * Solange niemand bei ihm sitzt, wiegt der erste Platz schwer: Lieber
+ * einen Gast einen Platz weiter aussen setzen, als den Eingeweihten
+ * allein lassen. Ist schon jemand da, zaehlt jeder weitere nur noch
+ * wenig, sonst sammelt sich das ganze Publikum um einen Mann.
+ */
+export function zuschauerBonus(
+  sitze: Array<{ reihe: string; name: string }>,
+  schonJemandDa: boolean,
+): number {
+  let bonus = 0;
+  let erster = !schonJemandDa;
+  for (const s of sitze) {
+    const wo = umDenZuschauer(s);
+    if (!wo) continue;
+    const grund = wo === "links" ? 8 : wo === "rechts" ? 6 : 4;
+    bonus += erster ? grund + 22 : grund;
+    erster = false;
+  }
+  return bonus;
+}
+
 /** Ein Stück Reihe: eine Gruppe oder ein Zielblock. */
 export interface Bereich {
   reihe: Reihe;
@@ -437,6 +478,13 @@ function blockAufZweiReihen(
   const nHinten = groesse - nVorne;
   const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
   const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+  /*
+    Sitzt ueberhaupt schon jemand beim Eingeweihten? Davon haengt ab, wie
+    schwer der naechste Platz bei ihm wiegt (Florian, 03.10.2026).
+  */
+  const schonBeimZuschauer = zone.reihen.some((r) =>
+    r.sitze.some((s) => umDenZuschauer({ reihe: r.nummer, name: s.name }) !== null && istBelegt(s)),
+  );
 
   let bester: { vorne: Bereich; hinten: Bereich } | null = null;
   let bestePunkte = -Infinity;
@@ -478,12 +526,7 @@ function blockAufZweiReihen(
           const i1 = reihe.sitze.indexOf(teil[teil.length - 1]);
           for (const n of [reihe.sitze[i0 - 1], reihe.sitze[i1 + 1]]) if (n && istBelegt(n)) nachbarn++;
         }
-        let einmauern = 0;
-        for (const f of alle) {
-          const seite = nebenDemZuschauer(f);
-          if (seite === "links") einmauern += 8;
-          if (seite === "rechts") einmauern += 4;
-        }
+        const einmauern = zuschauerBonus(alle, schonBeimZuschauer);
         // Dieselbe Gewichtung wie in der einreihigen Suche: mittig vor
         // vorne, Anschluss an die Nachbarn zählt mit.
         const punkte = vorneWert * 5 + mittig * 9 + nachbarn * 3 - draussen * 3 + einmauern;
@@ -529,6 +572,10 @@ function bestenBlockSuchen(
   let bestePunkte = -Infinity;
 
   const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+  // Sitzt schon jemand beim Eingeweihten? Siehe zuschauerBonus.
+  const schonBeimZuschauer = zone.reihen.some((r) =>
+    r.sitze.some((s) => umDenZuschauer({ reihe: r.nummer, name: s.name }) !== null && istBelegt(s)),
+  );
   const reiheBelegt = (r: Reihe | undefined) =>
     Boolean(r) && r!.sitze.some((s) => zone.sitze.has(s.id) && istBelegt(s));
 
@@ -679,12 +726,7 @@ function bestenBlockSuchen(
         Plätze daneben sollen belegt sein. Links wiegt schwerer, dort
         schaut er im Zweifel hin.
       */
-      let einmauern = 0;
-      for (const f of fenster) {
-        const seite = nebenDemZuschauer(f);
-        if (seite === "links") einmauern += 8;
-        if (seite === "rechts") einmauern += 4;
-      }
+      const einmauern = zuschauerBonus(fenster, schonBeimZuschauer);
 
       /*
         Gewichtung (Florian, 22.09.2026): "gucken, dass die Leute
