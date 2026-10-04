@@ -532,6 +532,7 @@ function Antwortfeld({
 
           <form action={antworten.bind(null, unterhaltung.waId)} className="space-y-2">
             <Antworttext
+              key={unterhaltung.waId}
               name="text"
               rows={5}
               platzhalter={`Antwort an ${name(unterhaltung)}`}
@@ -665,6 +666,7 @@ async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
       {u.email ? (
         <form action={perMailAntworten.bind(null, u.waId)} className="space-y-2">
           <Antworttext
+            key={u.waId}
             name="text"
             rows={6}
             vorschlaege={textvorschlaege}
@@ -709,6 +711,7 @@ Dein Team vom Florian Zimmer Theater`
       {waNummer && (
         <form action={perWhatsAppAntworten.bind(null, u.waId)} className="space-y-2">
           <Antworttext
+            key={u.waId}
             name="text"
             rows={6}
             vorschlaege={textvorschlaege}

@@ -99,6 +99,34 @@ interface Baustein {
 }
 
 const BAUSTEINE: Baustein[] = [
+  /*
+    Der Schlemmerblock steht ganz oben.
+
+    Wer einen Gutschein hat, fragt nach dem Gutschein und nicht nach dem
+    Ablauf des Abends. Eine Antwort ueber das Menue geht an der Frage
+    vorbei (Florian, 04.10.2026: "wenn die was vom schlemmerblock wissen
+    will natürlich nicht mit menü antworten").
+
+    Was hier steht, deckt sich mit der Code-Mail in mail/codevorlagen.ts:
+    eine Karte wird gekauft, die zweite ist frei, und der Abriss aus dem
+    Heft muss zur Show mit.
+  */
+  {
+    titel: "Schlemmerblock",
+    erkennt: /schlemmer|gutschein(heft)?|freizeit ?block|kundenkarte/i,
+    bauen: (d) =>
+      brief(
+        d.vorname,
+        "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Für den Gutschein kaufst " +
+          "du eine Karte, die zweite geht auf uns. Wir richten das für euren Wunschtermin ein und " +
+          "melden uns mit allem Weiteren bei dir.\n\n" +
+          "Zwei Dinge dazu: Der Gutschein gilt für zwei Personen, weitere Karten kommen ganz " +
+          "normal dazu. Und bitte bring den Abriss aus deinem Schlemmerblock zur Show mit und gib " +
+          "ihn beim Einlass ab, ohne ihn können wir die Freikarte leider nicht anerkennen.\n\n" +
+          "Wenn ihr dazu essen möchtet: Zu beiden Karten lässt sich im Shop ein Menü dazubuchen, " +
+          "auch zur Freikarte.",
+      ),
+  },
   {
     titel: "Essen vor oder nach der Show",
     erkennt:
