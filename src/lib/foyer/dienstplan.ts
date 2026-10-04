@@ -27,7 +27,7 @@
  */
 
 import { db } from "@/lib/db/client";
-import { kommendeTermine, type Vorstellungstermin } from "@/lib/ditix/spielplan";
+import { showtageAbHeute, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 
 export type Freigabe = "nicht_noetig" | "angefragt" | "frei" | "abgelehnt";
 
@@ -63,7 +63,16 @@ export interface FoyerTag {
   pause: string | null;
 }
 
-const PLAETZE = [1, 2, 3];
+/*
+  Zwei Plaetze stehen immer da, alles darueber kommt dazu.
+
+  Frueher waren es drei feste Plaetze, und beim dritten war Schluss.
+  Reichen drei nicht, braucht Sarah einen vierten und fuenften, ohne dass
+  jemand am Programm etwas aendert: "nach den zwei standart ein + kommen
+  (weitere Mitarbeiter einteilen) und dann wenn man das geklickt hat
+  darunter wieder ein +" (Florian, 04.10.2026).
+*/
+const PLAETZE = [1, 2];
 
 /** "18:45" aus "20:00" minus 75 Minuten. */
 function minus(uhrzeit: string, minuten: number): string {
@@ -174,11 +183,52 @@ async function diensteAb(datum: string): Promise<FoyerDienst[]> {
   }));
 }
 
-/** Der Plan: je Showtag zwei Plätze, mit Zeiten und Stand der Freigabe. */
+/**
+ * Die Plaetze eines Tages: die zwei festen, die zusaetzlich besetzten,
+ * und ganz unten ein leerer fuer den naechsten.
+ *
+ * Der leere Platz ist das Pluszeichen in der Oberflaeche. Sobald er
+ * besetzt ist, kommt beim naechsten Laden wieder ein leerer darunter.
+ */
+function plaetzeBauen(
+  datum: string,
+  amTag: FoyerDienst[],
+  vorschlag: Array<{ von: string; bis: string }>,
+): FoyerDienst[] {
+  const leer = (n: number): FoyerDienst => ({
+    id: "",
+    datum,
+    nummer: n,
+    benutzerId: null,
+    name: null,
+    // Wer zusaetzlich kommt, bekommt die Zeiten der zweiten Person: Er
+    // kommt dazu, nicht spaeter.
+    von: vorschlag[Math.min(n, vorschlag.length) - 1]?.von ?? "",
+    bis: vorschlag[Math.min(n, vorschlag.length) - 1]?.bis ?? "",
+    freigabe: "nicht_noetig",
+    freigabeVon: null,
+    notiz: "",
+  });
+
+  const fest = PLAETZE.map((n) => amTag.find((d) => d.nummer === n) ?? leer(n));
+
+  // Zusaetzliche Plaetze zaehlen nur, wenn jemand darauf steht. Ein leer
+  // gespeicherter Platz wuerde die Liste sonst mit jedem Speichern laenger
+  // machen, ohne dass jemand mehr arbeitet.
+  const zusaetzlich = amTag
+    .filter((d) => d.nummer > PLAETZE.length && d.benutzerId)
+    .sort((a, b) => a.nummer - b.nummer);
+
+  const naechste = (zusaetzlich.at(-1)?.nummer ?? PLAETZE.length) + 1;
+
+  return [...fest, ...zusaetzlich, leer(naechste)];
+}
+
+/** Der Plan: zwei feste Plätze je Showtag, dazu beliebig viele weitere. */
 export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
   const bis = Date.now() + wochen * 7 * 86400000;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  const [termine, dienste] = await Promise.all([kommendeTermine(400), diensteAb(heute)]);
+  const [termine, dienste] = await Promise.all([showtageAbHeute(400), diensteAb(heute)]);
 
   const nachTag = new Map<string, Vorstellungstermin[]>();
   for (const t of termine) {
@@ -195,21 +245,7 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
       return {
         datum,
         shows: sortiert.map((s) => ({ uhrzeit: s.uhrzeit, name: s.name })),
-        dienste: PLAETZE.map(
-          (n) =>
-            amTag.find((d) => d.nummer === n) ?? {
-              id: "",
-              datum,
-              nummer: n,
-              benutzerId: null,
-              name: null,
-              von: vorschlag[n - 1]?.von ?? "",
-              bis: vorschlag[n - 1]?.bis ?? "",
-              freigabe: "nicht_noetig" as Freigabe,
-              freigabeVon: null,
-              notiz: "",
-            },
-        ).concat(amTag.filter((d) => d.nummer > PLAETZE.length)),
+        dienste: plaetzeBauen(datum, amTag, vorschlag),
         vorschlag,
         pause,
       };
@@ -253,3 +289,15 @@ export async function zeitenSetzen(o: {
   `;
 }
 
+
+/**
+ * Einen zusaetzlichen Platz wieder wegnehmen.
+ *
+ * Nur fuer Plaetze ueber die zwei festen hinaus: Wird dort "offen"
+ * gespeichert, soll die Zeile ganz verschwinden und nicht als leerer
+ * Platz stehen bleiben.
+ */
+export async function dienstWeg(datum: string, nummer: number): Promise<void> {
+  if (nummer <= PLAETZE.length) return;
+  await db()`delete from foyer_dienst where datum = ${datum}::date and nummer = ${nummer}`;
+}

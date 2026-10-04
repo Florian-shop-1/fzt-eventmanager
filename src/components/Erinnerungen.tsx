@@ -24,14 +24,29 @@ export interface Erinnerung {
 
 const SCHLUESSEL = "fzt_erinnerung_hase";
 
-export function Erinnerungen({ offen, vorname }: { offen: Erinnerung[]; vorname: string }) {
+export function Erinnerungen({
+  offen,
+  vorname,
+  stillerHase = false,
+}: {
+  offen: Erinnerung[];
+  vorname: string;
+  /**
+   * Nur die Leiste, kein Hase.
+   *
+   * Hat der Hase heute schon eine persoenliche Nachricht auszurichten
+   * (siehe HasenPost), kommt er nicht zweimal aus dem Zylinder
+   * (Florian, 04.10.2026).
+   */
+  stillerHase?: boolean;
+}) {
   const pfad = usePathname() ?? "/";
   const router = useRouter();
   const [hase, setHase] = useState(false);
   const sichtbar = offen.filter((e) => !pfad.startsWith(e.href));
 
   useEffect(() => {
-    if (sichtbar.length === 0) return;
+    if (sichtbar.length === 0 || stillerHase) return;
     const heute = new Date().toLocaleDateString("en-CA");
     try {
       if (localStorage.getItem(SCHLUESSEL) === heute) return;

@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 /**
  * Der Foyerdienst, geplant von Sarah.
  *
- * Bis zu drei Plätze je Showtag mit vorgerechneten Zeiten. Sarah trägt
+ * Zwei Plätze je Showtag mit vorgerechneten Zeiten, weitere nach Bedarf
+ * über das Plus. Sarah trägt
  * feste Mitarbeiterinnen und Aushilfen gleichermaßen direkt ein; Kevin
  * und Florian bekommen bei einer Aushilfe nur noch eine Info-Mail, keine
  * Freigabe mehr nötig (Florian, 25.09.2026).
@@ -52,14 +53,15 @@ export default async function FoyerPlanSeite({
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Foyer-Dienstplan</h1>
         <p className="mt-1 max-w-prose text-sm text-leise">
-          Bis zu drei Leute je Showtag. Die Zeiten rechnet das Programm aus dem Spielplan: erste Person zwei Stunden
+          Zwei Plätze je Showtag, weitere kommen über das Plus dazu. Die Zeiten rechnet das Programm aus dem Spielplan: erste Person zwei Stunden
           vor der ersten Show, zweite 45 Minuten später, Schluss rund drei Stunden nach Beginn der letzten Show. An
           Tagen mit Flo-Zirkus reicht anderthalb Stunden Vorlauf. Passt es einmal nicht, änderst du die Zeiten
           einfach am Tag.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Faustregel für die Anzahl: eine Person je 50 Gäste, also bis 50 eine, über 50 zwei, über 100 drei. Reichen
-          zwei nicht, holst du über &quot;+ weitere Person&quot; einen dritten Platz dazu.
+          zwei nicht, holst du über &quot;+ weitere Mitarbeiter einteilen&quot; einen dazu. Nach dem Speichern steht
+          darunter wieder ein Plus, so viele wie du brauchst.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Feste Mitarbeiterinnen und Aushilfen trägst du gleich ein, eine Freigabe braucht es nicht mehr. Bei einer
@@ -122,27 +124,38 @@ export default async function FoyerPlanSeite({
                 {t.pause && <span className="text-sm text-leise">Pause {t.pause}</span>}
               </div>
 
+              {/*
+                Zwei Plaetze stehen immer da, die besetzten Zusatzplaetze
+                darunter, und zum Schluss ein Pluszeichen fuer den
+                naechsten. Ist der besetzt und gespeichert, steht darunter
+                wieder ein Pluszeichen (Florian, 04.10.2026).
+              */}
               <form action={tagEintragen}>
                 <input type="hidden" name="datum" value={t.datum} />
                 <ul className="mt-2 space-y-2">
-                  {t.dienste.slice(0, 2).map((d) => (
-                    <PlatzZeile key={d.nummer} d={d} leute={leute} />
-                  ))}
+                  {t.dienste
+                    .filter((d, i) => i < 2 || d.benutzerId)
+                    .map((d) => (
+                      <PlatzZeile key={d.nummer} d={d} leute={leute} />
+                    ))}
                 </ul>
-                {t.dienste[2] && (
-                  t.dienste[2].benutzerId ? (
-                    <ul className="space-y-2">
-                      <PlatzZeile d={t.dienste[2]} leute={leute} />
-                    </ul>
-                  ) : (
+                {(() => {
+                  const naechster = t.dienste[t.dienste.length - 1];
+                  if (!naechster || naechster.benutzerId) return null;
+                  return (
                     <details className="mt-2 text-sm">
-                      <summary className="cursor-pointer text-leise underline">+ weitere Person</summary>
+                      <summary className="cursor-pointer text-leise underline">
+                        + weitere Mitarbeiter einteilen
+                      </summary>
                       <ul className="mt-2 space-y-2">
-                        <PlatzZeile d={t.dienste[2]} leute={leute} />
+                        <PlatzZeile d={naechster} leute={leute} />
                       </ul>
+                      <p className="mt-1 text-xs text-leise">
+                        Nach dem Speichern steht hier wieder ein Platz für den nächsten.
+                      </p>
                     </details>
-                  )
-                )}
+                  );
+                })()}
                 <div className="mt-2">
                   <Absendeknopf text="Tag speichern" laeuftText="..." />
                 </div>
@@ -150,7 +163,7 @@ export default async function FoyerPlanSeite({
 
               <details className="mt-2 text-sm">
                 <summary className="cursor-pointer text-leise underline">Zeiten oder Notiz ändern</summary>
-                {t.dienste.map((d) => (
+                {t.dienste.filter((d, i) => i < 2 || d.benutzerId).map((d) => (
                   <form key={d.nummer} action={zeiten} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="datum" value={t.datum} />
                     <input type="hidden" name="nummer" value={d.nummer} />

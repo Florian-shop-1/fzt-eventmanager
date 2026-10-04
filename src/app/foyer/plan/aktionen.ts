@@ -14,7 +14,7 @@ import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/a
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
-import { dienstSetzen, festSetzen, foyerDienstLesen, foyerLeute, zeitenSetzen } from "@/lib/foyer/dienstplan";
+import { dienstSetzen, dienstWeg, festSetzen, foyerDienstLesen, foyerLeute, zeitenSetzen } from "@/lib/foyer/dienstplan";
 import { uebernahmeAnbieten, uebernahmeEntscheiden, uebernahmeLesen } from "@/lib/dienstplan/uebernahme";
 
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
@@ -49,7 +49,7 @@ async function zuInformieren(): Promise<Array<{ name: string; email: string }>> 
 }
 
 /**
- * Trägt alle drei Plätze eines Tages in einem Rutsch ein.
+ * Trägt alle Plätze eines Tages in einem Rutsch ein.
  *
  * Vorher hatte jeder Platz sein eigenes Formular mit eigenem Knopf. Änderte
  * Sarah mehrere Plätze und klickte nur bei einem "Eintragen", gingen die
@@ -70,11 +70,32 @@ export async function tagEintragen(f: FormData): Promise<void> {
 
   const eingeteilt: string[] = [];
 
-  for (let nummer = 1; nummer <= 3; nummer++) {
+  /*
+    Welche Plaetze das Formular geschickt hat.
+
+    Frueher lief die Schleife fest von 1 bis 3. Seit es beliebig viele
+    weitere Plaetze gibt, zaehlt das Formular: Jede Zeile schickt ihr
+    eigenes Feld benutzerN mit (Florian, 04.10.2026).
+  */
+  const nummern = [...f.keys()]
+    .map((k) => /^benutzer(\d+)$/.exec(k)?.[1])
+    .filter((n): n is string => Boolean(n))
+    .map(Number)
+    .filter((n) => n >= 1 && n <= 20)
+    .sort((a, b) => a - b);
+
+  for (const nummer of new Set(nummern)) {
     const wert = text(f, `benutzer${nummer}`, 40);
     const von = text(f, `von${nummer}`, 5);
     const bis = text(f, `bis${nummer}`, 5);
     const person = wert && wert !== "offen" ? leute.find((p) => p.id === wert) : undefined;
+
+    // Ein zusaetzlicher Platz ohne Person verschwindet wieder, sonst
+    // waechst die Liste bei jedem Speichern um eine leere Zeile.
+    if (!person && nummer > 2) {
+      await dienstWeg(datum, nummer);
+      continue;
+    }
 
     await dienstSetzen({
       datum,

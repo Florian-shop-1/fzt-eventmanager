@@ -29,6 +29,8 @@ import { Navigation } from "@/components/Navigation";
 import { istHandy } from "@/lib/stempel/geraet";
 import { geburtstagsText, heutigeGeburtstage } from "@/lib/db/geburtstag";
 import { GeburtstagsHase } from "@/components/GeburtstagsHase";
+import { HasenPost } from "@/components/HasenPost";
+import { naechstePost } from "@/lib/personal/hasenpost";
 import { VersandMelder } from "@/components/VersandMelder";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
 import "./globals.css";
@@ -194,6 +196,8 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
     punkte: [
       { href: "/personalbogen", label: "Personalbogen", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"] },
       { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
+      // Hasenpost: nur Florian, siehe app/hasenpost/aktionen.ts.
+      { href: "/hasenpost", label: "Hasenpost", rollen: ["chef"] },
     ],
   },
   {
@@ -421,6 +425,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const geburtstagSatz =
     benutzer && geburtstage.length > 0 ? geburtstagsText(geburtstage, benutzer.id) : null;
 
+  /*
+    Hasenpost: eine persoenliche Erinnerung an genau diese Person.
+
+    Geholt wird sie fuer jeden, auch fuers Foyer und die Gastro: Der
+    Hase soll jeden erreichen koennen, den Florian erinnern will
+    (Florian, 04.10.2026). Hoechstens eine am Tag, siehe
+    lib/personal/hasenpost.ts.
+  */
+  const hasenpost = benutzer && !offen ? await naechstePost(benutzer.id).catch(() => null) : null;
+
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
     benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
@@ -507,7 +521,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         )}
 
         {benutzer && aufgaben.length > 0 && (
-          <Erinnerungen offen={aufgaben} vorname={benutzer.name.split(" ")[0]} />
+          <Erinnerungen offen={aufgaben} vorname={benutzer.name.split(" ")[0]} stillerHase={Boolean(hasenpost)} />
         )}
 
         {benutzer?.mussPasswortAendern && !offen && (
@@ -548,7 +562,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           />
         )}
 
-        {benutzer && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
+        {/*
+          Die Hasenpost geht vor: Sie ist persoenlich gemeint, waehrend
+          der Scan-Hinweis nur eine Gewohnheit anstoesst.
+        */}
+        {benutzer && hasenpost && (
+          <HasenPost id={hasenpost.id} text={hasenpost.text} vorname={benutzer.name.split(" ")[0]} />
+        )}
+
+        {benutzer && !hasenpost && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
           <ScanErinnerung tage={scanPause} vorname={benutzer.name.split(" ")[0]} />
         )}
       </body>
