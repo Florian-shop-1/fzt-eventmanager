@@ -24,13 +24,16 @@ export interface FoyerLeute {
 
 export function FoyerZusatzPlaetze({
   abNummer,
+  abAnzeige,
   von,
   bis,
   leute,
   zeitenAendern,
 }: {
-  /** Nummer des naechsten freien Platzes. */
+  /** Nummer des naechsten freien Platzes, wie sie gespeichert wird. */
   abNummer: number;
+  /** Nummer, die dabeistehen soll. Gezaehlt werden die Zeilen des Tages. */
+  abAnzeige: number;
   /** Vorgeschlagene Zeiten, dieselben wie bei der zweiten Person. */
   von: string;
   bis: string;
@@ -47,9 +50,11 @@ export function FoyerZusatzPlaetze({
     <>
       {anzahl > 0 && (
         <ul className="space-y-2">
-          {Array.from({ length: anzahl }, (_, i) => abNummer + i).map((n) => (
+          {Array.from({ length: anzahl }, (_, i) => i).map((i) => {
+            const n = abNummer + i;
+            return (
             <li key={n} className="flex flex-wrap items-center gap-2 border-t border-linie pt-2 text-sm">
-              <span className="w-24 shrink-0 font-medium">{n}. Person</span>
+              <span className="w-24 shrink-0 font-medium">{abAnzeige + i}. Person</span>
               <select name={`benutzer${n}`} defaultValue="offen" className="text-sm">
                 <option value="offen">offen</option>
                 {leute.map((p) => (
@@ -76,7 +81,8 @@ export function FoyerZusatzPlaetze({
                 </>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

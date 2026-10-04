@@ -135,7 +135,7 @@ export async function tagEintragen(f: FormData): Promise<void> {
             `Hallo ${e.name.split(" ")[0]},`,
             "",
             `${b.name} hat ${person.name} als Aushilfe im Foyer eingeteilt:`,
-            `${datumMitWochentag(datum)}, ${von || "?"} bis ${bis || "?"} Uhr (Platz ${nummer}).`,
+            `${datumMitWochentag(datum)}, ${von || "?"} bis ${bis || "?"} Uhr.`,
             "",
             `Nur zur Info, keine Aktion nötig: ${APP}/foyer/plan`,
           ].join("\n"),

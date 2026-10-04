@@ -143,10 +143,22 @@ export default async function FoyerPlanSeite({
               <form action={tagEintragen}>
                 <input type="hidden" name="datum" value={t.datum} />
                 <ul className="mt-2 space-y-2">
+                  {/*
+                    Die Nummer in der Anzeige zaehlt die Zeilen durch, die
+                    Nummer in der Datenbank bleibt die alte: Wird ein
+                    mittlerer Platz frei geraeumt, soll hier trotzdem
+                    "1., 2., 3." stehen und nicht "1., 2., 4.".
+                  */}
                   {t.dienste
                     .filter((d, i) => i < 2 || d.benutzerId)
-                    .map((d) => (
-                      <PlatzZeile key={d.nummer} d={d} leute={leute} zeitenAendern={darfZeiten} />
+                    .map((d, i) => (
+                      <PlatzZeile
+                        key={d.nummer}
+                        d={d}
+                        anzeige={i + 1}
+                        leute={leute}
+                        zeitenAendern={darfZeiten}
+                      />
                     ))}
                 </ul>
                 {(() => {
@@ -155,6 +167,7 @@ export default async function FoyerPlanSeite({
                   return (
                     <FoyerZusatzPlaetze
                       abNummer={naechster.nummer}
+                      abAnzeige={t.dienste.filter((d, i) => i < 2 || d.benutzerId).length + 1}
                       von={naechster.von}
                       bis={naechster.bis}
                       leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
@@ -245,17 +258,20 @@ export default async function FoyerPlanSeite({
 /** Eine Zeile im Tagesformular: wer steht auf diesem Platz. */
 function PlatzZeile({
   d,
+  anzeige,
   leute,
   zeitenAendern,
 }: {
   d: FoyerDienst;
+  /** Die Nummer, wie sie dasteht. Gezaehlt wird die Zeile, nicht der Platz. */
+  anzeige: number;
   leute: FoyerPerson[];
   /** Florian und Kevin aendern die Zeiten gleich hier, siehe oben. */
   zeitenAendern: boolean;
 }) {
   return (
     <li className="flex flex-wrap items-center gap-2 border-t border-linie pt-2 text-sm">
-      <span className="w-24 shrink-0 font-medium">{d.nummer}. Person</span>
+      <span className="w-24 shrink-0 font-medium">{anzeige}. Person</span>
 
       <select name={`benutzer${d.nummer}`} defaultValue={d.benutzerId ?? "offen"} className="text-sm">
         <option value="offen">offen</option>
