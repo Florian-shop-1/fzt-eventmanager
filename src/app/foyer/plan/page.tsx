@@ -5,6 +5,7 @@ import { offeneUebernahmen, type UebernahmeAntrag } from "@/lib/dienstplan/ueber
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { ShowKommentare } from "@/components/ShowKommentare";
+import { FoyerZusatzPlaetze } from "@/components/FoyerZusatzPlaetze";
 import { kommentareFuer } from "@/lib/dienstplan/kommentar";
 import { festMarkieren, foyerUebernahmeEntscheiden, foyerUebernehmenAnbieten, tagEintragen, zeiten } from "./aktionen";
 
@@ -60,8 +61,8 @@ export default async function FoyerPlanSeite({
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Faustregel für die Anzahl: eine Person je 50 Gäste, also bis 50 eine, über 50 zwei, über 100 drei. Reichen
-          zwei nicht, holst du über &quot;+ weitere Mitarbeiter einteilen&quot; einen dazu. Nach dem Speichern steht
-          darunter wieder ein Plus, so viele wie du brauchst.
+          zwei nicht, holst du über &quot;+ weitere Mitarbeiter einteilen&quot; einen dazu. Darunter steht sofort
+          wieder ein Plus, so viele wie du brauchst.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Feste Mitarbeiterinnen und Aushilfen trägst du gleich ein, eine Freigabe braucht es nicht mehr. Bei einer
@@ -143,17 +144,12 @@ export default async function FoyerPlanSeite({
                   const naechster = t.dienste[t.dienste.length - 1];
                   if (!naechster || naechster.benutzerId) return null;
                   return (
-                    <details className="mt-2 text-sm">
-                      <summary className="cursor-pointer text-leise underline">
-                        + weitere Mitarbeiter einteilen
-                      </summary>
-                      <ul className="mt-2 space-y-2">
-                        <PlatzZeile d={naechster} leute={leute} />
-                      </ul>
-                      <p className="mt-1 text-xs text-leise">
-                        Nach dem Speichern steht hier wieder ein Platz für den nächsten.
-                      </p>
-                    </details>
+                    <FoyerZusatzPlaetze
+                      abNummer={naechster.nummer}
+                      von={naechster.von}
+                      bis={naechster.bis}
+                      leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
+                    />
                   );
                 })()}
                 <div className="mt-2">
