@@ -556,9 +556,22 @@ function Sitzverteilung({
   const galerieBelegt = plan.galerie.reduce((s, g) => s + g.personen, 0);
   const galerieFrei = kapazitaet("eventgalerie") - galerieBelegt;
   const tischeBelegt = new Set(plan.galerie.flatMap((g) => g.tischIds));
+  const logenBelegt = [...belegung.values()].reduce((s, b) => s + b.anteil, 0);
 
   return (
     <div className="space-y-4">
+      {/*
+        Die Rechnung steht dabei.
+
+        Wer nur die Eventgalerie ueberfliegt, zaehlt die Logengaeste nicht
+        mit und haelt die Zahl oben fuer falsch (Florian, 04.10.2026: "ich
+        komme auf 25 menüs"). Deshalb hier einmal beides, zusammengezaehlt.
+      */}
+      <p className="text-sm text-leise">
+        {logenBelegt + galerieBelegt} Gedecke verteilt: {logenBelegt} in den Logen,{" "}
+        {galerieBelegt} auf der Eventgalerie.
+      </p>
+
       <table className="w-full text-sm">
         <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
           <tr>
