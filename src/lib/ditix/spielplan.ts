@@ -170,7 +170,14 @@ export async function kommendeTermine(maxAnzahl = 200): Promise<Vorstellungsterm
  * Gerechnet wird in ganzen Tagen, nicht in einzelnen Vorstellungen: Sonst
  * fiele bei zwei Shows am Tag die Nachmittagsvorstellung abends aus der
  * Liste, obwohl der Tag noch laeuft.
+ *
+ * Der Wechsel kommt drei Stunden vor der naechsten Show. Dann beginnt der
+ * Dienst, und ab da soll niemand mehr den alten Tag vor sich haben:
+ * "bis zu drei stunden vorher kann man noch den tag zurück gucken"
+ * (Florian, 04.10.2026).
  */
+export const WECHSEL_STUNDEN = 3;
+
 export async function showtageAbHeute(maxAnzahl = 400): Promise<Vorstellungstermin[]> {
   const jetzt = Date.now();
   const alle = (await holeSpielplan())
@@ -185,10 +192,10 @@ export async function showtageAbHeute(maxAnzahl = 400): Promise<Vorstellungsterm
     if (bisher === undefined || b < bisher) beginnJeTag.set(t.datum, b);
   }
 
-  // Der letzte Tag, der schon angefangen hat. Er bleibt stehen, bis der
-  // naechste beginnt.
+  // Der letzte Tag, der schon dran ist. Dran ist ein Tag ab drei Stunden
+  // vor seiner ersten Show; der Tag davor faellt in dem Moment weg.
   const angefangen = [...beginnJeTag.entries()]
-    .filter(([, b]) => b <= jetzt)
+    .filter(([, b]) => b - WECHSEL_STUNDEN * 3600_000 <= jetzt)
     .map(([d]) => d)
     .sort();
 

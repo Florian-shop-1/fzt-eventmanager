@@ -28,6 +28,8 @@ const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 /** "11.12.2026" aus "2026-12-11". */
 const tagKurz = (iso: string) => iso.split("-").reverse().join(".");
 import { alsWaNummer, istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
+import { vorschlaege } from "@/lib/whatsapp/vorschlag";
+import { Antworttext } from "@/components/Antworttext";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -412,7 +414,16 @@ function Verlauf({
         })}
       </div>
 
-      <Antwortfeld unterhaltung={unterhaltung} fehler={fehler} />
+      {/*
+        Die letzte Frage des Kunden geht mit ins Antwortfeld: Daraus
+        sucht der Posteingang den passenden Textvorschlag (Florian,
+        04.10.2026).
+      */}
+      <Antwortfeld
+        unterhaltung={unterhaltung}
+        fehler={fehler}
+        frage={[...verlauf].reverse().find((n) => n.richtung === "ein")?.text ?? ""}
+      />
     </section>
   );
 }
@@ -462,7 +473,16 @@ function Haken({ status }: { status: string | null }) {
   return null;
 }
 
-function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; fehler: string | null }) {
+function Antwortfeld({
+  unterhaltung,
+  fehler,
+  frage,
+}: {
+  unterhaltung: Unterhaltung;
+  fehler: string | null;
+  /** Die letzte Nachricht des Kunden, für den Textvorschlag. */
+  frage: string;
+}) {
   return (
     <div className="border-t border-linie p-4">
       {fehler && (
@@ -475,7 +495,7 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
       )}
 
       {unterhaltung.kanal !== "whatsapp" ? (
-        <WebAntwort u={unterhaltung} />
+        <WebAntwort u={unterhaltung} frage={frage} />
       ) : (
         /*
           Wer uns per WhatsApp schreibt, bekommt per WhatsApp Antwort.
@@ -511,12 +531,12 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
           )}
 
           <form action={antworten.bind(null, unterhaltung.waId)} className="space-y-2">
-            <textarea
+            <Antworttext
               name="text"
-              rows={3}
-              required
-              placeholder={`Antwort an ${name(unterhaltung)}`}
-              className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+              rows={5}
+              platzhalter={`Antwort an ${name(unterhaltung)}`}
+              standard=""
+              vorschlaege={vorschlaege(frage, { vorname: vornameVon(unterhaltung.profilname) })}
             />
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-leise">Geht von 0731 7906110 hinaus.</span>
@@ -557,7 +577,7 @@ function Kontaktdaten({ u }: { u: Unterhaltung }) {
  * ist, sonst nur der Anrufknopf. Wünscht sich der Kunde einen Rückruf, steht
  * der Anruf vorne, die Mail bleibt als zweiter Weg.
  */
-async function WebAntwort({ u }: { u: Unterhaltung }) {
+async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
   // Hat der Schreiber schon Karten? Dann kann er alles Weitere selbst
   // dazubuchen, ohne dass jemand etwas eintippt (Florian, 21.09.2026).
   const buchung = u.email ? await naechsteBuchungZu(u.email) : null;
@@ -565,6 +585,14 @@ async function WebAntwort({ u }: { u: Unterhaltung }) {
   const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
   // Laesst sich die hinterlassene Nummer als WhatsApp-Nummer lesen?
   const waNummer = alsWaNummer(u.telefon);
+
+  // Passt ein fertiger Text zur Frage? Dann steht er gleich im Feld.
+  const textvorschlaege = vorschlaege(frage, {
+    vorname: vornameVon(u.profilname),
+    showUhrzeit: buchung?.uhrzeit ?? null,
+    showDatum: buchung ? tagKurz(buchung.datum) : null,
+    link,
+  });
   const anrufen = u.telefon && (
     <a
       href={`tel:${u.telefon}`}
@@ -636,11 +664,11 @@ async function WebAntwort({ u }: { u: Unterhaltung }) {
 
       {u.email ? (
         <form action={perMailAntworten.bind(null, u.waId)} className="space-y-2">
-          <textarea
+          <Antworttext
             name="text"
-            rows={4}
-            required
-            defaultValue={
+            rows={6}
+            vorschlaege={textvorschlaege}
+            standard={
               link && buchung
                 ? `Hallo ${vornameVon(u.profilname)},
 
@@ -659,7 +687,6 @@ Dein Team vom Florian Zimmer Theater`
 Viele Grüße
 Dein Team vom Florian Zimmer Theater`
             }
-            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
           />
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-leise">
@@ -681,17 +708,16 @@ Dein Team vom Florian Zimmer Theater`
       */}
       {waNummer && (
         <form action={perWhatsAppAntworten.bind(null, u.waId)} className="space-y-2">
-          <textarea
+          <Antworttext
             name="text"
-            rows={4}
-            required
-            defaultValue={`Hallo ${vornameVon(u.profilname)},
+            rows={6}
+            vorschlaege={textvorschlaege}
+            standard={`Hallo ${vornameVon(u.profilname)},
 
 
 
 Viele Grüße
 Dein Team vom Florian Zimmer Theater`}
-            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
           />
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-leise">
