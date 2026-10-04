@@ -18,7 +18,7 @@ import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen, darfEinl
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
 import { MenueStorno } from "@/components/MenueStorno";
-import { bestellungenDesAbends } from "@/lib/shop/menueliste";
+import { bestellungenZumStreichen } from "@/lib/shop/rohdaten";
 import { EigeneTermine } from "@/components/EigeneTermine";
 import { eigeneTermine } from "@/lib/db/eigenertermin";
 import { kochtNormalerweise, menueBuchbarAmTag } from "@/lib/shop/menuepruefung";
@@ -109,10 +109,12 @@ export default async function FunktionsheetSeite({
     suchen muessen (Florian, 02.10.2026).
   */
   const ersteShow = blatt.shows[0]?.ditixEventId ?? "";
-  const bestellungen =
-    darfEinladen(benutzer) && ersteShow
-      ? await bestellungenDesAbends(ersteShow).catch(() => [])
-      : [];
+  // Alle Vorstellungen des Tages, nicht nur die erste: Gegessen wird
+  // gemeinsam, und die Gaeste der zweiten Show sollen auch streichbar
+  // sein (Florian, 04.10.2026).
+  const bestellungen = darfEinladen(benutzer)
+    ? await bestellungenZumStreichen(blatt.shows.map((sh) => sh.ditixEventId)).catch(() => [])
+    : [];
 
   const menueImShop = kochtHeute
     ? await menueBuchbarAmTag(blatt.shows.map((sh) => sh.ditixEventId))

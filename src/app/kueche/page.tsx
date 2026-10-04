@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
-import { bestellungenDesAbends } from "@/lib/shop/menueliste";
+import { bestellungenZumStreichen } from "@/lib/shop/rohdaten";
 import { MenueStorno } from "@/components/MenueStorno";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
@@ -49,8 +49,8 @@ export default async function KuecheSeite({
     Kueche einkauft (Florian, 02.10.2026).
   */
   const bestellungen =
-    darfAendern && blatt?.ditixEventId
-      ? await bestellungenDesAbends(blatt.ditixEventId).catch(() => [])
+    darfAendern && blatt
+      ? await bestellungenZumStreichen(blatt.shows.map((sh) => sh.ditixEventId)).catch(() => [])
       : [];
 
   const kopfzeile = blatt ? `${datumKurz(blatt.datum)} · ${blatt.show}` : undefined;
@@ -122,7 +122,7 @@ function Blatt({
   /** Streichen und korrigieren dürfen nur Florian und Kevin. */
   darfAendern: boolean;
   /** Die einzelnen Shop-Bestellungen des Abends, zum Stornieren. */
-  bestellungen: Array<Awaited<ReturnType<typeof bestellungenDesAbends>>[number]>;
+  bestellungen: Awaited<ReturnType<typeof bestellungenZumStreichen>>;
   meldung?: string;
 }) {
   const shopMenues = blatt.shop?.menuesGesamt ?? 0;

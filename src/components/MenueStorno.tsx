@@ -1,5 +1,6 @@
 import { menueKorrigieren, menueStornieren, menueStornoZurueck } from "@/app/kueche/aktionen";
-import { schluesselVon, type GeprüfteBestellung } from "@/lib/shop/menueliste";
+import { schluesselVon } from "@/lib/shop/menueliste";
+import type { StornoZeile } from "@/lib/shop/rohdaten";
 import type { MenueVariante } from "@/lib/domain/types";
 
 /**
@@ -30,7 +31,7 @@ export function MenueStorno({
   woher,
   darfAendern,
 }: {
-  bestellungen: GeprüfteBestellung[];
+  bestellungen: StornoZeile[];
   eventId: string;
   /** "kueche" oder "funktionsheet": wohin es nach dem Klick zurückgeht. */
   woher: "kueche" | "funktionsheet";
@@ -152,9 +153,8 @@ export function MenueStorno({
 }
 
 /** Bestellungen mit Menüs zuerst: Sie sind der Grund, warum man hier liest. */
-function aufgeteilt(alle: GeprüfteBestellung[]): GeprüfteBestellung[] {
-  const summe = (b: GeprüfteBestellung) =>
-    Object.values(b.menues).reduce((s, n) => s + (n ?? 0), 0);
+function aufgeteilt(alle: StornoZeile[]): StornoZeile[] {
+  const summe = (b: StornoZeile) => Object.values(b.menues).reduce((s, n) => s + (n ?? 0), 0);
   return [...alle].sort((a, b) => summe(b) - summe(a));
 }
 

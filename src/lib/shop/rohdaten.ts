@@ -328,3 +328,74 @@ export async function shopGruppenDesAbends(ditixEventId: string): Promise<ShopGr
     .filter((g) => g.ditixEventId === ditixEventId)
     .sort((a, b) => b.menuesGesamt - a.menuesGesamt || b.tickets - a.tickets);
 }
+
+/**
+ * Eine Bestellung, wie sie zum Streichen angeboten wird.
+ *
+ * Bewusst aus den Rohdaten gebaut und nicht aus der aufbereiteten
+ * Menueliste: Die Zahlen auf Kuechenblatt und Funktionsheet kommen aus
+ * den Rohdaten, und was man dort streichen kann, muss dieselbe
+ * Bestellung sein. Vorher waren es zwei Listen, und an Abenden, die in
+ * der Menueliste fehlten, liess sich gar nichts streichen, obwohl oben
+ * Menues standen (Florian, 04.10.2026: "wenn wir im eventmanager was
+ * gecancelt haben, darfst du nicht weiter aus der google tabelle die
+ * alten daten ziehen").
+ */
+export interface StornoZeile {
+  orderId: string;
+  /** Bleibt leer: Der Schluessel ist die Bestellnummer. */
+  bestellung: string;
+  kunde: string;
+  menues: Partial<Record<MenueVariante, number>>;
+  menuesGueltig: Partial<Record<MenueVariante, number>>;
+  storniert: boolean;
+  aenderung: MenueAenderung | null;
+}
+
+/**
+ * Die Bestellungen mehrerer Vorstellungen, zum Streichen.
+ *
+ * Mehrere, weil ein Spieltag zwei Vorstellungen haben kann und gemeinsam
+ * gegessen wird. Wer nur die erste fragt, bekommt die Gaeste der zweiten
+ * nie zu sehen.
+ */
+export async function bestellungenZumStreichen(eventIds: string[]): Promise<StornoZeile[]> {
+  if (eventIds.length === 0) return [];
+  const [roh, aenderungen] = await Promise.all([
+    holeShopGruppenRoh(),
+    menueAenderungen().catch(() => new Map<string, MenueAenderung>()),
+  ]);
+
+  const dabei = new Set(eventIds);
+  return roh
+    .filter((g) => dabei.has(g.ditixEventId))
+    // Nur Bestellungen, bei denen es etwas zu streichen gibt: Wer bloss
+    // Karten gekauft hat, gehoert nicht in eine Kuechenliste. Schon
+    // geaenderte bleiben drin, damit man sie zuruecknehmen kann.
+    .filter((g) => g.menuesGesamt > 0 || aenderungen.has(g.orderId))
+    .map((g) => {
+      const a = aenderungen.get(g.orderId) ?? null;
+      let gueltig: Partial<Record<MenueVariante, number>> = g.menues;
+      if (a?.art === "storno") gueltig = {};
+      else if (a?.art === "korrektur") {
+        gueltig = { ...g.menues };
+        for (const [variante, menge] of Object.entries(a.mengen)) {
+          if (menge !== undefined) gueltig[variante as MenueVariante] = menge;
+        }
+      }
+      return {
+        orderId: g.orderId,
+        bestellung: "",
+        kunde: g.firma ?? g.name,
+        menues: g.menues,
+        menuesGueltig: gueltig,
+        storniert: a?.art === "storno",
+        aenderung: a,
+      };
+    })
+    .sort((a, b) => {
+      const summe = (m: Partial<Record<MenueVariante, number>>) =>
+        Object.values(m).reduce((s, n) => s + (n ?? 0), 0);
+      return summe(b.menues) - summe(a.menues) || a.kunde.localeCompare(b.kunde);
+    });
+}
