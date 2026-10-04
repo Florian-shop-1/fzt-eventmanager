@@ -34,6 +34,12 @@ export default async function FoyerPlanSeite({
   const [tage, leute] = await Promise.all([foyerPlan(), foyerLeute()]);
   const buero = darfKaufmaennisches(b.rolle);
   const darfFreigeben = b.rolle === "chef" || darfEinladen(b);
+  /*
+    Zeiten direkt in der Zeile aendern duerfen Florian und Kevin
+    (Florian, 04.10.2026). Fuer alle anderen bleiben die vorgerechneten
+    Zeiten stehen: Sie sind Sarahs Aufstellung und keine Verhandlung.
+  */
+  const darfZeiten = darfEinladen(b);
   const uebernahmeAnfragen = darfFreigeben ? await offeneUebernahmen("foyer") : [];
   const ichArbeiteImFoyer = leute.some((p) => p.id === b.id);
 
@@ -58,6 +64,9 @@ export default async function FoyerPlanSeite({
           vor der ersten Show, zweite 45 Minuten später, Schluss rund drei Stunden nach Beginn der letzten Show. An
           Tagen mit Flo-Zirkus reicht anderthalb Stunden Vorlauf. Passt es einmal nicht, änderst du die Zeiten
           einfach am Tag.
+        </p>
+        <p className="mt-2 max-w-prose text-sm text-leise">
+          Florian und Kevin ändern die Zeiten direkt in der Zeile und speichern sie mit dem Tag.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
           Faustregel für die Anzahl: eine Person je 50 Gäste, also bis 50 eine, über 50 zwei, über 100 drei. Reichen
@@ -137,7 +146,7 @@ export default async function FoyerPlanSeite({
                   {t.dienste
                     .filter((d, i) => i < 2 || d.benutzerId)
                     .map((d) => (
-                      <PlatzZeile key={d.nummer} d={d} leute={leute} />
+                      <PlatzZeile key={d.nummer} d={d} leute={leute} zeitenAendern={darfZeiten} />
                     ))}
                 </ul>
                 {(() => {
@@ -149,6 +158,7 @@ export default async function FoyerPlanSeite({
                       von={naechster.von}
                       bis={naechster.bis}
                       leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
+                      zeitenAendern={darfZeiten}
                     />
                   );
                 })()}
@@ -233,13 +243,20 @@ export default async function FoyerPlanSeite({
 }
 
 /** Eine Zeile im Tagesformular: wer steht auf diesem Platz. */
-function PlatzZeile({ d, leute }: { d: FoyerDienst; leute: FoyerPerson[] }) {
+function PlatzZeile({
+  d,
+  leute,
+  zeitenAendern,
+}: {
+  d: FoyerDienst;
+  leute: FoyerPerson[];
+  /** Florian und Kevin aendern die Zeiten gleich hier, siehe oben. */
+  zeitenAendern: boolean;
+}) {
   return (
     <li className="flex flex-wrap items-center gap-2 border-t border-linie pt-2 text-sm">
       <span className="w-24 shrink-0 font-medium">{d.nummer}. Person</span>
 
-      <input type="hidden" name={`von${d.nummer}`} value={d.von} />
-      <input type="hidden" name={`bis${d.nummer}`} value={d.bis} />
       <select name={`benutzer${d.nummer}`} defaultValue={d.benutzerId ?? "offen"} className="text-sm">
         <option value="offen">offen</option>
         {leute.map((p) => (
@@ -250,9 +267,22 @@ function PlatzZeile({ d, leute }: { d: FoyerDienst; leute: FoyerPerson[] }) {
         ))}
       </select>
 
-      <span className="text-leise">
-        {d.von || "?"} bis {d.bis || "?"} Uhr
-      </span>
+      {zeitenAendern ? (
+        <span className="flex items-center gap-1 text-leise">
+          <input type="time" name={`von${d.nummer}`} defaultValue={d.von} className="w-28" aria-label="von" />
+          bis
+          <input type="time" name={`bis${d.nummer}`} defaultValue={d.bis} className="w-28" aria-label="bis" />
+          Uhr
+        </span>
+      ) : (
+        <>
+          <input type="hidden" name={`von${d.nummer}`} value={d.von} />
+          <input type="hidden" name={`bis${d.nummer}`} value={d.bis} />
+          <span className="text-leise">
+            {d.von || "?"} bis {d.bis || "?"} Uhr
+          </span>
+        </>
+      )}
 
       {d.notiz && <span className="text-leise">· {d.notiz}</span>}
     </li>

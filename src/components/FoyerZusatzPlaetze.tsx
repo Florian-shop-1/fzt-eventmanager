@@ -27,6 +27,7 @@ export function FoyerZusatzPlaetze({
   von,
   bis,
   leute,
+  zeitenAendern,
 }: {
   /** Nummer des naechsten freien Platzes. */
   abNummer: number;
@@ -34,6 +35,8 @@ export function FoyerZusatzPlaetze({
   von: string;
   bis: string;
   leute: FoyerLeute[];
+  /** Florian und Kevin aendern die Zeiten gleich in der Zeile. */
+  zeitenAendern: boolean;
 }) {
   const [anzahl, setAnzahl] = useState(0);
   // Mehr als zwanzig Leute stehen nicht im Foyer. Die Grenze gilt auch
@@ -47,8 +50,6 @@ export function FoyerZusatzPlaetze({
           {Array.from({ length: anzahl }, (_, i) => abNummer + i).map((n) => (
             <li key={n} className="flex flex-wrap items-center gap-2 border-t border-linie pt-2 text-sm">
               <span className="w-24 shrink-0 font-medium">{n}. Person</span>
-              <input type="hidden" name={`von${n}`} value={von} />
-              <input type="hidden" name={`bis${n}`} value={bis} />
               <select name={`benutzer${n}`} defaultValue="offen" className="text-sm">
                 <option value="offen">offen</option>
                 {leute.map((p) => (
@@ -58,9 +59,22 @@ export function FoyerZusatzPlaetze({
                   </option>
                 ))}
               </select>
-              <span className="text-leise">
-                {von || "?"} bis {bis || "?"} Uhr
-              </span>
+              {zeitenAendern ? (
+                <span className="flex items-center gap-1 text-leise">
+                  <input type="time" name={`von${n}`} defaultValue={von} className="w-28" aria-label="von" />
+                  bis
+                  <input type="time" name={`bis${n}`} defaultValue={bis} className="w-28" aria-label="bis" />
+                  Uhr
+                </span>
+              ) : (
+                <>
+                  <input type="hidden" name={`von${n}`} value={von} />
+                  <input type="hidden" name={`bis${n}`} value={bis} />
+                  <span className="text-leise">
+                    {von || "?"} bis {bis || "?"} Uhr
+                  </span>
+                </>
+              )}
             </li>
           ))}
         </ul>
