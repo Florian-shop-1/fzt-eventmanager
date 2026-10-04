@@ -527,8 +527,18 @@ export async function webanfragenLetzteStunde(email: string | null, telefon: str
   return Number(z?.anzahl ?? 0);
 }
 
-/** Legt eine per Mail geschickte Antwort im Verlauf ab. */
-export async function mailantwortSpeichern(waId: string, inhalt: string, von: string): Promise<void> {
+/**
+ * Legt eine von hier geschickte Antwort im Verlauf einer Webanfrage ab.
+ *
+ * Der Weg steht dabei: per Mail oder per WhatsApp. Wer die Unterhaltung
+ * spaeter liest, soll sehen, wohin die Antwort ging (Florian, 04.10.2026).
+ */
+export async function mailantwortSpeichern(
+  waId: string,
+  inhalt: string,
+  von: string,
+  weg: "mail" | "text" = "mail",
+): Promise<void> {
   const sql = db();
   await sql`
     update wa_unterhaltung
@@ -538,16 +548,19 @@ export async function mailantwortSpeichern(waId: string, inhalt: string, von: st
   `;
   await sql`
     insert into wa_nachricht (wa_id, richtung, herkunft, typ, text, zeitpunkt, status, gesendet_von)
-    values (${waId}, 'aus', 'eventmanager', 'mail', ${inhalt}, now(), 'sent', ${von})
+    values (${waId}, 'aus', 'eventmanager', ${weg}, ${inhalt}, now(), 'sent', ${von})
   `;
 }
 
-/** Kontaktdaten einer Webanfrage, für die Mail-Antwort. */
-export async function webanfrageKontakt(waId: string): Promise<{ name: string | null; email: string | null } | null> {
+/** Kontaktdaten einer Webanfrage, für die Antwort per Mail oder WhatsApp. */
+export async function webanfrageKontakt(
+  waId: string,
+): Promise<{ name: string | null; email: string | null; telefon: string | null } | null> {
   const [z] = (await db()`
-    select profilname, email from wa_unterhaltung where wa_id = ${waId} and kanal in ('webseite', 'bewertung')
-  `) as Array<{ profilname: string | null; email: string | null }>;
-  return z ? { name: z.profilname, email: z.email } : null;
+    select profilname, email, telefon from wa_unterhaltung
+     where wa_id = ${waId} and kanal in ('webseite', 'bewertung')
+  `) as Array<{ profilname: string | null; email: string | null; telefon: string | null }>;
+  return z ? { name: z.profilname, email: z.email, telefon: z.telefon } : null;
 }
 
 /** Hängt eine weitere Kundennachricht an eine bestehende Unterhaltung, etwa die nachgereichte Kritik. */

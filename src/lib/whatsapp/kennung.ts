@@ -44,3 +44,26 @@ export function kennungLesbar(kennung: string): string {
   if (istWebseite(kennung)) return "Kontaktformular";
   return "Nummer verborgen";
 }
+
+/**
+ * Macht aus einer hinterlassenen Telefonnummer die Kennung, unter der
+ * WhatsApp sie kennt: nur Ziffern, mit Laendervorwahl.
+ *
+ *   "0176 1234567"   -> "491761234567"
+ *   "+49 176 1234567"-> "491761234567"
+ *   "0049176..."     -> "49176..."
+ *
+ * Ohne Vorwahl wird Deutschland angenommen, das ist hier der Normalfall.
+ * Was danach zu kurz oder zu lang ist, gilt als keine Nummer: Lieber kein
+ * Knopf als eine Nachricht an jemand Fremden.
+ */
+export function alsWaNummer(telefon: string | null | undefined): string | null {
+  const roh = String(telefon ?? "").trim();
+  if (!roh) return null;
+  let ziffern = roh.replace(/[^\d+]/g, "");
+  if (ziffern.startsWith("+")) ziffern = ziffern.slice(1);
+  else if (ziffern.startsWith("00")) ziffern = ziffern.slice(2);
+  else if (ziffern.startsWith("0")) ziffern = "49" + ziffern.slice(1);
+  ziffern = ziffern.replace(/\D/g, "");
+  return NUMMER.test(ziffern) ? ziffern : null;
+}

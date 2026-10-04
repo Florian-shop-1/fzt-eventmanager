@@ -29,7 +29,7 @@ import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
 import { merkeMailGesendet, naechsteBuchungZu } from "@/lib/db/shop-buchungen";
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
-import { istKennung } from "@/lib/whatsapp/kennung";
+import { alsWaNummer, istKennung } from "@/lib/whatsapp/kennung";
 
 const ziel = (waId: string, fehler?: string) =>
   `/whatsapp?mit=${encodeURIComponent(waId)}${fehler ? `&fehler=${encodeURIComponent(fehler.slice(0, 300))}` : ""}`;
@@ -101,6 +101,48 @@ export async function perMailAntworten(waId: string, formData: FormData): Promis
     await mailantwortSpeichern(waId, inhalt, benutzer.name);
   } catch (e) {
     fehler = e instanceof Error ? `Die Mail ging nicht hinaus: ${e.message}` : "Die Mail ging nicht hinaus.";
+  }
+
+  revalidatePath("/whatsapp");
+  redirect(ziel(waId, fehler));
+}
+
+/**
+ * Auf eine Anfrage per WhatsApp antworten.
+ *
+ * Wer uns nur eine WhatsApp-Nummer dalaesst und keine Mailadresse, soll
+ * auch per WhatsApp eine Antwort bekommen und nicht nur einen Anruf
+ * (Florian, 04.10.2026: "wenn der gast keine mail, nur whats app
+ * dagelassen hat, wie schreibe ich aus dem eventmanager zurück").
+ *
+ * WhatsApp laesst freien Text nur innerhalb von 24 Stunden nach der
+ * letzten Nachricht des Kunden zu. Hat er uns ueber das Formular
+ * geschrieben und nicht per WhatsApp, lehnt Meta ab; die Meldung sagt das
+ * dann im Klartext, statt die Antwort still verschwinden zu lassen.
+ */
+export async function perWhatsAppAntworten(waId: string, formData: FormData): Promise<void> {
+  const benutzer = await verlangeWhatsApp();
+  const inhalt = String(formData.get("text") ?? "").trim().slice(0, 4000);
+  if (!istKennung(waId)) redirect("/whatsapp");
+  if (!inhalt) redirect(ziel(waId));
+
+  const kontakt = await webanfrageKontakt(waId);
+  const nummer = alsWaNummer(kontakt?.telefon);
+  if (!nummer) {
+    redirect(ziel(waId, "Für diese Anfrage ist keine brauchbare Telefonnummer hinterlegt."));
+  }
+
+  let fehler: string | undefined;
+  try {
+    await textSchicken(nummer, inhalt);
+    await mailantwortSpeichern(waId, inhalt, benutzer.name, "text");
+  } catch (e) {
+    fehler =
+      e instanceof WhatsAppFehler
+        ? e.message
+        : e instanceof Error
+          ? `Die Nachricht ging nicht hinaus: ${e.message}`
+          : "Die Nachricht ging nicht hinaus.";
   }
 
   revalidatePath("/whatsapp");

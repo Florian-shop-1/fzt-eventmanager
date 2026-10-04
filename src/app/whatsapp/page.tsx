@@ -11,6 +11,7 @@ import {
   anderweitigErledigt,
   antworten,
   perMailAntworten,
+  perWhatsAppAntworten,
   vorfreudeJetztSchicken,
 } from "@/lib/whatsapp/aktionen";
 import { naechsteBuchungZu } from "@/lib/db/shop-buchungen";
@@ -26,7 +27,7 @@ const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 
 /** "11.12.2026" aus "2026-12-11". */
 const tagKurz = (iso: string) => iso.split("-").reverse().join(".");
-import { istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
+import { alsWaNummer, istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -547,6 +548,8 @@ async function WebAntwort({ u }: { u: Unterhaltung }) {
   const buchung = u.email ? await naechsteBuchungZu(u.email) : null;
   const link = buchung ? `${SHOP}/upgrade/${buchung.zugangToken}` : null;
   const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
+  // Laesst sich die hinterlassene Nummer als WhatsApp-Nummer lesen?
+  const waNummer = alsWaNummer(u.telefon);
   const anrufen = u.telefon && (
     <a
       href={`tel:${u.telefon}`}
@@ -650,14 +653,45 @@ Dein Team vom Florian Zimmer Theater`
             <Absendeknopf text="Per Mail antworten" laeuftText="Wird gesendet..." />
           </div>
         </form>
-      ) : (
-        u.rueckweg !== "anruf" &&
-        anrufen && (
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span>Keine Mailadresse angegeben. Bitte anrufen.</span>
-            {anrufen}
+      ) : null}
+
+      {/*
+        Antwort per WhatsApp.
+
+        Wer uns nur seine Nummer dalaesst, bekommt sonst gar nichts
+        zurueck ausser einem Anruf (Florian, 04.10.2026). WhatsApp laesst
+        freien Text nur binnen 24 Stunden nach der letzten Nachricht des
+        Kunden zu; lehnt Meta ab, steht die Begruendung oben im roten
+        Kasten.
+      */}
+      {waNummer && (
+        <form action={perWhatsAppAntworten.bind(null, u.waId)} className="space-y-2">
+          <textarea
+            name="text"
+            rows={4}
+            required
+            defaultValue={`Hallo ${vornameVon(u.profilname)},
+
+
+
+Viele Grüße
+Dein Team vom Florian Zimmer Theater`}
+            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-leise">
+              Geht per WhatsApp von 0731 7906110 an +{waNummer}.
+            </span>
+            <Absendeknopf text="Per WhatsApp antworten" laeuftText="Wird gesendet..." />
           </div>
-        )
+        </form>
+      )}
+
+      {!u.email && !waNummer && anrufen && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span>Keine Mailadresse angegeben. Bitte anrufen.</span>
+          {anrufen}
+        </div>
       )}
     </div>
   );
