@@ -476,38 +476,53 @@ function Antwortfeld({ unterhaltung, fehler }: { unterhaltung: Unterhaltung; feh
 
       {unterhaltung.kanal !== "whatsapp" ? (
         <WebAntwort u={unterhaltung} />
-      ) : unterhaltung.fensterOffen ? (
-        <form action={antworten.bind(null, unterhaltung.waId)} className="space-y-2">
-          <textarea
-            name="text"
-            rows={3}
-            required
-            placeholder={`Antwort an ${name(unterhaltung)}`}
-            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-leise">Geht von 0731 7906110 hinaus.</span>
-            <Absendeknopf text="Senden" laeuftText="Wird gesendet..." />
-          </div>
-        </form>
       ) : (
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
-          style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
-        >
-          <p>
-            <strong>Die 24 Stunden sind vorbei.</strong> Per WhatsApp geht keine Antwort mehr hinaus,
-            bis {name(unterhaltung)} sich wieder meldet. Am besten anrufen und danach oben auf
-            „Erledigt, anderweitig geklärt“.
-          </p>
-          {istNummer(unterhaltung.waId) && (
-            <a
-              href={`tel:+${unterhaltung.waId}`}
-              className="shrink-0 rounded-md border border-linie bg-flaeche px-4 py-2 font-medium hover:bg-gold-hell"
+        /*
+          Wer uns per WhatsApp schreibt, bekommt per WhatsApp Antwort.
+
+          Das Antwortfeld steht deshalb immer da, auch wenn die 24 Stunden
+          nach unserer Rechnung vorbei sind (Florian, 04.10.2026:
+          "logisch ist, wenn die per whats app schreiben grundsätzlich per
+          whats app antworten"). Ob die Nachricht hinausgeht, entscheidet
+          am Ende Meta; lehnt es ab, steht die Begruendung oben im roten
+          Kasten. Besser ein Versuch mit klarer Meldung als ein Feld, das
+          gar nicht erst erscheint.
+        */
+        <div className="space-y-3">
+          {!unterhaltung.fensterOffen && (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+              style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
             >
-              {kennungLesbar(unterhaltung.waId)} anrufen
-            </a>
+              <p>
+                <strong>Die 24 Stunden sind vorbei.</strong> WhatsApp lässt freien Text dann nur noch
+                mit einer genehmigten Vorlage zu. Versuchen kannst du es, lehnt Meta ab, steht es hier.
+                Sonst anrufen und danach oben auf „Erledigt, anderweitig geklärt“.
+              </p>
+              {istNummer(unterhaltung.waId) && (
+                <a
+                  href={`tel:+${unterhaltung.waId}`}
+                  className="shrink-0 rounded-md border border-linie bg-flaeche px-4 py-2 font-medium hover:bg-gold-hell"
+                >
+                  {kennungLesbar(unterhaltung.waId)} anrufen
+                </a>
+              )}
+            </div>
           )}
+
+          <form action={antworten.bind(null, unterhaltung.waId)} className="space-y-2">
+            <textarea
+              name="text"
+              rows={3}
+              required
+              placeholder={`Antwort an ${name(unterhaltung)}`}
+              className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-leise">Geht von 0731 7906110 hinaus.</span>
+              <Absendeknopf text="Per WhatsApp antworten" laeuftText="Wird gesendet..." />
+            </div>
+          </form>
         </div>
       )}
     </div>

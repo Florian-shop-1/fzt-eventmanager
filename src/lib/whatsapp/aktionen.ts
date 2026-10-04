@@ -12,7 +12,6 @@ import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung"
 import {
   alsErledigtMarkieren,
   ausgangSpeichern,
-  FENSTER_STUNDEN,
   mailantwortSpeichern,
   verlangeWhatsApp,
   webanfrageKontakt,
@@ -42,25 +41,17 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
   if (!inhalt) redirect(ziel(waId));
 
   /*
-    Das 24-Stunden-Fenster hier schon prüfen und nicht erst WhatsApp fragen.
-    Die Ablehnung käme zwar auch von dort, aber erst nach dem Absenden, und
-    die Nachricht stünde dann als fehlgeschlagen im Verlauf.
+    Versucht wird es immer, auch wenn unsere Rechnung sagt, die 24 Stunden
+    seien vorbei.
+
+    Frueher blockte der Eventmanager hier selbst. Das ist einmal zu
+    streng: Ob das Fenster offen ist, weiss nur Meta, und unser Stand kann
+    hinterherhinken, wenn eine Kundennachricht nicht bei uns ankam. Wer
+    per WhatsApp schreibt, soll per WhatsApp eine Antwort bekommen
+    (Florian, 04.10.2026). Lehnt Meta ab, steht die Begruendung im
+    Posteingang, und gespeichert wird nichts: Im Verlauf bleibt dann
+    keine Nachricht stehen, die nie ankam.
   */
-  const [u] = (await db()`
-    select letzte_eingang_am > now() - make_interval(hours => ${FENSTER_STUNDEN}) as offen
-      from wa_unterhaltung where wa_id = ${waId}
-  `) as Array<{ offen: boolean | null }>;
-
-  if (!u?.offen) {
-    redirect(
-      ziel(
-        waId,
-        "Die letzte Nachricht des Kunden ist älter als 24 Stunden. WhatsApp erlaubt dann nur " +
-          "noch genehmigte Vorlagen. Ruf ihn an, schreib ihm eine Mail oder warte, bis er sich meldet.",
-      ),
-    );
-  }
-
   let fehler: string | undefined;
   try {
     const metaId = await textSchicken(waId, inhalt.slice(0, 4096));
