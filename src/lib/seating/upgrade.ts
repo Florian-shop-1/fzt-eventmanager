@@ -408,22 +408,51 @@ export function empfehlung(plan: Saalplan): Empfehlung {
   const breit = breiteZone(zone);
 
   for (const gruppe of reihenfolge) {
-    const ziel =
-      bestenBlockSuchen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y) ??
-      bestenBlockSuchen(breit, gruppe.sitze.length, belegt, gruppe.reihe.y, zone.sitze);
+    // Erste Stufe: am Stück in einer Reihe, ganz in der Zone.
+    const inDerReihe = bestenBlockSuchen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y);
+    if (inDerReihe) {
+      for (const s of inDerReihe.sitze) belegt.add(s.id);
+      umzuege.push({ gruppe, ziel: inDerReihe });
+      continue;
+    }
+
+    /*
+      Zweite Stufe: als Block auf zwei Reihen, ganz in der Zone.
+
+      Steht vor dem Ausweichen nach draussen, und zwar ab vier Personen.
+      Acht Leute in einer langen Reihe reichen ueber den gestrichelten
+      Kasten hinaus; vier vorne und vier direkt dahinter sitzen besser und
+      bleiben drin: "Das wäre doch viel besser diese gruppe in zwei reihen
+      und im block zu setzen. so kriegst du es auch eher hin, dass du alle
+      in den gestrichelten kasten bekommst" (Florian, 04.10.2026).
+
+      Unter vier Personen bleibt die Reihe vorn: Zwei und zwei macht aus
+      einem Paar zwei Paare, das gewinnt nichts.
+    */
+    const blockInZone =
+      gruppe.sitze.length >= BLOCK_AB_PERSONEN
+        ? blockAufZweiReihen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y)
+        : null;
+    if (blockInZone) {
+      for (const s of [...blockInZone.vorne.sitze, ...blockInZone.hinten.sitze]) belegt.add(s.id);
+      umzuege.push({ gruppe, ziel: blockInZone.vorne, ziel2: blockInZone.hinten });
+      continue;
+    }
+
+    // Dritte Stufe: eine Reihe, notfalls über den Rand der Zone hinaus.
+    const ziel = bestenBlockSuchen(breit, gruppe.sitze.length, belegt, gruppe.reihe.y, zone.sitze);
     if (ziel) {
       for (const s of ziel.sitze) belegt.add(s.id);
       umzuege.push({ gruppe, ziel });
       continue;
     }
+
     /*
-      Dritte Stufe: als Block auf zwei Reihen.
+      Vierte Stufe: Block auf zwei Reihen, auch über den Rand hinaus.
 
       Florian, 19.09.2026: "Du kannst aus einer Reihe auch einen Block
-      machen, dann sitzen sie genau hintereinander." Sieben Leute passen
-      nicht am Stück in eine Reihe, aber vier vorne und drei direkt
-      dahinter. Getrennt ist dabei niemand, sie sitzen zusammen, nur in
-      zwei Reihen statt in einer.
+      machen, dann sitzen sie genau hintereinander." Getrennt ist dabei
+      niemand, sie sitzen zusammen, nur in zwei Reihen statt in einer.
     */
     const block =
       blockAufZweiReihen(zone, gruppe.sitze.length, belegt, gruppe.reihe.y) ??
@@ -466,6 +495,13 @@ export function empfehlung(plan: Saalplan): Empfehlung {
  * grössere Hälfte, direkt dahinter der Rest, Platz für Platz genau
  * hintereinander. Erst ab drei Personen, ein Paar sitzt nebeneinander.
  */
+/**
+ * Ab so vielen Personen ist der Block auf zwei Reihen die bessere Form,
+ * noch vor einer langen Reihe, die aus der Zone herausragt
+ * (Florian, 04.10.2026).
+ */
+const BLOCK_AB_PERSONEN = 4;
+
 function blockAufZweiReihen(
   zone: Spielzone,
   groesse: number,

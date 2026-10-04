@@ -192,6 +192,19 @@ export function UpgradeTafel({
   */
   const [offen, setOffen] = useState<boolean>(Boolean(erzwingeOffen) || !abZeitpunkt);
 
+  /*
+    Der Plan reagiert erst, wenn der Browser ihn uebernommen hat.
+
+    Bis dahin ist die Zeichnung zwar da, ein Tipp geht aber ins Leere:
+    Florian musste beim ersten Klick auf eine Gruppe neu laden, "es nimmt
+    es sonst nicht" (04.10.2026). Dass noch nichts passieren kann, sagt
+    der Plan jetzt selbst, statt den Tipp stillschweigend zu schlucken.
+  */
+  const [bereit, setBereit] = useState(false);
+  useEffect(() => {
+    setBereit(true);
+  }, []);
+
   useEffect(() => {
     if (erzwingeOffen || !abZeitpunkt) return;
     const pruefen = () => setOffen(Date.now() >= Date.parse(abZeitpunkt));
@@ -802,6 +815,15 @@ export function UpgradeTafel({
 
   return (
     <section className="space-y-3 print:hidden">
+      {!bereit && (
+        <p
+          className="rounded-md border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          Einen Moment, der Plan wird noch bereit gemacht. Tippen klappt gleich.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">
           Saalplan: {modus === "einchecken" ? "durch-x-en" : einzeln ? "einzeln verteilen" : "umsetzen"}
