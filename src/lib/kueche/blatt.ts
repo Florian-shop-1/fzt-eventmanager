@@ -22,7 +22,7 @@ import {
   termineDesTages,
   type Vorstellungstermin,
 } from "@/lib/ditix/spielplan";
-import { shopGruppenDesAbends } from "@/lib/shop/rohdaten";
+import { shopGruppenDesAbends, stornoWirkung, type StornoWirkung } from "@/lib/shop/rohdaten";
 
 export interface FirmenGruppe {
   /** Kennung der Gruppe selbst, zum Abhaken der Zahlung. */
@@ -75,6 +75,13 @@ export interface Kuechenblatt {
   shop: ShopZusammenfassung | null;
   /** Fehlermeldung, falls die Menüliste nicht erreichbar war. */
   shopFehler: string | null;
+  /**
+   * Was an diesem Tag von Hand gestrichen oder korrigiert wurde.
+   *
+   * Steht neben der Summe: Eine Zahl, die kleiner geworden ist, erklaert
+   * sich nicht von selbst (Florian, 04.10.2026).
+   */
+  storno: StornoWirkung;
   /** Firmenevents aus dem Eventmanager. */
   firmen: FirmenGruppe[];
   /**
@@ -197,6 +204,14 @@ export async function holeKuechenblatt(ditixEventId: string): Promise<Kuechenbla
 
   let shop: ShopZusammenfassung | null = null;
   let shopFehler: string | null = null;
+  const storno: StornoWirkung = {
+    gebucht: 0,
+    abgezogen: 0,
+    ausStorno: 0,
+    ausKorrektur: 0,
+    stornos: 0,
+    korrekturen: 0,
+  };
   let showgaeste = 0;
   const menuesJeShow: Kuechenblatt["menuesJeShow"] = [];
   const shopZusatz: Kuechenblatt["shopZusatz"] = [];
@@ -244,6 +259,16 @@ export async function holeKuechenblatt(ditixEventId: string): Promise<Kuechenbla
           menues: menuesDieserShow,
           vorDerShow: isstVorDerShow(t.uhrzeit),
         });
+      }
+
+      const wirkung = await stornoWirkung(eventId).catch(() => null);
+      if (wirkung) {
+        storno.gebucht += wirkung.gebucht;
+        storno.abgezogen += wirkung.abgezogen;
+        storno.ausStorno += wirkung.ausStorno;
+        storno.ausKorrektur += wirkung.ausKorrektur;
+        storno.stornos += wirkung.stornos;
+        storno.korrekturen += wirkung.korrekturen;
       }
 
       const zusatz = await shopZusammenfassung(eventId).catch(() => null);
@@ -295,6 +320,7 @@ export async function holeKuechenblatt(ditixEventId: string): Promise<Kuechenbla
     ),
     shop,
     shopFehler,
+    storno,
     showgaeste,
     firmen,
     gesamt,

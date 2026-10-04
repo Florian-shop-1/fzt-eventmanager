@@ -276,6 +276,19 @@ export default async function FunktionsheetSeite({
             <div>
               <div className="text-5xl font-semibold tabular-nums">{blatt.gesamtMenues}</div>
               <div className="text-sm text-leise">Menüs insgesamt</div>
+              {/*
+                Was von Hand gestrichen wurde, steht dabei: Sonst steht
+                hier eine Zahl, die niemand nachrechnen kann (Florian,
+                04.10.2026).
+              */}
+              {blatt.storno.abgezogen !== 0 && (
+                <div className="mt-1 max-w-64 text-sm text-leise">
+                  {blatt.storno.gebucht} gebucht
+                  {blatt.storno.ausStorno !== 0 && `, −${blatt.storno.ausStorno} storniert`}
+                  {blatt.storno.ausKorrektur !== 0 &&
+                    `, ${blatt.storno.ausKorrektur > 0 ? "−" : "+"}${Math.abs(blatt.storno.ausKorrektur)} korrigiert`}
+                </div>
+              )}
               {blatt.reservierteMenues > 0 && (
                 <div
                   className="mt-2 max-w-64 border-l-4 pl-3 text-sm"

@@ -142,6 +142,12 @@ function Blatt({
           <span className="text-lg">
             {blatt.gesamtMenues === 0 ? "Menüs, nur Show und Bar" : "Menüs insgesamt"}
           </span>
+          {blatt.storno.abgezogen !== 0 && (
+            <span className="text-sm text-leise">
+              {blatt.storno.gebucht} gebucht, {blatt.storno.abgezogen > 0 ? "abzüglich" : "zuzüglich"}{" "}
+              {Math.abs(blatt.storno.abgezogen)} von Hand
+            </span>
+          )}
           {blatt.reservierteMenues > 0 && (
             <span className="text-sm" style={{ color: "var(--warnung)" }}>
               davon {blatt.reservierteMenues} nur reserviert
@@ -171,6 +177,47 @@ function Blatt({
                 </tr>
               );
             })}
+            {/*
+              Was von Hand abgezogen wurde, steht in der Rechnung.
+
+              Sonst wundert sich die Kueche ueber eine Zahl, die kleiner
+              ist als gestern, und sucht den Fehler im Programm
+              (Florian, 04.10.2026).
+            */}
+            {blatt.storno.ausStorno !== 0 && (
+              <tr className="border-t border-gold/30">
+                <td className="py-1">
+                  Storniert
+                  <span className="text-leise">
+                    {" "}
+                    ({blatt.storno.stornos} {blatt.storno.stornos === 1 ? "Bestellung" : "Bestellungen"})
+                  </span>
+                </td>
+                <td className="py-1 text-right tabular-nums text-leise">−{blatt.storno.ausStorno}</td>
+                <td className="py-1 text-right tabular-nums text-leise">0</td>
+                <td className="py-1 text-right font-semibold tabular-nums">−{blatt.storno.ausStorno}</td>
+              </tr>
+            )}
+            {blatt.storno.ausKorrektur !== 0 && (
+              <tr className="border-t border-gold/30">
+                <td className="py-1">
+                  Mengen korrigiert
+                  <span className="text-leise">
+                    {" "}
+                    ({blatt.storno.korrekturen} {blatt.storno.korrekturen === 1 ? "Bestellung" : "Bestellungen"})
+                  </span>
+                </td>
+                <td className="py-1 text-right tabular-nums text-leise">
+                  {blatt.storno.ausKorrektur > 0 ? "−" : "+"}
+                  {Math.abs(blatt.storno.ausKorrektur)}
+                </td>
+                <td className="py-1 text-right tabular-nums text-leise">0</td>
+                <td className="py-1 text-right font-semibold tabular-nums">
+                  {blatt.storno.ausKorrektur > 0 ? "−" : "+"}
+                  {Math.abs(blatt.storno.ausKorrektur)}
+                </td>
+              </tr>
+            )}
             <tr className="border-t-2 border-gold-dunkel">
               <td className="py-1 font-medium">Summe</td>
               <td className="py-1 text-right tabular-nums text-leise">{shopMenues}</td>

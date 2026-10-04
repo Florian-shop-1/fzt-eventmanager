@@ -93,8 +93,14 @@ function istTicket(bezeichnung: string): boolean {
   );
 }
 
-/** Holt alle Bestellungen aus dem Rohdatenblatt. */
-export async function holeShopGruppen(): Promise<ShopGruppe[]> {
+/**
+ * Holt alle Bestellungen aus dem Rohdatenblatt, so wie sie der Shop
+ * gemeldet hat: ohne Storno, ohne Korrektur.
+ *
+ * Fast ueberall ist holeShopGruppen() gemeint. Die rohe Liste braucht
+ * nur, wer zeigen will, was abgezogen wurde (Florian, 04.10.2026).
+ */
+export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${ROHDATEN_GID}`;
@@ -193,18 +199,24 @@ export async function holeShopGruppen(): Promise<ShopGruppe[]> {
     }
   }
 
-  /*
-    Storno und Korrektur gelten auch hier.
+  return [...gruppen.values()];
+}
 
-    Diese Liste speist das Funktionsheet, das Kuechenblatt, den Sitzplan
-    und die Belegung. Wird eine Bestellung im Eventmanager gestrichen,
-    muss sie ueberall verschwinden und nicht nur in einer Summe
-    (Florian, 03.10.2026). Der Schluessel ist die Bestellnummer, dieselbe
-    wie in der Menueliste.
-  */
-  const aenderungen = await menueAenderungen().catch(() => new Map<string, MenueAenderung>());
+/*
+  Storno und Korrektur gelten ueberall.
+
+  Diese Liste speist das Funktionsheet, das Kuechenblatt, den Sitzplan
+  und die Belegung. Wird eine Bestellung im Eventmanager gestrichen,
+  muss sie ueberall verschwinden und nicht nur in einer Summe
+  (Florian, 03.10.2026). Der Schluessel ist die Bestellnummer, dieselbe
+  wie in der Menueliste.
+*/
+function anwenden(
+  gruppen: ShopGruppe[],
+  aenderungen: Map<string, MenueAenderung>,
+): ShopGruppe[] {
   const angepasst: ShopGruppe[] = [];
-  for (const g of gruppen.values()) {
+  for (const g of gruppen) {
     const a = aenderungen.get(g.orderId);
     if (a?.art === "storno") continue;
     if (a?.art === "korrektur") {
@@ -218,8 +230,81 @@ export async function holeShopGruppen(): Promise<ShopGruppe[]> {
     }
     angepasst.push(g);
   }
-
   return angepasst;
+}
+
+/** Alle Bestellungen aus dem Shop, mit Storno und Korrektur. */
+export async function holeShopGruppen(): Promise<ShopGruppe[]> {
+  const [roh, aenderungen] = await Promise.all([
+    holeShopGruppenRoh(),
+    menueAenderungen().catch(() => new Map<string, MenueAenderung>()),
+  ]);
+  return anwenden(roh, aenderungen);
+}
+
+/** Was an einem Abend von Hand gestrichen oder korrigiert wurde. */
+export interface StornoWirkung {
+  /** Menues, die gebucht waren, bevor jemand eingegriffen hat. */
+  gebucht: number;
+  /** Was dadurch wegfaellt. Positiv heisst: so viele Menues weniger. */
+  abgezogen: number;
+  /** Davon aus ganz gestrichenen Bestellungen. */
+  ausStorno: number;
+  /** Davon aus korrigierten Mengen. Negativ, wenn jemand aufgestockt hat. */
+  ausKorrektur: number;
+  /** Wie viele Bestellungen betroffen sind. */
+  stornos: number;
+  korrekturen: number;
+}
+
+/**
+ * Was Storno und Korrektur an diesem Abend ausmachen.
+ *
+ * Fuer die Anzeige: Eine Zahl, die kleiner geworden ist, erklaert sich
+ * nicht von selbst. In der Kueche soll stehen, was gebucht war und was
+ * davon abgezogen wurde, sonst sucht jemand den Fehler im Programm
+ * (Florian, 04.10.2026).
+ */
+export async function stornoWirkung(ditixEventId: string): Promise<StornoWirkung> {
+  const [roh, aenderungen] = await Promise.all([
+    holeShopGruppenRoh(),
+    menueAenderungen().catch(() => new Map<string, MenueAenderung>()),
+  ]);
+
+  const desAbends = roh.filter((g) => g.ditixEventId === ditixEventId);
+  const w: StornoWirkung = {
+    gebucht: desAbends.reduce((s, g) => s + g.menuesGesamt, 0),
+    abgezogen: 0,
+    ausStorno: 0,
+    ausKorrektur: 0,
+    stornos: 0,
+    korrekturen: 0,
+  };
+
+  for (const g of desAbends) {
+    const a = aenderungen.get(g.orderId);
+    if (!a) continue;
+    if (a.art === "storno") {
+      // Eine gestrichene Bestellung ohne Menue zaehlt nicht als Abzug,
+      // sie war ja nie in der Kuechenzahl drin.
+      if (g.menuesGesamt > 0) {
+        w.stornos += 1;
+        w.ausStorno += g.menuesGesamt;
+      }
+      continue;
+    }
+    const menues: Partial<Record<MenueVariante, number>> = { ...g.menues };
+    for (const [variante, menge] of Object.entries(a.mengen)) {
+      if (menge !== undefined) menues[variante as MenueVariante] = menge;
+    }
+    const nachher = Object.values(menues).reduce((sum, n) => sum + (n ?? 0), 0);
+    if (nachher === g.menuesGesamt) continue;
+    w.korrekturen += 1;
+    w.ausKorrektur += g.menuesGesamt - nachher;
+  }
+
+  w.abgezogen = w.ausStorno + w.ausKorrektur;
+  return w;
 }
 
 /** Alle Shop-Gruppen einer Vorstellung, die ein Menü gebucht haben. */
