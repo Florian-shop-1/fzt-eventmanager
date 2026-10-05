@@ -501,9 +501,20 @@ function baueUmsatz(u: Record<string, unknown>, zuordnungen: BankUmsatz["zuordnu
 }
 
 export async function umsaetze(anzahl = 200): Promise<BankUmsatz[]> {
+  /*
+    Sortiert wird ueber bank_umsatz.buchungstag, nicht ueber buchungstag.
+
+    Die Auswahl liefert den Buchungstag zweimal: einmal aus dem Stern und
+    einmal als Text. Ein unqualifiziertes "order by buchungstag" ist damit
+    mehrdeutig, Postgres bricht mit 42702 ab -- und die Seite
+    Zahlungseingaenge blieb leer, obwohl Umsaetze da waren
+    (Florian, 05.10.2026). Der Tabellenname davor macht es eindeutig.
+  */
   const u = (await db()`
     select *, buchungstag::text as buchungstag, wertstellung::text as wertstellung
-      from bank_umsatz order by buchungstag desc, importiert_am desc limit ${anzahl}
+      from bank_umsatz
+     order by bank_umsatz.buchungstag desc, bank_umsatz.importiert_am desc
+     limit ${anzahl}
   `) as Array<Record<string, unknown>>;
   const ids = u.map((x) => String(x.id));
   const z =
