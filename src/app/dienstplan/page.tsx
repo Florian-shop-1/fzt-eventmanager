@@ -26,6 +26,7 @@ import {
 import {
   anfrageAbbrechen,
   anfrageAbsagen,
+  treffzeitAendern,
   anfrageZusagen,
   anfrageZuruecknehmen,
   anfragen,
@@ -75,6 +76,12 @@ export default async function DienstplanSeite({
   const uebernahmeAnfragen = darfFreigeben ? await offeneUebernahmen("show") : [];
   const ich = personen.find((p) => p.id === benutzer.id) ?? null;
   const planer = benutzer.rolle === "chef" || benutzer.rolle === "team";
+  /*
+    Eine abweichende Uhrzeit setzen duerfen nur Florian und Kevin, nicht
+    das ganze Team: Sie ist eine Ansage an die Person und keine Notiz
+    (Florian, 05.10.2026).
+  */
+  const darfZeiten = benutzer.rolle === "chef" || darfFreigeben;
   const hatPosition = Boolean(ich && ich.kann.size > 0);
   const nurMeine = nur === "meine" || (nur !== "alle" && hatPosition && !planer);
 
@@ -240,6 +247,7 @@ export default async function DienstplanSeite({
               schichten={schichten}
               ich={ich}
               planer={planer}
+              darfPlanen={darfZeiten}
               personen={personen}
               abgemeldet={new Set(personen.filter((p) => istAbwesend(abwesend, p.id, s.termin.datum)).map((p) => p.id))}
               abgesagt={abgesagt.has(s.termin.ditixEventId)}
@@ -265,6 +273,7 @@ function ShowKarte({
   schichten,
   ich,
   planer,
+  darfPlanen,
   personen,
   abgemeldet,
   abgesagt,
@@ -278,6 +287,8 @@ function ShowKarte({
   schichten: Schicht[];
   ich: Person | null;
   planer: boolean;
+  /** Florian und Kevin: dürfen eine abweichende Uhrzeit setzen. */
+  darfPlanen: boolean;
   personen: Person[];
   /** Wer sich für diesen Tag abgemeldet hat (Urlaub, privat). */
   abgemeldet: Set<string>;
@@ -396,6 +407,7 @@ function ShowKarte({
             ich={ich}
             abgesagt={abgesagt}
             planer={planer}
+            darfPlanen={darfPlanen}
             personen={personen}
             abgemeldet={abgemeldet}
             schonDabei={Boolean(ich && schonImDienst(schichten, ich.id, t))}
@@ -421,6 +433,7 @@ function SlotZeile({
   ich,
   abgesagt,
   planer: planerRoh,
+  darfPlanen,
   personen,
   abgemeldet,
   schonDabei,
@@ -431,6 +444,8 @@ function SlotZeile({
   /** Diese Vorstellung ist storniert, siehe lib/absage. */
   abgesagt: boolean;
   planer: boolean;
+  /** Florian und Kevin: dürfen eine abweichende Uhrzeit setzen. */
+  darfPlanen: boolean;
   personen: Person[];
   abgemeldet: Set<string>;
   schonDabei: boolean;
@@ -445,6 +460,8 @@ function SlotZeile({
     zusätzlich serverseitig gesperrt (siehe aktionen.ts).
   */
   const planer = planerRoh && !abgesagt;
+  /* Eine abweichende Uhrzeit setzen duerfen nur Florian und Kevin. */
+  const darfZeitSetzen = darfPlanen && !abgesagt;
   const meins = Boolean(ich && slot.person?.id === ich.id);
   const michGefragt = Boolean(ich && !abgesagt && slot.angefragt?.id === ich.id);
   const kannUebernehmen =
@@ -522,6 +539,18 @@ function SlotZeile({
               </span>
             )}
             {slot.fest && <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">fester Tag</span>}
+            {/* Eine eigene Uhrzeit steht nur da, wenn sie vom normalen
+                Ablauf abweicht, etwa bei einer Sonderveranstaltung
+                (Florian, 05.10.2026). */}
+            {slot.treffzeit && (
+              <span
+                className="ml-2 rounded px-1.5 py-0.5 text-xs font-semibold"
+                style={{ background: "var(--info-hell)", color: "var(--info)" }}
+                title="Zu dieser Zeit da sein"
+              >
+                da sein: {slot.treffzeit} Uhr
+              </span>
+            )}
             {/* Eingetragen, haette aber lieber frei. Das ist die
                 Einladung an die anderen, ihn zu entlasten
                 (Florian, 29.09.2026). */}
@@ -640,6 +669,27 @@ function SlotZeile({
               <input type="checkbox" name="notnagel" value="ja" />
               nur wenn Not am Mann ist
             </label>
+          </form>
+        )}
+
+        {/*
+          Uhrzeit setzen: nur Florian und Kevin, und bewusst klein. Der
+          Regelfall ist ohne Zeit, deshalb steht hier kein Pflichtfeld,
+          sondern ein schmales Kaestchen, das man uebersehen darf.
+        */}
+        {darfZeitSetzen && (
+          <form action={treffzeitAendern} className="flex items-center gap-1 print:hidden">
+            {versteckt}
+            <input
+              type="time"
+              name="treffzeit"
+              defaultValue={slot.treffzeit}
+              className="w-[6.5rem] text-xs"
+              aria-label="Wann da sein?"
+            />
+            <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs">
+              {slot.treffzeit ? "Zeit ändern" : "Zeit"}
+            </button>
           </form>
         )}
 

@@ -12,6 +12,7 @@ import {
   anfrageAntwortMail,
   anfrageMail,
   eingeteiltMail,
+  treffzeitMail,
   kommentarMail,
   mitlernenMail,
   zuschauerGesuchtMail,
@@ -46,6 +47,7 @@ import {
   einsatzLoeschen,
   einsatzSetzen,
   ersatzGefragtMerken,
+  treffzeitSetzen,
   istRookieFuer,
   schonImDienst,
   werKann,
@@ -123,6 +125,57 @@ async function schichtLaden(f: FormData) {
   const slot = schicht?.slots.find((s) => s.position === position);
   const ich = personen.find((p) => p.id === benutzer.id);
   return { benutzer, eventId, position, termin, schichten, personen, slot, ich, abwesend };
+}
+
+/**
+ * Wann jemand da sein soll: nur Florian und Kevin, und nur wenn es vom
+ * Regelfall abweicht.
+ *
+ * Leer eingetragen heisst "wie immer". Das ist Absicht: Eine Uhrzeit an
+ * jedem Dienst wuerde den Plan zukleistern, obwohl sie fast nie noetig
+ * ist. Bei Sonderveranstaltungen zaehlt sie dafuer umso mehr
+ * (Florian, 05.10.2026).
+ */
+export async function treffzeitAendern(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) redirect("/anmelden");
+  if (benutzer.rolle !== "chef" && !darfEinladen(benutzer)) {
+    throw new Error("Das dürfen nur Florian und Kevin.");
+  }
+  const eventId = text(f, "vorstellung");
+  await nichtWennStorniert(eventId);
+  const position = text(f, "position") as Position;
+  if (!GUELTIG.includes(position)) throw new Error("Unbekannte Position.");
+  const termin = await findeTermin(eventId);
+  if (!termin) zurueck(eventId, "Diese Vorstellung gibt es nicht mehr.");
+
+  const roh = text(f, "treffzeit").slice(0, 5);
+  if (roh && !/^\d{1,2}:\d{2}$/.test(roh)) {
+    zurueck(eventId, "Bitte eine Uhrzeit wie 17:30 eintragen, oder das Feld leer lassen.");
+  }
+  const treffzeit = roh ? roh.padStart(5, "0") : "";
+
+  await treffzeitSetzen({ termin, position, treffzeit });
+
+  /*
+    Wer schon eingeteilt ist, erfaehrt es per Mail. Eine Uhrzeit, die nur
+    im Plan steht, liest niemand, der den Plan heute nicht mehr oeffnet.
+  */
+  const { schichten } = await planLaden();
+  const slot = schichten
+    .find((x) => x.termin.ditixEventId === eventId)
+    ?.slots.find((x) => x.position === position);
+  if (treffzeit && slot?.person) {
+    await treffzeitMail({ an: slot.person, wer: benutzer.name, termin, position, treffzeit }).catch(
+      (f) => console.error("[dienstplan] Treffzeit-Mail:", f),
+    );
+  }
+  zurueck(
+    eventId,
+    treffzeit
+      ? `${BEZEICHNUNG[position]}: da sein um ${treffzeit} Uhr.`
+      : `${BEZEICHNUNG[position]}: Zeit wieder entfernt, es gilt der normale Ablauf.`,
+  );
 }
 
 /** "Ich übernehme": eine offene Schicht, oder als Shadow mitlaufen. */

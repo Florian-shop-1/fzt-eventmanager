@@ -114,6 +114,37 @@ export async function uebernommenMail(o: { an: Person; wer: string; termin: Vors
   }));
 }
 
+/**
+ * Für diesen Dienst gilt eine eigene Uhrzeit.
+ *
+ * Nur bei Sonderveranstaltungen: Dort beginnt die Arbeit nicht zur
+ * gewohnten Zeit, und wer eingeteilt ist, soll das nicht im Plan suchen
+ * müssen, sondern schwarz auf weiß haben (Florian, 05.10.2026).
+ */
+export async function treffzeitMail(o: {
+  an: Person;
+  wer: string;
+  termin: Vorstellungstermin;
+  position: Position;
+  treffzeit: string;
+}) {
+  const vorname = o.wer.split(" ")[0];
+  return schicken(
+    [o.an],
+    `Bitte um ${o.treffzeit} Uhr da sein: ${datumMitWochentag(o.termin.datum)}`,
+    () => ({
+      absaetze: [
+        `${vorname} hat für deinen Dienst eine eigene Uhrzeit eingetragen: `
+          + `Bitte sei um ${o.treffzeit} Uhr da.`,
+        "Im Dienstplan steht sie neben deinem Namen.",
+      ],
+      liste: [schichtText(o.termin, o.position)],
+      knopf: "Zum Dienstplan",
+      link: `${appUrl()}/dienstplan`,
+    }),
+  );
+}
+
 /** Florian hat jemanden eingeteilt. */
 export async function eingeteiltMail(o: {
   an: Person;

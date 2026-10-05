@@ -175,6 +175,12 @@ export interface Einsatz {
   notnagelGrund: string;
   /** Nur bei den freien Plaetzen: wofuer die Person da ist. */
   bezeichnung: string;
+  /**
+   * Wann die Person da sein soll, etwa "17:30". Leer ist der Regelfall:
+   * Dann gilt der normale Ablauf vor der Show. Gesetzt wird das bei
+   * Sonderveranstaltungen (Florian, 05.10.2026).
+   */
+  treffzeit: string;
   /** Direkt angefragt: Diese Person soll zusagen oder absagen. */
   angefragtId: string | null;
   angefragtVonId: string | null;
@@ -219,7 +225,7 @@ export async function festeTage(): Promise<FesterTag[]> {
 export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
     select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
-           notnagel, notnagel_grund, bezeichnung,
+           notnagel, notnagel_grund, bezeichnung, treffzeit,
            angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
@@ -232,6 +238,7 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     notnagel: Boolean(r.notnagel),
     notnagelGrund: String(r.notnagel_grund ?? ""),
     bezeichnung: String(r.bezeichnung ?? ""),
+    treffzeit: String(r.treffzeit ?? ""),
     grund: (r.grund as string) ?? null,
     erinnertStufe: Number(r.erinnert_stufe ?? 0),
     angefragtId: (r.angefragt_id as string) ?? null,
@@ -290,6 +297,28 @@ export async function anfrageSetzen(e: {
   `;
 }
 
+/**
+ * Wann jemand da sein soll, je Dienst.
+ *
+ * Der Regelfall bleibt leer: Wer eingeteilt ist, kennt den Ablauf vor der
+ * Show. Bei Sonderveranstaltungen ist das anders, da soll zum Beispiel Ben
+ * zur Uni Ulm um eine bestimmte Zeit da sein (Florian, 05.10.2026).
+ *
+ * Steht noch kein Dienst in der Zeile, wird eine leere Zeile angelegt: So
+ * laesst sich die Zeit auch vorher schon hinschreiben.
+ */
+export async function treffzeitSetzen(o: {
+  termin: Vorstellungstermin;
+  position: Position;
+  treffzeit: string;
+}): Promise<void> {
+  await db()`
+    insert into dienst_einsatz (ditix_event_id, position, datum, uhrzeit, treffzeit)
+    values (${o.termin.ditixEventId}, ${o.position}, ${o.termin.datum}::date, ${o.termin.uhrzeit}, ${o.treffzeit})
+    on conflict (ditix_event_id, position) do update set treffzeit = excluded.treffzeit
+  `;
+}
+
 /** Anfrage beenden: zugesagt, abgesagt oder zurückgenommen. */
 export async function anfrageLoeschen(ditixEventId: string, position: Position): Promise<void> {
   await db()`
@@ -324,6 +353,8 @@ export async function einsatzSetzen(e: {
       datum = excluded.datum, uhrzeit = excluded.uhrzeit,
       notnagel = excluded.notnagel, notnagel_grund = excluded.notnagel_grund,
       bezeichnung = case when excluded.bezeichnung <> '' then excluded.bezeichnung else dienst_einsatz.bezeichnung end,
+      -- Die Treffzeit gehoert zum Dienst, nicht zur Person: Wer uebernimmt,
+      -- soll zur selben Zeit da sein wie der, der abgegeben hat.
       angefragt_id = null, angefragt_von_id = null, angefragt_notiz = null, angefragt_am = null
   `;
 }
@@ -378,6 +409,8 @@ export interface Slot {
   ersatzGefragtAnzahl: number;
   /** Nur bei den freien Plaetzen: wofuer die Person da ist. */
   bezeichnung: string;
+  /** Wann diese Person da sein soll. Leer: der normale Ablauf gilt. */
+  treffzeit: string;
   /** Direkt angefragt und noch nicht beantwortet. */
   angefragt: Person | null;
   angefragtVon: Person | null;
@@ -426,6 +459,7 @@ export function planBauen(
           notnagelGrund: p ? (e?.notnagelGrund ?? "") : "",
           offen: !p || suchtErsatz,
           bezeichnung: e?.bezeichnung ?? "",
+          treffzeit: e?.treffzeit ?? "",
           erinnertStufe: e?.erinnertStufe ?? 0,
           ersatzGefragtAm: e?.ersatzGefragtAm ?? null,
           ersatzGefragtAnzahl: e?.ersatzGefragtAnzahl ?? 0,
@@ -455,6 +489,7 @@ export function planBauen(
           notnagelGrund: p ? e.notnagelGrund : "",
           offen: !p || Boolean(e.suchtErsatz),
           bezeichnung: e.bezeichnung,
+          treffzeit: e.treffzeit,
           erinnertStufe: e.erinnertStufe ?? 0,
           ersatzGefragtAm: e.ersatzGefragtAm ?? null,
           ersatzGefragtAnzahl: e.ersatzGefragtAnzahl ?? 0,
@@ -483,6 +518,7 @@ export function planBauen(
         slots.push({
           position: "SHADOW",
           bezeichnung: "",
+          treffzeit: "",
           fuer: mitRookie.position as FestePosition,
           person: shPerson,
           fest: false,
