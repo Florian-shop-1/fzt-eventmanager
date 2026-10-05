@@ -61,6 +61,17 @@ const OHNE_ANMELDUNG = [
   "/warum",
   // Die Angebotsseite mit der laufenden Uhr, aus der Mail an einen Gast.
   "/angebot",
+  /*
+    Der Ausweichtermin nach einer abgesagten Show.
+
+    Die Seite stand in der Liste des Layouts, hier aber nicht, und der
+    Proxy kommt zuerst: Jeder Gast, der in der Absagemail auf seinen Link
+    tippte, landete auf der Anmeldeseite und konnte nichts auswählen
+    (gemeldet von einem Kunden, Florian, 05.10.2026). Der lange
+    Zufallsschlüssel im Link ist der Nachweis, wie bei /angebot und
+    /warum.
+  */
+  "/alternative",
   // Der Countdown in der Angebotsmail ist ein Bild fuer den Gast.
   "/api/countdown",
   // Der Bankabruf läuft auf einem Rechner im Haus und hat keinen Benutzer.

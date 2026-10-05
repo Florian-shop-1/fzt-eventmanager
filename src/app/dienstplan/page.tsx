@@ -8,6 +8,7 @@ import { vorZeit } from "@/components/Status";
 import { offenFuer, planLaden, tageBis } from "@/lib/dienstplan/laden";
 import { istAbwesend, type Abwesenheit } from "@/lib/dienstplan/abwesend";
 import { kommentareFuer, type Kommentar } from "@/lib/dienstplan/kommentar";
+import { abgesagteEventIds } from "@/lib/absage/db";
 import { ShowKommentare } from "@/components/ShowKommentare";
 import {
   BEZEICHNUNG,
@@ -61,6 +62,15 @@ export default async function DienstplanSeite({
   if (!benutzer) redirect("/anmelden");
   const { meldung, nur, s: markiert } = await searchParams;
   const { schichten, personen, abwesend } = await planLaden();
+  /*
+    Welche Vorstellungen abgesagt sind.
+
+    Eine abgesagte Show bleibt im Spielplan stehen, bis Ditix sie
+    herausnimmt, und stand deshalb hier wie jeder andere Abend: mit
+    Positionen, Erinnerungen und allem. Wer eingeteilt ist, soll auf einen
+    Blick sehen, dass er nicht kommen muss (Florian, 05.10.2026).
+  */
+  const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
   const darfFreigeben = darfEinladen(benutzer);
   const uebernahmeAnfragen = darfFreigeben ? await offeneUebernahmen("show") : [];
   const ich = personen.find((p) => p.id === benutzer.id) ?? null;
@@ -232,6 +242,7 @@ export default async function DienstplanSeite({
               planer={planer}
               personen={personen}
               abgemeldet={new Set(personen.filter((p) => istAbwesend(abwesend, p.id, s.termin.datum)).map((p) => p.id))}
+              abgesagt={abgesagt.has(s.termin.ditixEventId)}
               markiert={markiert === s.termin.ditixEventId}
               kommentare={kommentare.get(s.termin.ditixEventId) ?? []}
               ichId={benutzer.id}
@@ -256,11 +267,14 @@ function ShowKarte({
   planer,
   personen,
   abgemeldet,
+  abgesagt,
   markiert,
   kommentare,
   ichId,
 }: {
   schicht: Schicht;
+  /** Diese Vorstellung ist abgesagt, siehe lib/absage. */
+  abgesagt: boolean;
   schichten: Schicht[];
   ich: Person | null;
   planer: boolean;
@@ -278,14 +292,43 @@ function ShowKarte({
     <li
       id={`s-${t.ditixEventId}`}
       className="scroll-mt-24 rounded-lg border bg-flaeche"
-      style={{ borderColor: markiert ? "var(--gold)" : offen ? "var(--warnung)" : "var(--linie)", borderWidth: markiert ? 2 : 1 }}
+      style={{
+        // Eine abgesagte Show ist kein offener Dienst mehr: Sie wird rot
+        // gezeigt, nicht gelb gesucht.
+        borderColor: abgesagt
+          ? "var(--blocker)"
+          : markiert
+            ? "var(--gold)"
+            : offen
+              ? "var(--warnung)"
+              : "var(--linie)",
+        borderWidth: markiert || abgesagt ? 2 : 1,
+      }}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 border-b border-linie px-4 py-2.5">
-        <strong>{datumMitWochentag(t.datum)}</strong>
-        <span className="tabular-nums">{t.uhrzeit} Uhr</span>
-        <span className="text-sm text-leise">{t.name}</span>
+        <strong className={abgesagt ? "line-through" : ""}>{datumMitWochentag(t.datum)}</strong>
+        <span className={`tabular-nums ${abgesagt ? "line-through" : ""}`}>{t.uhrzeit} Uhr</span>
+        <span className={`text-sm text-leise ${abgesagt ? "line-through" : ""}`}>{t.name}</span>
+        {abgesagt && (
+          <span
+            className="rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
+            style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}
+          >
+            Storniert, findet nicht statt
+          </span>
+        )}
         {tage <= 1 && <span className="ml-auto text-xs font-semibold" style={{ color: "var(--warnung)" }}>{tage === 0 ? "heute" : "morgen"}</span>}
       </div>
+      {abgesagt && (
+        <p
+          className="border-b px-4 py-2 text-sm"
+          style={{ borderColor: "var(--linie)", background: "var(--blocker-hell)", color: "var(--blocker)" }}
+        >
+          <strong>Diese Vorstellung wurde storniert und findet nicht statt.</strong> Niemand muss
+          kommen. Die Einteilung bleibt nur stehen, damit nachvollziehbar ist, wer geplant war.
+        </p>
+      )}
+
       {/*
         Noch jemand dazu.
 

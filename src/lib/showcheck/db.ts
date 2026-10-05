@@ -12,14 +12,53 @@
 
 import { db } from "@/lib/db/client";
 
-export type Bereich = "vor_show" | "pause" | "nach_show";
+/**
+ * Zwei Listen, dieselbe Mechanik: die Show und das Foyer.
+ *
+ * Das Foyer hakt seit dem 05.10.2026 genauso ab wie das Showteam, "wir
+ * machen das nun so wie in der show" (Florian). Deshalb dieselben
+ * Tabellen und dasselbe Abhaken, nur ein anderer Satz Punkte.
+ */
+export type Liste = "show" | "foyer";
+
+export type Bereich =
+  | "vor_show"
+  | "pause"
+  | "nach_show"
+  | "foyer_vor"
+  | "foyer_einlass"
+  | "foyer_akt1"
+  | "foyer_pause"
+  | "foyer_akt2"
+  | "foyer_ende";
 
 export const BEREICHE: Bereich[] = ["vor_show", "pause", "nach_show"];
+
+export const FOYER_BEREICHE: Bereich[] = [
+  "foyer_vor",
+  "foyer_einlass",
+  "foyer_akt1",
+  "foyer_pause",
+  "foyer_akt2",
+  "foyer_ende",
+];
+
+export function bereicheVon(liste: Liste): Bereich[] {
+  return liste === "foyer" ? FOYER_BEREICHE : BEREICHE;
+}
 
 export const BEREICH_TITEL: Record<Bereich, string> = {
   vor_show: "Vor der Show",
   pause: "In der Pause",
   nach_show: "Nach der Show",
+  // Die Zeiten stehen so in Florians Aufstellung und meinen einen Abend
+  // mit Show um 20:00 Uhr.
+  foyer_vor: "Alles vor 19:00 Uhr",
+  foyer_einlass: "19:00 bis 20:00 Uhr, Einlass",
+  foyer_akt1: "20:00 bis 21:00 Uhr, erste Hälfte",
+  foyer_pause: "21:00 bis 21:20 Uhr, Pause",
+  foyer_akt2: "21:20 bis 22:30 Uhr, zweite Hälfte",
+  foyer_ende: "22:30 bis 23:00 Uhr, Show-Ende",
 };
 
 export interface Punkt {
@@ -32,14 +71,14 @@ export interface Punkt {
   erledigtAm: string | null;
 }
 
-/** Alle Punkte einer Vorstellung, mit dem Stand des Abends. */
-export async function checkliste(ditixEventId: string): Promise<Punkt[]> {
+/** Alle Punkte einer Liste, mit dem Stand des Abends. */
+export async function checkliste(ditixEventId: string, liste: Liste = "show"): Promise<Punkt[]> {
   const z = (await db()`
     select p.id, p.bereich, p.text, p.reihenfolge, h.erledigt_von, h.erledigt_am
       from showcheck_punkt p
       left join showcheck_haken h
         on h.punkt_id = p.id and h.ditix_event_id = ${ditixEventId}
-     where p.aktiv
+     where p.aktiv and p.liste = ${liste}
      order by p.bereich, p.reihenfolge, p.angelegt_am
   `.catch(() => [])) as Array<Record<string, unknown>>;
 
@@ -80,29 +119,84 @@ export async function hakenWeg(ditixEventId: string, punktId: string): Promise<v
  * Für die Erinnerung und für den Blick von außen: Das Büro soll sehen
  * können, ob vor der Show alles abgehakt war, ohne jede Zeile zu lesen.
  */
-export async function stand(ditixEventId: string): Promise<Record<Bereich, { offen: number; gesamt: number }>> {
-  const punkte = await checkliste(ditixEventId);
-  const leer = { offen: 0, gesamt: 0 };
-  const ergebnis: Record<Bereich, { offen: number; gesamt: number }> = {
-    vor_show: { ...leer },
-    pause: { ...leer },
-    nach_show: { ...leer },
-  };
+export async function stand(
+  ditixEventId: string,
+  liste: Liste = "show",
+): Promise<Partial<Record<Bereich, { offen: number; gesamt: number }>>> {
+  const punkte = await checkliste(ditixEventId, liste);
+  const ergebnis: Partial<Record<Bereich, { offen: number; gesamt: number }>> = {};
+  for (const b of bereicheVon(liste)) ergebnis[b] = { offen: 0, gesamt: 0 };
   for (const p of punkte) {
-    ergebnis[p.bereich].gesamt += 1;
-    if (!p.erledigtAm) ergebnis[p.bereich].offen += 1;
+    const e = (ergebnis[p.bereich] ??= { offen: 0, gesamt: 0 });
+    e.gesamt += 1;
+    if (!p.erledigtAm) e.offen += 1;
   }
   return ergebnis;
 }
 
 /** Einen Punkt ergänzen, ändern oder herausnehmen: nur für Florian. */
-export async function punktAnlegen(bereich: Bereich, text: string): Promise<void> {
+export async function punktAnlegen(
+  bereich: Bereich,
+  text: string,
+  liste: Liste = "show",
+): Promise<void> {
   const z = (await db()`
     select coalesce(max(reihenfolge), 0) + 10 as naechste from showcheck_punkt where bereich = ${bereich}
   `) as Array<{ naechste: number }>;
   await db()`
-    insert into showcheck_punkt (bereich, text, reihenfolge)
-    values (${bereich}, ${text}, ${Number(z[0]?.naechste ?? 10)})
+    insert into showcheck_punkt (bereich, text, reihenfolge, liste)
+    values (${bereich}, ${text}, ${Number(z[0]?.naechste ?? 10)}, ${liste})
+  `;
+}
+
+/**
+ * Was jemandem auf der Liste fehlt.
+ *
+ * Wer am Abend merkt, dass ein Handgriff fehlt, soll ihn sofort loswerden
+ * koennen (Florian, 05.10.2026). Uebernommen wird er nicht automatisch:
+ * Eine Checkliste, die jeder erweitert, ist nach einem Monat keine
+ * Checkliste mehr. Florian liest die Vorschlaege und entscheidet.
+ */
+export interface Vorschlag {
+  id: string;
+  liste: Liste;
+  text: string;
+  von: string;
+  angelegtAm: string;
+}
+
+export async function vorschlagSpeichern(o: {
+  liste: Liste;
+  text: string;
+  von: string;
+  benutzerId: string | null;
+}): Promise<void> {
+  await db()`
+    insert into checkliste_vorschlag (liste, text, von, benutzer_id)
+    values (${o.liste}, ${o.text}, ${o.von}, ${o.benutzerId})
+  `;
+}
+
+export async function offeneVorschlaege(liste: Liste): Promise<Vorschlag[]> {
+  const z = (await db()`
+    select id, liste, text, von, angelegt_am
+      from checkliste_vorschlag
+     where liste = ${liste} and erledigt_am is null
+     order by angelegt_am
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    id: String(r.id),
+    liste: r.liste as Liste,
+    text: String(r.text),
+    von: String(r.von ?? ""),
+    angelegtAm: new Date(r.angelegt_am as string).toISOString(),
+  }));
+}
+
+export async function vorschlagErledigt(id: string, wer: string): Promise<void> {
+  await db()`
+    update checkliste_vorschlag set erledigt_am = now(), erledigt_von = ${wer}
+     where id = ${id}::uuid and erledigt_am is null
   `;
 }
 

@@ -3,6 +3,7 @@
  */
 
 import { kommendeTermine } from "@/lib/ditix/spielplan";
+import { abgesagteEventIds } from "@/lib/absage/db";
 import { isoDatum } from "@/lib/zeit";
 import { offeneSchichtenMail } from "./mails";
 import { abwesenheiten, istAbwesend, type Abwesenheit } from "./abwesend";
@@ -98,11 +99,20 @@ export async function taeglicheErinnerung(): Promise<{ mails: number; schichten:
   if (!e.erledigt && e.festeTageFragen && isoDatum(new Date()) < e.festeTageFragen) {
     return { mails: 0, schichten: 0, fehler: [] };
   }
+  /*
+    Abgesagte Vorstellungen erinnern an nichts mehr.
+
+    Sonst sucht das Programm Leute fuer einen Abend, den es nicht mehr
+    gibt, und wer zusagt, kommt umsonst (Florian, 05.10.2026).
+  */
+  const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
+
   const chefs = personen.filter((p) => p.rolle === "chef");
   const jePerson = new Map<string, { person: Person; schichten: Array<{ termin: Vorstellungstermin; position: Position }>; dringend: boolean }>();
   const zuMerken: Array<{ termin: Vorstellungstermin; position: Position; stufe: number }> = [];
 
   for (const s of schichten) {
+    if (abgesagt.has(s.termin.ditixEventId)) continue;
     const stufe = faelligeStufe(tageBis(s.termin.datum));
     if (stufe === 0) continue;
     for (const slot of s.slots) {
