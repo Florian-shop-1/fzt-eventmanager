@@ -11,6 +11,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
+import { db } from "@/lib/db/client";
 import { angebotsAbsender } from "@/lib/angebot/pdfdaten";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { alsStunden, zeitenImZeitraum } from "@/lib/lohn/auswertung";
@@ -99,7 +100,16 @@ export async function anSteuerbueroSchicken(f: FormData): Promise<void> {
     zurueck(z.schluessel, "Es fehlt die Mailadresse des Steuerbüros. Bitte unten eintragen.");
   }
 
-  const leute = await zeitenImZeitraum(z);
+  /*
+    Gemeldet wird, wer gearbeitet hat.
+
+    Wer in dem Zeitraum nur geschnuppert hat, steht mit null Stunden da
+    und gehoert nicht in die Meldung: So war es bei den Proben ausgemacht
+    (Florian, 05.10.2026). Siehe lib/lohn/auswertung.ts, dort fallen die
+    Schnupperstunden aus arbeitMinuten heraus.
+  */
+  const alle = await zeitenImZeitraum(z);
+  const leute = alle.filter((p) => p.arbeitMinuten > 0 || p.urlaubstage > 0 || p.kranktage > 0);
   if (leute.length === 0) {
     zurueck(z.schluessel, "Für diesen Zeitraum gibt es keine Stunden. Es wurde nichts verschickt.");
   }
@@ -163,4 +173,39 @@ export async function anSteuerbueroSchicken(f: FormData): Promise<void> {
 
   await versandMerken(z, e.steuerbuero, leute);
   zurueck(z.schluessel, `Die Meldung für ${z.name} ist an ${e.steuerbuero} verschickt.`);
+}
+
+/**
+ * Jemanden als Schnupperer markieren oder die Schnupperzeit beenden.
+ *
+ * Wer schnuppert, stempelt mit, seine Stunden gehen aber nicht ans
+ * Lohnbüro (Florian, 05.10.2026). Beendet wird die Zeit mit dem heutigen
+ * Tag: Was davor liegt, bleibt draußen, was danach kommt, wird gemeldet.
+ */
+export async function schnupperSchalter(f: FormData): Promise<void> {
+  await verlangeBuero();
+  const benutzerId = String(f.get("benutzer") ?? "").trim();
+  const an = String(f.get("an") ?? "") === "ja";
+  const zeitraum = String(f.get("zeitraum") ?? "").trim();
+
+  if (!/^[0-9a-f-]{36}$/.test(benutzerId)) zurueck(zeitraum, "Diese Person gibt es nicht.");
+
+  if (an) {
+    await db()`
+      update benutzer
+         set schnuppert = true,
+             schnuppert_seit = coalesce(schnuppert_seit, (now() at time zone 'Europe/Berlin')::date),
+             schnuppert_bis = null
+       where id = ${benutzerId}::uuid
+    `;
+    zurueck(zeitraum, "Als Schnuppern markiert. Diese Stunden gehen nicht ans Lohnbüro.");
+  }
+
+  await db()`
+    update benutzer
+       set schnuppert = false,
+           schnuppert_bis = (now() at time zone 'Europe/Berlin')::date
+     where id = ${benutzerId}::uuid
+  `;
+  zurueck(zeitraum, "Schnupperzeit beendet. Ab heute werden die Stunden gemeldet.");
 }

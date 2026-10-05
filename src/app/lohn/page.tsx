@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { alsStunden, zeitenImZeitraum, type Mitarbeiterzeiten } from "@/lib/lohn/auswertung";
+import { schnupperSchalter } from "./aktionen";
 import { einstellungLesen, meldungLesen } from "@/lib/lohn/meldung";
 import {
   istZeitraumSchluessel,
@@ -344,6 +345,21 @@ function Person({
     <details open={offen} className="rounded-lg border border-linie bg-flaeche">
       <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-3">
         <span className="font-medium">{p.name}</span>
+        {/*
+          Schnupperstunden stehen dabei, gehen aber nicht ans Lohnbuero
+          (Florian, 05.10.2026).
+        */}
+        {p.schnupperMinuten > 0 && (
+          <span
+            className="rounded px-2 py-0.5 text-xs font-medium"
+            style={{ background: "var(--gold-hell)", color: "var(--gold-dunkel)" }}
+          >
+            {alsStunden(p.schnupperMinuten)} Stunden Schnuppern, nicht gemeldet
+          </span>
+        )}
+        {p.schnuppert && p.schnupperMinuten === 0 && (
+          <span className="text-xs text-leise">schnuppert noch</span>
+        )}
         <span className="ml-auto text-lg font-semibold tabular-nums">{alsStunden(p.arbeitMinuten)}</span>
         <span className="text-xs text-leise">Stunden</span>
         {/*
@@ -373,6 +389,26 @@ function Person({
           {p.unplausibleTage.length > 0 && `, ${p.unplausibleTage.length} Tage noch zu bestätigen`}
         </span>
       </summary>
+
+      {/*
+        Schnuppern an- und abschalten.
+
+        Steht hier und nicht in den Zugaengen: Wer die Stunden meldet,
+        entscheidet auch, welche gemeldet werden (Florian, 05.10.2026).
+      */}
+      <form action={schnupperSchalter} className="flex flex-wrap items-center gap-2 border-t border-linie px-4 py-2 text-xs">
+        <input type="hidden" name="benutzer" value={p.benutzerId} />
+        <input type="hidden" name="zeitraum" value={zeitraum} />
+        <input type="hidden" name="an" value={p.schnuppert ? "nein" : "ja"} />
+        <span className="text-leise">
+          {p.schnuppert
+            ? "Schnuppert gerade. Diese Stunden gehen nicht ans Lohnbüro."
+            : "Arbeitet. Die Stunden gehen ans Lohnbüro."}
+        </span>
+        <button type="submit" className="rounded-md border border-linie px-2 py-1">
+          {p.schnuppert ? "Schnupperzeit beenden" : "Als Schnuppern markieren"}
+        </button>
+      </form>
 
       <div className="border-t border-linie px-4 py-3">
         <table className="w-full text-sm">

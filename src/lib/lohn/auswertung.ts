@@ -58,6 +58,18 @@ export interface Mitarbeiterzeiten {
   unplausibleTage: Array<{ datum: string; grund: string }>;
   protokoll: Tagesprotokoll[];
   abwesend: Abwesenheitstag[];
+  /**
+   * Stunden aus der Schnupperzeit.
+   *
+   * Wer schnuppert, stempelt mit: Wer im Haus ist, soll im Haus gestempelt
+   * sein. Gemeldet wird davon nichts, so war es bei den Proben ausgemacht
+   * (Florian, 05.10.2026). Diese Minuten stecken deshalb NICHT in
+   * arbeitMinuten, sondern stehen hier daneben.
+   */
+  schnupperMinuten: number;
+  schnupperTage: string[];
+  /** Schnuppert diese Person gerade? Für die Anzeige. */
+  schnuppert: boolean;
 }
 
 const ZEITZONE = "Europe/Berlin";
@@ -96,7 +108,8 @@ function tageZwischen(von: string, bis: string): string[] {
  */
 export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]> {
   const stempel = (await db()`
-    select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email
+    select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email,
+           b.schnuppert, b.schnuppert_seit::text as schnuppert_seit, b.schnuppert_bis::text as schnuppert_bis
       from stempel s
       left join benutzer b on b.id = s.benutzer_id
      where s.zeitpunkt >= (${z.von}::date - 1)::timestamptz
@@ -115,6 +128,30 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
   const imZeitraum = (tag: string) => tag >= z.von && tag <= z.bis;
   const leute = new Map<string, Mitarbeiterzeiten>();
 
+  /*
+    Wer wann geschnuppert hat.
+
+    Ein Tag zaehlt als Schnuppertag, wenn er in den Zeitraum faellt, den
+    das Kennzeichen abdeckt. Ohne Ende laeuft er bis heute weiter.
+  */
+  const schnupperzeit = new Map<string, { von: string; bis: string | null; laeuft: boolean }>();
+  for (const s of stempel) {
+    const id = String(s.benutzer_id);
+    if (schnupperzeit.has(id)) continue;
+    const seit = (s.schnuppert_seit as string) ?? null;
+    const bis = (s.schnuppert_bis as string) ?? null;
+    const laeuft = s.schnuppert === true;
+    if (!laeuft && !bis) continue;
+    schnupperzeit.set(id, { von: seit ?? "0000-01-01", bis, laeuft });
+  }
+
+  const istSchnuppertag = (id: string, tag: string): boolean => {
+    const z = schnupperzeit.get(id);
+    if (!z) return false;
+    if (tag < z.von) return false;
+    return z.bis ? tag < z.bis : z.laeuft;
+  };
+
   const hole = (id: string, name: string, email: string): Mitarbeiterzeiten => {
     const da = leute.get(id);
     if (da) return da;
@@ -131,6 +168,9 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       unplausibleTage: [],
       protokoll: [],
       abwesend: [],
+      schnupperMinuten: 0,
+      schnupperTage: [],
+      schnuppert: schnupperzeit.get(id)?.laeuft ?? false,
     };
     leute.set(id, neu);
     return neu;
@@ -214,9 +254,20 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       person.protokoll.push(tagProt);
 
       if (r.gewertet) {
-        person.arbeitMinuten += r.arbeitMinuten;
-        person.pauseMinuten += r.pauseMinuten;
-        if (r.arbeitMinuten > 0) person.arbeitstage += 1;
+        /*
+          Schnupperstunden zaehlen fuer sich.
+
+          Sie stehen im Protokoll und im Arbeitszeitkonto, gehen aber
+          nicht in die Meldung ans Lohnbuero (Florian, 05.10.2026).
+        */
+        if (istSchnuppertag(id, g.datum)) {
+          person.schnupperMinuten += r.arbeitMinuten;
+          if (r.arbeitMinuten > 0) person.schnupperTage.push(g.datum);
+        } else {
+          person.arbeitMinuten += r.arbeitMinuten;
+          person.pauseMinuten += r.pauseMinuten;
+          if (r.arbeitMinuten > 0) person.arbeitstage += 1;
+        }
       }
       if (r.offen) person.offeneTage.push(g.datum);
       if (r.unplausibel && !r.bestaetigt) {
@@ -248,6 +299,9 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
     .filter(
       (p) =>
         p.arbeitMinuten > 0 ||
+        // Wer nur geschnuppert hat, soll hier trotzdem stehen: Florian
+        // und Werner sollen die Stunden sehen, nur melden sie sie nicht.
+        p.schnupperMinuten > 0 ||
         p.abwesend.length > 0 ||
         p.offeneTage.length > 0 ||
         p.unplausibleTage.length > 0,
