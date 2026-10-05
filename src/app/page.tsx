@@ -130,15 +130,14 @@ export default async function Startseite() {
           <Stand fertig titel="Gemeinsame Datenbank">
             Postgres bei Neon in Frankfurt. Alle Benutzer sehen denselben Stand.
           </Stand>
-          <Stand titel="Angebot verschicken und Öffnungen sehen">
-            Als Entwurf in Outlook ablegen, persönlicher Link für den Kunden, sehen wann er
-            öffnet und annimmt.
+          <Stand fertig titel="Angebot verschicken und Öffnungen sehen">
+            Geht aus Kevins Postfach hinaus, mit PDF im Anhang und persönlichem Link. Jede
+            Öffnung wird gezählt, der Vorgang rückt von selbst auf &bdquo;geöffnet&ldquo; und auf
+            &bdquo;angenommen&ldquo;, wenn der Kunde zusagt.
           </Stand>
-          <Stand titel="lexoffice">
-            Kunde und Angebot anlegen, Rechnung und Zahlungsstatus zurücklesen.
-          </Stand>
-          <Stand titel="Küchen- und Serviceblatt">
-            Menüzahlen je Variante, Unverträglichkeiten, Tischplan zum Ausdrucken.
+          <Stand fertig titel="Küchen- und Serviceblatt">
+            Küchenblatt und Funktionsheet mit Menüzahlen je Variante, Unverträglichkeiten,
+            Logen und Tischen, alles zum Ausdrucken.
           </Stand>
           <Stand titel="Ditix">
             Firmentickets automatisch einbuchen, sobald der Zugang vom Entwicklerteam da ist.

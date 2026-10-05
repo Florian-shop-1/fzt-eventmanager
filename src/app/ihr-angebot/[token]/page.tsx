@@ -70,6 +70,16 @@ export default async function KundenAngebot({
   const gaeste = Math.max(0, ...haupt.map((p) => p.menge));
   const inLoge = gaeste >= 10;
 
+  /*
+    Fotos vom Essen, wenn ein Menue dabei ist.
+
+    Dieselbe Regel wie im PDF (siehe lib/angebot/pdfdaten.ts): Beim
+    Fingerfood waere eine Galerie mit Gaengen irrefuehrend. Die Bilder
+    sollen Lust auf den Abend machen, nicht etwas versprechen, das nicht
+    gebucht ist (Florian, 05.10.2026).
+  */
+  const mitMenue = !angebot.positionen.some((p) => p.artikelNummer === "FINGERFOOD");
+
   return (
     <div className={`${anzeige.variable} angebot-druck`}>
       {/* Bühne: das Erste, was der Kunde sieht. Dunkel, wie der Saal. */}
@@ -179,6 +189,32 @@ export default async function KundenAngebot({
             ))}
           </div>
         </section>
+
+        {/* Das Essen, Gang für Gang */}
+        {mitMenue && (
+          <section>
+            <Ueberschrift oben="Euer Menü" unten="Vier Gänge, frisch im Haus gekocht" />
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {[
+                ["suppe.webp", "Der Auftakt"],
+                ["salat.webp", "Frisch aus der Küche"],
+                ["classic.webp", "Magic Menü Classic"],
+                ["fish.webp", "Magic Menü Sea"],
+                ["veggy.webp", "Magic Menü Veggy"],
+                ["nachtisch.webp", "Zum Schluss"],
+              ].map(([datei, titel]) => (
+                <figure key={datei} className="overflow-hidden rounded-lg border border-linie bg-flaeche">
+                  <Bild datei={datei} alt={titel} hoehe="h-40" />
+                  <figcaption className="px-3 py-2 text-xs text-leise">{titel}</figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-leise">
+              Jeder an eurem Tisch wählt sein Menü selbst, auch vegetarisch oder ohne Fleisch und Fisch.
+              Was jemand nicht verträgt, sagt ihr uns vorher, dann kocht die Küche dafür.
+            </p>
+          </section>
+        )}
 
         {/* Der Platz im Saal */}
         <section>
