@@ -187,25 +187,37 @@ export default async function ParkplaetzeSeite({
           >
             {offeneBuchungen.length === 0 ? (
               <>
-                <strong>Alle Schilder sind gedruckt.</strong> Für diesen Abend ist nichts mehr zu tun.
+                <strong>Alle Schilder hängen.</strong> Für diesen Abend ist nichts mehr zu tun.
               </>
             ) : schonGedruckt === 0 ? (
               <>
-                <strong>Noch nichts gedruckt.</strong> Am besten schon am Tag vor der Show.
+                <strong>Noch kein Schild draußen.</strong> Drucken und aufstellen am besten schon am Tag
+                vor der Show.
               </>
             ) : (
               <>
                 <strong>
-                  {offeneBuchungen.length} {offeneBuchungen.length === 1 ? "Schild fehlt" : "Schilder fehlen"} noch.
+                  {offeneBuchungen.length} {offeneBuchungen.length === 1 ? "Schild fehlt" : "Schilder fehlen"} noch
+                  draußen.
                 </strong>{" "}
-                {schonGedruckt} {schonGedruckt === 1 ? "ist" : "sind"} schon gedruckt, die stehen unten mit Haken.
-                Bitte nur die offenen nachdrucken.
+                {schonGedruckt} {schonGedruckt === 1 ? "hängt" : "hängen"} schon, die stehen unten mit Haken.
+                Bitte nur die offenen drucken und aufstellen.
               </>
             )}
           </p>
           <p className="rounded-lg border border-linie px-4 py-3 text-sm text-leise">
             <strong>Beim Aufstellen:</strong> die Schilder von links nach rechts bestücken. Der Platz ganz
             rechts ist der schlechteste, der bleibt zuletzt.
+            <br />
+            {/*
+              Was der Haken bedeutet, steht dabei.
+
+              "erledigt heißt beim parkplatz es hängt auch wirklich
+              draussen" (Florian, 05.10.2026). Gedruckt allein reicht
+              nicht: Ein Stapel im Buero hilft dem Gast nicht.
+            */}
+            <strong>Erledigt</strong> heißt: Das Schild ist gedruckt <em>und</em> hängt draußen am Platz. Hast
+            du dich verklickt, nimmst du es mit „rückgängig“ wieder zurück.
           </p>
         </div>
       )}
@@ -276,7 +288,7 @@ export default async function ParkplaetzeSeite({
               <tr>
                 <th className="pb-1 font-medium">Kunde</th>
                 <th className="w-24 pb-1 text-right font-medium">Plätze</th>
-                <th className="w-48 pb-1 font-medium">Gedruckt</th>
+                <th className="w-52 pb-1 font-medium">Hängt draußen</th>
                 <th className="w-36 pb-1 font-medium">Schild</th>
                 <th className="w-32 pb-1 font-medium"></th>
               </tr>
@@ -326,7 +338,7 @@ export default async function ParkplaetzeSeite({
                         return (
                           <div className="flex flex-wrap items-center gap-2">
                             <span style={{ color: "var(--gut)" }}>
-                              ✓ {v.von || "erledigt"}, {datumKurz(v.am.slice(0, 10))}
+                              ✓ hängt · {v.von || "erledigt"}, {datumKurz(v.am.slice(0, 10))}
                             </span>
                             {darfParkplatzEintragen(ich) && (
                               <form action={schildAbhaken}>
@@ -336,7 +348,7 @@ export default async function ParkplaetzeSeite({
                                 <input type="hidden" name="name" value={b.name} />
                                 <input type="hidden" name="an" value="nein" />
                                 <button type="submit" className="text-leise underline">
-                                  zurück
+                                  rückgängig
                                 </button>
                               </form>
                             )}

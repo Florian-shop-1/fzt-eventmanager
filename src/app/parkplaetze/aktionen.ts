@@ -60,10 +60,12 @@ export async function parkplatzLoeschen(f: FormData): Promise<void> {
 }
 
 /**
- * Ein Schild als gedruckt abhaken, oder den Haken zuruecknehmen.
+ * Ein Schild abhaken, oder den Haken zuruecknehmen.
  *
- * Von Hand und nicht beim Drucken: Ob das Blatt wirklich aus dem Drucker
- * kam, weiss nur der, der es in der Hand haelt (Florian, 05.10.2026).
+ * Der Haken heisst: gedruckt UND draussen am Platz aufgehaengt
+ * (Florian, 05.10.2026). Deshalb von Hand und nicht beim Drucken, denn
+ * ein Stapel im Buero hilft dem Gast nicht. Zuruecknehmen geht jederzeit,
+ * ein Fehlklick soll niemanden festhalten.
  */
 export async function schildAbhaken(f: FormData): Promise<void> {
   const b = await zugang();
@@ -76,9 +78,9 @@ export async function schildAbhaken(f: FormData): Promise<void> {
 
   if (text(f, "an") === "nein") {
     await druckvermerkWeg(datum, orderId);
-    zurueck(abend, `${name || "Das Schild"} gilt wieder als nicht gedruckt.`);
+    zurueck(abend, `${name || "Das Schild"} gilt wieder als offen.`);
   }
 
   await alsGedrucktMerken({ datum, orderId, von: b.name });
-  zurueck(abend, `${name || "Schild"}: gedruckt, abgehakt.`);
+  zurueck(abend, `${name || "Schild"}: hängt draußen, abgehakt.`);
 }
