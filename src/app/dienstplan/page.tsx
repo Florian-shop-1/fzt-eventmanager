@@ -336,7 +336,7 @@ function ShowKarte({
         03.10.2026). Mit eigener Bezeichnung, damit alle wissen, wofuer
         die Person da ist.
       */}
-      {planer && (
+      {planer && !abgesagt && (
         <form action={zusatzEinteilen} className="flex flex-wrap items-end gap-2 border-b border-linie px-4 py-2 print:hidden">
           <input type="hidden" name="vorstellung" value={t.ditixEventId} />
           <input
@@ -394,6 +394,7 @@ function ShowKarte({
             slot={slot}
             eventId={t.ditixEventId}
             ich={ich}
+            abgesagt={abgesagt}
             planer={planer}
             personen={personen}
             abgemeldet={abgemeldet}
@@ -418,7 +419,8 @@ function SlotZeile({
   slot,
   eventId,
   ich,
-  planer,
+  abgesagt,
+  planer: planerRoh,
   personen,
   abgemeldet,
   schonDabei,
@@ -426,15 +428,28 @@ function SlotZeile({
   slot: Slot;
   eventId: string;
   ich: Person | null;
+  /** Diese Vorstellung ist storniert, siehe lib/absage. */
+  abgesagt: boolean;
   planer: boolean;
   personen: Person[];
   abgemeldet: Set<string>;
   schonDabei: boolean;
 }) {
+  /*
+    Bei einer stornierten Show gibt es nichts mehr zu planen.
+
+    Kein Einteilen, kein Anfragen, kein Entlasten: Die Show findet nicht
+    statt, und jeder Knopf hier würde jemandem sagen, er solle kommen
+    (Florian, 05.10.2026). Wer schon eingeteilt ist, bleibt sichtbar
+    stehen, damit nachvollziehbar ist, wer geplant war. Die Aktionen sind
+    zusätzlich serverseitig gesperrt (siehe aktionen.ts).
+  */
+  const planer = planerRoh && !abgesagt;
   const meins = Boolean(ich && slot.person?.id === ich.id);
-  const michGefragt = Boolean(ich && slot.angefragt?.id === ich.id);
+  const michGefragt = Boolean(ich && !abgesagt && slot.angefragt?.id === ich.id);
   const kannUebernehmen =
     ich &&
+    !abgesagt &&
     !meins &&
     darfUebernehmen(ich, slot.position, slot.fuer) &&
     slot.offen &&
@@ -446,6 +461,7 @@ function SlotZeile({
   */
   const kannMitlernen = Boolean(
     ich &&
+      !abgesagt &&
       !meins &&
       !schonDabei &&
       slot.position !== "SHADOW" &&
@@ -462,7 +478,7 @@ function SlotZeile({
     oder Kevin (Florian, 28.09.2026).
   */
   const kannUebernahmeAnbieten = Boolean(
-    ich && !meins && !michGefragt && !schonDabei && slot.person && !slot.offen,
+    ich && !abgesagt && !meins && !michGefragt && !schonDabei && slot.person && !slot.offen,
   );
   /*
     Freigabe noetig, wenn der bisherige fest angestellt ist oder wenn die

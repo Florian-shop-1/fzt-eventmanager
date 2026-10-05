@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen, type Rolle } from "@/lib/auth/sitzung";
+import { abgesagteEventIds } from "@/lib/absage/db";
 import { db } from "@/lib/db/client";
 import { findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
@@ -89,11 +90,30 @@ function zurueckZuKommentar(f: FormData, eventId: string, meldung: string): neve
   redirect(baue(eventId, meldung));
 }
 
+/*
+  Eine stornierte Vorstellung wird nicht mehr besetzt.
+
+  Niemand wird eingeteilt, niemand angefragt, niemand entlastet: Die Show
+  findet nicht statt, und jede Bewegung im Plan würde jemandem sagen, er
+  solle kommen (Florian, 05.10.2026). Die bestehende Einteilung bleibt
+  stehen, damit nachvollziehbar ist, wer geplant war.
+
+  Die Prüfung steht hier und nicht nur in der Anzeige: Eine Seite, die
+  vor der Absage geladen wurde, hat die Knöpfe sonst noch.
+*/
+async function nichtWennStorniert(eventId: string): Promise<void> {
+  const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
+  if (abgesagt.has(eventId)) {
+    zurueck(eventId, "Diese Vorstellung ist storniert. Hier wird niemand mehr eingeteilt.");
+  }
+}
+
 /** Lädt alles, was eine Aktion an einer Schicht braucht. */
 async function schichtLaden(f: FormData) {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/anmelden");
   const eventId = text(f, "vorstellung");
+  await nichtWennStorniert(eventId);
   const position = text(f, "position") as Position;
   if (!GUELTIG.includes(position)) throw new Error("Unbekannte Position.");
   const termin = await findeTermin(eventId);
@@ -766,6 +786,7 @@ export async function zusatzEinteilen(f: FormData): Promise<void> {
     throw new Error("Nicht erlaubt.");
   }
   const eventId = text(f, "vorstellung");
+  await nichtWennStorniert(eventId);
   const bezeichnung = text(f, "bezeichnung").slice(0, 80);
   const wert = text(f, "wert");
 

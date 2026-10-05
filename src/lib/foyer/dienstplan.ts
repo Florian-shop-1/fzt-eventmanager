@@ -26,6 +26,7 @@
  * (Florian, 25.09.2026).
  */
 
+import { abgesagteEventIds } from "@/lib/absage/db";
 import { db } from "@/lib/db/client";
 import { showtageAbHeute, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 
@@ -228,11 +229,24 @@ function plaetzeBauen(
 export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
   const bis = Date.now() + wochen * 7 * 86400000;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  const [termine, dienste] = await Promise.all([showtageAbHeute(400), diensteAb(heute)]);
+  const [termine, dienste, abgesagt] = await Promise.all([
+    showtageAbHeute(400),
+    diensteAb(heute),
+    abgesagteEventIds().catch(() => new Set<string>()),
+  ]);
 
+  /*
+    Stornierte Vorstellungen zaehlen nicht mehr.
+
+    Faellt die einzige Show des Tages aus, steht im Foyer niemand, und
+    dann wird dort auch niemand eingeteilt (Florian, 05.10.2026). Faellt
+    nur eine von zwei Shows aus, bleibt der Tag und die Zeiten richten
+    sich nach der Show, die stattfindet.
+  */
   const nachTag = new Map<string, Vorstellungstermin[]>();
   for (const t of termine) {
     if (t.beginn.getTime() > bis) continue;
+    if (abgesagt.has(t.ditixEventId)) continue;
     nachTag.set(t.datum, [...(nachTag.get(t.datum) ?? []), t]);
   }
 
