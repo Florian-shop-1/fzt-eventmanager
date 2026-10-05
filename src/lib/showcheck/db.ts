@@ -165,6 +165,17 @@ export interface Vorschlag {
   angelegtAm: string;
 }
 
+/**
+ * Derselbe Vorschlag zweimal ist keiner.
+ *
+ * Veronica hat ihren Vorschlag am 05.10.2026 im Abstand von drei
+ * Sekunden zweimal abgeschickt, weil nach dem ersten Tippen nichts
+ * sichtbar passierte. Auf dem Handy ist das der Normalfall, nicht die
+ * Ausnahme. Wortgleiches von derselben Person innerhalb einer
+ * Viertelstunde zählt deshalb als ein Vorschlag.
+ */
+const DOPPELT_MINUTEN = 15;
+
 export async function vorschlagSpeichern(o: {
   liste: Liste;
   text: string;
@@ -173,7 +184,14 @@ export async function vorschlagSpeichern(o: {
 }): Promise<void> {
   await db()`
     insert into checkliste_vorschlag (liste, text, von, benutzer_id)
-    values (${o.liste}, ${o.text}, ${o.von}, ${o.benutzerId})
+    select ${o.liste}, ${o.text}, ${o.von}, ${o.benutzerId}
+     where not exists (
+       select 1 from checkliste_vorschlag v
+        where v.liste = ${o.liste}
+          and v.text = ${o.text}
+          and coalesce(v.von, '') = ${o.von}
+          and v.angelegt_am > now() - make_interval(mins => ${DOPPELT_MINUTEN})
+     )
   `;
 }
 

@@ -42,3 +42,5 @@ next-env.d.ts
 
 # Die Vorlage ohne echte Zugangsdaten gehoert ins Repository.
 !.env.example
+
+.vercel
