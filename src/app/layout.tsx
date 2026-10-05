@@ -98,8 +98,6 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
         nicht hinter Tipps & Tricks.
       */
       { href: "/showcheck", label: "Show-Check", rollen: ["chef", "team", "showteam"] },
-      // Die To-do-Liste des Foyers, dasselbe Prinzip (Florian, 05.10.2026).
-      { href: "/foyer/check", label: "Foyer-Check", rollen: ["chef", "team", "foyer"] },
       { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
       { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
@@ -147,6 +145,13 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
     titel: "Foyer",
     punkte: [
       { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
+      /*
+        Die To-do-Liste des Foyers, nach demselben Muster wie der
+        Show-Check. Sie stand zuerst unter "Show", und dort sucht sie
+        niemand: Wer im Foyer arbeitet, schaut unter Foyer
+        (Florian, 05.10.2026).
+      */
+      { href: "/foyer/check", label: "Foyer-Check", rollen: ["chef", "team", "foyer"] },
       { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
       { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
       { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
