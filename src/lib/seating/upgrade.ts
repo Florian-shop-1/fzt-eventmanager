@@ -838,3 +838,16 @@ export function gaestePlaetze(
   }
   return ergebnis;
 }
+
+/**
+ * Wie lange vor der Show umgesetzt und durch-x-t werden darf.
+ *
+ * Vorher waren es 30 Minuten, also der Moment der Saaloeffnung. Das war
+ * zu knapp: Wer vorbereiten will, steht dann schon mit den ersten
+ * Gaesten im Saal. Jetzt eine Stunde (Florian, 05.10.2026).
+ *
+ * Steht an einer Stelle, weil zwei Seiten danach fragen: die Tafel im
+ * Browser und die Adresse, die speichert. Liefen sie auseinander, wuerde
+ * ein Tablet tippen duerfen und der Server es ablehnen.
+ */
+export const UMSETZEN_AB_MINUTEN = 60;

@@ -8,6 +8,7 @@ import {
   gaestePlaetze,
   mussFreiBleiben,
   nebenDemZuschauer,
+  UMSETZEN_AB_MINUTEN,
   type Bereich,
   type Empfehlung,
 } from "@/lib/seating/upgrade";
@@ -276,7 +277,7 @@ export default async function UpgradeSeite({
       {plan && rat && vorstellung && (
         <UpgradeTafel
           eventId={vorstellung.ditixEventId}
-          abZeitpunkt={new Date(vorstellung.beginn.getTime() - 30 * 60000).toISOString()}
+          abZeitpunkt={new Date(vorstellung.beginn.getTime() - UMSETZEN_AB_MINUTEN * 60000).toISOString()}
           showBeginn={vorstellung.uhrzeit}
           sitze={tafelSitze(plan, rat)}
           gruppen={tafelGruppen(rat, gaeste, vorschlaege)}

@@ -4,6 +4,7 @@ import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { umsetzungEntfernen, umsetzungSpeichern } from "@/lib/db/upgradeumsetzung";
 import { platzEintragen } from "@/lib/db/gaesteliste";
 import { findeTermin } from "@/lib/ditix/spielplan";
+import { UMSETZEN_AB_MINUTEN } from "@/lib/seating/upgrade";
 
 /**
  * Der Einlass setzt am Tablet eine Gruppe um.
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
   }
 
   /*
-    Umgesetzt wird erst bei Saalöffnung, eine halbe Stunde vor der Show
-    (Florian, 22.09.2026). Geprüft wird hier und nicht nur im Browser:
+    Umgesetzt wird erst eine Stunde vor der Show (Florian, 05.10.2026;
+    vorher war es die halbe Stunde bis zur Saalöffnung). Geprüft wird hier und nicht nur im Browser:
     Sonst hätte ein Tablet mit falscher Uhr wieder Tage vorher verschoben.
 
     Ausnahme: der Testmodus auf der Upgrades-Seite, und den dürfen
@@ -50,14 +51,14 @@ export async function POST(request: Request) {
   */
   const testErlaubt = Boolean(d.test) && darfEinladen(b);
   const termin = testErlaubt ? null : await findeTermin(d.eventId).catch(() => null);
-  if (termin && Date.now() < termin.beginn.getTime() - 30 * 60000) {
-    const ab = new Date(termin.beginn.getTime() - 30 * 60000).toLocaleTimeString("de-DE", {
+  if (termin && Date.now() < termin.beginn.getTime() - UMSETZEN_AB_MINUTEN * 60000) {
+    const ab = new Date(termin.beginn.getTime() - UMSETZEN_AB_MINUTEN * 60000).toLocaleTimeString("de-DE", {
       timeZone: "Europe/Berlin",
       hour: "2-digit",
       minute: "2-digit",
     });
     return NextResponse.json(
-      { ok: false, fehler: `Umgesetzt wird erst ab ${ab} Uhr, wenn der Saal öffnet.` },
+      { ok: false, fehler: `Umgesetzt wird erst ab ${ab} Uhr, eine Stunde vor der Show.` },
       { status: 403 },
     );
   }

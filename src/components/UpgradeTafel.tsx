@@ -80,7 +80,7 @@ interface Props {
   /** Von Hand durch-x-te Sitz-Kennungen: die Vorstufe zum späteren Scanner. */
   eingecheckteIds: number[];
   zone: { links: number; rechts: number; oben: number; unten: number };
-  /** Ab wann umgesetzt werden darf: eine halbe Stunde vor der Show. */
+  /** Ab wann umgesetzt werden darf: eine Stunde vor der Show. */
   abZeitpunkt?: string;
   /** Beginn der Show, für den Hinweis. */
   showBeginn?: string;
@@ -184,8 +184,8 @@ export function UpgradeTafel({
   const [lob, setLob] = useState<string | null>(null);
 
   /*
-    Umgesetzt wird erst bei Saalöffnung, also eine halbe Stunde vor der
-    Show (Florian, 22.09.2026). Vorher ist der Plan zum Anschauen da: Wer
+    Umgesetzt wird erst eine Stunde vor der Show (Florian, 05.10.2026;
+    vorher war es die halbe Stunde bis zur Saalöffnung). Vorher ist der Plan zum Anschauen da: Wer
     Tage vorher etwas verschiebt, hat am Abend einen Plan, der nicht zur
     Wirklichkeit passt. Der Server hat schon gerechnet, ob es so weit ist;
     der Timer schaltet die Seite frei, sobald es so weit wird.
@@ -570,7 +570,7 @@ export function UpgradeTafel({
   async function setzen(g: TafelGruppe, block: TafelSitz[]) {
     if (laeuft) return;
     if (!frei) {
-      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, eine Stunde vor der Show.`);
       return;
     }
     setLaeuft(true);
@@ -709,7 +709,7 @@ export function UpgradeTafel({
   async function toggleEinchecken(sitzId: number) {
     if (laeuft) return;
     if (!frei) {
-      setHinweis(`Eingecheckt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      setHinweis(`Eingecheckt wird erst ab ${abUhr} Uhr, eine Stunde vor der Show.`);
       return;
     }
     const drin = eingecheckt.has(sitzId);
@@ -796,7 +796,7 @@ export function UpgradeTafel({
       return;
     }
     if (!frei) {
-      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
+      setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, eine Stunde vor der Show.`);
       return;
     }
 
@@ -1056,7 +1056,7 @@ export function UpgradeTafel({
         >
           <strong>Übungsmodus. Hier wird nichts gespeichert.</strong> Du kannst alles ausprobieren:
           Gruppen aufnehmen, umsetzen, durch-x-en, zurücknehmen. Niemand sonst sieht davon etwas, und
-          beim Beenden ist alles wieder wie vorher. Echt gilt es erst ab Einlass
+          beim Beenden ist alles wieder wie vorher. Echt gilt es ab einer Stunde vor der Show
           {abUhr ? `, also ab ${abUhr} Uhr` : ""}.
         </p>
       )}
@@ -1075,8 +1075,8 @@ export function UpgradeTafel({
           className="rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
-          <strong>Ab {abUhr} Uhr geht es los.</strong> Umsetzen und Durch-x-en sind bis zur
-          Saalöffnung gesperrt, damit der Plan bis dahin so bleibt, wie er geplant ist. Die
+          <strong>Ab {abUhr} Uhr geht es los.</strong> Umsetzen und Durch-x-en sind bis eine Stunde
+          vor der Show gesperrt, damit der Plan bis dahin so bleibt, wie er geplant ist. Die
           Seite schaltet sich von selbst frei, du musst nicht neu laden. Zum Ausprobieren gibt es
           oben den Knopf „Üben“: Dabei wird nichts gespeichert.
         </p>
