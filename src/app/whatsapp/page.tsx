@@ -123,10 +123,29 @@ export default async function WhatsAppSeite({
  * liest: Im Posteingang überfliegt man die Liste (Florian, 24.09.2026).
  */
 const KANAL_FARBE: Record<string, { grund: string; schrift: string; text: string }> = {
+  whatsapp: { grund: "var(--gut-hell)", schrift: "var(--gut)", text: "WhatsApp" },
   bewertung: { grund: "var(--blocker-hell)", schrift: "var(--blocker)", text: "Bewertung" },
   abbrecher: { grund: "#f7e4ec", schrift: "#a03a67", text: "Warenkorb" },
   webseite: { grund: "var(--gold-hell)", schrift: "var(--gold-dunkel)", text: "Webseite" },
 };
+
+/*
+  Auf welchem Weg der Gast geschrieben hat, in einem Satz.
+
+  Das Kennzeichen oben ist kurz, und kurz heisst hier mehrdeutig: "Was
+  ist eine Bewertung, kam die per Mail?" (Florian, 05.10.2026). Deshalb
+  steht der Weg einmal im Klartext dabei, bevor jemand antwortet.
+*/
+const KANAL_SATZ: Record<string, string> = {
+  whatsapp: "Kam per WhatsApp",
+  webseite: "Kam über das Kontaktformular auf der Webseite",
+  bewertung: "Kam über die Bewertung nach der Show",
+  abbrecher: "Kam über einen liegengebliebenen Warenkorb im Shop",
+};
+
+function kanalSatz(kanal: string): string {
+  return KANAL_SATZ[kanal] ?? "Kam über die Webseite";
+}
 
 function Kanal({ kanal }: { kanal: Unterhaltung["kanal"] }) {
   const f = KANAL_FARBE[kanal] ?? KANAL_FARBE.webseite;
@@ -302,7 +321,7 @@ function Liste({
           <div className="flex items-baseline justify-between gap-2">
             <span className={`truncate ${u.ungelesen ? "font-semibold" : ""}`}>
               {name(u)}
-              {u.kanal !== "whatsapp" && <Kanal kanal={u.kanal} />}
+              <Kanal kanal={u.kanal} />
             </span>
             <span className="shrink-0 text-xs text-leise">
               {u.letzteNachrichtAm ? vorZeit(u.letzteNachrichtAm) : ""}
@@ -354,9 +373,8 @@ function Verlauf({
             Alle
           </Link>
           <span className="font-semibold">{name(unterhaltung)}</span>
-          {unterhaltung.kanal !== "whatsapp" ? (
-            <Kanal kanal={unterhaltung.kanal} />
-          ) : istNummer(unterhaltung.waId) ? (
+          <Kanal kanal={unterhaltung.kanal} />
+          {unterhaltung.kanal !== "whatsapp" ? null : istNummer(unterhaltung.waId) ? (
             <a
               href={`https://wa.me/${unterhaltung.waId}`}
               className="ml-2 text-sm text-leise hover:underline"
@@ -393,7 +411,13 @@ function Verlauf({
         </div>
       </header>
 
-      {unterhaltung.kanal !== "whatsapp" && <Kontaktdaten u={unterhaltung} />}
+      {unterhaltung.kanal === "whatsapp" ? (
+        <p className="border-b border-linie bg-hintergrund px-4 py-2 text-sm text-leise">
+          {kanalSatz(unterhaltung.kanal)}. Eine Antwort von hier geht auch per WhatsApp hinaus.
+        </p>
+      ) : (
+        <Kontaktdaten u={unterhaltung} />
+      )}
 
       <div className="flex max-h-[60vh] min-h-64 flex-col-reverse gap-2 overflow-y-auto px-4 py-4">
         {umgekehrt.map((n, i) => {
@@ -554,6 +578,7 @@ function Antwortfeld({
 function Kontaktdaten({ u }: { u: Unterhaltung }) {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-1 border-b border-linie bg-hintergrund px-4 py-2 text-sm">
+      <span className="text-leise">{kanalSatz(u.kanal)}</span>
       <span>
         <span className="text-leise">Wünscht sich: </span>
         <strong>{u.rueckweg === "anruf" ? "Rückruf" : "Antwort per Mail"}</strong>
