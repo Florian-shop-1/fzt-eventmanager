@@ -72,6 +72,17 @@ export default async function ShowcheckSeite({
   const vorstellung = tag?.shows.find((sh) => sh.ditixEventId === gezeigteShow) ?? null;
   const punkte = gezeigteShow ? await checkliste(gezeigteShow) : [];
 
+  /*
+    Die Liste gehoert zur ULMFASSBAR.
+
+    Sie ist an deren Ablauf geschrieben: Klappe, Schweben, Kerze, die
+    Handgriffe dieser Show. Fuer Flo-Zirkus und Magic Memories kommen
+    eigene Listen, die gibt es noch nicht (Florian, 05.10.2026). Bis
+    dahin sagt die Seite es dazu, damit niemand an der falschen Show
+    Haken setzt.
+  */
+  const fuerUlmfassbar = /ulmfassbar/i.test(vorstellung?.name ?? tag?.name ?? "");
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -79,6 +90,10 @@ export default async function ShowcheckSeite({
         <p className="mt-1 max-w-prose text-sm text-leise">
           Die drei Listen des Abends. Jeder Haken gilt für diese eine Vorstellung und zeigt den anderen,
           dass es erledigt ist.
+        </p>
+        <p className="mt-2 max-w-prose text-sm text-leise">
+          Diese Liste gehört zur <strong>ULMFASSBAR</strong>. Für Flo-Zirkus und Magic Memories
+          erstellen wir noch eigene Listen.
         </p>
       </header>
 
@@ -109,6 +124,17 @@ export default async function ShowcheckSeite({
             </strong>{" "}
             <span className="text-leise">{vorstellung?.name ?? tag.name}</span>
           </p>
+
+          {!fuerUlmfassbar && (
+            <p
+              className="rounded-lg border px-4 py-3 text-sm"
+              style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+            >
+              <strong>Achtung, das ist keine ULMFASSBAR.</strong> Die Punkte unten sind an deren Ablauf
+              geschrieben. Für {vorstellung?.name ?? tag.name} gibt es noch keine eigene Liste, die kommt
+              noch. Hak hier nur ab, was an diesem Abend wirklich passt.
+            </p>
+          )}
 
           {/*
             Zwei Vorstellungen an einem Tag: jede hat ihre eigene Liste.
