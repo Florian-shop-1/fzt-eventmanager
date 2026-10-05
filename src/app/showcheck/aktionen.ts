@@ -87,7 +87,8 @@ function listeAus(f: FormData): Liste {
 export async function vorschlagEinreichen(f: FormData): Promise<void> {
   const b = await zugang();
   const liste = listeAus(f);
-  const neu = text(f, "text", 300);
+  // Platz fuer einen ganzen Satz, nicht nur fuer ein Stichwort.
+  const neu = text(f, "text", 1000);
   if (neu.length >= 3) {
     await vorschlagSpeichern({ liste, text: neu, von: b.name, benutzerId: b.id });
   }

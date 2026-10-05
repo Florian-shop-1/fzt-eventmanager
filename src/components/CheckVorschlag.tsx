@@ -44,15 +44,25 @@ export function CheckVorschlag({
         vergisst du bis zum nächsten Mal wieder.
       </p>
 
-      <form action={einreichen} className="mt-3 flex flex-wrap items-end gap-2">
+      {/*
+        Ein mehrzeiliges Feld, kein schmaler Einzeiler.
+
+        Im Einzeiler lief der Satz nach links aus dem Bild, und wer einen
+        ganzen Vorschlag schreibt, sieht seinen Anfang nicht mehr: "Ganz
+        hinten, ich komm aber auch nicht mehr vor" (Mitarbeiterin im
+        Foyer, 05.10.2026). Auf dem Handy, mit halber Tastatur im Weg,
+        ist das unbrauchbar.
+      */}
+      <form action={einreichen} className="mt-3 space-y-2">
         <input type="hidden" name="liste" value={liste} />
         <input type="hidden" name="abend" value={abend} />
-        <input
+        <textarea
           name="text"
-          maxLength={300}
+          rows={3}
+          maxLength={1000}
           required
-          placeholder="Verbesserung vorschlagen"
-          className="min-w-[18rem] flex-1 text-sm"
+          placeholder="Zum Beispiel: Beim eingestellten Timer schaltet sich der Ofen nicht ein."
+          className="w-full rounded-md border border-linie px-3 py-2 text-sm"
         />
         <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
           Abschicken
