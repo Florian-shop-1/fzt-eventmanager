@@ -465,17 +465,51 @@ export function UpgradeTafel({
     ];
   }, [alleGruppen, gesetzt]);
 
+  /*
+    Wer einzeln geht, behaelt seinen Buchstaben.
+
+    Eine herausgeloeste Person war bisher eine neue Gruppe und bekam
+    deshalb einen neuen Buchstaben: Am Einlass stand ploetzlich ein H im
+    Plan, das vorher niemand kannte (Florian, 05.10.2026: "lass doch die
+    Buchstaben so"). Jetzt erbt sie Buchstabe und Farbe von der Gruppe,
+    aus der sie kommt.
+  */
+  const herkunftVon = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of gruppen) {
+      for (const id of g.quelleIds) m.set(einzelSchluessel(id), g.schluessel);
+    }
+    return m;
+  }, [gruppen]);
+
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
-    bunte.forEach((g, i) => m.set(g.schluessel, g.buchstabe ?? String.fromCharCode(65 + (i % 26))));
+    bunte.forEach((g, i) => {
+      if (einzelPlatz(g.schluessel) !== null) return;
+      m.set(g.schluessel, g.buchstabe ?? String.fromCharCode(65 + (i % 26)));
+    });
+    for (const g of bunte) {
+      if (einzelPlatz(g.schluessel) === null) continue;
+      const her = herkunftVon.get(g.schluessel);
+      const geerbt = her ? m.get(her) : undefined;
+      m.set(g.schluessel, geerbt ?? "·");
+    }
     return m;
-  }, [bunte]);
+  }, [bunte, herkunftVon]);
 
   const farbeVon = useMemo(() => {
     const m = new Map<string, string>();
-    bunte.forEach((g, i) => m.set(g.schluessel, FARBEN[i % FARBEN.length]));
+    bunte.forEach((g, i) => {
+      if (einzelPlatz(g.schluessel) !== null) return;
+      m.set(g.schluessel, FARBEN[i % FARBEN.length]);
+    });
+    for (const g of bunte) {
+      if (einzelPlatz(g.schluessel) === null) continue;
+      const her = herkunftVon.get(g.schluessel);
+      m.set(g.schluessel, (her ? m.get(her) : undefined) ?? "var(--text)");
+    }
     return m;
-  }, [bunte]);
+  }, [bunte, herkunftVon]);
 
   const vorlageVon = useMemo(() => {
     const m = new Map<number, TafelGruppe>();
@@ -709,6 +743,27 @@ export function UpgradeTafel({
       return;
     }
 
+    /*
+      Der Vorschlag gewinnt, wenn man ihn antippt.
+
+      Eine Achtergruppe sitzt besser als Block auf zwei Reihen als in
+      einer langen Zeile. Genau das zeigt der Vorschlag, und bisher hat
+      ihn das Antippen ignoriert: Die Gruppe landete am Stueck in einer
+      Reihe, obwohl der Block daneben gestrichelt stand (Florian,
+      05.10.2026: "wäre doch viel besser, wenn du die in dem
+      vorgeschlagenen block packst").
+
+      Tippt man dagegen irgendwo anders hin, bleibt es beim Platz ab dem
+      Finger: Von Hand soll weiter von Hand gehen.
+    */
+    if (gruppe) {
+      const vorgeschlagen = vorschlagBlock(gruppe);
+      if (vorgeschlagen && vorgeschlagen.some((x) => x.id === s.id)) {
+        void setzen(gruppe, vorgeschlagen);
+        return;
+      }
+    }
+
     const start = starts.get(s.id);
     if (start && gruppe) {
       void setzen(gruppe, start);
@@ -901,6 +956,26 @@ export function UpgradeTafel({
           Durch-x-en
         </button>
       </div>
+
+      {/*
+        Die Sperre steht vorne, nicht erst nach dem Tippen.
+
+        Umgesetzt und durch-x-t wird erst ab Saaloeffnung. Bisher merkte
+        man das erst, wenn man schon auf einen Platz getippt hatte, und
+        wer die Meldung uebersah, hielt die Seite fuer kaputt
+        ("durch-x-en ging nicht", Mario, 05.10.2026). Jetzt steht es da,
+        bevor jemand tippt, samt Uhrzeit.
+      */}
+      {!offen && abUhr && (
+        <p
+          className="rounded-md border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>Ab {abUhr} Uhr geht es los.</strong> Umsetzen und Durch-x-en sind bis zur
+          Saalöffnung gesperrt, damit der Plan bis dahin so bleibt, wie er geplant ist. Die
+          Seite schaltet sich von selbst frei, du musst nicht neu laden.
+        </p>
+      )}
 
       <div
         className="sticky top-0 z-10 rounded-xl border-2 px-4 py-3"

@@ -378,6 +378,15 @@ export function darfSeite(rolle: Rolle, pfad: string): boolean {
       pfad.startsWith("/upgrades") ||
       pfad.startsWith("/hoerezu") ||
       pfad.startsWith("/tipps") ||
+      /*
+        Der Show-Check gehoert dem Showteam.
+
+        Er stand im Menue, aber nicht in dieser Liste: Wer die Seite neu
+        lud, landete auf der Startseite, und nur der Weg ueber das Menue
+        funktionierte (gefunden am 05.10.2026). Abgehakt wird von denen,
+        die am Abend arbeiten, also muessen sie auch hinkommen.
+      */
+      pfad.startsWith("/showcheck") ||
       pfad.startsWith("/konto") ||
       pfad.startsWith("/geheimhaltung")
     );

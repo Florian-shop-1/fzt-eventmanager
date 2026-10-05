@@ -98,6 +98,8 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
         nicht hinter Tipps & Tricks.
       */
       { href: "/showcheck", label: "Show-Check", rollen: ["chef", "team", "showteam"] },
+      // Die To-do-Liste des Foyers, dasselbe Prinzip (Florian, 05.10.2026).
+      { href: "/foyer/check", label: "Foyer-Check", rollen: ["chef", "team", "foyer"] },
       { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
       { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },

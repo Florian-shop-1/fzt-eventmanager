@@ -5,8 +5,16 @@ import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { ShowcheckListe } from "@/components/ShowcheckListe";
-import { BEREICHE, BEREICH_TITEL, checkliste, type Bereich, type Punkt } from "@/lib/showcheck/db";
-import { punktDazu, punktEntfernen, punktUmbenennen } from "./aktionen";
+import {
+  BEREICHE,
+  BEREICH_TITEL,
+  checkliste,
+  offeneVorschlaege,
+  type Bereich,
+  type Punkt,
+} from "@/lib/showcheck/db";
+import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "./aktionen";
+import { CheckVorschlag } from "@/components/CheckVorschlag";
 
 export const metadata = { title: "Show-Check | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -81,6 +89,8 @@ export default async function ShowcheckSeite({
     dahin sagt die Seite es dazu, damit niemand an der falschen Show
     Haken setzt.
   */
+  const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege("show") : [];
+
   const fuerUlmfassbar = /ulmfassbar/i.test(vorstellung?.name ?? tag?.name ?? "");
 
   return (
@@ -172,6 +182,15 @@ export default async function ShowcheckSeite({
               chef={b.rolle === "chef"}
             />
           ))}
+
+          <CheckVorschlag
+            liste="show"
+            abend={gezeigteShow ?? ""}
+            vorschlaege={vorschlaege}
+            chef={b.rolle === "chef"}
+            einreichen={vorschlagEinreichen}
+            abhaken={vorschlagAbhaken}
+          />
         </>
       )}
     </div>

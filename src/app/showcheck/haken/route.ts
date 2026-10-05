@@ -17,8 +17,12 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const b = await angemeldeterBenutzer();
   if (!b) return NextResponse.json({ ok: false, fehler: "Bitte neu anmelden." }, { status: 401 });
-  if (!["chef", "team", "showteam"].includes(b.rolle)) {
-    return NextResponse.json({ ok: false, fehler: "Die Show-Checkliste ist für das Showteam." }, { status: 403 });
+  // Dieselbe Route fuer beide Listen: Das Foyer hakt seine eigene ab.
+  if (!["chef", "team", "showteam", "foyer"].includes(b.rolle)) {
+    return NextResponse.json(
+      { ok: false, fehler: "Die Checklisten sind für das Show- und Foyerteam." },
+      { status: 403 },
+    );
   }
 
   const d = (await request.json().catch(() => null)) as

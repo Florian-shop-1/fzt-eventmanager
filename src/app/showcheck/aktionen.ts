@@ -11,7 +11,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { haken, hakenWeg, punktAendern, punktAnlegen, punktWeg, type Bereich } from "@/lib/showcheck/db";
+import {
+  haken,
+  hakenWeg,
+  punktAendern,
+  punktAnlegen,
+  punktWeg,
+  vorschlagErledigt,
+  vorschlagSpeichern,
+  type Bereich,
+  type Liste,
+} from "@/lib/showcheck/db";
 
 const text = (f: FormData, k: string, max = 300) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -19,15 +29,19 @@ async function zugang() {
   const b = await angemeldeterBenutzer();
   if (!b) throw new Error("Bitte neu anmelden.");
   // Abhaken darf, wer am Abend arbeitet: Showteam, Büro, Chef.
-  if (!["chef", "team", "showteam"].includes(b.rolle)) {
-    throw new Error("Die Show-Checkliste ist für das Showteam.");
+  if (!["chef", "team", "showteam", "foyer"].includes(b.rolle)) {
+    throw new Error("Die Checklisten sind für das Show- und Foyerteam.");
   }
   return b;
 }
 
-function zurueck(abend: string): never {
-  revalidatePath("/showcheck");
-  redirect(`/showcheck?abend=${encodeURIComponent(abend)}`);
+function zurueck(abend: string, liste: Liste = "show", meldung = ""): never {
+  const pfad = liste === "foyer" ? "/foyer/check" : "/showcheck";
+  revalidatePath(pfad);
+  redirect(
+    `${pfad}?abend=${encodeURIComponent(abend)}` +
+      (meldung ? `&meldung=${encodeURIComponent(meldung)}` : ""),
+  );
 }
 
 export async function punktHaken(f: FormData): Promise<void> {
@@ -54,19 +68,47 @@ export async function punktDazu(f: FormData): Promise<void> {
   await nurChef();
   const bereich = text(f, "bereich", 20) as Bereich;
   const neu = text(f, "text", 300);
-  if (neu) await punktAnlegen(bereich, neu);
-  zurueck(text(f, "abend", 60));
+  if (neu) await punktAnlegen(bereich, neu, listeAus(f));
+  zurueck(text(f, "abend", 60), listeAus(f));
+}
+
+/** "show" oder "foyer". Alles andere ist die Show. */
+function listeAus(f: FormData): Liste {
+  return text(f, "liste", 10) === "foyer" ? "foyer" : "show";
+}
+
+/**
+ * Ein Vorschlag fuer die Liste.
+ *
+ * Einreichen darf jeder, der die Liste abhakt: Wer am Abend arbeitet,
+ * merkt als Erster, wenn etwas fehlt (Florian, 05.10.2026). Uebernommen
+ * wird nichts automatisch, Florian liest sie.
+ */
+export async function vorschlagEinreichen(f: FormData): Promise<void> {
+  const b = await zugang();
+  const liste = listeAus(f);
+  const neu = text(f, "text", 300);
+  if (neu.length >= 3) {
+    await vorschlagSpeichern({ liste, text: neu, von: b.name, benutzerId: b.id });
+  }
+  zurueck(text(f, "abend", 60), liste, neu.length >= 3 ? "Danke, der Vorschlag ist notiert." : "");
+}
+
+export async function vorschlagAbhaken(f: FormData): Promise<void> {
+  const b = await nurChef();
+  await vorschlagErledigt(text(f, "id", 40), b.name);
+  zurueck(text(f, "abend", 60), listeAus(f));
 }
 
 export async function punktUmbenennen(f: FormData): Promise<void> {
   await nurChef();
   const neu = text(f, "text", 300);
   if (neu) await punktAendern(text(f, "punkt", 40), neu);
-  zurueck(text(f, "abend", 60));
+  zurueck(text(f, "abend", 60), listeAus(f));
 }
 
 export async function punktEntfernen(f: FormData): Promise<void> {
   await nurChef();
   await punktWeg(text(f, "punkt", 40));
-  zurueck(text(f, "abend", 60));
+  zurueck(text(f, "abend", 60), listeAus(f));
 }
