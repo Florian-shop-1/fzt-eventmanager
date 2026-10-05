@@ -55,8 +55,13 @@ export function darfBuchhaltung(b: { rolle: Rolle; email: string } | null | unde
  * Die Gastronomie und der Food-Kiosk gehören zu einem anderen Betrieb,
  * Freelancer schreiben Rechnungen statt Stunden. Beide stempeln nicht.
  */
-export function darfStempeln(b: { rolle: Rolle; art?: "intern" | "extern" | null } | null | undefined): boolean {
+export function darfStempeln(
+  b: { rolle: Rolle; art?: "intern" | "extern" | null; geteilt?: boolean } | null | undefined,
+): boolean {
   if (!b) return false;
+  // Ein geteilter Zugang gehoert keiner Person. Arbeitszeit auf ihn zu
+  // buchen waere niemandem zuzuordnen (Florian, 05.10.2026).
+  if (b.geteilt) return false;
   if (b.art === "extern") return false;
   return !["kiosk", "gastro"].includes(b.rolle);
 }
@@ -140,6 +145,16 @@ export interface AngemeldeterBenutzer {
   art: "intern" | "extern" | null;
   /** Wann der Personalbogen an das Lohnbüro ging. */
   personalbogenAm: string | null;
+  /**
+   * Ein geteilter Zugang, der niemandem persoenlich gehoert.
+   *
+   * Am Abend steht ein Tablet im Foyer und eines hinter der Buehne, und
+   * dort meldet sich niemand mit seiner Mailadresse an (Florian,
+   * 05.10.2026). Daran haengt alles Weitere: kein Stempeln, kein
+   * Personalbogen, keine Erinnerungen, und nur die Seiten, die am Abend
+   * gebraucht werden. Siehe GETEILTE_SEITEN.
+   */
+  geteilt: boolean;
 }
 
 function geheimnis(): string {
@@ -216,7 +231,8 @@ export const angemeldeterBenutzer = cache(async function angemeldeterBenutzer():
 
   try {
     const zeilen = (await db()`
-      select id, name, email, rolle, aktiv, muss_passwort_aendern, whatsapp, art, personalbogen_am
+      select id, name, email, rolle, aktiv, muss_passwort_aendern, whatsapp, art, personalbogen_am,
+             coalesce(geteilt, false) as geteilt
         from benutzer where id = ${id}
     `) as Array<Record<string, unknown>>;
 
@@ -229,6 +245,7 @@ export const angemeldeterBenutzer = cache(async function angemeldeterBenutzer():
       name: String(b.name),
       email: String(b.email),
       rolle: b.rolle as Rolle,
+      geteilt: b.geteilt === true,
       mussPasswortAendern: b.muss_passwort_aendern === true,
       whatsapp: b.whatsapp === true,
       art: (b.art as "intern" | "extern" | null) ?? null,
@@ -281,7 +298,26 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
 }
 
 /** Seiten, die eine Rolle aufrufen darf. */
-export function darfSeite(rolle: Rolle, pfad: string): boolean {
+/**
+ * Was ein geteilter Zugang sehen darf.
+ *
+ * Bewusst knapp und bewusst ohne Checklisten: Wer abhakt, soll
+ * nachvollziehbar sein, und ein Sammelzugang ist das nicht (Florian,
+ * 05.10.2026). Auch kein Dienstplan, keine Personalsachen, kein Stempeln.
+ */
+const GETEILTE_SEITEN: Record<string, string[]> = {
+  // Foyer: Parkplatzschilder drucken, Geschenke nachsehen, Karten scannen.
+  foyer: ["/parkplaetze", "/geschenke", "/scanner"],
+  // Show: der Abend im Saal.
+  showteam: ["/upgrades", "/hoerezu", "/tipps"],
+};
+
+export function darfSeite(rolle: Rolle, pfad: string, geteilt = false): boolean {
+  if (geteilt) {
+    const erlaubt = GETEILTE_SEITEN[rolle] ?? [];
+    return pfad === "/" || erlaubt.some((o) => pfad.startsWith(o));
+  }
+
   // Der WhatsApp-Posteingang hängt nicht an der Rolle, sondern an einer
   // Freigabe pro Person (Sarah ist Foyer und braucht ihn trotzdem). Die
   // Seite prüft die Freigabe selbst, hier wird nur nicht vorher umgeleitet.

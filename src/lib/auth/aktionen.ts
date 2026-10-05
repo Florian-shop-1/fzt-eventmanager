@@ -40,20 +40,29 @@ export async function anmelden(
   _vorher: AnmeldeErgebnis,
   formData: FormData,
 ): Promise<AnmeldeErgebnis> {
-  const email = text(formData, "email").toLowerCase();
+  const kennung = text(formData, "email").toLowerCase();
   const passwort = String(formData.get("passwort") ?? "");
 
-  if (!email || !passwort) {
-    return { fehler: "Bitte E-Mail und Passwort eingeben." };
+  if (!kennung || !passwort) {
+    return { fehler: "Bitte Zugang und Passwort eingeben." };
   }
 
+  /*
+    Mailadresse oder Benutzername.
+
+    Die geteilten Zugaenge im Foyer und hinter der Buehne melden sich als
+    "Foyer" und "Show" an, nicht mit einer Mailadresse (Florian,
+    05.10.2026). Beides geht durch dasselbe Feld, der Rest bleibt gleich.
+  */
   const zeilen = (await db()`
-    select id, passwort_hash, aktiv from benutzer where lower(email) = ${email}
+    select id, passwort_hash, aktiv from benutzer
+     where lower(email) = ${kennung} or lower(benutzername) = ${kennung}
+     limit 1
   `) as Array<{ id: string; passwort_hash: string | null; aktiv: boolean }>;
 
   // Absichtlich dieselbe Meldung für "Benutzer unbekannt" und "Passwort
   // falsch": sonst ließe sich herausfinden, welche Adressen existieren.
-  const abgelehnt = { fehler: "E-Mail oder Passwort stimmt nicht." };
+  const abgelehnt = { fehler: "Zugang oder Passwort stimmt nicht." };
 
   if (zeilen.length === 0) return abgelehnt;
   const b = zeilen[0];

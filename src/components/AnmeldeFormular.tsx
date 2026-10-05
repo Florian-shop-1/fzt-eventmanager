@@ -10,8 +10,14 @@ export function AnmeldeFormular({ weiter }: { weiter: string }) {
     <form action={aktion} className="space-y-4 rounded-lg border border-linie bg-flaeche p-6">
       <input type="hidden" name="weiter" value={weiter} />
       <label className="block">
-        <span className="mb-1 block text-xs text-leise">E-Mail</span>
-        <input type="email" name="email" required autoComplete="username" autoFocus />
+        {/*
+          Mailadresse ODER Benutzername: Die Tablets im Foyer und hinter
+          der Buehne melden sich als "Foyer" und "Show" an (Florian,
+          05.10.2026). Deshalb kein type="email" mehr, sonst lehnt der
+          Browser den Benutzernamen ab, bevor er abgeschickt wird.
+        */}
+        <span className="mb-1 block text-xs text-leise">E-Mail oder Benutzername</span>
+        <input type="text" name="email" required autoComplete="username" autoFocus />
       </label>
 
       <label className="block">

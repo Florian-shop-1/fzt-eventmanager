@@ -227,7 +227,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   // Wer eine Seite aufruft, die seine Rolle nicht sehen darf, landet auf der
   // Übersicht statt auf einer Fehlermeldung.
-  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad)) redirect("/");
+  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad, benutzer.geteilt)) redirect("/");
 
   // Was diese Person noch erledigen muss. Geschäftsführung und externe
   // Partner (Food-Kiosk) unterschreiben keine Geheimhaltung über das Programm.
@@ -247,8 +247,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     gleichzeitig, eingeordnet wird danach.
   */
   const istKevin = benutzer ? benutzer.email.toLowerCase() === "kevin.steele@florianzimmer.com" : false;
+  /*
+    Ein geteilter Zugang hat keine eigenen Aufgaben.
+
+    Personalbogen, Geheimhaltung, Vertrag, Merkzettel und Hasenpost
+    gehoeren einer Person. Auf dem Tablet im Foyer haetten sie niemanden,
+    den sie meinen (Florian, 05.10.2026).
+  */
+  const persoenlich = Boolean(benutzer && !benutzer.geteilt);
   const brauchtGeheimhaltung = Boolean(
-    benutzer && !offen && !istKevin && !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle),
+    benutzer &&
+      !offen &&
+      !benutzer.geteilt &&
+      !istKevin &&
+      !["chef", "kiosk", "agentur", "buchhaltung"].includes(benutzer.rolle),
   );
 
   const [geheimhaltungOk, dienstplan, merker, weinVorab, vertrag] =
@@ -262,7 +274,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         ])
       : [true, [] as Erinnerung[], [] as Array<{ titel: string; text?: string }>, null, null];
 
-  if (benutzer && !offen) {
+  if (benutzer && !offen && persoenlich) {
     if (benutzer.art === "intern" && !benutzer.personalbogenAm && !istKevin) {
       aufgaben.push({
         href: "/personalbogen",
@@ -362,7 +374,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   */
   const gruppen = benutzer
     ? GRUPPEN.map((g) => {
-        const punkte = g.punkte.filter((p) => p.rollen.includes(benutzer.rolle));
+        // Beim geteilten Zugang entscheidet nicht die Rolle, sondern die
+        // kurze Liste seiner Seiten (siehe GETEILTE_SEITEN).
+        const punkte = g.punkte.filter(
+          (p) =>
+            p.rollen.includes(benutzer.rolle) &&
+            (!benutzer.geteilt || darfSeite(benutzer.rolle, p.href, true)),
+        );
         if (g.titel === "Magicuisine" && weinSichtbar) {
           punkte.push({ href: "/bestellungen", label: "Bestellungen", rollen: [] });
         }
@@ -435,7 +453,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     (Florian, 04.10.2026). Hoechstens eine am Tag, siehe
     lib/personal/hasenpost.ts.
   */
-  const hasenpost = benutzer && !offen ? await naechstePost(benutzer.id).catch(() => null) : null;
+  const hasenpost = benutzer && !offen && persoenlich ? await naechstePost(benutzer.id).catch(() => null) : null;
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
