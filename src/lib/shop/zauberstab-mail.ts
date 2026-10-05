@@ -27,7 +27,7 @@ export function erinnerungMail(z: Zauberstab): { betreff: string; text: string; 
     anrede,
     "",
     "dein Trostpreis liegt bei uns bereit: der erscheinende Zauberstab.",
-    "Wer bei der Ziehung kein Los zieht, bekommt ihn mit der Post. Nur",
+    "Wer bei der Ziehung nicht gewinnt, bekommt ihn mit der Post. Nur",
     "wohin, das wissen wir noch nicht.",
     "",
     "Drei Zeilen genügen:",
@@ -58,7 +58,7 @@ export function erinnerungMail(z: Zauberstab): { betreff: string; text: string; 
       absatz(anrede),
       absatz(
         "dein Trostpreis liegt bei uns bereit: der erscheinende Zauberstab. Wer bei der "
-          + "Ziehung kein Los zieht, bekommt ihn mit der Post. Nur wohin, das wissen wir "
+          + "Ziehung nicht gewinnt, bekommt ihn mit der Post. Nur wohin, das wissen wir "
           + "noch nicht. Drei Zeilen genügen.",
       ),
       knopf("Anschrift eintragen", link),

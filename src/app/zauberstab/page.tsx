@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Die Zauberstäbe, die in die Post müssen.
  *
  * Der Zauberstab ist der Trostpreis des Gewinnspiels: Wer bei der Ziehung
- * kein Los zieht, bekommt ihn mit der Post (Florian, 05.10.2026). Verschickt
+ * nicht gewinnt, bekommt ihn mit der Post (Florian, 05.10.2026). Verschickt
  * wird deshalb erst NACH der Ziehung, und nicht an die Gewinner.
  *
  * Die Anschrift kommt aus dem Shop, hier steht sie in einer Liste zum
