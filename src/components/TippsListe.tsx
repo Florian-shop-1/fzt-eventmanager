@@ -5,6 +5,7 @@ import { upload } from "@vercel/blob/client";
 import Link from "next/link";
 import { reiheSpeichern, reiheWeg, tippLoeschenAktion, tippSpeichern } from "@/app/tipps/aktionen";
 import { tippsFiltern, type Tipp } from "@/lib/tipps/filter";
+import { DateiFeld } from "@/components/DateiFeld";
 
 /** Eine mehrteilige Anleitung, wie sie von der Seite hereinkommt. */
 export interface ReiheAnsicht {
@@ -137,6 +138,9 @@ function HochladenFormular() {
   const [laeuft, setLaeuft] = useState(false);
   const [fortschritt, setFortschritt] = useState(0);
   const [fehler, setFehler] = useState("");
+  // Die gewaehlte Datei steht im Zustand, nicht im Formular: Nur so laesst
+  // sie sich auch per Hineinziehen setzen (Florian, 05.10.2026).
+  const [datei, setDatei] = useState<File | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function absenden(e: React.FormEvent<HTMLFormElement>) {
@@ -144,7 +148,6 @@ function HochladenFormular() {
     setFehler("");
     const form = e.currentTarget;
     const daten = new FormData(form);
-    const datei = daten.get("video");
     const titel = String(daten.get("titel") ?? "").trim();
     const notiz = String(daten.get("notiz") ?? "").trim();
     const hatDatei = datei instanceof File && datei.size > 0;
@@ -187,6 +190,7 @@ function HochladenFormular() {
       // tippSpeichern leitet bei Erfolg um (redirect), das Zurücksetzen
       // hier greift nur, wenn die Umleitung aus irgendeinem Grund ausbleibt.
       form.reset();
+      setDatei(null);
       setOffen(false);
     } catch (f) {
       // redirect() wirft technisch einen Fehler, um die Navigation
@@ -235,10 +239,24 @@ function HochladenFormular() {
         </span>
         <input name="schlagworte" maxLength={500} className="w-full" />
       </label>
-      <label className="block">
-        <span className="mb-1 block text-xs text-leise">Video oder Datei, freiwillig</span>
-        <input type="file" name="video" accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt" />
-      </label>
+      <DateiFeld
+        beschriftung="Video oder Datei, freiwillig"
+        hinweis="Video, PDF, Foto oder Tabelle"
+        accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt"
+        gewaehlt={datei ? [datei.name] : []}
+        onWahl={(d) => setDatei(d[0] ?? null)}
+        aus={laeuft}
+      />
+      {datei && (
+        <button
+          type="button"
+          onClick={() => setDatei(null)}
+          disabled={laeuft}
+          className="text-xs text-leise underline"
+        >
+          Datei entfernen
+        </button>
+      )}
       <label className="block">
         <span className="mb-1 block text-xs text-leise">
           Text, freiwillig. Hier kannst du auch etwas hineinkopieren.
@@ -330,7 +348,7 @@ function ReiheFormular() {
   // Ein Schritt ist entweder eine Datei oder ein Text.
   const [dateien, setDateien] = useState<Array<{ datei: File | null; titel: string; notiz: string }>>([]);
 
-  function dateienWaehlen(liste: FileList | null) {
+  function dateienWaehlen(liste: File[] | FileList | null) {
     if (!liste) return;
     /*
       Nach Dateinamen sortieren, mit Zahlen als Zahlen.
@@ -475,18 +493,14 @@ function ReiheFormular() {
         <input name="schlagworte" maxLength={500} placeholder="Show Start Pult Licht Ton anschalten" className="w-full" />
       </label>
 
-      <label className="block">
-        <span className="mb-1 block text-xs text-leise">
-          Videos und Dateien, alle auf einmal auswählen. Die Reihenfolge kommt aus den Dateinamen und lässt
-          sich unten ändern. Ein PDF geht genauso wie ein Video.
-        </span>
-        <input
-          type="file"
-          accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt"
-          multiple
-          onChange={(e) => dateienWaehlen(e.target.files)}
-        />
-      </label>
+      <DateiFeld
+        beschriftung="Videos und Dateien, alle auf einmal"
+        hinweis="Die Reihenfolge kommt aus den Dateinamen und lässt sich unten ändern. Ein PDF geht genauso wie ein Video."
+        accept="video/*,application/pdf,image/*,.doc,.docx,.xlsx,.csv,.txt"
+        mehrere
+        onWahl={(d) => dateienWaehlen(d)}
+        aus={laeuft}
+      />
 
       <button
         type="button"

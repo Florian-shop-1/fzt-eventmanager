@@ -105,7 +105,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
       { href: "/hoerezu", label: "🎤 Höre zu", rollen: ["chef", "team", "showteam"] },
-      { href: "/tipps", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam"] },
+      { href: "/tipps", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam", "foyer"] },
     ],
   },
   {

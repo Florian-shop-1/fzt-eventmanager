@@ -127,10 +127,16 @@ export function darfSelbstauskunftUebernehmen(b: { rolle: Rolle; email: string }
   return darfEinladen(b);
 }
 
-/** Tipps & Tricks: dieselben Leute wie beim Rest des Show-Bereichs. */
+/**
+ * Tipps & Tricks: Show- und Foyerteam.
+ *
+ * Das Foyer kam bisher nicht hin, dabei stehen dort auch Handgriffe, die
+ * es betreffen: Kaffeemaschine, Kasse, Popcornmaschine (Florian,
+ * 05.10.2026).
+ */
 export function darfTipps(b: { rolle: Rolle } | null | undefined): boolean {
   if (!b) return false;
-  return b.rolle === "chef" || b.rolle === "team" || b.rolle === "showteam";
+  return ["chef", "team", "showteam", "foyer"].includes(b.rolle);
 }
 
 export interface AngemeldeterBenutzer {
@@ -307,7 +313,7 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
  */
 const GETEILTE_SEITEN: Record<string, string[]> = {
   // Foyer: Parkplatzschilder drucken, Geschenke nachsehen, Karten scannen.
-  foyer: ["/parkplaetze", "/geschenke", "/scanner"],
+  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps"],
   // Show: der Abend im Saal.
   showteam: ["/upgrades", "/hoerezu", "/tipps"],
 };
@@ -415,6 +421,8 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false): boolean 
       // Sarah macht seit 21.09.2026 auch im Showteam mit und braucht
       // deshalb die Upgrades wie die anderen am Abend.
       pfad.startsWith("/upgrades") ||
+      // Anleitungen fuer Kaffeemaschine, Kasse und Popcorn.
+      pfad.startsWith("/tipps") ||
       pfad.startsWith("/shortcuts") ||
       pfad.startsWith("/parkplaetze") ||
       pfad.startsWith("/konto") ||
