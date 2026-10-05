@@ -318,6 +318,21 @@ export function UpgradeTafel({
         umzusetzen: true,
         quelleIds: ids,
         personen: vollzaehlig || g.art === "gast" ? g.personen : Math.max(1, ids.length),
+        /*
+          Der Vorschlag gilt fuer die ganze Gruppe.
+
+          Hat jemand zwei Leute einzeln nach vorne gesetzt, passt er nicht
+          mehr: Er nennt acht Plaetze, es sind aber nur noch sechs
+          Personen. Beim Antippen wurden daraus acht gesetzte Plaetze, und
+          im Saal sassen ploetzlich zehn F (Florian, 05.10.2026: "mir ist
+          es gelungen weitere F aus dem hut zu zaubern").
+
+          Deshalb faellt der Vorschlag weg, sobald die Gruppe nicht mehr
+          vollzaehlig ist. Von Hand gesetzt wird sie weiter, dann mit der
+          richtigen Zahl.
+        */
+        vorschlagIds: vollzaehlig ? g.vorschlagIds : [],
+        vorschlagText: vollzaehlig ? g.vorschlagText : null,
       });
     }
 
@@ -527,6 +542,9 @@ export function UpgradeTafel({
         .map((id) => sitze.find((s) => s.id === id))
         .filter((s): s is TafelSitz => Boolean(s));
       if (block.length !== g.vorschlagIds.length) return null;
+      // Nie mehr Plaetze als Personen: ein zweiter Riegel gegen Gaeste,
+      // die es gar nicht gibt (Florian, 05.10.2026).
+      if (block.length !== g.personen) return null;
       if (!block.every((s) => istFrei(s, g.schluessel))) return null;
       return [...block].sort((a, b) => a.y - b.y || a.x - b.x);
     },
