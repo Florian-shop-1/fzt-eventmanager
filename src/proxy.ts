@@ -91,6 +91,14 @@ const OHNE_ANMELDUNG = [
   */
   "/api/nachtlauf",
   "/api/belege",
+  /*
+    Welche Vorstellungen abgesagt sind.
+
+    Der Ticketshop fragt sie ab, um sie aus seinem Programm zu nehmen.
+    Dort meldet sich kein Mensch an, und zu holen gibt es nur die
+    Information, dass ein Abend ausfaellt (Florian, 05.10.2026).
+  */
+  "/api/abgesagt",
 ];
 
 /**
