@@ -27,6 +27,7 @@
  */
 
 import { abgesagteEventIds } from "@/lib/absage/db";
+import { planLaden } from "@/lib/dienstplan/laden";
 import { db } from "@/lib/db/client";
 import { showtageAbHeute, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 
@@ -53,10 +54,30 @@ export interface FoyerDienst {
   notiz: string;
 }
 
+/**
+ * Wer an diesem Abend an der Technik verantwortlich ist.
+ *
+ * Das Foyer muss wissen, an wen es sich wendet, wenn im Saal etwas nicht
+ * läuft, gerade bei Sonderveranstaltungen: Dort ist oft nur eine einzige
+ * Person für Licht und Ton da (Florian, 05.10.2026).
+ */
+export interface FoyerTechnik {
+  ditixEventId: string;
+  showName: string;
+  uhrzeit: string;
+  /** "TECHNIK" bei einem Abend ohne Show, sonst "T1". */
+  position: "TECHNIK" | "T1";
+  name: string | null;
+  /** Ein eigener Termin ohne Show: Firmenabend, Uni, Tagung. */
+  sonderveranstaltung: boolean;
+}
+
 export interface FoyerTag {
   datum: string;
   /** Anfangszeiten der Shows an diesem Tag, für die Anzeige. */
   shows: Array<{ uhrzeit: string; name: string }>;
+  /** Verantwortliche Technik je Vorstellung an diesem Tag. */
+  technik: FoyerTechnik[];
   dienste: FoyerDienst[];
   /** Vorgeschlagene Zeiten, wenn noch nichts eingetragen ist. */
   vorschlag: Array<{ von: string; bis: string }>;
@@ -229,11 +250,27 @@ function plaetzeBauen(
 export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
   const bis = Date.now() + wochen * 7 * 86400000;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  const [termine, dienste, abgesagt] = await Promise.all([
+  const [termine, dienste, abgesagt, plan] = await Promise.all([
     showtageAbHeute(400),
     diensteAb(heute),
     abgesagteEventIds().catch(() => new Set<string>()),
+    planLaden().catch(() => ({ schichten: [] as never[] })),
   ]);
+
+  /*
+    Die verantwortliche Technik je Vorstellung, aus dem Showdienstplan.
+    An einem Abend ohne Show ist das die Stelle "Technik", sonst T1.
+  */
+  const technikJeEvent = new Map<string, { position: "TECHNIK" | "T1"; name: string | null }>();
+  for (const s of plan.schichten as Array<{ termin: Vorstellungstermin; slots: Array<{ position: string; person: { name: string } | null }> }>) {
+    const slot =
+      s.slots.find((x) => x.position === "TECHNIK") ?? s.slots.find((x) => x.position === "T1");
+    if (!slot) continue;
+    technikJeEvent.set(s.termin.ditixEventId, {
+      position: slot.position as "TECHNIK" | "T1",
+      name: slot.person?.name ?? null,
+    });
+  }
 
   /*
     Stornierte Vorstellungen zaehlen nicht mehr.
@@ -259,6 +296,19 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
       return {
         datum,
         shows: sortiert.map((s) => ({ uhrzeit: s.uhrzeit, name: s.name })),
+        technik: sortiert
+          .filter((s) => technikJeEvent.has(s.ditixEventId))
+          .map((s) => {
+            const t = technikJeEvent.get(s.ditixEventId)!;
+            return {
+              ditixEventId: s.ditixEventId,
+              showName: s.name,
+              uhrzeit: s.uhrzeit,
+              position: t.position,
+              name: t.name,
+              sonderveranstaltung: t.position === "TECHNIK",
+            };
+          }),
         dienste: plaetzeBauen(datum, amTag, vorschlag),
         vorschlag,
         pause,

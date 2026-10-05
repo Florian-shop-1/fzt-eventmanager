@@ -16,6 +16,11 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
 import { dienstSetzen, dienstWeg, festSetzen, foyerDienstLesen, foyerLeute, zeitenSetzen } from "@/lib/foyer/dienstplan";
 import { uebernahmeAnbieten, uebernahmeEntscheiden, uebernahmeLesen } from "@/lib/dienstplan/uebernahme";
+import { abgesagteEventIds } from "@/lib/absage/db";
+import { findeTermin } from "@/lib/ditix/spielplan";
+import { planLaden } from "@/lib/dienstplan/laden";
+import { einsatzSetzen } from "@/lib/dienstplan/plan";
+import { eingeteiltMail } from "@/lib/dienstplan/mails";
 
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 const text = (f: FormData, k: string, max = 300) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -46,6 +51,51 @@ async function zuInformieren(): Promise<Array<{ name: string; email: string }>> 
     select name, email from benutzer
      where aktiv and (rolle = 'chef' or lower(email) = 'kevin.steele@florianzimmer.com')
   `) as Array<{ name: string; email: string }>;
+}
+
+/**
+ * Die verantwortliche Technik eintragen, vom Foyer-Dienstplan aus.
+ *
+ * Das Foyer muss wissen, an wen es sich wendet, wenn im Saal etwas nicht
+ * läuft, und soll die Stelle auch selbst besetzen können, statt im
+ * Showdienstplan danach zu suchen (Florian, 05.10.2026). Es ist derselbe
+ * Dienst wie dort: Wer hier einträgt, steht auch im Showdienstplan.
+ */
+export async function technikEinteilen(f: FormData): Promise<void> {
+  const b = await darfPlanen();
+  const eventId = text(f, "vorstellung", 80);
+  const position = text(f, "position", 20) as "TECHNIK" | "T1";
+  if (position !== "TECHNIK" && position !== "T1") throw new Error("Unbekannte Position.");
+
+  const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
+  if (abgesagt.has(eventId)) {
+    zurueck("Diese Vorstellung ist storniert. Hier wird niemand mehr eingeteilt.");
+  }
+
+  const termin = await findeTermin(eventId);
+  if (!termin) zurueck("Diese Vorstellung gibt es nicht mehr.");
+
+  const wert = text(f, "wert", 80);
+  const { personen } = await planLaden();
+  const person = wert ? personen.find((p) => p.id === wert) : null;
+  if (wert && !person) zurueck("Diese Person gibt es nicht.");
+
+  await einsatzSetzen({
+    termin,
+    position,
+    benutzerId: person?.id ?? null,
+    suchtErsatz: false,
+    grund: null,
+    von: b.name,
+  });
+
+  if (person) {
+    await eingeteiltMail({ an: person, wer: b.name, termin, position }).catch((fehler) =>
+      console.error("[foyer] Technik-Mail:", fehler),
+    );
+    zurueck(`${person.name} ist für die Technik am ${datumMitWochentag(termin.datum)} eingeteilt.`);
+  }
+  zurueck(`Technik am ${datumMitWochentag(termin.datum)} wieder offen.`);
 }
 
 /**
