@@ -2,6 +2,14 @@
   "name": "fzt-eventmanager",
   "version": "0.1.0",
   "private": true,
+  "//browserslist": "Next 16 baut von sich aus nur fuer Safari 16.4 und neuer. Auf dem iPad im Haus laeuft eine aeltere Fassung, und dort blieb die Seite stumm: Die Knoepfe reagierten nicht, weil der Browser das Programm gar nicht lesen konnte (Florian, 05.10.2026). Mit dieser Angabe baut Next auch fuer aeltere Safari-Fassungen.",
+  "browserslist": [
+    "chrome 111",
+    "edge 111",
+    "firefox 111",
+    "safari 14",
+    "ios_saf 14"
+  ],
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--use-system-ca next dev",
     "build": "cross-env NODE_OPTIONS=--use-system-ca next build",
