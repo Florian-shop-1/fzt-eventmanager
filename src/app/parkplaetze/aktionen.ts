@@ -15,6 +15,7 @@ import {
   parkplatzVonHand,
   parkplatzWeg,
 } from "@/lib/shop/parkplatz-hand";
+import { alsGedrucktMerken, druckvermerkWeg } from "@/lib/shop/parkplatz-gedruckt";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -56,4 +57,28 @@ export async function parkplatzLoeschen(f: FormData): Promise<void> {
   await zugang();
   await parkplatzWeg(text(f, "id"));
   zurueck(text(f, "abend"), "Parkplatz wieder entfernt.");
+}
+
+/**
+ * Ein Schild als gedruckt abhaken, oder den Haken zuruecknehmen.
+ *
+ * Von Hand und nicht beim Drucken: Ob das Blatt wirklich aus dem Drucker
+ * kam, weiss nur der, der es in der Hand haelt (Florian, 05.10.2026).
+ */
+export async function schildAbhaken(f: FormData): Promise<void> {
+  const b = await zugang();
+  const abend = text(f, "abend");
+  const datum = text(f, "datum");
+  const orderId = text(f, "orderId");
+  const name = text(f, "name");
+
+  if (!datum || !orderId) zurueck(abend, "Dieses Schild gibt es nicht.");
+
+  if (text(f, "an") === "nein") {
+    await druckvermerkWeg(datum, orderId);
+    zurueck(abend, `${name || "Das Schild"} gilt wieder als nicht gedruckt.`);
+  }
+
+  await alsGedrucktMerken({ datum, orderId, von: b.name });
+  zurueck(abend, `${name || "Schild"}: gedruckt, abgehakt.`);
 }

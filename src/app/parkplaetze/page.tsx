@@ -16,7 +16,8 @@ import {
   handParkplaetzeAmTag,
   type HandParkplatz,
 } from "@/lib/shop/parkplatz-hand";
-import { parkplatzEintragen, parkplatzLoeschen } from "./aktionen";
+import { parkplatzEintragen, parkplatzLoeschen, schildAbhaken } from "./aktionen";
+import { gedruckteSchilder } from "@/lib/shop/parkplatz-gedruckt";
 
 export const metadata = { title: "Parkplätze | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -43,9 +44,10 @@ export default async function ParkplaetzeSeite({
     meldung?: string;
     nur?: string;
     sofort?: string;
+    druck?: string;
   }>;
 }) {
-  const { abend, monat, meldung, nur, sofort } = await searchParams;
+  const { abend, monat, meldung, nur, sofort, druck } = await searchParams;
   const ich = await angemeldeterBenutzer();
   const termine = await alleShowtage();
   // Welcher Abend gezeigt wird, entscheidet an einer Stelle für alle
@@ -92,6 +94,17 @@ export default async function ParkplaetzeSeite({
     ].sort((a, b) => a.name.localeCompare(b.name, "de"));
   }
 
+  /*
+    Was schon gedruckt ist.
+
+    Gedruckt wird am Tag vor der Show. Ohne diesen Vermerk weiss der
+    naechste nicht, was der Kollege gestern gemacht hat, und druckt alles
+    noch einmal (Florian, 05.10.2026).
+  */
+  const gedruckt = termin ? await gedruckteSchilder(termin.datum) : new Map();
+  const offeneBuchungen = buchungen.filter((b) => !gedruckt.has(b.orderId));
+  const schonGedruckt = buchungen.length - offeneBuchungen.length;
+
   // Ein Schild je Platz, nicht je Buchung: Wer zwei Plätze bucht, braucht
   // auch zwei Schilder.
   const alleSchilder = buchungen.flatMap((b) =>
@@ -107,7 +120,18 @@ export default async function ParkplaetzeSeite({
     30.09.2026). Gedruckt werden alle Schilder dieser einen Buchung, denn
     wer zwei Plaetze hat, braucht auch zwei.
   */
-  const schilder = nur ? alleSchilder.filter((x) => x.orderId === nur) : alleSchilder;
+  /*
+    Gedruckt wird, was noch offen ist.
+
+    "wichtig ist, dass man wenn der kollege es am tag davor schon erledigt
+    hat, nicht nochmal macht" (Florian, 05.10.2026). Wer trotzdem alles
+    braucht, etwa weil ein Blatt verknittert ist, nimmt den Link daneben.
+  */
+  const schilder = nur
+    ? alleSchilder.filter((x) => x.orderId === nur)
+    : druck === "alle"
+      ? alleSchilder
+      : alleSchilder.filter((x) => !gedruckt.has(x.orderId));
   const plaetze = schilder.length;
   const einzeln = Boolean(nur) && plaetze > 0;
   const einzelName = einzeln ? schilder[0].name : "";
@@ -122,12 +146,69 @@ export default async function ParkplaetzeSeite({
           </p>
         </div>
         {plaetze > 0 && (
-          <DruckKnopf
-            text={`${plaetze} ${plaetze === 1 ? "Schild" : "Schilder"} drucken`}
-            hinweis="Je eine A4-Seite, Querformat"
-          />
+          <div className="text-right">
+            <DruckKnopf
+              text={
+                nur || druck === "alle"
+                  ? `${plaetze} ${plaetze === 1 ? "Schild" : "Schilder"} drucken`
+                  : `${plaetze} offene ${plaetze === 1 ? "Schild" : "Schilder"} drucken`
+              }
+              hinweis="Je eine A4-Seite, Querformat"
+            />
+            {!nur && druck !== "alle" && alleSchilder.length > plaetze && (
+              <div className="mt-1 text-xs text-leise">
+                <Link
+                  href={`/parkplaetze?abend=${encodeURIComponent(gewaehlt)}&druck=alle`}
+                  className="underline"
+                >
+                  alle {alleSchilder.length} noch einmal drucken
+                </Link>
+              </div>
+            )}
+          </div>
         )}
       </header>
+
+      {/*
+        Zwei Saetze, die am Drucker gebraucht werden.
+
+        Der eine sagt, was schon erledigt ist, der andere, wie die
+        Schilder auf den Platz kommen: von links nach rechts, denn ganz
+        rechts steht der schlechteste Platz (Florian, 05.10.2026).
+      */}
+      {buchungen.length > 0 && (
+        <div className="space-y-2 print:hidden">
+          <p
+            className="rounded-lg border px-4 py-3 text-sm"
+            style={{
+              borderColor: offeneBuchungen.length === 0 ? "var(--gut)" : "var(--warnung)",
+              background: offeneBuchungen.length === 0 ? "var(--gut-hell)" : "var(--warnung-hell)",
+            }}
+          >
+            {offeneBuchungen.length === 0 ? (
+              <>
+                <strong>Alle Schilder sind gedruckt.</strong> Für diesen Abend ist nichts mehr zu tun.
+              </>
+            ) : schonGedruckt === 0 ? (
+              <>
+                <strong>Noch nichts gedruckt.</strong> Am besten schon am Tag vor der Show.
+              </>
+            ) : (
+              <>
+                <strong>
+                  {offeneBuchungen.length} {offeneBuchungen.length === 1 ? "Schild fehlt" : "Schilder fehlen"} noch.
+                </strong>{" "}
+                {schonGedruckt} {schonGedruckt === 1 ? "ist" : "sind"} schon gedruckt, die stehen unten mit Haken.
+                Bitte nur die offenen nachdrucken.
+              </>
+            )}
+          </p>
+          <p className="rounded-lg border border-linie px-4 py-3 text-sm text-leise">
+            <strong>Beim Aufstellen:</strong> die Schilder von links nach rechts bestücken. Der Platz ganz
+            rechts ist der schlechteste, der bleibt zuletzt.
+          </p>
+        </div>
+      )}
 
       {sofort === "1" && <SofortDrucken bereit={plaetze > 0} bereich=".parkschilder" />}
 
@@ -195,6 +276,7 @@ export default async function ParkplaetzeSeite({
               <tr>
                 <th className="pb-1 font-medium">Kunde</th>
                 <th className="w-24 pb-1 text-right font-medium">Plätze</th>
+                <th className="w-48 pb-1 font-medium">Gedruckt</th>
                 <th className="w-36 pb-1 font-medium">Schild</th>
                 <th className="w-32 pb-1 font-medium"></th>
               </tr>
@@ -229,6 +311,68 @@ export default async function ParkplaetzeSeite({
                     </div>
                   </td>
                   <td className="py-2 text-right tabular-nums">{b.anzahl}</td>
+
+                  {/*
+                    Erledigt, mit Namen.
+
+                    Ist schon etwas gedruckt und dieser Platz nicht, faellt
+                    er auf: Dann ist er nach dem Stapel dazugekommen
+                    (Florian, 05.10.2026).
+                  */}
+                  <td className="py-2 text-xs">
+                    {(() => {
+                      const v = gedruckt.get(b.orderId);
+                      if (v) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span style={{ color: "var(--gut)" }}>
+                              ✓ {v.von || "erledigt"}, {datumKurz(v.am.slice(0, 10))}
+                            </span>
+                            {darfParkplatzEintragen(ich) && (
+                              <form action={schildAbhaken}>
+                                <input type="hidden" name="abend" value={gewaehlt} />
+                                <input type="hidden" name="datum" value={termin?.datum ?? ""} />
+                                <input type="hidden" name="orderId" value={b.orderId} />
+                                <input type="hidden" name="name" value={b.name} />
+                                <input type="hidden" name="an" value="nein" />
+                                <button type="submit" className="text-leise underline">
+                                  zurück
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {schonGedruckt > 0 && (
+                            <span
+                              className="rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase"
+                              style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}
+                            >
+                              neu dazugekommen
+                            </span>
+                          )}
+                          {darfParkplatzEintragen(ich) && (
+                            <form action={schildAbhaken}>
+                              <input type="hidden" name="abend" value={gewaehlt} />
+                              <input type="hidden" name="datum" value={termin?.datum ?? ""} />
+                              <input type="hidden" name="orderId" value={b.orderId} />
+                              <input type="hidden" name="name" value={b.name} />
+                              <input type="hidden" name="an" value="ja" />
+                              <button
+                                type="submit"
+                                className="rounded-md border border-linie px-2.5 py-1 hover:bg-gold-hell"
+                              >
+                                Erledigt
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+
                   <td className="py-2 text-xs">
                     {/*
                       Das Schild dieser einen Buchung, ohne den ganzen
