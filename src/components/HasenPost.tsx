@@ -14,8 +14,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ScanHase } from "@/components/ScanHase";
+import type { Anlass } from "@/lib/personal/hasenpost";
 
-export function HasenPost({ id, text, vorname }: { id: string; text: string; vorname: string }) {
+export function HasenPost({
+  id,
+  text,
+  vorname,
+  anlass = "erinnern",
+}: {
+  id: string;
+  text: string;
+  vorname: string;
+  anlass?: Anlass;
+}) {
+  const danke = anlass === "danke";
   const [zeigen, setZeigen] = useState(false);
   const gemeldet = useRef(false);
 
@@ -37,8 +49,10 @@ export function HasenPost({ id, text, vorname }: { id: string; text: string; vor
 
   return (
     <ScanHase
-      stimmung="erinnern"
-      text={`Psst, ${vorname || "du"}! ${text}`}
+      // Beim Dank wackelt er mit den Ohren statt fragend zu schauen.
+      stimmung={danke ? "lob" : "erinnern"}
+      knopf={danke ? "Gern!" : "Mach ich!"}
+      text={`${danke ? "Hallo" : "Psst,"} ${vorname || "du"}! ${text}`}
       onWeg={() => {
         setZeigen(false);
         void quittung(id, "erledigt");

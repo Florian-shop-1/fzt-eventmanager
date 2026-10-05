@@ -79,6 +79,25 @@ export default async function HasenpostSeite({
           </select>
         </label>
 
+        {/*
+          Erinnern oder danken.
+
+          Beim Dank schaut der Hase nicht fragend, und unter der Blase
+          steht "Gern!" statt "Mach ich!": Es gibt nichts zuzusagen
+          (Florian, 05.10.2026).
+        */}
+        <fieldset className="flex flex-wrap gap-4">
+          <legend className="mb-1 text-sm font-medium">Worum geht es?</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="anlass" value="erinnern" defaultChecked />
+            Erinnern
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="anlass" value="danke" />
+            Danke sagen
+          </label>
+        </fieldset>
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Was soll der Hase sagen?</span>
           <textarea

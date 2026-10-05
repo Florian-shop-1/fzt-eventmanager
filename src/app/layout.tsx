@@ -609,7 +609,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           der Scan-Hinweis nur eine Gewohnheit anstoesst.
         */}
         {benutzer && hasenpost && (
-          <HasenPost id={hasenpost.id} text={hasenpost.text} vorname={benutzer.name.split(" ")[0]} />
+          <HasenPost
+            id={hasenpost.id}
+            text={hasenpost.text}
+            anlass={hasenpost.anlass}
+            vorname={benutzer.name.split(" ")[0]}
+          />
         )}
 
         {benutzer && !hasenpost && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (

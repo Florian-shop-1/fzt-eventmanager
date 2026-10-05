@@ -24,6 +24,7 @@ export function ScanHase({
   onWeg,
   onSchliessen,
   oben = false,
+  knopf,
 }: {
   text: string;
   stimmung: HasenStimmung;
@@ -40,6 +41,13 @@ export function ScanHase({
   onSchliessen?: () => void;
   /** Oben statt unten, etwa über dem Kamerabild, damit der Auslöser frei bleibt. */
   oben?: boolean;
+  /**
+   * Der Knopf unter der Blase.
+   *
+   * "Mach ich!" ist eine Zusage. Unter einem Dankeschön gibt es nichts
+   * zuzusagen, da passt "Gern!" (Florian, 05.10.2026).
+   */
+  knopf?: string;
 }) {
   const [geht, setGeht] = useState(false);
   const weg = useRef(onWeg);
@@ -140,7 +148,7 @@ export function ScanHase({
         <p>{text}</p>
         {!dauer && (
           <button type="button" onClick={onWeg} className="sh-zu">
-            Mach ich!
+            {knopf ?? "Mach ich!"}
           </button>
         )}
       </div>

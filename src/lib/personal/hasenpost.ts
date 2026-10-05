@@ -17,9 +17,19 @@
 
 import { db } from "@/lib/db/client";
 
+/**
+ * Erinnern oder danken.
+ *
+ * Zwei verschiedene Sachen: Eine Erinnerung will eine Zusage, ein Dank
+ * will nichts. Deshalb schaut der Hase beim Dank nicht fragend, und
+ * unter der Blase steht nicht "Mach ich!".
+ */
+export type Anlass = "erinnern" | "danke";
+
 export interface Hasenpost {
   id: string;
   text: string;
+  anlass: Anlass;
   /** Nur fuer die Uebersicht des Absenders, nie fuer den Empfaenger. */
   von: string;
   benutzerId: string;
@@ -34,6 +44,7 @@ function ausZeile(r: Record<string, unknown>): Hasenpost {
   return {
     id: String(r.id),
     text: String(r.text ?? ""),
+    anlass: (r.anlass === "danke" ? "danke" : "erinnern") as Anlass,
     von: String(r.von ?? ""),
     benutzerId: String(r.benutzer_id),
     name: String(r.name ?? ""),
@@ -50,10 +61,11 @@ export async function postSchicken(o: {
   benutzerId: string;
   text: string;
   von: string;
+  anlass?: Anlass;
 }): Promise<void> {
   await db()`
-    insert into hasenpost (benutzer_id, text, von)
-    values (${o.benutzerId}::uuid, ${o.text}, ${o.von})
+    insert into hasenpost (benutzer_id, text, von, anlass)
+    values (${o.benutzerId}::uuid, ${o.text}, ${o.von}, ${o.anlass ?? "erinnern"})
   `;
 }
 
@@ -65,9 +77,11 @@ export async function postSchicken(o: {
  * dreimal am Tag derselbe Hinweis macht aus einer Erinnerung eine
  * Belaestigung.
  */
-export async function naechstePost(benutzerId: string): Promise<{ id: string; text: string } | null> {
+export async function naechstePost(
+  benutzerId: string,
+): Promise<{ id: string; text: string; anlass: Anlass } | null> {
   const z = (await db()`
-    select id, text
+    select id, text, anlass
       from hasenpost
      where benutzer_id = ${benutzerId}::uuid
        and erledigt_am is null and weg_am is null
@@ -76,9 +90,14 @@ export async function naechstePost(benutzerId: string): Promise<{ id: string; te
                < (now() at time zone 'Europe/Berlin')::date)
      order by angelegt_am
      limit 1
-  `.catch(() => [])) as Array<{ id: string; text: string }>;
+  `.catch(() => [])) as Array<{ id: string; text: string; anlass: string }>;
   const r = z[0];
-  return r ? { id: String(r.id), text: String(r.text) } : null;
+  if (!r) return null;
+  return {
+    id: String(r.id),
+    text: String(r.text),
+    anlass: r.anlass === "danke" ? "danke" : "erinnern",
+  };
 }
 
 /** Der Hase hat sie gezeigt. */
@@ -106,7 +125,7 @@ export async function postWeg(id: string): Promise<void> {
 /** Alles Verschickte, fuer die Uebersicht des Absenders. */
 export async function allePost(): Promise<Hasenpost[]> {
   const z = (await db()`
-    select p.id, p.text, p.von, p.benutzer_id, b.name, p.angelegt_am,
+    select p.id, p.text, p.anlass, p.von, p.benutzer_id, b.name, p.angelegt_am,
            p.zuletzt_gezeigt_am, p.gezeigt_anzahl, p.erledigt_am
       from hasenpost p join benutzer b on b.id = p.benutzer_id
      where p.weg_am is null
