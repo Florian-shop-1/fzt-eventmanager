@@ -337,7 +337,31 @@ export function startseiteFuer(rolle: Rolle, geteilt = false): string {
   return GETEILTE_SEITEN[rolle]?.[0] ?? "/";
 }
 
-export function darfSeite(rolle: Rolle, pfad: string, geteilt = false): boolean {
+/**
+ * Alles, wo Geld steht: Rechnungen, Kontoeingaenge, Belege, Loehne.
+ *
+ * "bitte im eventmanager nur werner, kevin und mir einblick in rechnungen
+ * / kontos geben. auch nicht für irgendwelche externen" (Florian,
+ * 05.10.2026).
+ *
+ * Die Rolle allein reicht dafuer nicht: Im Buero ("team") sitzen auch
+ * Leute, die mit den Zahlen nichts zu tun haben, und ein externer
+ * Dienstleister kann dieselbe Rolle tragen. Deshalb entscheidet hier die
+ * Person, dieselben drei wie bei den Arbeitszeiten und den Vertraegen.
+ */
+const GELD_SEITEN = ["/rechnungen", "/zahlungseingaenge", "/buchhaltung", "/bewirtung", "/lohn"];
+
+export function darfGeld(b: { rolle: Rolle; email: string } | null | undefined): boolean {
+  return darfZeitenAendern(b);
+}
+
+export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = ""): boolean {
+  // Geld zuerst, vor allen anderen Regeln: Was hier nicht durchkommt,
+  // kommt gar nicht durch.
+  if (GELD_SEITEN.some((o) => pfad.startsWith(o))) {
+    return darfGeld({ rolle, email });
+  }
+
   if (geteilt) {
     const erlaubt = GETEILTE_SEITEN[rolle] ?? [];
     return pfad === "/" || erlaubt.some((o) => pfad.startsWith(o));

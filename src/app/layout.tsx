@@ -244,7 +244,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     Zeigt die Startseite auf sich selbst, wird gar nicht umgeleitet. Dann
     sieht man lieber eine leere Seite als einen Browser, der aufgibt.
   */
-  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad, benutzer.geteilt)) {
+  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad, benutzer.geteilt, benutzer.email)) {
     const ziel = startseiteFuer(benutzer.rolle, benutzer.geteilt);
     if (ziel !== pfad) redirect(ziel);
   }
@@ -399,7 +399,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         const punkte = g.punkte.filter(
           (p) =>
             p.rollen.includes(benutzer.rolle) &&
-            (!benutzer.geteilt || darfSeite(benutzer.rolle, p.href, true)),
+            // Dieselbe Pruefung wie beim Aufruf der Seite: Was niemand
+            // sehen darf, steht auch nicht im Menue.
+            darfSeite(benutzer.rolle, p.href, benutzer.geteilt, benutzer.email),
         );
         if (g.titel === "Magicuisine" && weinSichtbar) {
           punkte.push({ href: "/bestellungen", label: "Bestellungen", rollen: [] });
