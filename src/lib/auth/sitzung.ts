@@ -307,15 +307,18 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
 /**
  * Was ein geteilter Zugang sehen darf.
  *
- * Bewusst knapp und bewusst ohne Checklisten: Wer abhakt, soll
- * nachvollziehbar sein, und ein Sammelzugang ist das nicht (Florian,
- * 05.10.2026). Auch kein Dienstplan, keine Personalsachen, kein Stempeln.
+ * Bewusst knapp: kein Dienstplan, keine Personalsachen, kein Stempeln.
+ *
+ * Die Checklisten sind seit dem 05.10.2026 dabei. Sie fehlten, weil ein
+ * Haken zu jemandem gehoeren soll und ein Sammelzugang niemand ist.
+ * Geloest ist das jetzt anders: Das Tablet fragt einmal am Abend, wer
+ * abhakt, und bietet dafuer die Eingeteilten des Abends an.
  */
 const GETEILTE_SEITEN: Record<string, string[]> = {
   // Foyer: Parkplatzschilder drucken, Geschenke nachsehen, Karten scannen.
-  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps"],
+  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check"],
   // Show: der Abend im Saal.
-  showteam: ["/upgrades", "/hoerezu", "/tipps"],
+  showteam: ["/upgrades", "/hoerezu", "/tipps", "/showcheck"],
 };
 
 /**

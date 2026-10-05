@@ -33,7 +33,7 @@ export function TippsListe({
   tipps,
   reihen = [],
   darfHochladen,
-  loeschbar,
+  loeschbareIds,
   bereiche,
 }: {
   tipps: Tipp[];
@@ -48,15 +48,18 @@ export function TippsListe({
    */
   bereiche: Array<"show" | "foyer">;
   /**
-   * Darf dieser Eintrag weg?
+   * Welche Eintraege weg duerfen.
    *
    * Je Eintrag, nicht pauschal: Wer etwas hochgeladen hat, darf es am
-   * selben Tag wieder wegnehmen, danach nur noch Florian
-   * (Florian, 05.10.2026).
+   * selben Tag wieder wegnehmen, danach nur noch Florian (Florian,
+   * 05.10.2026). Entschieden wird das auf dem Server; hier kommen nur
+   * noch die Kennungen an, denn eine Funktion laesst sich nicht
+   * weiterreichen.
    */
-  loeschbar: (e: { erstelltVon: string; erstelltAm: string }) => boolean;
+  loeschbareIds: string[];
 }) {
   const [suche, setSuche] = useState("");
+  const loeschbar = useMemo(() => new Set(loeschbareIds), [loeschbareIds]);
   const gefiltert = useMemo(() => tippsFiltern(tipps, suche), [tipps, suche]);
   /*
     Die Anleitungen durchsucht dieselbe Suche.
@@ -103,7 +106,7 @@ export function TippsListe({
           </h2>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {reihenGefiltert.map((r) => (
-              <ReihenKarte key={r.id} reihe={r} darfLoeschen={loeschbar(r)} />
+              <ReihenKarte key={r.id} reihe={r} darfLoeschen={loeschbar.has(r.id)} />
             ))}
           </ul>
         </section>
@@ -123,7 +126,7 @@ export function TippsListe({
         gefiltert.length > 0 && (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {gefiltert.map((t) => (
-              <TippKarte key={t.id} tipp={t} darfLoeschen={loeschbar(t)} />
+              <TippKarte key={t.id} tipp={t} darfLoeschen={loeschbar.has(t.id)} />
             ))}
           </ul>
         )

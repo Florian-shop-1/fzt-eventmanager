@@ -6,13 +6,14 @@ import { waehleAbend } from "@/lib/seating/abendwahl";
 import { ShowcheckListe } from "@/components/ShowcheckListe";
 import { CheckVorschlag } from "@/components/CheckVorschlag";
 import {
-  BEREICH_TITEL,
+  abschnittTitel,
   bereicheVon,
   checkliste,
   offeneVorschlaege,
   type Bereich,
   type Punkt,
 } from "@/lib/showcheck/db";
+import { namenImDienst } from "@/lib/showcheck/namen";
 import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "@/app/showcheck/aktionen";
 
 export const metadata = { title: "Foyer-Check | FZT Eventmanager" };
@@ -56,6 +57,19 @@ export default async function FoyerCheckSeite({
   const punkte = gewaehlt ? await checkliste(gewaehlt, "foyer") : [];
   const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege("foyer") : [];
 
+  /*
+    Am geteilten Zugang fragen wir, wer abhakt, und bieten die
+    Eingeteilten des Abends an (Florian, 05.10.2026).
+  */
+  const namen =
+    b.geteilt && tag
+      ? await namenImDienst({
+          liste: "foyer",
+          eventIds: tag.shows.map((sh) => sh.ditixEventId),
+          datum: tag.datum,
+        })
+      : [];
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -65,8 +79,8 @@ export default async function FoyerCheckSeite({
           anderen, dass es erledigt ist.
         </p>
         <p className="mt-2 max-w-prose text-sm text-leise">
-          Die Uhrzeiten beziehen sich auf einen Abend mit Show um 20:00 Uhr. Fängt die Show früher
-          an, verschiebt sich alles entsprechend.
+          Die Uhrzeiten rechnen sich aus der ersten Vorstellung des Tages: Beginnt sie früher, rückt
+          alles mit.
         </p>
       </header>
 
@@ -130,6 +144,9 @@ export default async function FoyerCheckSeite({
               abend={gewaehlt}
               datum={tag.datum}
               chef={b.rolle === "chef"}
+              showUhrzeit={tag.uhrzeit}
+              nameNoetig={b.geteilt}
+              namen={namen}
             />
           ))}
 
@@ -153,24 +170,33 @@ function Abschnitt({
   abend,
   datum,
   chef,
+  showUhrzeit,
+  nameNoetig,
+  namen,
 }: {
   bereich: Bereich;
   punkte: Punkt[];
   abend: string;
   datum: string;
   chef: boolean;
+  /** Anfang der ersten Vorstellung: Daran haengen die Uhrzeiten. */
+  showUhrzeit: string;
+  nameNoetig: boolean;
+  namen: string[];
 }) {
   if (punkte.length === 0 && !chef) return null;
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-leise">
-        {BEREICH_TITEL[bereich]}
+        {abschnittTitel(bereich, showUhrzeit)}
       </h2>
 
       <ShowcheckListe
         abend={abend}
         datum={datum}
+        nameNoetig={nameNoetig}
+        namen={namen}
         punkte={punkte.map((p) => ({
           id: p.id,
           text: p.text,

@@ -103,7 +103,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
       { href: "/hoerezu", label: "🎤 Höre zu", rollen: ["chef", "team", "showteam"] },
-      { href: "/tipps", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam", "foyer"] },
+      { href: "/tipps?bereich=show", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam"] },
     ],
   },
   {
@@ -156,6 +156,8 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
       { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
       { href: "/geschenke", label: "Abbrecher-Geschenke", rollen: ["chef", "team", "foyer"] },
+      // Dieselbe Seite, nur der Foyer-Teil (Florian, 05.10.2026).
+      { href: "/tipps?bereich=foyer", label: "Tipps & Tricks", rollen: ["chef", "team", "foyer"] },
     ],
   },
   {

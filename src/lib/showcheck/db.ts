@@ -208,3 +208,44 @@ export async function punktWeg(id: string): Promise<void> {
   // Nicht löschen: Was abgehakt wurde, soll nachvollziehbar bleiben.
   await db()`update showcheck_punkt set aktiv = false where id = ${id}::uuid`;
 }
+
+/**
+ * Die Abschnitte der Foyer-Liste, auf die Uhrzeit der Show gerechnet.
+ *
+ * Die Aufstellung ist fuer einen Abend mit Show um 20:00 Uhr
+ * geschrieben. Faengt es um 15:00 an oder beim Flo-Zirkus noch frueher,
+ * stimmt keine der Zeiten mehr, und niemand liest eine Liste, deren
+ * Uhrzeiten nicht zum Abend passen (Florian, 05.10.2026).
+ *
+ * Gerechnet wird deshalb vom Showbeginn aus, mit denselben Abstaenden
+ * wie in der Aufstellung: eine Stunde vorher Einlass, die erste Haelfte
+ * eine Stunde, zwanzig Minuten Pause, danach siebzig Minuten, und eine
+ * halbe Stunde nach der Show.
+ */
+const FOYER_ABSTAENDE: Partial<Record<Bereich, { von: number; bis: number; was: string }>> = {
+  foyer_vor: { von: -240, bis: -60, was: "Vorbereiten" },
+  foyer_einlass: { von: -60, bis: 0, was: "Einlass" },
+  foyer_akt1: { von: 0, bis: 60, was: "erste Hälfte" },
+  foyer_pause: { von: 60, bis: 80, was: "Pause" },
+  foyer_akt2: { von: 80, bis: 150, was: "zweite Hälfte" },
+  foyer_ende: { von: 150, bis: 180, was: "Show-Ende" },
+};
+
+function verschoben(uhrzeit: string, minuten: number): string {
+  const [h, m] = uhrzeit.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return uhrzeit;
+  const gesamt = (((h * 60 + m + minuten) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(gesamt / 60)).padStart(2, "0")}:${String(gesamt % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Die Ueberschrift eines Abschnitts, passend zur Vorstellung.
+ *
+ * Ohne Uhrzeit bleibt es bei der Beschriftung aus BEREICH_TITEL.
+ */
+export function abschnittTitel(bereich: Bereich, showUhrzeit?: string | null): string {
+  const a = FOYER_ABSTAENDE[bereich];
+  if (!a || !showUhrzeit) return BEREICH_TITEL[bereich];
+  if (bereich === "foyer_vor") return `Alles vor ${verschoben(showUhrzeit, a.bis)} Uhr`;
+  return `${verschoben(showUhrzeit, a.von)} bis ${verschoben(showUhrzeit, a.bis)} Uhr, ${a.was}`;
+}

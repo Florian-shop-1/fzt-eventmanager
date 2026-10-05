@@ -15,6 +15,7 @@ import {
 } from "@/lib/showcheck/db";
 import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "./aktionen";
 import { CheckVorschlag } from "@/components/CheckVorschlag";
+import { namenImDienst } from "@/lib/showcheck/namen";
 
 export const metadata = { title: "Show-Check | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -90,6 +91,16 @@ export default async function ShowcheckSeite({
     Haken setzt.
   */
   const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege("show") : [];
+
+  // Am geteilten Zugang fragen wir, wer abhakt (Florian, 05.10.2026).
+  const namen =
+    b.geteilt && tag
+      ? await namenImDienst({
+          liste: "show",
+          eventIds: tag.shows.map((sh) => sh.ditixEventId),
+          datum: tag.datum,
+        })
+      : [];
 
   const fuerUlmfassbar = /ulmfassbar/i.test(vorstellung?.name ?? tag?.name ?? "");
 
@@ -180,6 +191,8 @@ export default async function ShowcheckSeite({
               abend={gezeigteShow ?? ""}
               datum={tag.datum}
               chef={b.rolle === "chef"}
+              nameNoetig={b.geteilt}
+              namen={namen}
             />
           ))}
 
@@ -203,12 +216,17 @@ function Liste({
   abend,
   datum,
   chef,
+  nameNoetig,
+  namen,
 }: {
   bereich: Bereich;
   punkte: Punkt[];
   abend: string;
   datum: string;
   chef: boolean;
+  /** Geteilter Zugang: erst fragen, wer abhakt. */
+  nameNoetig: boolean;
+  namen: string[];
 }) {
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
@@ -223,6 +241,8 @@ function Liste({
       <ShowcheckListe
         abend={abend}
         datum={datum}
+        nameNoetig={nameNoetig}
+        namen={namen}
         punkte={punkte.map((p) => ({
           id: p.id,
           text: p.text,

@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const d = (await request.json().catch(() => null)) as
-    | { abend?: string; datum?: string; punkt?: string; an?: boolean }
+    | { abend?: string; datum?: string; punkt?: string; an?: boolean; wer?: string }
     | null;
 
   const abend = String(d?.abend ?? "").slice(0, 60);
@@ -36,8 +36,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, fehler: "Unvollständige Angaben." }, { status: 400 });
   }
 
+  /*
+    Wer abgehakt hat.
+
+    Bei einem persoenlichen Zugang ist das der Angemeldete, daran gibt es
+    nichts zu waehlen. Am geteilten Zugang im Foyer oder hinter der
+    Buehne gehoert der Haken niemandem, deshalb kommt der Name von dort
+    mit (Florian, 05.10.2026). Geprueft wird er trotzdem: nur bei einem
+    geteilten Zugang, nur ein Name, keine Romane.
+  */
+  const gemeldet = String(d?.wer ?? "").trim().slice(0, 60);
+  const wer = b.geteilt && gemeldet.length >= 2 ? gemeldet : b.name;
+
+  if (b.geteilt && !gemeldet) {
+    return NextResponse.json(
+      { ok: false, fehler: "Bitte zuerst sagen, wer abhakt." },
+      { status: 400 },
+    );
+  }
+
   try {
-    if (d?.an) await haken({ ditixEventId: abend, datum, punktId: punkt, wer: b.name });
+    if (d?.an) await haken({ ditixEventId: abend, datum, punktId: punkt, wer });
     else await hakenWeg(abend, punkt);
   } catch (f) {
     console.error("[showcheck] Haken nicht gespeichert:", f);
@@ -46,7 +65,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    erledigtVon: d?.an ? b.name : null,
+    erledigtVon: d?.an ? wer : null,
     erledigtAm: d?.an ? new Date().toISOString() : null,
   });
 }
