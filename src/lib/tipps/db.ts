@@ -155,3 +155,25 @@ export async function tippLoeschen(id: string): Promise<void> {
 export async function reiheLoeschen(id: string): Promise<void> {
   await db()`delete from tipp_reihe where id = ${id}`;
 }
+
+/**
+ * Wer darf eine Anleitung wieder loeschen?
+ *
+ * Hochladen darf jeder, der Tipps & Tricks sieht. Loeschen ist etwas
+ * anderes: Was einmal steht, hilft den anderen, und soll nicht einfach
+ * verschwinden. Deshalb nur der, der es hochgeladen hat, und nur am
+ * selben Tag, genauer: innerhalb von 24 Stunden. Florian darf immer alles
+ * (Florian, 05.10.2026).
+ */
+export const LOESCHFRIST_STUNDEN = 24;
+
+export function darfLoeschen(
+  b: { name: string; rolle: string } | null | undefined,
+  eintrag: { erstelltVon: string; erstelltAm: string },
+): boolean {
+  if (!b) return false;
+  if (b.rolle === "chef") return true;
+  if (eintrag.erstelltVon !== b.name) return false;
+  const alter = Date.now() - new Date(eintrag.erstelltAm).getTime();
+  return alter < LOESCHFRIST_STUNDEN * 60 * 60 * 1000;
+}

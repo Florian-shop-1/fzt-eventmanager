@@ -14,6 +14,8 @@ export interface ReiheAnsicht {
   beschreibung: string;
   schlagworte: string;
   erstelltVon: string;
+  /** Wann sie hochgeladen wurde. Daran haengt die Loeschfrist. */
+  erstelltAm: string;
   schritte: Tipp[];
 }
 
@@ -29,12 +31,19 @@ export function TippsListe({
   tipps,
   reihen = [],
   darfHochladen,
-  darfLoeschen,
+  loeschbar,
 }: {
   tipps: Tipp[];
   reihen?: ReiheAnsicht[];
   darfHochladen: boolean;
-  darfLoeschen: boolean;
+  /**
+   * Darf dieser Eintrag weg?
+   *
+   * Je Eintrag, nicht pauschal: Wer etwas hochgeladen hat, darf es am
+   * selben Tag wieder wegnehmen, danach nur noch Florian
+   * (Florian, 05.10.2026).
+   */
+  loeschbar: (e: { erstelltVon: string; erstelltAm: string }) => boolean;
 }) {
   const [suche, setSuche] = useState("");
   const gefiltert = useMemo(() => tippsFiltern(tipps, suche), [tipps, suche]);
@@ -83,7 +92,7 @@ export function TippsListe({
           </h2>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {reihenGefiltert.map((r) => (
-              <ReihenKarte key={r.id} reihe={r} darfLoeschen={darfLoeschen} />
+              <ReihenKarte key={r.id} reihe={r} darfLoeschen={loeschbar(r)} />
             ))}
           </ul>
         </section>
@@ -103,7 +112,7 @@ export function TippsListe({
         gefiltert.length > 0 && (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {gefiltert.map((t) => (
-              <TippKarte key={t.id} tipp={t} darfLoeschen={darfLoeschen} />
+              <TippKarte key={t.id} tipp={t} darfLoeschen={loeschbar(t)} />
             ))}
           </ul>
         )

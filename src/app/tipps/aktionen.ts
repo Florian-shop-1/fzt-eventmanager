@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfTipps } from "@/lib/auth/sitzung";
-import { reiheAnlegen, reiheLoeschen, tippAnlegen, tippLoeschen } from "@/lib/tipps/db";
+import {
+  alleReihen,
+  alleTipps,
+  darfLoeschen,
+  reiheAnlegen,
+  reiheLoeschen,
+  tippAnlegen,
+  tippLoeschen,
+} from "@/lib/tipps/db";
 
 const text = (f: FormData, k: string, max = 4000) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -59,8 +67,22 @@ export async function tippSpeichern(f: FormData): Promise<void> {
 
 export async function tippLoeschenAktion(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
-  if (!b || (b.rolle !== "chef" && b.rolle !== "team")) throw new Error("Nicht erlaubt.");
-  await tippLoeschen(text(f, "id", 40));
+  const id = text(f, "id", 40);
+
+  /*
+    Geprueft wird hier, nicht nur im Browser.
+
+    Der Knopf steht nur dort, wo jemand loeschen darf. Wer die Adresse
+    kennt, koennte sie aber auch von Hand aufrufen, und dann entscheidet
+    diese Stelle (Florian, 05.10.2026).
+  */
+  const eintrag = (await alleTipps()).find((t) => t.id === id);
+  if (!eintrag) zurueck("Diesen Eintrag gibt es nicht mehr.");
+  if (!darfLoeschen(b, eintrag)) {
+    zurueck("Löschen geht nur bei den eigenen Anleitungen und nur am Tag des Hochladens.");
+  }
+
+  await tippLoeschen(id);
   zurueck("Gelöscht.");
 }
 
@@ -124,10 +146,22 @@ export async function reiheSpeichern(f: FormData): Promise<void> {
   zurueck(`"${titel}" ist gespeichert, ${sauber.length} Schritte.`);
 }
 
-/** Eine ganze Anleitung wieder löschen, mit allen Schritten. */
+/**
+ * Eine ganze Anleitung wieder löschen, mit allen Schritten.
+ *
+ * Dieselbe Regel wie beim einzelnen Video: nur die eigene, nur am Tag des
+ * Hochladens, und Florian immer (Florian, 05.10.2026).
+ */
 export async function reiheWeg(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
-  if (!darfTipps(b)) throw new Error("Nicht erlaubt.");
-  await reiheLoeschen(text(f, "id", 40));
+  const id = text(f, "id", 40);
+
+  const reihe = (await alleReihen()).find((r) => r.id === id);
+  if (!reihe) zurueck("Diese Anleitung gibt es nicht mehr.");
+  if (!darfLoeschen(b, reihe)) {
+    zurueck("Löschen geht nur bei den eigenen Anleitungen und nur am Tag des Hochladens.");
+  }
+
+  await reiheLoeschen(id);
   zurueck("Die Anleitung ist gelöscht.");
 }
