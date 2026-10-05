@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { reiheLesen } from "@/lib/tipps/db";
+import { bereicheFuer, reiheLesen } from "@/lib/tipps/db";
 import { ReihenAnsicht } from "@/components/ReihenAnsicht";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,14 @@ export default async function ReihenSeite({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const reihe = await reiheLesen(id);
   if (!reihe) notFound();
+
+  /*
+    Auch ueber den Link nur den eigenen Bereich.
+
+    Die Uebersicht zeigt dem Foyer nur Foyer-Anleitungen. Ein
+    weitergegebener Link waere sonst die Hintertuer (Florian, 05.10.2026).
+  */
+  if (!bereicheFuer(benutzer.rolle).includes(reihe.bereich)) notFound();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

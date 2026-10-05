@@ -10,6 +10,8 @@ import { DateiFeld } from "@/components/DateiFeld";
 /** Eine mehrteilige Anleitung, wie sie von der Seite hereinkommt. */
 export interface ReiheAnsicht {
   id: string;
+  /** "show" oder "foyer". */
+  bereich?: "show" | "foyer";
   titel: string;
   beschreibung: string;
   schlagworte: string;
@@ -32,10 +34,19 @@ export function TippsListe({
   reihen = [],
   darfHochladen,
   loeschbar,
+  bereiche,
 }: {
   tipps: Tipp[];
   reihen?: ReiheAnsicht[];
   darfHochladen: boolean;
+  /**
+   * Welche Bereiche dieser Mensch sehen und befuellen darf.
+   *
+   * Eine Zahl heisst: Es gibt nichts zu waehlen, alles Neue gehoert
+   * dorthin. Zwei heissen: Buero oder Chef, sie entscheiden je Eintrag
+   * (Florian, 05.10.2026).
+   */
+  bereiche: Array<"show" | "foyer">;
   /**
    * Darf dieser Eintrag weg?
    *
@@ -79,8 +90,8 @@ export function TippsListe({
 
       {darfHochladen && (
         <div className="flex flex-wrap gap-3">
-          <HochladenFormular />
-          <ReiheFormular />
+          <HochladenFormular bereiche={bereiche} />
+          <ReiheFormular bereiche={bereiche} />
         </div>
       )}
 
@@ -142,7 +153,7 @@ function TippKarte({ tipp, darfLoeschen }: { tipp: Tipp; darfLoeschen: boolean }
   );
 }
 
-function HochladenFormular() {
+function HochladenFormular({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
   const [offen, setOffen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [fortschritt, setFortschritt] = useState(0);
@@ -193,6 +204,7 @@ function HochladenFormular() {
       }
       speichern.set("titel", titel);
       speichern.set("notiz", notiz);
+      speichern.set("bereich", String(daten.get("bereich") ?? bereiche[0] ?? "show"));
       speichern.set("beschreibung", String(daten.get("beschreibung") ?? ""));
       speichern.set("schlagworte", String(daten.get("schlagworte") ?? ""));
       await tippSpeichern(speichern);
@@ -248,6 +260,8 @@ function HochladenFormular() {
         </span>
         <input name="schlagworte" maxLength={500} className="w-full" />
       </label>
+      <BereichFeld bereiche={bereiche} />
+
       <DateiFeld
         beschriftung="Video oder Datei, freiwillig"
         hinweis="Video, PDF, Foto oder Tabelle"
@@ -348,7 +362,7 @@ function ReihenKarte({ reihe, darfLoeschen }: { reihe: ReiheAnsicht; darfLoesche
  * trotzdem, und der Titel jedes Schritts laesst sich vorher aendern
  * (Florian, 29.09.2026).
  */
-function ReiheFormular() {
+function ReiheFormular({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
   const [offen, setOffen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [stand, setStand] = useState("");
@@ -453,6 +467,7 @@ function ReiheFormular() {
       speichern.set("titel", titel);
       speichern.set("beschreibung", String(daten.get("beschreibung") ?? ""));
       speichern.set("schlagworte", String(daten.get("schlagworte") ?? ""));
+      speichern.set("bereich", String(daten.get("bereich") ?? bereiche[0] ?? "show"));
       speichern.set("schritte", JSON.stringify(schritte));
       await reiheSpeichern(speichern);
       form.reset();
@@ -501,6 +516,8 @@ function ReiheFormular() {
         </span>
         <input name="schlagworte" maxLength={500} placeholder="Show Start Pult Licht Ton anschalten" className="w-full" />
       </label>
+
+      <BereichFeld bereiche={bereiche} />
 
       <DateiFeld
         beschriftung="Videos und Dateien, alle auf einmal"
@@ -667,5 +684,35 @@ export function TippInhalt({ tipp }: { tipp: Tipp }) {
       <video controls preload="metadata" className="w-full rounded-md bg-black" src={tipp.videoUrl} />
       {tipp.notiz && <p className="whitespace-pre-line text-sm text-leise">{tipp.notiz}</p>}
     </div>
+  );
+}
+
+/**
+ * Wofuer die Anleitung gedacht ist.
+ *
+ * Darf jemand nur einen Bereich, steht er als Satz da und geht still
+ * mit: Niemand soll etwas auswaehlen, wo es nichts zu waehlen gibt.
+ * Buero und Chef entscheiden je Eintrag (Florian, 05.10.2026).
+ */
+function BereichFeld({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
+  if (bereiche.length <= 1) {
+    const b = bereiche[0] ?? "show";
+    return (
+      <>
+        <input type="hidden" name="bereich" value={b} />
+        <p className="text-xs text-leise">
+          Die Anleitung erscheint {b === "foyer" ? "bei den Tipps fürs Foyer" : "bei den Tipps für die Show"}.
+        </p>
+      </>
+    );
+  }
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-leise">Wofür ist das?</span>
+      <select name="bereich" defaultValue="show" className="text-sm">
+        <option value="show">Show</option>
+        <option value="foyer">Foyer</option>
+      </select>
+    </label>
   );
 }

@@ -6,6 +6,7 @@ import { angemeldeterBenutzer, darfTipps } from "@/lib/auth/sitzung";
 import {
   alleReihen,
   alleTipps,
+  bereicheFuer,
   darfLoeschen,
   reiheAnlegen,
   reiheLoeschen,
@@ -31,6 +32,17 @@ export async function tippSpeichern(f: FormData): Promise<void> {
   if (!darfTipps(b)) throw new Error("Nicht erlaubt.");
 
   const titel = text(f, "titel", 200);
+  /*
+    Der Bereich kommt aus dem Formular, muss aber erlaubt sein.
+
+    Das Foyer soll nichts in die Show-Anleitungen legen und umgekehrt.
+    Wer nur einen Bereich darf, bekommt ihn hier gesetzt, egal was
+    geschickt wurde (Florian, 05.10.2026).
+  */
+  const erlaubt = bereicheFuer(b?.rolle);
+  const gewuenscht = text(f, "bereich", 10) === "foyer" ? "foyer" : "show";
+  const bereich = erlaubt.includes(gewuenscht) ? gewuenscht : erlaubt[0];
+
   const videoUrl = text(f, "videoUrl", 2000);
   const videoTyp = text(f, "videoTyp", 100);
   const notiz = text(f, "notiz", 20000);
@@ -58,6 +70,7 @@ export async function tippSpeichern(f: FormData): Promise<void> {
     videoUrl,
     videoTyp,
     von: b!.name,
+    bereich,
     art,
     notiz,
     dateiName: text(f, "dateiName", 200),
@@ -135,11 +148,16 @@ export async function reiheSpeichern(f: FormData): Promise<void> {
 
   if (sauber.length === 0) zurueck("Es kam kein einziger Schritt an.");
 
+  // Derselbe Riegel wie beim einzelnen Video, siehe tippSpeichern.
+  const erlaubt = bereicheFuer(b?.rolle);
+  const gewuenscht = text(f, "bereich", 10) === "foyer" ? "foyer" : "show";
+
   await reiheAnlegen({
     titel,
     beschreibung: text(f, "beschreibung", 2000),
     schlagworte: text(f, "schlagworte", 500),
     von: b!.name,
+    bereich: erlaubt.includes(gewuenscht) ? gewuenscht : erlaubt[0],
     schritte: sauber,
   });
 

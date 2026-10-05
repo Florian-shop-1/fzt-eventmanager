@@ -13,8 +13,25 @@ import type { Tipp } from "./filter";
 
 export type { Tipp } from "./filter";
 
+/**
+ * Fuer wen eine Anleitung gedacht ist.
+ *
+ * Das Foyer braucht die Kaffeemaschine und die Kasse, das Showteam das
+ * Lichtpult. Wer alles sieht, findet nichts (Florian, 05.10.2026).
+ */
+export type TippBereich = "show" | "foyer";
+
+/** Welche Bereiche jemand sehen und befuellen darf. */
+export function bereicheFuer(rolle: string | undefined): TippBereich[] {
+  if (rolle === "foyer") return ["foyer"];
+  if (rolle === "showteam") return ["show"];
+  // Buero und Chef sehen beides und entscheiden beim Hochladen selbst.
+  return ["show", "foyer"];
+}
+
 export interface Reihe {
   id: string;
+  bereich: TippBereich;
   titel: string;
   beschreibung: string;
   schlagworte: string;
@@ -34,6 +51,7 @@ function zeile(r: Record<string, unknown>): Tipp {
     videoTyp: String(r.video_typ),
     erstelltVon: String(r.erstellt_von),
     erstelltAm: new Date(r.erstellt_am as string).toISOString(),
+    bereich: (r.bereich as TippBereich) ?? "show",
     art: (r.art as "video" | "datei" | "notiz") ?? "video",
     notiz: String(r.notiz ?? ""),
     dateiName: String(r.datei_name ?? ""),
@@ -67,6 +85,7 @@ export async function alleReihen(): Promise<Reihe[]> {
     schlagworte: String(x.schlagworte ?? ""),
     erstelltVon: String(x.erstellt_von),
     erstelltAm: new Date(x.erstellt_am as string).toISOString(),
+    bereich: (x.bereich as TippBereich) ?? "show",
     schritte: schritte.filter((s) => String(s.reihe_id) === String(x.id)).map(zeile),
   }));
 }
@@ -89,13 +108,14 @@ export async function tippAnlegen(o: {
   art?: "video" | "datei" | "notiz";
   notiz?: string;
   dateiName?: string;
+  bereich?: TippBereich;
 }): Promise<void> {
   await db()`
     insert into tipp (titel, beschreibung, schlagworte, video_url, video_typ, erstellt_von, reihe_id, schritt,
-                      art, notiz, datei_name)
+                      art, notiz, datei_name, bereich)
     values (${o.titel}, ${o.beschreibung}, ${o.schlagworte}, ${o.videoUrl}, ${o.videoTyp}, ${o.von},
             ${o.reiheId ?? null}::uuid, ${o.schritt ?? 1},
-            ${o.art ?? "video"}, ${o.notiz ?? ""}, ${o.dateiName ?? ""})
+            ${o.art ?? "video"}, ${o.notiz ?? ""}, ${o.dateiName ?? ""}, ${o.bereich ?? "show"})
   `;
 }
 
@@ -110,6 +130,7 @@ export async function reiheAnlegen(o: {
   beschreibung: string;
   schlagworte: string;
   von: string;
+  bereich?: TippBereich;
   schritte: Array<{
     titel: string;
     videoUrl: string;
@@ -120,8 +141,8 @@ export async function reiheAnlegen(o: {
   }>;
 }): Promise<string> {
   const r = (await db()`
-    insert into tipp_reihe (titel, beschreibung, schlagworte, erstellt_von)
-    values (${o.titel}, ${o.beschreibung}, ${o.schlagworte}, ${o.von})
+    insert into tipp_reihe (titel, beschreibung, schlagworte, erstellt_von, bereich)
+    values (${o.titel}, ${o.beschreibung}, ${o.schlagworte}, ${o.von}, ${o.bereich ?? "show"})
     returning id
   `) as Array<{ id: string }>;
   const reiheId = String(r[0].id);
@@ -136,6 +157,7 @@ export async function reiheAnlegen(o: {
       videoUrl: s.videoUrl,
       videoTyp: s.videoTyp,
       von: o.von,
+      bereich: o.bereich,
       reiheId,
       schritt: i + 1,
       art: s.art ?? "video",
