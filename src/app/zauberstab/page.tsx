@@ -15,10 +15,12 @@ export const dynamic = "force-dynamic";
 /**
  * Die Zauberstäbe, die in die Post müssen.
  *
- * Wer beim Eurowings-Gewinnspiel mitmacht, bekommt einen erscheinenden
- * Zauberstab nach Hause geschickt. Die Anschrift kommt aus dem Shop, hier
- * steht sie in einer Liste zum Abarbeiten: Umschlag fertig machen, Schreiben
- * dazulegen, abhaken (Florian, 30.09.2026).
+ * Der Zauberstab ist der Trostpreis des Gewinnspiels: Wer bei der Ziehung
+ * kein Los zieht, bekommt ihn mit der Post (Florian, 05.10.2026). Verschickt
+ * wird deshalb erst NACH der Ziehung, und nicht an die Gewinner.
+ *
+ * Die Anschrift kommt aus dem Shop, hier steht sie in einer Liste zum
+ * Abarbeiten: Umschlag fertig machen, Schreiben dazulegen, abhaken.
  *
  * Aufgebaut wie der Gutscheinversand, damit niemand zweierlei lernen muss.
  */
@@ -43,7 +45,9 @@ export default async function ZauberstabSeite({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Zauberstäbe</h1>
           <p className="mt-1 max-w-prose text-sm text-leise">
-            Die Begleitschreiben zum Ausdrucken. Wer noch einen Umschlag bekommt, steht zusammen mit den
+            Der Zauberstab ist der Trostpreis des Gewinnspiels: Verschickt wird erst nach der
+            Ziehung, und nur an alle, die nicht gewonnen haben. Die Begleitschreiben zum
+            Ausdrucken stehen hier. Wer noch einen Umschlag bekommt, steht zusammen mit den
             Gutscheinen in der{" "}
             <Link href="/versand" className="underline">
               Versandliste

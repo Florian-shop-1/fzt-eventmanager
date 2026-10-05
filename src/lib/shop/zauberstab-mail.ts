@@ -26,15 +26,16 @@ export function erinnerungMail(z: Zauberstab): { betreff: string; text: string; 
   const text = [
     anrede,
     "",
-    "dein erscheinender Zauberstab liegt bei uns bereit, aber wir wissen",
-    "noch nicht, wohin er soll.",
+    "dein Trostpreis liegt bei uns bereit: der erscheinende Zauberstab.",
+    "Wer bei der Ziehung kein Los zieht, bekommt ihn mit der Post. Nur",
+    "wohin, das wissen wir noch nicht.",
     "",
-    "Drei Zeilen genügen, dann geht er auf die Reise:",
+    "Drei Zeilen genügen:",
     "",
     link,
     "",
-    "Er kostet dich nichts, die Anleitung liegt dabei. Und dein Los für das",
-    "magische Wochenende für zwei liegt ohnehin schon im Topf.",
+    "Er kostet dich nichts, die Anleitung liegt dabei, verschickt wird nach",
+    "der Ziehung. Dein Los liegt ohnehin schon im Topf.",
     "",
     "Florian",
     "",
@@ -50,19 +51,20 @@ export function erinnerungMail(z: Zauberstab): { betreff: string; text: string; 
   ].join("\n");
 
   const html = mailRahmen({
-    titel: "Dein Zauberstab wartet",
-    vorschau: "Drei Zeilen Anschrift, dann geht er auf die Reise.",
-    ueberschrift: ueberschrift("Dein Zauberstab<br />wartet noch"),
+    titel: "Dein Trostpreis wartet",
+    vorschau: "Drei Zeilen Anschrift, dann kann er nach der Ziehung zu dir.",
+    ueberschrift: ueberschrift("Dein Trostpreis<br />wartet noch"),
     inhalt: [
       absatz(anrede),
       absatz(
-        "dein erscheinender Zauberstab liegt bei uns bereit, aber wir wissen noch nicht, "
-          + "wohin er soll. Drei Zeilen genügen, dann geht er auf die Reise.",
+        "dein Trostpreis liegt bei uns bereit: der erscheinende Zauberstab. Wer bei der "
+          + "Ziehung kein Los zieht, bekommt ihn mit der Post. Nur wohin, das wissen wir "
+          + "noch nicht. Drei Zeilen genügen.",
       ),
       knopf("Anschrift eintragen", link),
       absatz(
-        "Er kostet dich nichts, die Anleitung liegt dabei. Und dein Los für das magische "
-          + "Wochenende für zwei liegt ohnehin schon im Topf.",
+        "Er kostet dich nichts, die Anleitung liegt dabei, verschickt wird nach der Ziehung. "
+          + "Dein Los liegt ohnehin schon im Topf.",
       ),
     ].join(""),
     fuss: klein(
@@ -71,5 +73,5 @@ export function erinnerungMail(z: Zauberstab): { betreff: string; text: string; 
     ),
   });
 
-  return { betreff: "Dein Zauberstab wartet noch auf eine Anschrift", text, html };
+  return { betreff: "Dein Trostpreis wartet noch auf eine Anschrift", text, html };
 }
