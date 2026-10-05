@@ -312,6 +312,22 @@ const GETEILTE_SEITEN: Record<string, string[]> = {
   showteam: ["/upgrades", "/hoerezu", "/tipps"],
 };
 
+/**
+ * Wo ein Zugang landet, wenn er nichts Bestimmtes angesteuert hat.
+ *
+ * Fuer die geteilten Zugaenge ist das nicht die Uebersicht: Die
+ * Startseite schickt das Showteam auf den Dienstplan, und den darf ein
+ * geteilter Zugang nicht sehen. Daraus wurde eine Schleife, die Safari
+ * mit "zu viele Umleitungen" abbrach (gefunden am 05.10.2026).
+ *
+ * Deshalb hat jeder geteilte Zugang hier seine eigene erste Seite, und
+ * sie steht immer in GETEILTE_SEITEN.
+ */
+export function startseiteFuer(rolle: Rolle, geteilt = false): string {
+  if (!geteilt) return "/";
+  return GETEILTE_SEITEN[rolle]?.[0] ?? "/";
+}
+
 export function darfSeite(rolle: Rolle, pfad: string, geteilt = false): boolean {
   if (geteilt) {
     const erlaubt = GETEILTE_SEITEN[rolle] ?? [];

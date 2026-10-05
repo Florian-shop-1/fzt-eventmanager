@@ -1,12 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LOGEN, EVENTGALERIE_TISCHE, FOYER_STEHTISCHE, kapazitaet } from "@/lib/domain/venue";
-import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, startseiteFuer } from "@/lib/auth/sitzung";
 import { heutigeGeburtstage } from "@/lib/db/geburtstag";
 
 export default async function Startseite() {
+  const benutzer = await angemeldeterBenutzer();
+
+  /*
+    Geteilte Zugaenge zuerst.
+
+    Sie tragen die Rolle "foyer" oder "showteam", duerfen aber nur ihre
+    wenigen Seiten sehen. Ohne diese Zeile schickte die Uebersicht den
+    geteilten Show-Zugang auf den Dienstplan, das Layout schickte ihn
+    zurueck auf die Uebersicht, und so weiter: "zu viele Umleitungen"
+    (Florian, 05.10.2026).
+  */
+  if (benutzer?.geteilt) redirect(startseiteFuer(benutzer.rolle, true));
+
   // Der Food-Kiosk hat genau eine Seite. Nach dem Anmelden direkt dorthin.
-  const rolle = (await angemeldeterBenutzer())?.rolle;
+  const rolle = benutzer?.rolle;
   if (rolle === "kiosk") redirect("/kiosk");
   // Eine Werbeagentur hat auf der Uebersicht nichts zu suchen: Dort stehen
   // Gaestezahlen und Vorgaenge. Sie landet direkt bei ihrer Auswertung.

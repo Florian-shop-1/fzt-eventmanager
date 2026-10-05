@@ -5,7 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, darfVertraege, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, darfVertraege, startseiteFuer, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
@@ -227,7 +227,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   // Wer eine Seite aufruft, die seine Rolle nicht sehen darf, landet auf der
   // Übersicht statt auf einer Fehlermeldung.
-  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad, benutzer.geteilt)) redirect("/");
+  /*
+    Wer eine Seite aufruft, die seine Rolle nicht sehen darf, landet auf
+    seiner Startseite. Auf seiner, nicht pauschal auf der Uebersicht: Ein
+    geteilter Zugang wird von der Uebersicht sofort weitergeschickt, und
+    zwei Weiterleitungen, die aufeinander zeigen, ergeben eine Schleife
+    (Florian, 05.10.2026).
+
+    Zeigt die Startseite auf sich selbst, wird gar nicht umgeleitet. Dann
+    sieht man lieber eine leere Seite als einen Browser, der aufgibt.
+  */
+  if (benutzer && !offen && !darfSeite(benutzer.rolle, pfad, benutzer.geteilt)) {
+    const ziel = startseiteFuer(benutzer.rolle, benutzer.geteilt);
+    if (ziel !== pfad) redirect(ziel);
+  }
 
   // Was diese Person noch erledigen muss. Geschäftsführung und externe
   // Partner (Food-Kiosk) unterschreiben keine Geheimhaltung über das Programm.
