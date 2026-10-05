@@ -132,7 +132,18 @@ export default async function ParkplaetzeSeite({
     : druck === "alle"
       ? alleSchilder
       : alleSchilder.filter((x) => !gedruckt.has(x.orderId));
+  /*
+    Zwei Zahlen, die auseinandergehalten gehoeren.
+
+    "plaetze" ist, was gleich aus dem Drucker kommt, also meist nur das
+    Offene. "gesamtPlaetze" ist, was der Abend ueberhaupt hat. Die Liste
+    am Bildschirm richtet sich nach der zweiten: Sonst verschwindet sie,
+    sobald alles abgehakt ist, und niemand kommt mehr an "rückgängig"
+    (Florian, 05.10.2026: "da steht aber jetzt, dass alle hängen.. wie
+    nehme ich es für den tag zurück").
+  */
   const plaetze = schilder.length;
+  const gesamtPlaetze = alleSchilder.length;
   const einzeln = Boolean(nur) && plaetze > 0;
   const einzelName = einzeln ? schilder[0].name : "";
 
@@ -145,8 +156,9 @@ export default async function ParkplaetzeSeite({
             Wer einen Platz gebucht hat, und die Schilder zum Ausdrucken.
           </p>
         </div>
-        {plaetze > 0 && (
+        {gesamtPlaetze > 0 && (
           <div className="text-right">
+            {plaetze > 0 && (
             <DruckKnopf
               text={
                 nur || druck === "alle"
@@ -155,6 +167,7 @@ export default async function ParkplaetzeSeite({
               }
               hinweis="Je eine A4-Seite, Querformat"
             />
+            )}
             {!nur && druck !== "alle" && alleSchilder.length > plaetze && (
               <div className="mt-1 text-xs text-leise">
                 <Link
@@ -272,12 +285,12 @@ export default async function ParkplaetzeSeite({
       <section className="rounded-lg border border-linie bg-flaeche p-6 print:hidden">
         <h2 className="mb-1 font-semibold">
           {termin ? datumKurz(termin.datum) : "Abend"} ·{" "}
-          {plaetze === 0
+          {gesamtPlaetze === 0
             ? "keine Parkplätze gebucht"
-            : `${plaetze} ${plaetze === 1 ? "Platz" : "Plätze"}`}
+            : `${gesamtPlaetze} ${gesamtPlaetze === 1 ? "Platz" : "Plätze"}`}
         </h2>
 
-        {plaetze === 0 ? (
+        {gesamtPlaetze === 0 ? (
           <p className="mt-2 text-sm text-leise">
             Für diesen Abend hat niemand einen VIP-Parkplatz gebucht. Es ist nichts
             vorzubereiten.
