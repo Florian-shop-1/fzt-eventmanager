@@ -167,7 +167,7 @@ export default async function UpgradeSeite({
                 background: testModus ? "var(--warnung-hell)" : "var(--flaeche)",
               }}
             >
-              {testModus ? "Testmodus an — ausschalten" : "Testmodus: jetzt umsetzen/durch-x-en dürfen"}
+              {testModus ? "Scharf: an, ausschalten" : "Scharf schalten (speichert echt)"}
             </Link>
           )}
           {((rat && rat.umzuege.length > 0) || gaeste.length > 0) && (
@@ -181,10 +181,9 @@ export default async function UpgradeSeite({
           className="rounded-lg border-2 px-4 py-3 text-sm print:hidden"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
-          <strong>Testmodus:</strong> Umsetzen und Durch-x-en sind unabhängig von der Uhrzeit freigeschaltet, auch
-          wenn gerade keine Show läuft. Was du hier antippst, wird echt gespeichert — nach dem Test oben rechts auf
-          „ausschalten“ tippen und die Testeinträge über „alle Umsetzungen zurücknehmen“ bzw. erneutes Antippen
-          wieder entfernen.
+          <strong>Scharf geschaltet:</strong> Umsetzen und Durch-x-en gehen unabhängig von der Uhrzeit, und alles
+          wird echt gespeichert. Nur zum Vorbereiten gedacht. Wer bloß ausprobieren will, nimmt unten den Knopf
+          „Üben“: Dort wird nichts gespeichert.
         </div>
       )}
 

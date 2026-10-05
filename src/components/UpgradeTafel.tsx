@@ -200,6 +200,19 @@ export function UpgradeTafel({
     es sonst nicht" (04.10.2026). Dass noch nichts passieren kann, sagt
     der Plan jetzt selbst, statt den Tipp stillschweigend zu schlucken.
   */
+  /*
+    Ueben.
+
+    Das Showteam soll das Antippen ueben koennen, wann immer es will, und
+    dabei darf nichts in der Datenbank landen: "wichtig ist die info, dass
+    sie sich im test-modus befinden und nichts gespeichert wird davon"
+    (Florian, 05.10.2026). In echt geht es weiter erst ab Saaloeffnung.
+
+    Alles bleibt dabei im Browser. Beim Beenden wird der Stand vom Server
+    wiederhergestellt, die Uebung ist damit spurlos weg.
+  */
+  const [uebung, setUebung] = useState(false);
+
   const [bereit, setBereit] = useState(false);
   useEffect(() => {
     setBereit(true);
@@ -212,6 +225,9 @@ export function UpgradeTafel({
     const t = setInterval(pruefen, 20000);
     return () => clearInterval(t);
   }, [abZeitpunkt, erzwingeOffen]);
+
+  /** Darf jetzt getippt werden? Ab Saaloeffnung, und beim Ueben immer. */
+  const frei = offen || uebung;
 
   const abUhr = abZeitpunkt
     ? new Date(abZeitpunkt).toLocaleTimeString("de-DE", {
@@ -553,13 +569,25 @@ export function UpgradeTafel({
 
   async function setzen(g: TafelGruppe, block: TafelSitz[]) {
     if (laeuft) return;
-    if (!offen) {
+    if (!frei) {
       setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
       return;
     }
     setLaeuft(true);
     setHinweis("");
     const zielText = `${blockText(block)} (${block[0].sektor})`;
+
+    // Beim Ueben bleibt alles im Browser.
+    if (uebung) {
+      setGesetzt((alt) => [
+        ...alt.filter((x) => x.schluessel !== g.schluessel),
+        { schluessel: g.schluessel, zielText, zielIds: block.map((x) => x.id), gesetztVon: null },
+      ]);
+      setInDerHand(null);
+      setLaeuft(false);
+      return;
+    }
+
     try {
       const antwort = await fetch("/upgrades/setzen", {
         method: "POST",
@@ -620,6 +648,12 @@ export function UpgradeTafel({
     if (laeuft || gesetzt.length === 0) return;
     setLaeuft(true);
     setHinweis("");
+    if (uebung) {
+      setGesetzt([]);
+      setInDerHand(null);
+      setLaeuft(false);
+      return;
+    }
     try {
       for (const x of [...gesetzt]) {
         const g = gruppeZu(x.schluessel);
@@ -644,6 +678,12 @@ export function UpgradeTafel({
 
   async function zurueck(g: TafelGruppe) {
     setLaeuft(true);
+    if (uebung) {
+      setGesetzt((alt) => alt.filter((x) => x.schluessel !== g.schluessel));
+      setInDerHand(null);
+      setLaeuft(false);
+      return;
+    }
     try {
       await fetch("/upgrades/setzen", {
         method: "DELETE",
@@ -668,7 +708,7 @@ export function UpgradeTafel({
    */
   async function toggleEinchecken(sitzId: number) {
     if (laeuft) return;
-    if (!offen) {
+    if (!frei) {
       setHinweis(`Eingecheckt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
       return;
     }
@@ -681,6 +721,10 @@ export function UpgradeTafel({
     });
     setLaeuft(true);
     setHinweis("");
+    if (uebung) {
+      setLaeuft(false);
+      return;
+    }
     try {
       const antwort = await fetch("/upgrades/einchecken", {
         method: drin ? "DELETE" : "POST",
@@ -751,7 +795,7 @@ export function UpgradeTafel({
       void toggleEinchecken(s.id);
       return;
     }
-    if (!offen) {
+    if (!frei) {
       setHinweis(`Umgesetzt wird erst ab ${abUhr} Uhr, wenn der Saal öffnet.`);
       return;
     }
@@ -973,7 +1017,49 @@ export function UpgradeTafel({
         >
           Durch-x-en
         </button>
+
+        {/*
+          Ueben: fuer alle, die den Plan am Abend bedienen.
+
+          Steht in derselben Reihe wie die Werkzeuge, aber abgesetzt
+          rechts: Es ist kein viertes Werkzeug, sondern ein Schalter
+          darueber (Florian, 05.10.2026).
+        */}
+        <button
+          type="button"
+          onClick={() => {
+            const neu = !uebung;
+            setUebung(neu);
+            setInDerHand(null);
+            setHinweis("");
+            // Beim Beenden den echten Stand zurueckholen: Die Uebung ist
+            // damit spurlos weg.
+            if (!neu) {
+              setGesetzt(umsetzungen);
+              setEingecheckt(new Set(eingecheckteIds));
+            }
+          }}
+          className="ml-auto rounded-lg border-2 px-3 py-1.5 text-sm font-medium"
+          style={{
+            borderColor: uebung ? "var(--warnung)" : "var(--linie)",
+            background: uebung ? "var(--warnung-hell)" : "var(--flaeche)",
+          }}
+        >
+          {uebung ? "Üben beenden" : "Üben"}
+        </button>
       </div>
+
+      {uebung && (
+        <p
+          className="rounded-md border-2 px-3 py-2 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>Übungsmodus. Hier wird nichts gespeichert.</strong> Du kannst alles ausprobieren:
+          Gruppen aufnehmen, umsetzen, durch-x-en, zurücknehmen. Niemand sonst sieht davon etwas, und
+          beim Beenden ist alles wieder wie vorher. Echt gilt es erst ab Einlass
+          {abUhr ? `, also ab ${abUhr} Uhr` : ""}.
+        </p>
+      )}
 
       {/*
         Die Sperre steht vorne, nicht erst nach dem Tippen.
@@ -984,14 +1070,15 @@ export function UpgradeTafel({
         ("durch-x-en ging nicht", Mario, 05.10.2026). Jetzt steht es da,
         bevor jemand tippt, samt Uhrzeit.
       */}
-      {!offen && abUhr && (
+      {!offen && !uebung && abUhr && (
         <p
           className="rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
           <strong>Ab {abUhr} Uhr geht es los.</strong> Umsetzen und Durch-x-en sind bis zur
           Saalöffnung gesperrt, damit der Plan bis dahin so bleibt, wie er geplant ist. Die
-          Seite schaltet sich von selbst frei, du musst nicht neu laden.
+          Seite schaltet sich von selbst frei, du musst nicht neu laden. Zum Ausprobieren gibt es
+          oben den Knopf „Üben“: Dabei wird nichts gespeichert.
         </p>
       )}
 
