@@ -552,13 +552,22 @@ export async function mailantwortSpeichern(
   `;
 }
 
-/** Kontaktdaten einer Webanfrage, für die Antwort per Mail oder WhatsApp. */
+/**
+ * Kontaktdaten einer Anfrage, die nicht über WhatsApp kam, für die
+ * Antwort per Mail oder WhatsApp.
+ *
+ * Gefragt wird nach allem ausser WhatsApp selbst. Vorher standen hier nur
+ * "webseite" und "bewertung", und ein liegengebliebener Warenkorb
+ * (kanal "abbrecher") fiel heraus: Die Antwort scheiterte dann mit "keine
+ * brauchbare Telefonnummer hinterlegt", obwohl Nummer und Adresse daneben
+ * standen (Florian, 05.10.2026).
+ */
 export async function webanfrageKontakt(
   waId: string,
 ): Promise<{ name: string | null; email: string | null; telefon: string | null } | null> {
   const [z] = (await db()`
     select profilname, email, telefon from wa_unterhaltung
-     where wa_id = ${waId} and kanal in ('webseite', 'bewertung')
+     where wa_id = ${waId} and kanal <> 'whatsapp'
   `) as Array<{ profilname: string | null; email: string | null; telefon: string | null }>;
   return z ? { name: z.profilname, email: z.email, telefon: z.telefon } : null;
 }
