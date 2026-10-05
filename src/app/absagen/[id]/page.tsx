@@ -4,6 +4,8 @@ import { absageLesen, gaesteFuerAbsage, type AbsageGast } from "@/lib/absage/db"
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { alleSenden, entwurfAktualisieren, mailSenden, rueckrufAbhaken, umbuchungErledigt } from "../aktionen";
+import { holeSpielplan } from "@/lib/ditix/spielplan";
+import { ditixVerkaufLink } from "@/lib/ditix/link";
 
 export const metadata = { title: "Show-Absage | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -23,6 +25,17 @@ export default async function AbsageDetailSeite({ params }: { params: Promise<{ 
   const gaeste = await gaesteFuerAbsage(id);
   const nichtVersendet = gaeste.filter((g) => !g.versendetAm).length;
 
+  /*
+    Steht die Show im Shop noch zum Verkauf?
+
+    Die Absage hier nimmt sie dort nicht heraus: Der Eventmanager liest
+    Ditix nur. Solange sie im Spielplan steht, kann ein Gast Karten fuer
+    einen Abend kaufen, den es nicht gibt (Florian, 05.10.2026).
+  */
+  const nochImVerkauf = (await holeSpielplan().catch(() => [])).some(
+    (v) => v.id === absage.ditixEventId && v.ticketSaleState !== "CLOSED",
+  );
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -34,6 +47,27 @@ export default async function AbsageDetailSeite({ params }: { params: Promise<{ 
           {new Date(absage.abgesagtAm).toLocaleDateString("de-DE")}
         </p>
       </header>
+
+      {nochImVerkauf && (
+        <div
+          className="rounded-lg border-2 px-4 py-3 text-sm"
+          style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+        >
+          <strong>Diese Vorstellung steht im Shop noch zum Verkauf.</strong> Der Eventmanager kann sie dort
+          nicht herausnehmen, das geht nur in Ditix. Bitte zuerst dort schließen, sonst kauft jemand Karten
+          für einen Abend, den es nicht gibt.
+          <div className="mt-2">
+            <a
+              href={ditixVerkaufLink(absage.ditixEventId) ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm font-medium"
+            >
+              In Ditix öffnen und Verkauf schließen
+            </a>
+          </div>
+        </div>
+      )}
 
       {gaeste.length === 0 ? (
         <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm text-leise">

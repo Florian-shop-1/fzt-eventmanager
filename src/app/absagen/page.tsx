@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
-import { kommendeTermine } from "@/lib/ditix/spielplan";
+import { kommendeTermine, holeSpielplan } from "@/lib/ditix/spielplan";
+import { ditixVerkaufLink } from "@/lib/ditix/link";
 import { absagenListe } from "@/lib/absage/db";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -25,9 +26,30 @@ export default async function AbsagenSeite({
   if (benutzer.rolle !== "chef" && !darfEinladen(benutzer)) redirect("/");
   const { meldung } = await searchParams;
 
-  const [termine, absagen] = await Promise.all([kommendeTermine(60), absagenListe()]);
+  const [termine, absagen, imShop] = await Promise.all([
+    kommendeTermine(60),
+    absagenListe(),
+    holeSpielplan().catch(() => []),
+  ]);
   const abgesagteIds = new Set(absagen.map((a) => a.ditixEventId));
   const wahl = termine.filter((t) => !abgesagteIds.has(t.ditixEventId));
+
+  /*
+    Eine Absage im Eventmanager nimmt die Show nicht aus dem Verkauf.
+
+    Der Eventmanager liest Ditix nur, er schreibt dort nichts (siehe
+    lib/ditix/spielplan.ts). Eine abgesagte Vorstellung steht deshalb
+    weiter im Shop, und ein Gast kann Karten dafuer kaufen: genau so
+    passiert mit der Vorstellung am 10.10. (Florian, 05.10.2026).
+
+    Hier steht deshalb, welche Absage im Shop noch zu haben ist, mit dem
+    Link in die Ditix-Verwaltung. Schliessen muss es weiter ein Mensch.
+  */
+  const nochImVerkauf = new Set(
+    imShop
+      .filter((v) => abgesagteIds.has(v.id) && v.ticketSaleState !== "CLOSED")
+      .map((v) => v.id),
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -43,6 +65,21 @@ export default async function AbsagenSeite({
       {meldung && (
         <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}>
           {meldung}
+        </div>
+      )}
+
+      {nochImVerkauf.size > 0 && (
+        <div
+          className="rounded-lg border-2 px-4 py-3 text-sm"
+          style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+        >
+          <strong>
+            {nochImVerkauf.size === 1
+              ? "Eine abgesagte Vorstellung steht im Shop noch zum Verkauf."
+              : `${nochImVerkauf.size} abgesagte Vorstellungen stehen im Shop noch zum Verkauf.`}
+          </strong>{" "}
+          Die Absage hier nimmt sie dort nicht heraus, das muss in Ditix passieren. Sonst kauft jemand
+          Karten für einen Abend, den es nicht gibt. Die betroffenen stehen unten mit einem Link dorthin.
         </div>
       )}
 
@@ -85,6 +122,21 @@ export default async function AbsagenSeite({
                 <Link href={`/absagen/${a.id}`} className="flex-1 underline">
                   {datumMitWochentag(a.datum)}, {a.uhrzeit} Uhr – {a.show}
                 </Link>
+                {nochImVerkauf.has(a.ditixEventId) ? (
+                  <a
+                    href={ditixVerkaufLink(a.ditixEventId) ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded px-2 py-0.5 text-xs font-semibold"
+                    style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}
+                  >
+                    noch im Verkauf: in Ditix schließen
+                  </a>
+                ) : (
+                  <span className="text-xs" style={{ color: "var(--gut)" }}>
+                    nicht mehr im Verkauf
+                  </span>
+                )}
                 <span className="text-xs text-leise">abgesagt von {a.abgesagtVon}</span>
               </li>
             ))}
