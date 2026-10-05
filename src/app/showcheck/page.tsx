@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
@@ -23,18 +24,53 @@ export const dynamic = "force-dynamic";
 export default async function ShowcheckSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; show?: string }>;
 }) {
   const b = await angemeldeterBenutzer();
   if (!b) redirect("/anmelden");
   if (!["chef", "team", "showteam"].includes(b.rolle)) redirect("/");
 
-  const { abend, monat } = await searchParams;
+  const { abend, monat, show } = await searchParams;
   const termine = await alleShowtage();
-  const { gewaehlt, monat: aufgeschlagen, heute } = await waehleAbend(termine, { abend, monat });
+
+  /*
+    Ein Tag, aber moeglicherweise zwei Vorstellungen.
+
+    Die Abendauswahl kennt Tage, und ein Tag heisst nach seiner ersten
+    Vorstellung. Abgehakt wird dagegen je Vorstellung: Laufen zwei Shows,
+    muss die Kerze zweimal brennen.
+
+    Daraus wurde ein Fehler: Ein Link aus dem Dienstplan zeigt auf die
+    zweite Vorstellung, die Seite las die Liste der ersten, und die Haken
+    waren nach dem Neuladen "weg" (Florian, 05.10.2026). Gespeichert waren
+    sie die ganze Zeit, nur unter der anderen Kennung.
+
+    Deshalb hier beides: Der Tag kommt aus der Auswahl, die Vorstellung
+    steht daneben. Zeigt die Adresse auf eine einzelne Vorstellung, wird
+    ihr Tag aufgeschlagen und sie selbst gewaehlt.
+  */
+  const tagVonShow = abend
+    ? termine.find((t) => t.shows.some((sh) => sh.ditixEventId === abend))
+    : undefined;
+
+  const { gewaehlt, monat: aufgeschlagen, heute } = await waehleAbend(termine, {
+    abend: tagVonShow?.ditixEventId ?? abend,
+    monat,
+  });
 
   const tag = termine.find((t) => t.ditixEventId === gewaehlt) ?? null;
-  const punkte = gewaehlt ? await checkliste(gewaehlt) : [];
+
+  const gehoertDazu = (id: string | undefined) =>
+    Boolean(id && tag?.shows.some((sh) => sh.ditixEventId === id));
+
+  const gezeigteShow =
+    (gehoertDazu(show) ? show : undefined) ??
+    (gehoertDazu(abend) ? abend : undefined) ??
+    tag?.shows[0]?.ditixEventId ??
+    gewaehlt;
+
+  const vorstellung = tag?.shows.find((sh) => sh.ditixEventId === gezeigteShow) ?? null;
+  const punkte = gezeigteShow ? await checkliste(gezeigteShow) : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -69,17 +105,43 @@ export default async function ShowcheckSeite({
         <>
           <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
             <strong>
-              {tag.datum.split("-").reverse().join(".")}, {tag.uhrzeit} Uhr
+              {tag.datum.split("-").reverse().join(".")}, {vorstellung?.uhrzeit ?? tag.uhrzeit} Uhr
             </strong>{" "}
-            <span className="text-leise">{tag.name}</span>
+            <span className="text-leise">{vorstellung?.name ?? tag.name}</span>
           </p>
+
+          {/*
+            Zwei Vorstellungen an einem Tag: jede hat ihre eigene Liste.
+            Hier steht, welche gerade offen ist.
+          */}
+          {tag.shows.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-leise">Vorstellung:</span>
+              {tag.shows.map((sh) => {
+                const aktiv = sh.ditixEventId === gezeigteShow;
+                return (
+                  <Link
+                    key={sh.ditixEventId}
+                    href={`/showcheck?abend=${encodeURIComponent(tag.ditixEventId)}&show=${encodeURIComponent(sh.ditixEventId)}`}
+                    className="rounded-md border px-3 py-1.5"
+                    style={{
+                      borderColor: aktiv ? "var(--gold)" : "var(--linie)",
+                      background: aktiv ? "var(--gold-hell)" : "transparent",
+                    }}
+                  >
+                    {sh.uhrzeit} Uhr
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
           {BEREICHE.map((bereich) => (
             <Liste
               key={bereich}
               bereich={bereich}
               punkte={punkte.filter((p) => p.bereich === bereich)}
-              abend={gewaehlt}
+              abend={gezeigteShow ?? ""}
               datum={tag.datum}
               chef={b.rolle === "chef"}
             />
