@@ -91,8 +91,8 @@ export default async function VorgangSeite({
           style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
         >
           <strong>Das Angebot ist raus.</strong> Verschickt an {an ?? "den Kunden"}, von
-          tickets@florianzimmer.com. Es steht dort unter Gesendete Elemente und ist hier als
-          versendet vermerkt.
+          kevin.steele@florianzimmer.com. Es steht dort unter Gesendete Elemente, Antworten des
+          Kunden landen bei Kevin, und hier ist es als versendet vermerkt.
         </div>
       )}
 

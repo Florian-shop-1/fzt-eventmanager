@@ -8,9 +8,9 @@
  * funktioniert, aber beides bricht den Ablauf: Man verlässt das
  * Programm, und ob die Mail wirklich rausging, weiss es hinterher nicht.
  *
- * Jetzt geht sie direkt von hier aus, über das Postfach
- * tickets@florianzimmer.com. Das Angebot wird im selben Zug als
- * versendet vermerkt, ohne dass jemand daran denken muss.
+ * Jetzt geht sie direkt von hier aus, über Kevins Postfach. Das Angebot
+ * wird im selben Zug als versendet vermerkt, ohne dass jemand daran
+ * denken muss.
  */
 
 import { redirect } from "next/navigation";
@@ -21,6 +21,9 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { angebotsPdf } from "./pdf";
 import { pdfDatenAusAngebot, pdfDateiname } from "./pdfdaten";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+
+/** Aus welchem Postfach Angebote hinausgehen (Florian, 05.10.2026). */
+const ANGEBOT_ABSENDER = "kevin.steele@florianzimmer.com";
 
 /**
  * Verschickt das Angebot und vermerkt es als versendet.
@@ -79,7 +82,15 @@ export async function angebotPerMail(
         return undefined;
       });
 
-    await mailVerschicken({ an, betreff, text, anhaenge });
+    /*
+      Angebote kommen von Kevin.
+
+      "kevin möchte, dass die angebote lieber von seiner emailadresse aus
+      versendet werden" (Florian, 05.10.2026). Er fuehrt die Gespraeche
+      mit den Firmen, also soll die Antwort des Kunden auch bei ihm
+      landen und nicht im Ticketpostfach.
+    */
+    await mailVerschicken({ an, betreff, text, anhaenge, absender: ANGEBOT_ABSENDER });
 
     // Erst nach dem erfolgreichen Versand vermerken. Andersherum stünde
     // "versendet" auch dann da, wenn die Mail nie rausging.

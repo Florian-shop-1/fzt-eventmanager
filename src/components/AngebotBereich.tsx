@@ -299,8 +299,8 @@ function AngebotKarte({
 
           <Sendeknopf />
           <p className="text-xs text-leise">
-            Geht von tickets@florianzimmer.com hinaus und steht danach dort unter Gesendete
-            Elemente. Antworten landen im normalen Posteingang. Das Angebot wird gleichzeitig als
+            Geht von kevin.steele@florianzimmer.com hinaus und steht danach dort unter Gesendete
+            Elemente. Antworten des Kunden landen bei Kevin. Das Angebot wird gleichzeitig als
             versendet vermerkt.
           </p>
         </form>
