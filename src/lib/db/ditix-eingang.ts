@@ -54,6 +54,20 @@ export const TABELLE_DDL = [
   "create index if not exists webhook_eingang_order on webhook_eingang (quelle, order_id)",
 ];
 
+/**
+ * Entfernt interne Kopfzeilen aus Zeilen, die vor der Korrektur abgelegt wurden
+ * (die Probe vom 06.10.2026 trug den Schlüssel in x-suche). Ohne Treffer
+ * ändert es nichts und ist billig. Kann nach einigen Tagen entfallen.
+ * Muss mit INTERN oben übereinstimmen.
+ */
+export const KOPF_BEREINIGUNG = `
+  update webhook_eingang
+     set kopf = coalesce((
+           select jsonb_object_agg(e.k, e.v) from jsonb_each(kopf) as e(k, v)
+            where e.k !~* '^(x-vercel-|x-forwarded-|forwarded$|x-pfad$|x-suche$|x-matched-path$|x-invocation-id$|x-nextjs-|x-middleware-|connection$|host$)'
+         ), '{}'::jsonb)
+   where kopf::text ~* '(x-vercel-|x-forwarded-|"forwarded"|x-pfad|x-suche|x-matched-path|x-invocation-id|x-nextjs-|x-middleware-|"connection"|"host")'`;
+
 let bereit: Promise<void> | null = null;
 
 function sorgeFuerTabelle(): Promise<void> {
@@ -61,6 +75,7 @@ function sorgeFuerTabelle(): Promise<void> {
     const roh = db() as unknown as { query: (text: string) => Promise<unknown> };
     try {
       for (const anweisung of TABELLE_DDL) await roh.query(anweisung);
+      await roh.query(KOPF_BEREINIGUNG);
     } catch (e) {
       bereit = null;
       console.error("[ditix-eingang] Tabelle anlegen:", e instanceof Error ? e.message : e);
@@ -86,6 +101,27 @@ async function abfrage(gegeben?: Abfrage): Promise<Abfrage> {
  */
 const GEHEIM = /(auth|key|token|secret|schluessel|passw|cookie|credential)/i;
 
+/**
+ * Kopfzeilen, die nicht vom Absender kommen, sondern von Vercel und von
+ * unserer eigenen Middleware (proxy.ts hängt x-pfad und x-suche an, und
+ * x-suche enthält die ganze Adresse, also auch den Schlüssel).
+ *
+ * Sie sagen nichts darüber, wie Ditix sendet, aber manche tragen Geheimnisse
+ * (x-vercel-sc-headers, x-vercel-proxy-signature, forwarded). Deshalb gar
+ * nicht erst ablegen. Gefunden beim ersten Livetest am 06.10.2026.
+ * Muss mit KOPF_BEREINIGUNG unten übereinstimmen.
+ */
+const INTERN = /^(x-vercel-|x-forwarded-|forwarded$|x-pfad$|x-suche$|x-matched-path$|x-invocation-id$|x-nextjs-|x-middleware-|connection$|host$)/i;
+
+/** Was nach einem Schlüssel in einer Adresse aussieht, wird in jedem Wert geschwärzt. */
+function saeubern(wert: string): string {
+  let aus = wert.replace(/((?:schluessel|key|token|secret)=)[^&\s"]+/gi, "$1[entfernt]");
+  for (const geheim of [process.env.DITIX_WEBHOOK_SCHLUESSEL, process.env.DITIX_PRUEF_SCHLUESSEL]) {
+    if (geheim && geheim.length >= 8) aus = aus.split(geheim).join("[entfernt]");
+  }
+  return aus;
+}
+
 /** Wie viel von einem unlesbaren Rumpf aufgehoben wird. */
 const MAX_UNLESBAR = 5000;
 
@@ -106,8 +142,9 @@ export function kopfzeilen(headers: Headers): Record<string, string> {
   const aus: Record<string, string> = {};
   headers.forEach((wert, name) => {
     const n = name.toLowerCase();
+    if (INTERN.test(n)) return;
     // Dass die Kopfzeile da war, ist die Auskunft. Der Wert bleibt draußen.
-    aus[n] = GEHEIM.test(n) ? "[entfernt]" : wert.slice(0, 300);
+    aus[n] = GEHEIM.test(n) ? "[entfernt]" : saeubern(wert).slice(0, 300);
   });
   return aus;
 }
@@ -309,6 +346,8 @@ export interface Pruefbericht {
   ohneBestellnummer: number;
   ohneNachrichtId: number;
   bestellungenMitMehrerenMeldungen: number;
+  /** Zeilen, in deren Kopfzeilen noch Internes oder ein Schlüssel steht. Muss 0 sein. */
+  kopfBelastet: number;
   /** Kopfzeilen der neuesten Meldung. Schlüssel sind geschwärzt. */
   kopfzeilen: Record<string, string>;
   /** Ticket-Typen, wie Ditix sie nennt, mit Menge aus den letzten 200 Meldungen. */
@@ -378,6 +417,12 @@ export async function pruefbericht(sqlGegeben?: Abfrage): Promise<Pruefbericht> 
       select order_id from webhook_eingang
        where quelle = ${QUELLE} and order_id <> ''
        group by order_id having count(*) > 1) x
+  `) as Array<{ n: number }>;
+
+  const belastet = (await sql`
+    select count(*)::int as n from webhook_eingang
+     where quelle = ${QUELLE}
+       and kopf::text ~* '(schluessel=|x-suche|x-pfad|x-vercel-sc-headers|x-vercel-proxy-signature|"forwarded")'
   `) as Array<{ n: number }>;
 
   const liste = await letzteMeldungen(200, sql);
@@ -470,6 +515,7 @@ export async function pruefbericht(sqlGegeben?: Abfrage): Promise<Pruefbericht> 
     ohneBestellnummer: Number(s.ohne_bestellung ?? 0),
     ohneNachrichtId: Number(s.ohne_id ?? 0),
     bestellungenMitMehrerenMeldungen: Number(mehrfach[0]?.n ?? 0),
+    kopfBelastet: Number(belastet[0]?.n ?? 0),
     kopfzeilen: liste[0]?.kopf ?? {},
     ticketTypen: [...typen.entries()]
       .map(([name, z]) => ({ name, ...z }))

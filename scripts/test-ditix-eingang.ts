@@ -12,6 +12,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import {
+  KOPF_BEREINIGUNG,
   kopfzeilen,
   legeMeldungAb,
   letzteMeldungen,
@@ -129,6 +130,9 @@ async function main() {
     liste.some((m) => JSON.stringify(m.roh).includes("das ist kein json")),
     "unlesbarer Text ist später zu lesen",
   );
+  // Zwei Ablagen kurz hintereinander können denselben Zeitstempel bekommen.
+  // Für die Prüfung "neueste zuerst" deshalb ein Wimpernschlag Abstand.
+  await new Promise((r) => setTimeout(r, 15));
   const lang = await legeMeldungAb(unlesbar("x".repeat(20000)), {}, sql);
   const gespeichert = (await letzteMeldungen(1, sql))[0];
   pruefe(lang.id === gespeichert.id, "neueste zuerst");
@@ -166,6 +170,53 @@ async function main() {
   pruefe(fremd["tally-signature"] === "sig", "Signaturen bleiben lesbar");
   const abgelegt = JSON.stringify((await letzteMeldungen(200, sql)).map((m) => m.kopf));
   pruefe(!abgelegt.includes("geheim"), "kein Schlüsselwert in der Datenbank");
+
+  console.log("\n=== Interne Kopfzeilen und Schlüssel in der Adresse (Fund vom Livetest) ===");
+  process.env.DITIX_WEBHOOK_SCHLUESSEL = "geheimer-schreibschluessel-1234";
+  const live = kopfzeilen(
+    new Headers({
+      "content-type": "application/json",
+      "user-agent": "Ditix/2.0",
+      "x-ditix-signatur": "sig-abc",
+      "x-real-ip": "203.0.113.7",
+      "x-suche": "?schluessel=geheimer-schreibschluessel-1234",
+      "x-pfad": "/api/ditix/verkauf",
+      "x-vercel-sc-headers": '{"Authorization":"Bearer eyJ"}',
+      "x-vercel-proxy-signature": "Bearer abc",
+      "x-vercel-id": "fra1::x",
+      "x-forwarded-for": "203.0.113.7",
+      forwarded: "for=203.0.113.7;sig=AAAA",
+      "x-matched-path": "/api/ditix/verkauf",
+      host: "eventmanager.example",
+      "x-fremd": "kam mit ?schluessel=geheimer-schreibschluessel-1234&a=b und key=zweiter",
+      "x-nur-wert": "vorn geheimer-schreibschluessel-1234 hinten",
+    }),
+  );
+  const liveText = JSON.stringify(live);
+  pruefe(!liveText.includes("geheimer-schreibschluessel"), "kein Schlüssel in irgendeinem Wert", live);
+  pruefe(!("x-suche" in live) && !("x-pfad" in live) && !("forwarded" in live), "interne Kopfzeilen fehlen");
+  pruefe(!Object.keys(live).some((k) => k.startsWith("x-vercel-") || k.startsWith("x-forwarded-")), "Vercel-Kopfzeilen fehlen");
+  pruefe(live["x-ditix-signatur"] === "sig-abc" && live["x-real-ip"] === "203.0.113.7", "Absenderangaben bleiben");
+  pruefe(live["x-fremd"]?.includes("schluessel=[entfernt]") && live["x-fremd"]?.includes("key=[entfernt]"), "Schlüssel in fremden Werten geschwärzt", live["x-fremd"]);
+  delete process.env.DITIX_WEBHOOK_SCHLUESSEL;
+
+  // Zeilen, die vor der Korrektur abgelegt wurden, werden nachträglich bereinigt.
+  await pg.exec(`insert into webhook_eingang (quelle, nachricht_id, roh, kopf) values
+    ('ditix_verkauf', 'alt-belastet', '{}'::jsonb,
+     '{"x-suche":"?schluessel=ALT","x-vercel-sc-headers":"x","forwarded":"for=1","x-ditix-signatur":"sig","user-agent":"curl"}'::jsonb)`);
+  const vorher = await pruefbericht(sql);
+  pruefe(vorher.kopfBelastet === 1, "Bericht zeigt belastete Zeile", vorher.kopfBelastet);
+  await pg.exec(KOPF_BEREINIGUNG);
+  const nachherBericht = await pruefbericht(sql);
+  pruefe(nachherBericht.kopfBelastet === 0, "nach der Bereinigung nichts Belastetes", nachherBericht.kopfBelastet);
+  const alt = await pg.query<{ kopf: Record<string, string> }>("select kopf from webhook_eingang where nachricht_id = 'alt-belastet'");
+  pruefe(
+    JSON.stringify(Object.keys(alt.rows[0].kopf).sort()) === JSON.stringify(["user-agent", "x-ditix-signatur"]),
+    "Absenderangaben bleiben, Internes ist weg",
+    alt.rows[0].kopf,
+  );
+  await pg.exec("delete from webhook_eingang where nachricht_id = 'alt-belastet'");
+  await pg.exec(KOPF_BEREINIGUNG); // ohne Treffer: folgenlos
 
   console.log("\n=== Ansehen ===");
   const drei = await letzteMeldungen(3, sql);
