@@ -56,8 +56,6 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [feierabend, setFeierabend] = useState(false);
   const [meldung, setMeldung] = useState("");
   const [fehler, setFehler] = useState("");
-  const [standortHinweis, setStandortHinweis] = useState("");
-  const [standortHinweisArt, setStandortHinweisArt] = useState<"unklar" | "verlassen" | null>(null);
   const [pause, setPause] = useState(Boolean(pauseFaellig));
   const [laeuft, setLaeuft] = useState(false);
   /*
@@ -71,6 +69,9 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [ortVerweigert, setOrtVerweigert] = useState(false);
   // Gestempelt an einem Tag ohne Dienst: Es fehlt noch der Grund.
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
+  // Ausserhalb des Gelaendes ausgestempelt: Wann war wirklich Feierabend?
+  const [feierabendFrage, setFeierabendFrage] = useState(false);
+  const [entfernung, setEntfernung] = useState<number | null>(null);
   const letzterPing = useRef(0);
 
   const position = useCallback(
@@ -106,6 +107,25 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     }
   }
 
+  async function feierabendSchicken(uhrzeit: string, text: string) {
+    try {
+      const antwort = await fetch("/stempeluhr/feierabend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uhrzeit, text }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setFeierabendFrage(false);
+      setMeldung("Danke, das ist beim Büro. Sobald es übernommen ist, bekommst du Bescheid.");
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
   async function grundSchicken(text: string) {
     if (!grundFuer) return;
     try {
@@ -130,8 +150,6 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     setLaeuft(true);
     setFehler("");
     setMeldung("");
-    setStandortHinweis("");
-    setStandortHinweisArt(null);
     setSperre(null);
     try {
       const p = await position().catch(() => null);
@@ -150,6 +168,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         fehler?: string;
         sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
+        entfernung?: number;
         grundNoetig?: boolean;
         stempelId?: string;
         standortHinweis?: string | null;
@@ -174,25 +193,19 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
               ? "Pause läuft. Lass es dir schmecken!"
               : "Weiter geht's, schön dass du zurück bist!",
       );
-      // Kein Fehler: gestempelt wurde trotzdem. Aber bitte Ortungsdienste
-      // einschalten, sonst muss das Büro jede Zeit von Hand prüfen.
-      if (e.standortHinweis) {
-        setStandortHinweis(e.standortHinweis);
-        setStandortHinweisArt(e.standortHinweisArt ?? "unklar");
-      }
       /*
-        Ausgestempelt ausserhalb des Gelaendes: gleich fragen, wann es
-        wirklich war.
+        Ausgestempelt ausserhalb des Gelaendes: gleich hier fragen, wann
+        es wirklich war.
 
         "wenn der mitarbeiter sich von daheim ausstempelt, dann kommt die
         kontrollmitteilung an uns und er soll sagen wann er ausgestempelt
-        hat" (Florian, 03.10.2026). Die Meldung ans Buero laeuft schon auf
-        dem Server; hier geht das Nachmelde-Formular auf, offen und mit
-        dem heutigen Tag, statt dass der Hinweis nur darauf zeigt.
+        hat" (Florian, 03.10.2026). Bis zum 06.10.2026 sprang die Seite
+        dafuer zum Nachmelde-Formular ganz unten, wo gar keine Frage
+        stand. Jetzt steht die Frage da, wo gerade gestempelt wurde.
       */
       if (e.standortHinweisArt === "verlassen") {
-        const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-        router.push(`/stempeluhr?tag=${heute}#nachmelden`);
+        setFeierabendFrage(true);
+        setEntfernung(typeof e.entfernung === "number" ? e.entfernung : null);
       }
       router.refresh();
     } catch {
@@ -322,29 +335,12 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           {meldung}
         </p>
       )}
-      {standortHinweis && standortHinweisArt === "verlassen" && (
-        <p
-          className="rounded-lg border px-4 py-3 text-sm"
-          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
-        >
-          <strong>{standortHinweis}</strong> Ausgestempelt ist trotzdem, das ist so gespeichert. Bitte trag unten
-          bei{" "}
-          <a href="#nachmelden" className="underline">
-            „Nachmelden“
-          </a>{" "}
-          ein, wann deine Arbeitszeit wirklich zu Ende war. Das Feld ist unten schon offen, und Florian und
-          Kevin wissen bereits Bescheid.
-        </p>
-      )}
-      {standortHinweis && standortHinweisArt === "unklar" && (
-        <p
-          className="rounded-lg border px-4 py-3 text-sm"
-          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
-        >
-          <strong>Gestempelt, aber der Standort passt nicht:</strong> {standortHinweis} Das Büro prüft die Zeit
-          später. Bitte in den Handy-Einstellungen die Ortungsdienste für den Browser einschalten, dann klappt es
-          beim nächsten Mal von allein.
-        </p>
+      {feierabendFrage && (
+        <FeierabendFrage
+          entfernung={entfernung}
+          onSenden={feierabendSchicken}
+          onZu={() => setFeierabendFrage(false)}
+        />
       )}
       {fehler && (
         <p className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}>
@@ -426,6 +422,82 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       {grundFuer && <GrundFrage onSenden={grundSchicken} onZu={() => setGrundFuer(null)} />}
       <p className="text-center text-xs text-leise">
         Zum Stempeln muss der Standort freigegeben sein. Gestempelt werden kann nur auf dem Gelände.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * "Du bist nicht auf dem Grundstück, wann hast du die Arbeitszeit beendet?"
+ *
+ * Vorgeschlagen wird die aktuelle Uhrzeit, weil das der haeufigste Fall
+ * ist: Man merkt im Auto, dass man vergessen hat zu stempeln, und war
+ * tatsaechlich eben erst fertig. Wer es nicht aendert, hat damit nichts
+ * Falsches gesagt, und wer weiter weg wohnt, traegt die richtige Zeit
+ * ein. Ob beides zusammenpasst, rechnet der Server nach.
+ */
+function FeierabendFrage({
+  entfernung,
+  onSenden,
+  onZu,
+}: {
+  entfernung: number | null;
+  onSenden: (uhrzeit: string, text: string) => void | Promise<void>;
+  onZu: () => void;
+}) {
+  const [uhrzeit, setUhrzeit] = useState(() =>
+    new Date().toLocaleTimeString("de-DE", {
+      timeZone: "Europe/Berlin",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+  );
+  const [text, setText] = useState("");
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+    >
+      <p>
+        <strong>Du bist nicht auf dem Grundstück.</strong>{" "}
+        {entfernung !== null && entfernung >= 300
+          ? `Dein Handy ist rund ${entfernung < 1000 ? `${entfernung} Meter` : `${(entfernung / 1000).toFixed(1).replace(".", ",")} Kilometer`} vom Theater entfernt. `
+          : ""}
+        Ausgestempelt bist du, das ist gespeichert. Wann hast du die Arbeitszeit beendet?
+      </p>
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium">Arbeitsende</span>
+        <input
+          type="time"
+          value={uhrzeit}
+          onChange={(v) => setUhrzeit(v.target.value)}
+          className="rounded-md border border-linie px-3 py-2 text-base"
+        />
+      </label>
+      <textarea
+        value={text}
+        onChange={(v) => setText(v.target.value)}
+        rows={2}
+        maxLength={300}
+        placeholder="Wenn du magst: kurz dazuschreiben, wie es dazu kam."
+        className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void onSenden(uhrzeit, text)}
+          className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white"
+        >
+          Abschicken
+        </button>
+        <button type="button" onClick={onZu} className="rounded-md border border-linie px-4 py-2 text-sm">
+          Später
+        </button>
+      </div>
+      <p className="text-xs">
+        Florian und Kevin wissen schon Bescheid. Übernommen wird die Zeit vom Büro.
       </p>
     </div>
   );
