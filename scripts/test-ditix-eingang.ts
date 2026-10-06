@@ -286,20 +286,27 @@ async function main() {
   pruefe((await senden(`${URL0}?schluessel=${K}`, {}, "h-3")).status === 200, "Schlüssel in der Adresse");
   pruefe((await senden(`${URL0}/${K}`, {}, "h-4", { pfadSchluessel: K })).status === 200, "Schlüssel im Pfad");
   pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "vier Meldungen abgelegt");
+  // Ditix hat die Adresse klein geschrieben gespeichert (Fund vom 06.10.2026).
+  pruefe((await senden(`${URL0}?schluessel=${K.toUpperCase()}`, {}, "g-1")).status === 200, "Schlüssel in Großbuchstaben gilt");
+  pruefe((await senden(`${URL0}/${K.toUpperCase()}`, {}, "g-2", { pfadSchluessel: K.toUpperCase() })).status === 200, "Schlüssel im Pfad in Großbuchstaben gilt");
+  pruefe((await senden(`${URL0}?schluessel=${K.slice(0, -1)}X`, {}, "g-3")).status === 401, "ein anderes Zeichen am Ende: 401");
+  pruefe((await senden(`${URL0}?schluessel=${K}${K}`, {}, "g-4")).status === 401, "doppelt so lang: 401");
+  // Die zwei Meldungen in Großbuchstaben kommen zu den vier oben hinzu.
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 6, "zwei weitere Meldungen abgelegt");
 
   const vorVersuchen = await anzahl("ditix_versuch");
   pruefe((await senden(URL0, {}, "n-1")).status === 401, "ohne Schlüssel: 401");
   pruefe((await senden(`${URL0}?schluessel=WRONGVALUE42`, {}, "n-2")).status === 401, "falscher Schlüssel in der Adresse: 401");
   pruefe((await senden(`${URL0}/WRONGVALUE42`, {}, "n-3", { pfadSchluessel: "WRONGVALUE42" })).status === 401, "falscher Schlüssel im Pfad: 401");
   pruefe((await senden(URL0, { "x-ditix-schluessel": `${K}x` }, "n-4")).status === 401, "Schlüssel mit anderer Länge: 401");
-  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "abgewiesene Meldungen werden nicht als Meldung abgelegt");
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 6, "abgewiesene Meldungen werden nicht als Meldung abgelegt");
   pruefe((await anzahl("ditix_versuch")) === vorVersuchen + 4, "die vier Versuche sind vermerkt");
 
   const get = await antwortAufPruefung(new Request(`${URL0}?schluessel=${K}`, { method: "GET", headers: { "user-agent": "Ditix-Pruefung/1" } }), { sql });
   pruefe(get.status === 200 && (await get.json()).ok === true, "GET: 200, ohne etwas abzulegen");
   const head = await antwortAufPruefung(new Request(URL0, { method: "HEAD" }), { sql });
   pruefe(head.status === 200, "HEAD: 200");
-  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "Anklopfen legt keine Meldung ab");
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 6, "Anklopfen legt keine Meldung ab");
 
   const gross = await nimmAn(
     new Request(URL0, { method: "POST", headers: { "x-ditix-schluessel": K }, body: "x".repeat(MAX_BYTES + 10) }),
@@ -322,7 +329,7 @@ async function main() {
   pruefe(b2.versuche.letzte.some((v) => v.methode === "GET" && v.userAgent === "Ditix-Pruefung/1" && v.adressparameter.includes("schluessel")), "Prüfbericht zeigt GET mit Adressparametern", b2.versuche.letzte[0]);
   pruefe(b2.versuche.letzte.some((v) => v.grund === "kein Schlüssel" && v.hatSchluessel === false), "Prüfbericht unterscheidet fehlenden und falschen Schlüssel");
   pruefe(!JSON.stringify(b2).includes(K), "Prüfbericht enthält den Schlüssel nicht");
-  pruefe(b2.insgesamt === vorMeldungen + 4, "Versuche zählen nicht als Meldungen", b2.insgesamt);
+  pruefe(b2.insgesamt === vorMeldungen + 6, "Versuche zählen nicht als Meldungen", b2.insgesamt);
 
   // Die Obergrenze gilt, auch wenn jemand die Adresse mit Anfragen überschwemmt.
   for (let i = 0; i < MAX_VERSUCHE + 10; i++) await senden(URL0, {}, `flut-${i}`);

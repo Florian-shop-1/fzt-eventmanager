@@ -45,11 +45,21 @@ function schluesselVon(request: Request, pfadSchluessel?: string): { wert: strin
   return null;
 }
 
+/**
+ * Groß- und Kleinschreibung zählt beim Schlüssel nicht.
+ *
+ * Ditix hat die Adresse am 06.10.2026 komplett klein geschrieben gespeichert,
+ * und der Schlüssel (Buchstaben in beiden Schreibweisen) passte nicht mehr:
+ * Über 100 Anfragen von Ditix wurden mit "falscher Schlüssel" abgewiesen.
+ * Adressen gelten bei vielen Systemen als nicht schreibungsempfindlich, und
+ * der Schlüssel ist mit 43 Zeichen lang genug, dass das nichts schwächt
+ * (grob 2^220 statt 2^256 Möglichkeiten).
+ */
 function stimmt(gesendet: string | undefined): boolean {
-  const erwartet = process.env.DITIX_WEBHOOK_SCHLUESSEL;
+  const erwartet = process.env.DITIX_WEBHOOK_SCHLUESSEL?.toLowerCase();
   if (!erwartet || !gesendet) return false;
   const a = Buffer.from(erwartet);
-  const b = Buffer.from(gesendet);
+  const b = Buffer.from(gesendet.toLowerCase());
   return a.length === b.length && timingSafeEqual(a, b);
 }
 

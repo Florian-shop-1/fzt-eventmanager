@@ -197,8 +197,8 @@ export async function legeMeldungAb(
  * So sehen wir, ob Ditix überhaupt anklopft, womit (Methode, User-Agent) und
  * ob der Schlüssel dabei war.
  *
- * Begrenzt, weil jeder diese Adresse aufrufen kann: höchstens 100 Zeilen
- * insgesamt und höchstens 200 Versuche je Prozess. Es wird nie ein Schlüssel
+ * Begrenzt, weil jeder diese Adresse aufrufen kann: die neuesten 100 Zeilen
+ * bleiben, und je Prozess werden höchstens 200 Versuche vermerkt. Es wird nie ein Schlüssel
  * abgelegt, nur ob einer da war und wo (Header, Adresse, Pfad). Ein Fehler
  * hier darf die Antwort nie verhindern.
  */
@@ -229,9 +229,21 @@ export async function merkeVersuch(
     };
     await sql`
       insert into webhook_eingang (quelle, event_type, roh, kopf)
-      select ${QUELLE_VERSUCH}, ${grund}, ${JSON.stringify(roh)}::jsonb,
-             ${JSON.stringify(kopfzeilen(request.headers))}::jsonb
-       where (select count(*) from webhook_eingang where quelle = ${QUELLE_VERSUCH}) < ${MAX_VERSUCHE}
+      values (${QUELLE_VERSUCH}, ${grund}, ${JSON.stringify(roh)}::jsonb,
+              ${JSON.stringify(kopfzeilen(request.headers))}::jsonb)
+    `;
+    // Ein Ring: Es bleiben die neuesten Zeilen. Wer die Adresse mit
+    // Anfragen überschwemmt, verdrängt höchstens die alten, füllt aber nie
+    // die Tabelle. (Erst eingefroren bei 100, dann waren die Versuche von
+    // Ditix nicht mehr zu sehen.)
+    await sql`
+      delete from webhook_eingang
+       where quelle = ${QUELLE_VERSUCH}
+         and id in (
+           select id from webhook_eingang
+            where quelle = ${QUELLE_VERSUCH}
+            order by empfangen_am desc, id
+           offset ${MAX_VERSUCHE})
     `;
   } catch (e) {
     console.error("[ditix-eingang] Versuch vermerken:", e instanceof Error ? e.message : e);
