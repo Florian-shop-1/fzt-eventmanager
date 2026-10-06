@@ -14,6 +14,7 @@ import { taeglicheErinnerung } from "@/lib/dienstplan/laden";
 import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
 import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
 import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
+import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -53,6 +54,12 @@ const NACHT: Teil[] = [
     einmal, damit die Ergebnisse der Nacht frueh da sind.
   */
   { name: "scanner", tun: () => scannerlauf() },
+  /*
+    Hängen die Parkplatzschilder für heute? Um 1:30 Uhr ist der Showtag
+    schon angebrochen, und wer morgens um sechs die Meldung liest, kann
+    noch reagieren, bevor der erste Gast auf den Hof fährt.
+  */
+  { name: "parkplaetze", tun: () => parkplatzMahnung() },
   {
     name: "stempeluhr",
     tun: async () => ({

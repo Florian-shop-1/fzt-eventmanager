@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { rollenVon } from "@/lib/stempel/dienst";
 import {
   einstellungLesen,
   imHaus,
@@ -7,11 +8,13 @@ import {
   schonGemeldet,
   standVon,
   stempelSetzen,
+  werIstDa,
   stunden,
   type StempelArt,
 } from "@/lib/stempel/db";
 import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/stempel/wache";
 import { eingeteiltAm } from "@/lib/stempel/dienst";
+import { mahnungMerken, offeneSchilder, schonGemahnt } from "@/lib/shop/parkplatz-wache";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 
@@ -174,9 +177,35 @@ export async function POST(request: Request) {
     }).catch(() => undefined);
   }
 
+  /*
+    Die Parkplatzschilder für den nächsten Showtag.
+
+    Gefragt wird beim Ausstempeln, und zwar die Person, die als letzte
+    aus dem Foyer geht: "der hase soll das dem letzten mitarbeiter vom
+    foyer der geht am besten gleich beim ausstempeln mitteilen"
+    (Florian, 06.10.2026). Vorher ist der Hinweis wertlos, weil noch
+    jemand da ist, der es sowieso macht; nachher ist niemand mehr da.
+
+    Höchstens einmal am Tag: Gehen zwei nacheinander, bekommt die
+    zweite Person denselben Satz nicht noch einmal.
+  */
+  let parkplatz: { datum: string; offen: number; gesamt: number } | null = null;
+  if (art === "gehen" && (b.rolle === "foyer" || b.rolle === "chef")) {
+    const nochDa = (await werIstDa()).filter((p) => p.benutzerId !== b.id);
+    const foyerNochDa = nochDa.length > 0 ? await rollenVon(nochDa.map((p) => p.benutzerId)) : [];
+    if (!foyerNochDa.includes("foyer")) {
+      const stand = await offeneSchilder().catch(() => null);
+      if (stand && !(await schonGemahnt(stand.datum, "hase"))) {
+        await mahnungMerken(stand.datum, "hase");
+        parkplatz = stand;
+      }
+    }
+  }
+
   const neu = await standVon(b.id);
   return NextResponse.json({
     ok: true,
+    parkplatz,
     zustand: neu.zustand,
     arbeitszeit: stunden(neu.minutenHeute),
     pause: stunden(neu.pausenMinutenHeute),

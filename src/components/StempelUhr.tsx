@@ -69,6 +69,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [ortVerweigert, setOrtVerweigert] = useState(false);
   // Gestempelt an einem Tag ohne Dienst: Es fehlt noch der Grund.
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
+  // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
+  const [parkplatz, setParkplatz] = useState<{ datum: string; offen: number; gesamt: number } | null>(null);
   // Ausserhalb des Gelaendes ausgestempelt: Wann war wirklich Feierabend?
   const [feierabendFrage, setFeierabendFrage] = useState(false);
   const [entfernung, setEntfernung] = useState<number | null>(null);
@@ -126,6 +128,26 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     }
   }
 
+  async function parkplatzAntwort(was: "mache" | "nicht", text: string) {
+    if (!parkplatz) return;
+    try {
+      const antwort = await fetch("/stempeluhr/parkplatz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ datum: parkplatz.datum, was, text }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setParkplatz(null);
+      setMeldung(was === "mache" ? "Danke dir! Florian und Kevin wissen Bescheid." : "Danke, ist weitergegeben.");
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
   async function grundSchicken(text: string) {
     if (!grundFuer) return;
     try {
@@ -169,6 +191,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
         entfernung?: number;
+        parkplatz?: { datum: string; offen: number; gesamt: number } | null;
         grundNoetig?: boolean;
         stempelId?: string;
         standortHinweis?: string | null;
@@ -180,6 +203,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         return;
       }
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
+      if (e.parkplatz) setParkplatz(e.parkplatz);
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
       if (art === "gehen") setFeierabend(true);
@@ -420,9 +444,108 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         wird (Florian, 06.10.2026).
       */}
       {grundFuer && <GrundFrage onSenden={grundSchicken} onZu={() => setGrundFuer(null)} />}
+
+      {/*
+        Der Hase erinnert an die Parkplatzschilder.
+
+        Nur beim Ausstempeln, nur bei der Person, die als letzte aus dem
+        Foyer geht, und nur, wenn fuer den naechsten Showtag wirklich
+        Plaetze gebucht sind. Alles andere waere eine Erinnerung, die man
+        nach drei Abenden wegklickt, ohne sie zu lesen.
+      */}
+      {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
       <p className="text-center text-xs text-leise">
         Zum Stempeln muss der Standort freigegeben sein. Gestempelt werden kann nur auf dem Gelände.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Der Hase und die Parkplatzschilder.
+ *
+ * Er sagt es beim Ausstempeln, weil das der letzte Moment ist, in dem
+ * es noch jemand machen kann. Zwei Wege aus dem Fenster: "Mach ich
+ * gleich" fuehrt auf die Parkplatzseite, und wenn es nicht geht, zaehlt
+ * der Grund. Weggeklickt werden kann es nicht, aber beantwortet ist es
+ * in zehn Sekunden.
+ */
+function ParkplatzFrage({
+  stand,
+  onAntwort,
+}: {
+  stand: { datum: string; offen: number; gesamt: number };
+  onAntwort: (was: "mache" | "nicht", text: string) => void | Promise<void>;
+}) {
+  const [grundOffen, setGrundOffen] = useState(false);
+  const [text, setText] = useState("");
+
+  const tag = new Date(`${stand.datum}T12:00:00`).toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  });
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <span aria-hidden="true">🐰</span> <strong>Die Parkplätze wurden noch nicht bestückt.</strong> Für {tag}{" "}
+        sind {stand.gesamt === 1 ? "ein Platz" : `${stand.gesamt} Plätze`} gebucht,{" "}
+        {stand.offen === stand.gesamt
+          ? "und es hängt noch kein Schild draußen."
+          : `davon hängen ${stand.offen} noch nicht draußen.`}{" "}
+        Magst du das vor dem Gehen noch machen?
+      </p>
+
+      {!grundOffen ? (
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/parkplaetze"
+            onClick={() => void onAntwort("mache", "")}
+            className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white"
+          >
+            Mach ich gleich
+          </a>
+          <button
+            type="button"
+            onClick={() => setGrundOffen(true)}
+            className="rounded-md border border-linie px-4 py-2 text-sm"
+          >
+            Geht heute nicht
+          </button>
+        </div>
+      ) : (
+        <>
+          <textarea
+            value={text}
+            onChange={(v) => setText(v.target.value)}
+            rows={2}
+            maxLength={300}
+            placeholder="Zum Beispiel: Drucker ohne Papier, oder: Schlüssel zum Lager war weg."
+            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void onAntwort("nicht", text)}
+              disabled={text.trim().length < 3}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Abschicken
+            </button>
+            <button
+              type="button"
+              onClick={() => setGrundOffen(false)}
+              className="rounded-md border border-linie px-4 py-2 text-sm"
+            >
+              Zurück
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
