@@ -10,7 +10,8 @@ import {
   stunden,
   type StempelArt,
 } from "@/lib/stempel/db";
-import { gelaendeVerlassen, standortUnklarMelden, unplausibelMelden } from "@/lib/stempel/wache";
+import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/stempel/wache";
+import { eingeteiltAm } from "@/lib/stempel/dienst";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 
@@ -63,15 +64,37 @@ export async function POST(request: Request) {
     : { drin: false, entfernungM: 0, grund: "Kein Standort verfügbar. Bitte Ortungsdienste einschalten und den Zugriff erlauben." };
 
   /*
-    Eingestempelt wird immer, auch ohne oder mit schlechtem Standort
-    (Florian, 28.09.2026). Bei manchen Handys geht das GPS im Gebäude
-    einfach nicht, und dann vor der Tür stehen zu lassen wäre schlimmer
-    als eine Zeit, die das Büro hinterher kurz prüft. Der Stempel merkt
-    sich, ob der Standort gepasst hat, und Florian und Kevin bekommen
-    Bescheid, damit sie es nachsehen können.
+    Eingestempelt wird nur auf dem Gelände.
+
+    Bis zum 05.10.2026 ging es auch ohne Standort: Lieber eine Zeit, die
+    das Büro nachprüft, als jemanden vor der Tür stehen lassen. Damit war
+    die Prüfung aber zahnlos, denn ohne Ortung stempelte es sich von
+    überall. Jetzt wird abgelehnt und gesagt, woran es liegt: entweder
+    ist die Ortung aus, oder die Person steht zu weit weg (Florian,
+    06.10.2026: "stempeln nur auf dem grundstück zulassen").
+
+    Ausstempeln geht weiter von überall. Wer schon zu Hause merkt, dass
+    er vergessen hat auszustempeln, soll das tun können, und die Meldung
+    ans Büro läuft dafür schon.
+
+    Niemand verliert dabei seine Zeit: Wer nicht stempeln kann, meldet
+    sie unter "Nachmelden" nach, und das steht auch in der Antwort.
   */
   const mussImHaus = art !== "gehen";
-  const standortUnklar = e.aktiv && mussImHaus && !pruefung.drin;
+  if (e.aktiv && mussImHaus && !pruefung.drin) {
+    return NextResponse.json(
+      {
+        ok: false,
+        sperre: hatOrt ? "zu_weit" : "kein_ort",
+        entfernung: hatOrt ? pruefung.entfernungM : null,
+        radius: e.radiusM,
+        fehler: hatOrt
+          ? `Du bist rund ${pruefung.entfernungM} Meter vom Theater entfernt. Gestempelt wird nur auf dem Gelände.`
+          : "Wir können deinen Standort nicht sehen. Entweder sind die Ortungsdienste aus, oder der Browser darf nicht auf den Standort zugreifen.",
+      },
+      { status: 403 },
+    );
+  }
   // Beim Ausstempeln außerhalb des Geländes bekommt der Mitarbeiter eine
   // eigene, passende Meldung statt der GPS-Meldung fürs Einstempeln: Hier
   // geht es nicht um ein Ortungsproblem, sondern darum, dass er das Haus
@@ -87,11 +110,9 @@ export async function POST(request: Request) {
     genauigkeit: daten?.genauigkeit ?? null,
     entfernungM: hatOrt ? pruefung.entfernungM : null,
     imHaus: pruefung.drin,
-    notiz: standortUnklar
-      ? `Standort beim Stempeln unklar: ${pruefung.grund}`
-      : drausenBeimGehen
-        ? `Ausgestempelt außerhalb des Geländes (rund ${pruefung.entfernungM} Meter entfernt)`
-        : "",
+    notiz: drausenBeimGehen
+      ? `Ausgestempelt außerhalb des Geländes (rund ${pruefung.entfernungM} Meter entfernt)`
+      : "",
   });
 
   /*
@@ -121,13 +142,21 @@ export async function POST(request: Request) {
     }).catch(() => undefined);
   }
 
-  if (standortUnklar) {
-    // Auf den Kommen-Stempel der Schicht beziehen, damit nicht bei jedem
-    // Stempel derselben Schicht erneut gemeldet wird.
-    const kommenId = stand.stempelHeute.find((s) => s.art === "kommen")?.id ?? stempel.id;
-    if (!(await schonGemeldet(kommenId, "standort_unklar"))) {
-      await meldungMerken(kommenId, "standort_unklar");
-      await standortUnklarMelden({ name: b.name, art, grund: pruefung.grund }).catch(() => undefined);
+  /*
+    Einstempeln an einem Tag ohne Dienst.
+
+    Gestempelt ist schon, der Knopf hat getan, was er soll. Gefragt wird
+    gleich danach: "wenn jemand an einem Tag ausserhalb deines
+    eingeteilten Dienstes stempelt, dann bitte nach dem Grund fragen"
+    (Florian, 06.10.2026). Das Büro bekommt die Meldung auch ohne Antwort,
+    sonst bliebe ein unbeantwortetes Fenster unbemerkt.
+  */
+  let grundNoetig = false;
+  if (art === "kommen") {
+    grundNoetig = !(await eingeteiltAm(b.id, tagHier));
+    if (grundNoetig && !(await schonGemeldet(stempel.id, "ohne_dienst"))) {
+      await meldungMerken(stempel.id, "ohne_dienst");
+      await ausserDienstMelden({ name: b.name, tag: tagHier, grund: "" }).catch(() => undefined);
     }
   }
 
@@ -152,15 +181,11 @@ export async function POST(request: Request) {
     arbeitszeit: stunden(neu.minutenHeute),
     pause: stunden(neu.pausenMinutenHeute),
     entfernung: pruefung.entfernungM,
-    // Kein Fehler, aber ein Hinweis: gestempelt wurde trotzdem.
-    standortHinweis: standortUnklar
-      ? pruefung.grund
-      : drausenBeimGehen
-        ? "Du befindest dich nicht auf dem Grundstück."
-        : null,
-    // Sagt der Oberfläche, welchen der beiden Hinweise sie zeigen soll:
-    // beim Einstempeln geht es um ein GPS-Problem, beim Ausstempeln
-    // draußen darum, wann die Arbeitszeit wirklich endete.
-    standortHinweisArt: standortUnklar ? "unklar" : drausenBeimGehen ? "verlassen" : null,
+    // Nach dem Grund fragen, wenn an diesem Tag kein Dienst eingeteilt ist.
+    grundNoetig,
+    stempelId: stempel.id,
+    // Kein Fehler, aber ein Hinweis: ausgestempelt wurde trotzdem.
+    standortHinweis: drausenBeimGehen ? "Du befindest dich nicht auf dem Grundstück." : null,
+    standortHinweisArt: drausenBeimGehen ? "verlassen" : null,
   });
 }

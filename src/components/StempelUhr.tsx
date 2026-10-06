@@ -60,6 +60,17 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [standortHinweisArt, setStandortHinweisArt] = useState<"unklar" | "verlassen" | null>(null);
   const [pause, setPause] = useState(Boolean(pauseFaellig));
   const [laeuft, setLaeuft] = useState(false);
+  /*
+    Abgelehnt, weil der Standort fehlt oder zu weit weg ist.
+
+    Zwei verschiedene Sachen, und der Mitarbeiter muss wissen, welche
+    davon ihn betrifft: Bei "kein_ort" hilft ein Knopf, bei "zu_weit"
+    hilft nur hingehen (Florian, 06.10.2026).
+  */
+  const [sperre, setSperre] = useState<"kein_ort" | "zu_weit" | null>(null);
+  const [ortVerweigert, setOrtVerweigert] = useState(false);
+  // Gestempelt an einem Tag ohne Dienst: Es fehlt noch der Grund.
+  const [grundFuer, setGrundFuer] = useState<string | null>(null);
   const letzterPing = useRef(0);
 
   const position = useCallback(
@@ -75,12 +86,53 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     [],
   );
 
+  /*
+    Den Standort freigeben lassen.
+
+    Beim ersten Mal fragt der Browser von selbst. Wurde einmal abgelehnt,
+    fragt er nie wieder, und dann hilft nur noch der Weg über die
+    Einstellungen des Handys. Genau das sagt der Hinweis dann auch, statt
+    einen Knopf anzubieten, der nichts tut.
+  */
+  async function ortFreigeben() {
+    setFehler("");
+    try {
+      await position();
+      setSperre(null);
+      setOrtVerweigert(false);
+      setMeldung("Standort ist da. Jetzt noch einmal auf den Knopf.");
+    } catch {
+      setOrtVerweigert(true);
+    }
+  }
+
+  async function grundSchicken(text: string) {
+    if (!grundFuer) return;
+    try {
+      const antwort = await fetch("/stempeluhr/grund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: grundFuer, text }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setGrundFuer(null);
+      setMeldung("Danke, ist notiert.");
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
   async function stempeln(art: string) {
     setLaeuft(true);
     setFehler("");
     setMeldung("");
     setStandortHinweis("");
     setStandortHinweisArt(null);
+    setSperre(null);
     try {
       const p = await position().catch(() => null);
       const antwort = await fetch("/stempeluhr/stempeln", {
@@ -96,14 +148,19 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       const e = (await antwort.json()) as {
         ok: boolean;
         fehler?: string;
+        sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
+        grundNoetig?: boolean;
+        stempelId?: string;
         standortHinweis?: string | null;
         standortHinweisArt?: "unklar" | "verlassen" | null;
       };
       if (!e.ok) {
         setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        if (e.sperre) setSperre(e.sperre);
         return;
       }
+      if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
       if (art === "gehen") setFeierabend(true);
@@ -294,9 +351,126 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
           {fehler}
         </p>
       )}
+
+      {/*
+        Abgelehnt: entweder keine Ortung oder zu weit weg.
+
+        Beim fehlenden Standort steht der Knopf gleich daneben, der die
+        Freigabe anfragt. Wer schon einmal abgelehnt hat, bekommt vom
+        Browser keine zweite Frage mehr, deshalb danach der Weg über die
+        Einstellungen (Florian, 06.10.2026).
+      */}
+      {sperre === "kein_ort" && (
+        <div
+          className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <p>
+            <strong>Standort nicht freigegeben.</strong> Gestempelt wird nur auf dem Gelände, dafür muss das
+            Handy sagen dürfen, wo es ist.
+          </p>
+          {ortVerweigert ? (
+            <p>
+              Dein Browser fragt nicht mehr nach, weil der Zugriff einmal abgelehnt wurde. Du schaltest ihn
+              wieder ein unter <strong>Einstellungen &rarr; Datenschutz &rarr; Ortungsdienste</strong>, am
+              iPhone zusätzlich beim Browser selbst (Safari oder Chrome) auf &bdquo;Beim Verwenden der
+              App&ldquo;. Danach die Seite neu laden.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={ortFreigeben}
+              className="w-full rounded-xl border-2 border-linie bg-flaeche px-4 py-3 text-base font-semibold"
+            >
+              Standort jetzt freigeben
+            </button>
+          )}
+          <p className="text-xs">
+            Du bist da und es klappt trotzdem nicht? Dann trag deine Zeit unten bei{" "}
+            <a href="#nachmelden" className="underline">
+              &bdquo;Nachmelden&ldquo;
+            </a>{" "}
+            ein, sie geht dir nicht verloren.
+          </p>
+        </div>
+      )}
+
+      {sperre === "zu_weit" && (
+        <div
+          className="space-y-2 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <p>
+            <strong>Du bist nicht auf dem Grundstück.</strong> Zum Stempeln musst du am Theater sein. Falls du
+            doch da bist, steht dein Handy vielleicht auf einem ungenauen Standort: Schalte WLAN ein oder geh
+            kurz vor die Tür und probiere es noch einmal.
+          </p>
+          <p className="text-xs">
+            Zeit schon gearbeitet? Dann unten bei{" "}
+            <a href="#nachmelden" className="underline">
+              &bdquo;Nachmelden&ldquo;
+            </a>{" "}
+            eintragen.
+          </p>
+        </div>
+      )}
+
+      {/*
+        Gestempelt an einem Tag ohne Dienst.
+
+        Der Stempel steht schon, hier geht es nur noch um das Warum. Wer
+        wegklickt, hat trotzdem gestempelt: Ein Formular, das den Knopf
+        blockiert, würde im Zweifel dazu führen, dass gar nicht gestempelt
+        wird (Florian, 06.10.2026).
+      */}
+      {grundFuer && <GrundFrage onSenden={grundSchicken} onZu={() => setGrundFuer(null)} />}
       <p className="text-center text-xs text-leise">
         Zum Stempeln muss der Standort freigegeben sein. Gestempelt werden kann nur auf dem Gelände.
       </p>
+    </div>
+  );
+}
+
+/** Die Frage nach dem Grund, wenn jemand ohne Dienst stempelt. */
+function GrundFrage({
+  onSenden,
+  onZu,
+}: {
+  onSenden: (text: string) => void | Promise<void>;
+  onZu: () => void;
+}) {
+  const [text, setText] = useState("");
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <strong>Du bist heute nicht eingeteilt.</strong> Gestempelt ist, das passt. Schreib bitte kurz, woran du
+        heute arbeitest, dann muss im Büro niemand raten.
+      </p>
+      <textarea
+        value={text}
+        onChange={(v) => setText(v.target.value)}
+        rows={2}
+        maxLength={500}
+        placeholder="Zum Beispiel: Reparatur im Saal, mit Mario abgesprochen."
+        className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void onSenden(text)}
+          disabled={text.trim().length < 3}
+          className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Abschicken
+        </button>
+        <button type="button" onClick={onZu} className="rounded-md border border-linie px-4 py-2 text-sm">
+          Später
+        </button>
+      </div>
     </div>
   );
 }

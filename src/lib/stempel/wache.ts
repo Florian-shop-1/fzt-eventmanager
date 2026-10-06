@@ -93,6 +93,26 @@ export async function standortUnklarMelden(o: {
 }
 
 /**
+ * Jemand stempelt an einem Tag, an dem er nicht eingeteilt ist.
+ *
+ * Verboten ist das nicht: Reparaturen, Proben und Aufbau stehen in
+ * keinem Dienstplan. Das Buero soll es trotzdem erfahren, zusammen mit
+ * dem Grund, den die Person selbst angegeben hat (Florian, 06.10.2026,
+ * nachdem ein Einstempeln an einem geschlossenen Tag im System stand).
+ */
+export async function ausserDienstMelden(o: {
+  name: string;
+  tag: string;
+  grund: string;
+}): Promise<void> {
+  await melden(`${o.name}: eingestempelt ohne Dienst`, [
+    `${o.name} hat am ${o.tag} eingestempelt, steht an dem Tag aber in keinem Dienstplan.`,
+    o.grund ? `Angegebener Grund: ${o.grund}` : "Ein Grund wurde noch nicht angegeben.",
+    "Gestempelt wurde ganz normal. Bitte nur kurz anschauen, ob die Zeit so passt.",
+  ]);
+}
+
+/**
  * Meldet eine Schicht, die vermutlich zu Ende ist, aber noch offen steht.
  *
  * Setzt bewusst keinen Stempel: Das Programm entscheidet nicht, wann
