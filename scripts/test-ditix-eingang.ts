@@ -11,11 +11,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { antwortAufPruefung, MAX_BYTES, nimmAn } from "../src/lib/ditix/annahme";
 import {
   KOPF_BEREINIGUNG,
   kopfzeilen,
   legeMeldungAb,
   letzteMeldungen,
+  MAX_VERSUCHE,
   pruefbericht,
   TABELLE_DDL,
   uebersicht,
@@ -265,6 +267,67 @@ async function main() {
   pruefe(!/"beispiel":"198"/.test(text), "kein Betrag als Beispielwert");
   pruefe(!text.includes("geheim"), "kein Schlüsselwert im Bericht");
   pruefe(bericht.felder.some((f) => f.pfad === "data.order_id"), "Aufbau der Meldungen enthalten");
+
+  console.log("\n=== Annahme: Schlüssel, Größe, Anklopfen ===");
+  const K = "annahme-schluessel-1234567";
+  process.env.DITIX_WEBHOOK_SCHLUESSEL = K;
+  const URL0 = "http://x/api/ditix/verkauf";
+  const anzahl = async (quelle: string) =>
+    Number((await pg.query<{ n: number }>("select count(*)::int as n from webhook_eingang where quelle = $1", [quelle])).rows[0].n);
+  const senden = (url: string, kopf: Record<string, string>, id: string, opt: { pfadSchluessel?: string } = {}) =>
+    nimmAn(
+      new Request(url, { method: "POST", headers: { "content-type": "application/json", ...kopf }, body: JSON.stringify(meldung(id, `B-${id}`)) }),
+      { sql, ...opt },
+    );
+
+  const vorMeldungen = await anzahl("ditix_verkauf");
+  pruefe((await senden(URL0, { "x-ditix-schluessel": K }, "h-1")).status === 200, "Schlüssel im Header");
+  pruefe((await senden(URL0, { authorization: `Bearer ${K}` }, "h-2")).status === 200, "Schlüssel als Bearer");
+  pruefe((await senden(`${URL0}?schluessel=${K}`, {}, "h-3")).status === 200, "Schlüssel in der Adresse");
+  pruefe((await senden(`${URL0}/${K}`, {}, "h-4", { pfadSchluessel: K })).status === 200, "Schlüssel im Pfad");
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "vier Meldungen abgelegt");
+
+  const vorVersuchen = await anzahl("ditix_versuch");
+  pruefe((await senden(URL0, {}, "n-1")).status === 401, "ohne Schlüssel: 401");
+  pruefe((await senden(`${URL0}?schluessel=WRONGVALUE42`, {}, "n-2")).status === 401, "falscher Schlüssel in der Adresse: 401");
+  pruefe((await senden(`${URL0}/WRONGVALUE42`, {}, "n-3", { pfadSchluessel: "WRONGVALUE42" })).status === 401, "falscher Schlüssel im Pfad: 401");
+  pruefe((await senden(URL0, { "x-ditix-schluessel": `${K}x` }, "n-4")).status === 401, "Schlüssel mit anderer Länge: 401");
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "abgewiesene Meldungen werden nicht als Meldung abgelegt");
+  pruefe((await anzahl("ditix_versuch")) === vorVersuchen + 4, "die vier Versuche sind vermerkt");
+
+  const get = await antwortAufPruefung(new Request(`${URL0}?schluessel=${K}`, { method: "GET", headers: { "user-agent": "Ditix-Pruefung/1" } }), { sql });
+  pruefe(get.status === 200 && (await get.json()).ok === true, "GET: 200, ohne etwas abzulegen");
+  const head = await antwortAufPruefung(new Request(URL0, { method: "HEAD" }), { sql });
+  pruefe(head.status === 200, "HEAD: 200");
+  pruefe((await anzahl("ditix_verkauf")) === vorMeldungen + 4, "Anklopfen legt keine Meldung ab");
+
+  const gross = await nimmAn(
+    new Request(URL0, { method: "POST", headers: { "x-ditix-schluessel": K }, body: "x".repeat(MAX_BYTES + 10) }),
+    { sql },
+  );
+  pruefe(gross.status === 413, "über 1 MB: 413", gross.status);
+  const grossOhne = await nimmAn(new Request(URL0, { method: "POST", body: "x".repeat(MAX_BYTES + 10) }), { sql });
+  pruefe(grossOhne.status === 401, "über 1 MB ohne Schlüssel: 401, nicht 413");
+
+  const versuchsText = (await pg.query<{ t: string }>("select string_agg(roh::text || kopf::text, ' ') as t from webhook_eingang where quelle = 'ditix_versuch'")).rows[0].t;
+  pruefe(!versuchsText.includes(K) && !versuchsText.includes("WRONGVALUE42"), "in den Versuchen steht kein Schlüssel", versuchsText.slice(0, 200));
+  pruefe(versuchsText.includes("Ditix-Pruefung/1"), "User-Agent des Anklopfens ist zu sehen");
+  const pfadZeile = (await pg.query<{ roh: { pfadMitSchluessel: string; adressparameter: string[]; schluesselOrt: string | null } }>(
+    "select roh from webhook_eingang where quelle = 'ditix_versuch' and event_type = 'falscher Schlüssel' and roh->>'schluesselOrt' = 'pfad'",
+  )).rows[0]?.roh;
+  pruefe(pfadZeile?.pfadMitSchluessel === "/api/ditix/verkauf/[schluessel]", "Schlüssel im Pfad wird nicht mit abgelegt", pfadZeile);
+
+  const b2 = await pruefbericht(sql);
+  pruefe(b2.versuche.gesamt === (await anzahl("ditix_versuch")), "Prüfbericht zählt die Versuche");
+  pruefe(b2.versuche.letzte.some((v) => v.methode === "GET" && v.userAgent === "Ditix-Pruefung/1" && v.adressparameter.includes("schluessel")), "Prüfbericht zeigt GET mit Adressparametern", b2.versuche.letzte[0]);
+  pruefe(b2.versuche.letzte.some((v) => v.grund === "kein Schlüssel" && v.hatSchluessel === false), "Prüfbericht unterscheidet fehlenden und falschen Schlüssel");
+  pruefe(!JSON.stringify(b2).includes(K), "Prüfbericht enthält den Schlüssel nicht");
+  pruefe(b2.insgesamt === vorMeldungen + 4, "Versuche zählen nicht als Meldungen", b2.insgesamt);
+
+  // Die Obergrenze gilt, auch wenn jemand die Adresse mit Anfragen überschwemmt.
+  for (let i = 0; i < MAX_VERSUCHE + 10; i++) await senden(URL0, {}, `flut-${i}`);
+  pruefe((await anzahl("ditix_versuch")) === MAX_VERSUCHE, "höchstens 100 Versuche werden vermerkt", await anzahl("ditix_versuch"));
+  delete process.env.DITIX_WEBHOOK_SCHLUESSEL;
 
   console.log(fehler === 0 ? "\nAlles in Ordnung." : `\n${fehler} Fehler.`);
   process.exit(fehler === 0 ? 0 : 1);

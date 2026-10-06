@@ -24,6 +24,9 @@ function standard(): Abfrage {
 
 export const QUELLE = "ditix_verkauf";
 
+/** Abgewiesene Anfragen und Anklopfen, nie echte Meldungen. */
+export const QUELLE_VERSUCH = "ditix_versuch";
+
 /**
  * Legt die Tabelle an, falls es sie noch nicht gibt.
  *
@@ -184,6 +187,55 @@ export async function legeMeldungAb(
   const z = zeilen[0];
   if (!z) throw new Error("Meldung wurde nicht abgelegt.");
   return { id: z.id, wiederholt: Number(z.empfangen_n) > 1, mal: Number(z.empfangen_n) };
+}
+
+/**
+ * Vermerkt eine Anfrage, die nicht als Meldung angenommen wurde (falscher
+ * oder fehlender Schlüssel) oder nur ein Anklopfen war (GET, HEAD).
+ *
+ * Wozu: Ditix sagte beim Speichern "webhook ungültig", und wir sahen nichts.
+ * So sehen wir, ob Ditix überhaupt anklopft, womit (Methode, User-Agent) und
+ * ob der Schlüssel dabei war.
+ *
+ * Begrenzt, weil jeder diese Adresse aufrufen kann: höchstens 100 Zeilen
+ * insgesamt und höchstens 200 Versuche je Prozess. Es wird nie ein Schlüssel
+ * abgelegt, nur ob einer da war und wo (Header, Adresse, Pfad). Ein Fehler
+ * hier darf die Antwort nie verhindern.
+ */
+export const MAX_VERSUCHE = 100;
+let versucheImProzess = 0;
+
+export async function merkeVersuch(
+  request: Request,
+  grund: string,
+  schluesselOrt: string | null,
+  sqlGegeben?: Abfrage,
+): Promise<void> {
+  if (versucheImProzess >= 200) return;
+  versucheImProzess++;
+  try {
+    const sql = await abfrage(sqlGegeben);
+    const url = new URL(request.url);
+    const roh = {
+      methode: request.method,
+      grund,
+      hatSchluessel: schluesselOrt !== null,
+      schluesselOrt,
+      // Nur die Namen der Adressparameter, nie ihre Werte.
+      adressparameter: [...url.searchParams.keys()],
+      pfadMitSchluessel: url.pathname.replace(/^\/api\/ditix\/verkauf\/.+$/, "/api/ditix/verkauf/[schluessel]"),
+      inhaltsart: request.headers.get("content-type") ?? "",
+      laenge: request.headers.get("content-length") ?? "",
+    };
+    await sql`
+      insert into webhook_eingang (quelle, event_type, roh, kopf)
+      select ${QUELLE_VERSUCH}, ${grund}, ${JSON.stringify(roh)}::jsonb,
+             ${JSON.stringify(kopfzeilen(request.headers))}::jsonb
+       where (select count(*) from webhook_eingang where quelle = ${QUELLE_VERSUCH}) < ${MAX_VERSUCHE}
+    `;
+  } catch (e) {
+    console.error("[ditix-eingang] Versuch vermerken:", e instanceof Error ? e.message : e);
+  }
 }
 
 /** Rumpf, der kein JSON war: trotzdem aufheben, damit er sichtbar wird. */
@@ -350,6 +402,21 @@ export interface Pruefbericht {
   kopfBelastet: number;
   /** Kopfzeilen der neuesten Meldung. Schlüssel sind geschwärzt. */
   kopfzeilen: Record<string, string>;
+  /** Abgewiesene Anfragen und Anklopfen (GET/HEAD), neueste zuerst. Siehe merkeVersuch. */
+  versuche: {
+    gesamt: number;
+    letzte: Array<{
+      empfangenAm: string;
+      grund: string;
+      methode: string;
+      hatSchluessel: boolean;
+      schluesselOrt: string | null;
+      adressparameter: string[];
+      pfad: string;
+      userAgent: string;
+      inhaltsart: string;
+    }>;
+  };
   /** Ticket-Typen, wie Ditix sie nennt, mit Menge aus den letzten 200 Meldungen. */
   ticketTypen: Array<{ name: string; tickets: number; meldungen: number }>;
   veranstaltungen: Array<{ name: string; meldungen: number }>;
@@ -423,6 +490,14 @@ export async function pruefbericht(sqlGegeben?: Abfrage): Promise<Pruefbericht> 
     select count(*)::int as n from webhook_eingang
      where quelle = ${QUELLE}
        and kopf::text ~* '(schluessel=|x-suche|x-pfad|x-vercel-sc-headers|x-vercel-proxy-signature|"forwarded")'
+  `) as Array<{ n: number }>;
+
+  const versuche = (await sql`
+    select empfangen_am, event_type, roh, kopf from webhook_eingang
+     where quelle = ${QUELLE_VERSUCH} order by empfangen_am desc limit 20
+  `) as Array<{ empfangen_am: unknown; event_type: string; roh: unknown; kopf: unknown }>;
+  const versucheGesamt = (await sql`
+    select count(*)::int as n from webhook_eingang where quelle = ${QUELLE_VERSUCH}
   `) as Array<{ n: number }>;
 
   const liste = await letzteMeldungen(200, sql);
@@ -517,6 +592,24 @@ export async function pruefbericht(sqlGegeben?: Abfrage): Promise<Pruefbericht> 
     bestellungenMitMehrerenMeldungen: Number(mehrfach[0]?.n ?? 0),
     kopfBelastet: Number(belastet[0]?.n ?? 0),
     kopfzeilen: liste[0]?.kopf ?? {},
+    versuche: {
+      gesamt: Number(versucheGesamt[0]?.n ?? 0),
+      letzte: versuche.map((v) => {
+        const r = alsJson<Record<string, unknown>>(v.roh, {});
+        const k = alsJson<Record<string, string>>(v.kopf, {});
+        return {
+          empfangenAm: alsText(v.empfangen_am),
+          grund: String(v.event_type ?? ""),
+          methode: String(r.methode ?? ""),
+          hatSchluessel: r.hatSchluessel === true,
+          schluesselOrt: typeof r.schluesselOrt === "string" ? r.schluesselOrt : null,
+          adressparameter: Array.isArray(r.adressparameter) ? r.adressparameter.map(String) : [],
+          pfad: String(r.pfadMitSchluessel ?? ""),
+          userAgent: k["user-agent"] ?? "",
+          inhaltsart: String(r.inhaltsart ?? ""),
+        };
+      }),
+    },
     ticketTypen: [...typen.entries()]
       .map(([name, z]) => ({ name, ...z }))
       .sort((a, b) => b.tickets - a.tickets),
