@@ -56,6 +56,10 @@ const OHNE_ANMELDUNG = [
   "/api/whatsapp/eingang",
   // Probemails der Abbrecher-Strecke, prueft selbst das CRON_SECRET.
   "/api/abbrecher",
+  // Verkaufsmeldungen von Ditix, prueft selbst den gemeinsamen Schluessel.
+  "/api/ditix/verkauf",
+  // Nur lesender Pruefbericht ohne Personendaten, prueft selbst seinen Schluessel.
+  "/api/ditix/pruefung",
   // Die Antwort auf "Was hat dich abgehalten?" kommt aus einer Mail an
   // einen Gast. Der hat keinen Zugang und soll auch keinen brauchen.
   "/warum",
