@@ -25,11 +25,17 @@ create table if not exists webhook_eingang (
   -- {"_unlesbar": "<Anfang des Textes>"}, damit auch das sichtbar wird.
   roh           jsonb       not null,
   -- Kopfzeilen der Anfrage, ohne Schlüssel und Cookies.
-  kopf          jsonb       not null default '{}'::jsonb
+  kopf          jsonb       not null default '{}'::jsonb,
+  -- md5 des Inhalts. Zusammen mit message_id und Art erkennt es eine echte
+  -- Wiederholung. Ditix verwendet bei order_created die Bestellnummer als
+  -- message_id (beobachtet am 06.10.2026). Käme dieselbe ID bei einer Änderung
+  -- oder einem Storno noch einmal, dürfte die neue Meldung nicht als
+  -- Wiederholung verschluckt werden.
+  inhalt_md5    text        not null default ''
 );
 
-create unique index if not exists webhook_eingang_nachricht
-  on webhook_eingang (quelle, nachricht_id);
+create unique index if not exists webhook_eingang_dublette
+  on webhook_eingang (quelle, event_type, nachricht_id, inhalt_md5);
 create index if not exists webhook_eingang_zeit
   on webhook_eingang (quelle, empfangen_am desc);
 create index if not exists webhook_eingang_order

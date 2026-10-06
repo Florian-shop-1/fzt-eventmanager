@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { antwortAufPruefung, MAX_BYTES, nimmAn } from "../src/lib/ditix/annahme";
 import {
+  INHALT_NACHTRAGEN,
   KOPF_BEREINIGUNG,
   kopfzeilen,
   legeMeldungAb,
@@ -102,6 +103,48 @@ async function main() {
     JSON.stringify(await form(ausCode)) === JSON.stringify(await form(nurMigration)),
     "Tabelle aus dem Code ist dieselbe wie aus der Migration",
   );
+
+  console.log("\n=== Upgrade einer schon bestehenden Tabelle (Stand 06.10.2026, 20:00) ===");
+  // So sah die Tabelle im Livebetrieb aus: ohne inhalt_md5, mit dem ersten
+  // Dublettenschutz nur über die message_id.
+  const altDb = new PGlite();
+  await altDb.exec(`
+    create table webhook_eingang (
+      id uuid primary key default gen_random_uuid(), quelle text not null, nachricht_id text,
+      event_type text not null default '', order_id text not null default '',
+      empfangen_am timestamptz not null default now(), empfangen_n int not null default 1,
+      zuletzt_am timestamptz not null default now(), roh jsonb not null, kopf jsonb not null default '{}'::jsonb);
+    create unique index webhook_eingang_nachricht on webhook_eingang (quelle, nachricht_id);
+    create index webhook_eingang_zeit on webhook_eingang (quelle, empfangen_am desc);
+    create index webhook_eingang_order on webhook_eingang (quelle, order_id);
+    insert into webhook_eingang (quelle, nachricht_id, event_type, order_id, roh)
+      values ('ditix_verkauf', 'X-1', 'order_created', 'X-1', '{"a":1}'::jsonb);`);
+  for (const anweisung of TABELLE_DDL) await altDb.exec(anweisung);
+  await altDb.exec(INHALT_NACHTRAGEN);
+  const altSql = alsAbfrage(altDb);
+  const altZeile = await altDb.query<{ inhalt_md5: string }>("select inhalt_md5 from webhook_eingang where nachricht_id = 'X-1'");
+  pruefe(altZeile.rows[0].inhalt_md5.length === 32, "bestehende Zeile bekommt ihren Inhalts-Hash", altZeile.rows);
+  const altIndizes = (await altDb.query<{ indexname: string }>("select indexname from pg_indexes where tablename = 'webhook_eingang'")).rows.map((r) => r.indexname);
+  pruefe(!altIndizes.includes("webhook_eingang_nachricht") && altIndizes.includes("webhook_eingang_dublette"), "alter Dublettenschutz ersetzt", altIndizes);
+  const wiederAlt = await legeMeldungAb({ event_type: "order_created", message_id: "X-1", data: { order_id: "X-1" }, a: 1 }, {}, altSql);
+  const neuAlt = await legeMeldungAb({ event_type: "order_cancelled", message_id: "X-1", data: { order_id: "X-1" } }, {}, altSql);
+  pruefe(neuAlt.id !== wiederAlt.id && !neuAlt.wiederholt, "neue Art mit derselben message_id wird abgelegt", neuAlt);
+
+  console.log("\n=== Dubletten: nur echte Wiederholungen ===");
+  // Ditix nimmt bei order_created die Bestellnummer als message_id (beobachtet).
+  // Dieselbe ID bei einer Änderung darf nicht als Wiederholung verschluckt werden.
+  const ersteD = await legeMeldungAb(meldung("D-1", "D-1", "order_created"), {}, sql);
+  const wieder = await legeMeldungAb(meldung("D-1", "D-1", "order_created"), {}, sql);
+  pruefe(wieder.id === ersteD.id && wieder.wiederholt && wieder.mal === 2, "gleiche ID, Art und Inhalt: Wiederholung", wieder);
+  const andereArt = await legeMeldungAb(meldung("D-1", "D-1", "order_updated"), {}, sql);
+  pruefe(andereArt.id !== ersteD.id && !andereArt.wiederholt, "gleiche ID, andere Art: eigene Zeile", andereArt);
+  const geaendert = meldung("D-1", "D-1", "order_created");
+  (geaendert.data.events[0].ticketTypes[0].tickets as unknown[]).push({});
+  const anderer = await legeMeldungAb(geaendert, {}, sql);
+  pruefe(anderer.id !== ersteD.id && !anderer.wiederholt, "gleiche ID und Art, anderer Inhalt: eigene Zeile", anderer);
+  const zeilenD = await pg.query<{ n: number }>("select count(*)::int as n from webhook_eingang where nachricht_id = 'D-1'");
+  pruefe(zeilenD.rows[0].n === 3, "drei Zeilen, keine verschluckt", zeilenD.rows[0]);
+  await pg.exec("delete from webhook_eingang where nachricht_id = 'D-1'");
 
   console.log("\n=== Ablegen ===");
   const a = await legeMeldungAb(meldung("m-1", "A-1"), { "content-type": "application/json" }, sql);

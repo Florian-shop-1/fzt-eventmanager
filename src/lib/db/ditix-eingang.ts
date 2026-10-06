@@ -50,12 +50,20 @@ export const TABELLE_DDL = [
      empfangen_n   int         not null default 1,
      zuletzt_am    timestamptz not null default now(),
      roh           jsonb       not null,
-     kopf          jsonb       not null default '{}'::jsonb
+     kopf          jsonb       not null default '{}'::jsonb,
+     inhalt_md5    text        not null default ''
    )`,
-  "create unique index if not exists webhook_eingang_nachricht on webhook_eingang (quelle, nachricht_id)",
+  // Für Tabellen, die vor der Spalte angelegt wurden (bis 06.10.2026, 21:00).
+  "alter table webhook_eingang add column if not exists inhalt_md5 text not null default ''",
+  // Der erste Schutz gegen Dubletten verschluckte Änderungen, siehe unten.
+  "drop index if exists webhook_eingang_nachricht",
+  "create unique index if not exists webhook_eingang_dublette on webhook_eingang (quelle, event_type, nachricht_id, inhalt_md5)",
   "create index if not exists webhook_eingang_zeit on webhook_eingang (quelle, empfangen_am desc)",
   "create index if not exists webhook_eingang_order on webhook_eingang (quelle, order_id)",
 ];
+
+/** Trägt den Inhalts-Hash für Zeilen nach, die vor der Spalte abgelegt wurden. */
+export const INHALT_NACHTRAGEN = "update webhook_eingang set inhalt_md5 = md5(roh::text) where inhalt_md5 = ''";
 
 /**
  * Entfernt interne Kopfzeilen aus Zeilen, die vor der Korrektur abgelegt wurden
@@ -78,6 +86,7 @@ function sorgeFuerTabelle(): Promise<void> {
     const roh = db() as unknown as { query: (text: string) => Promise<unknown> };
     try {
       for (const anweisung of TABELLE_DDL) await roh.query(anweisung);
+      await roh.query(INHALT_NACHTRAGEN);
       await roh.query(KOPF_BEREINIGUNG);
     } catch (e) {
       bereit = null;
@@ -161,8 +170,10 @@ export interface Ablage {
 }
 
 /**
- * Legt eine Meldung ab. Kommt dieselbe message_id noch einmal, wird nichts
- * doppelt abgelegt, aber mitgezählt: So sehen wir, ob Ditix wiederholt.
+ * Legt eine Meldung ab. Kommt genau dieselbe Meldung noch einmal (message_id,
+ * Art und Inhalt), wird nichts doppelt abgelegt, aber mitgezählt: So sehen wir,
+ * ob Ditix wiederholt. Eine geänderte Meldung mit derselben message_id ist
+ * keine Wiederholung und wird als eigene Zeile abgelegt.
  */
 export async function legeMeldungAb(
   roh: unknown,
@@ -173,12 +184,17 @@ export async function legeMeldungAb(
   const objekt = istObjekt(roh) ? roh : {};
   const daten = istObjekt(objekt.data) ? objekt.data : {};
 
+  // Eine Wiederholung ist dieselbe message_id mit derselben Art UND demselben
+  // Inhalt. Nur die message_id reicht nicht: Ditix nimmt bei order_created
+  // die Bestellnummer, und käme sie bei einer Änderung wieder, ginge die
+  // Änderung verloren.
+  const inhalt = JSON.stringify(roh ?? null);
   const zeilen = (await sql`
-    insert into webhook_eingang (quelle, nachricht_id, event_type, order_id, roh, kopf)
+    insert into webhook_eingang (quelle, nachricht_id, event_type, order_id, roh, kopf, inhalt_md5)
     values (${QUELLE}, ${text(objekt.message_id) || null}, ${text(objekt.event_type)},
-            ${text(daten.order_id)}, ${JSON.stringify(roh ?? null)}::jsonb,
-            ${JSON.stringify(kopf)}::jsonb)
-    on conflict (quelle, nachricht_id) do update set
+            ${text(daten.order_id)}, ${inhalt}::jsonb,
+            ${JSON.stringify(kopf)}::jsonb, md5((${inhalt}::jsonb)::text))
+    on conflict (quelle, event_type, nachricht_id, inhalt_md5) do update set
       empfangen_n = webhook_eingang.empfangen_n + 1,
       zuletzt_am  = now()
     returning id, empfangen_n
