@@ -59,10 +59,20 @@ import {
 } from "@/lib/dienstplan/plan";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
-// ZUSCHAUER gehoert dazu, seit es die vierte Position gibt (migrations/064).
-// Fehlte hier, deshalb kam beim Uebernehmen "Unbekannte Position"
-// (Roman, gemeldet von Florian am 23.09.2026).
-const GUELTIG: Position[] = ["FOH", "T2", "T1", "ZUSCHAUER", "SHADOW"];
+/*
+  Welche Positionen es gibt, steht in BEZEICHNUNG und nirgends sonst.
+
+  Hier stand die Liste zweimal, von Hand gepflegt, und genau das ging
+  zweimal schief: erst fehlte ZUSCHAUER (Roman, 23.09.2026), dann
+  TECHNIK. Die Folge war beide Male keine Meldung, sondern ein
+  Serverfehler: Kevin konnte Bens Zeit für die Uni Ulm nicht ändern,
+  weil Ben dort auf TECHNIK steht ("This page couldn't load", gemeldet
+  von Florian am 06.10.2026).
+
+  Abgeleitet statt abgeschrieben: Eine neue Position kann so nicht mehr
+  vergessen werden.
+*/
+const GUELTIG = Object.keys(BEZEICHNUNG) as Position[];
 
 function zurueck(eventId: string, meldung: string): never {
   revalidatePath("/dienstplan");
@@ -117,7 +127,7 @@ async function schichtLaden(f: FormData) {
   const eventId = text(f, "vorstellung");
   await nichtWennStorniert(eventId);
   const position = text(f, "position") as Position;
-  if (!GUELTIG.includes(position)) throw new Error("Unbekannte Position.");
+  if (!GUELTIG.includes(position)) zurueck(eventId, "Diese Position kennen wir nicht.");
   const termin = await findeTermin(eventId);
   if (!termin) zurueck(eventId, "Diese Vorstellung gibt es nicht mehr.");
   const { schichten, personen, abwesend } = await planLaden();
@@ -145,7 +155,7 @@ export async function treffzeitAendern(f: FormData): Promise<void> {
   const eventId = text(f, "vorstellung");
   await nichtWennStorniert(eventId);
   const position = text(f, "position") as Position;
-  if (!GUELTIG.includes(position)) throw new Error("Unbekannte Position.");
+  if (!GUELTIG.includes(position)) zurueck(eventId, "Diese Position kennen wir nicht.");
   const termin = await findeTermin(eventId);
   if (!termin) zurueck(eventId, "Diese Vorstellung gibt es nicht mehr.");
 
