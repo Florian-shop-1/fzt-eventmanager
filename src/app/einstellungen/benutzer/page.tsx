@@ -21,6 +21,7 @@ const ROLLE_KURZ: Record<string, string> = {
   kiosk: "Food-Kiosk",
   agentur: "Werbeagentur",
   buchhaltung: "Buchhaltung",
+  reinigung: "Reinigungsfirma",
 };
 
 interface Zeile {
@@ -35,6 +36,7 @@ interface Zeile {
   whatsapp: boolean;
   art: "intern" | "extern" | null;
   personalbogen_am: string | null;
+  benutzername: string | null;
 }
 
 export default async function BenutzerSeite() {
@@ -43,7 +45,7 @@ export default async function BenutzerSeite() {
 
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
-           startpasswort, whatsapp, art, personalbogen_am
+           startpasswort, whatsapp, art, personalbogen_am, benutzername
       from benutzer order by rolle
   `) as Zeile[];
   /*
@@ -157,7 +159,23 @@ export default async function BenutzerSeite() {
                   {b.name}
                   {b.id === ich.id && <span className="ml-2 text-xs text-leise">(du)</span>}
                 </td>
-                <td className="px-4 py-3 text-leise">{b.email}</td>
+                {/*
+                  Geteilte Zugaenge melden sich mit einem Namen an, nicht
+                  mit einer Mailadresse. In der Spalte stand trotzdem die
+                  interne Adresse, und damit stand dort nicht, was man zum
+                  Anmelden braucht (Florian, 07.10.2026: "sehe den zugang
+                  noch nicht").
+                */}
+                <td className="px-4 py-3 text-leise">
+                  {b.benutzername ? (
+                    <>
+                      <span className="font-medium text-text">{b.benutzername}</span>
+                      <span className="ml-2 text-xs">Anmeldename</span>
+                    </>
+                  ) : (
+                    b.email
+                  )}
+                </td>
                 <td className="px-4 py-3">{ROLLE_KURZ[b.rolle] ?? b.rolle}</td>
                 <td className="px-4 py-3 text-xs">
                   <div className="flex gap-1">
