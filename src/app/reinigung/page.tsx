@@ -118,9 +118,9 @@ export default async function ReinigungSeite({
             <section className="space-y-2 rounded-lg border border-gold bg-gold-hell px-5 py-4 text-sm">
               <h2 className="font-semibold">Der Link zum Stempeln</h2>
               <p className="max-w-prose text-leise">
-                Diesen Link an die Firma geben. Wer putzt, tippt darauf seinen Namen an und stempelt, ohne
-                Anmeldung. Wer zum ersten Mal da ist, schreibt sich einmal hinein und steht danach in der
-                Liste. Gestempelt wird nur auf dem Gelände.
+                Diesen Link an die Firma geben. Dahinter steht nur die Stempeluhr, ohne Anmeldung: ein
+                Knopf zum Ein- und Ausstempeln, und beim Einstempeln die Frage, wie viele Leute da sind.
+                Gestempelt wird nur auf dem Gelände.
               </p>
               <LinkKopieren link={linkAdresse} />
               <form action={linkNeu}>

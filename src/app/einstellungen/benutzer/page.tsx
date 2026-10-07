@@ -8,6 +8,8 @@ import { PasswortZuruecksetzen } from "@/components/PasswortZuruecksetzen";
 import { vorZeit } from "@/components/Status";
 import { BEREICHE, einladungsLink, offeneEinladungen } from "@/lib/dienstplan/einladung";
 import { LinkKopieren } from "@/components/LinkKopieren";
+import { dienstleister } from "@/lib/stempel/dienstleister";
+import { linkVonFirma } from "@/lib/stempel/putzlink";
 
 export const metadata = { title: "Zugänge | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -57,6 +59,29 @@ export default async function BenutzerSeite() {
   */
   benutzer.sort(nachFamilienname);
   const offeneLinks = await offeneEinladungen();
+
+  /*
+    Der Stempellink der Dienstleister, die nach Stunden abrechnen.
+
+    Er wird nicht hier erzeugt, sondern auf der Seite "Reinigung", und
+    nur dort laesst er sich auch erneuern. Hier steht er, damit man ihn
+    findet, wenn man nach einem Link sucht.
+  */
+  const firmen = await dienstleister().catch(() => []);
+  const putzlinks = (
+    await Promise.all(
+      firmen.map(async (f) => ({
+        id: f.id,
+        name: f.name,
+        schluessel: await linkVonFirma(f.id).catch(() => null),
+      })),
+    )
+  )
+    .filter((f): f is { id: string; name: string; schluessel: string } => Boolean(f.schluessel))
+    .map((f) => ({
+      ...f,
+      link: `${process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de"}/putzen/${f.schluessel}`,
+    }));
 
   return (
     <div className="space-y-6">
@@ -136,6 +161,33 @@ export default async function BenutzerSeite() {
               </li>
             );
           })}
+
+          {/*
+            Die Putzfirma hat keinen Einladungslink, sondern einen
+            Stempellink: Dahinter legt niemand einen Zugang an, dahinter
+            steht nur die Uhr. Er steht trotzdem hier, weil hier gesucht
+            wird, wenn man einen Link braucht (Florian, 07.10.2026: "wo
+            ist der link").
+          */}
+          {putzlinks.map((p) => (
+            <li key={p.id} className="border-t border-linie pt-3">
+              <p className="text-sm font-medium">
+                {p.name}
+                <span className="ml-2 text-xs text-leise">nur Stempeluhr, kein Zugang</span>
+              </p>
+              <div className="mt-1">
+                <LinkKopieren link={p.link} />
+              </div>
+              <p className="mt-1 text-xs text-leise">
+                Dahinter steht nur die Stempeluhr: ein Knopf zum Ein- und Ausstempeln und die Frage, wie
+                viele Leute da sind. Auswertung unter{" "}
+                <a href="/reinigung" className="underline">
+                  Reinigung
+                </a>
+                .
+              </p>
+            </li>
+          ))}
         </ul>
       </section>
 
