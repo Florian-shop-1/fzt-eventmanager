@@ -37,6 +37,12 @@ export type Rolle =
   // Werbeagentur: sieht ausschliesslich, was ihre Kampagnen einbringen,
   // keine Gaeste, keine Vorgaenge (Florian, 23.09.2026).
   | "agentur"
+  /*
+    Die Putzfirma. Ein Zugang fuer das Unternehmen, nicht fuer einzelne
+    Leute: Sie stempelt, sagt dabei, wie viele sie heute sind, und sieht
+    sonst nichts (Florian, 07.10.2026).
+  */
+  | "reinigung"
   | "buchhaltung";
 
 /**
@@ -59,6 +65,15 @@ export function darfStempeln(
   b: { rolle: Rolle; art?: "intern" | "extern" | null; geteilt?: boolean } | null | undefined,
 ): boolean {
   if (!b) return false;
+  /*
+    Die Putzfirma stempelt, obwohl ihr Zugang geteilt und extern ist.
+
+    Beides trifft zu und spricht hier trotzdem nicht dagegen: Die Zeit
+    gehoert dem Unternehmen, nicht einer Person, und genau so wird sie
+    abgerechnet. Wie viele Leute dahinterstehen, fragt die Uhr beim
+    Einstempeln (Florian, 07.10.2026).
+  */
+  if (b.rolle === "reinigung") return true;
   // Ein geteilter Zugang gehoert keiner Person. Arbeitszeit auf ihn zu
   // buchen waere niemandem zuzuordnen (Florian, 05.10.2026).
   if (b.geteilt) return false;
@@ -319,6 +334,8 @@ const GETEILTE_SEITEN: Record<string, string[]> = {
   foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check"],
   // Show: der Abend im Saal.
   showteam: ["/upgrades", "/hoerezu", "/tipps", "/showcheck"],
+  // Die Putzfirma: stempeln, mehr nicht.
+  reinigung: ["/stempeluhr"],
 };
 
 /**
@@ -349,7 +366,7 @@ export function startseiteFuer(rolle: Rolle, geteilt = false): string {
  * Dienstleister kann dieselbe Rolle tragen. Deshalb entscheidet hier die
  * Person, dieselben drei wie bei den Arbeitszeiten und den Vertraegen.
  */
-const GELD_SEITEN = ["/rechnungen", "/zahlungseingaenge", "/buchhaltung", "/bewirtung", "/lohn"];
+const GELD_SEITEN = ["/rechnungen", "/zahlungseingaenge", "/buchhaltung", "/bewirtung", "/lohn", "/reinigung"];
 
 export function darfGeld(b: { rolle: Rolle; email: string } | null | undefined): boolean {
   return darfZeitenAendern(b);

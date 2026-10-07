@@ -423,6 +423,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           // meldet. Eigener Punkt, weil es eine andere Frage ist als die
           // Zeiterfassung: Dort wird korrigiert, hier gemeldet.
           punkte.splice(1, 0, { href: "/lohn", label: "Stundenmeldung", rollen: [] });
+          /*
+            Die Putzfirma rechnet nach Stunden ab und stempelt selbst.
+            Eigener Punkt, weil es keine Lohnsache ist, sondern eine
+            Rechnung, die geprueft wird (Florian, 07.10.2026).
+          */
+          punkte.splice(2, 0, { href: "/reinigung", label: "Reinigung", rollen: [] });
         }
         /*
           Die Arbeitsvertraege sehen dieselben drei wie die Arbeitszeiten:

@@ -69,6 +69,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [ortVerweigert, setOrtVerweigert] = useState(false);
   // Gestempelt an einem Tag ohne Dienst: Es fehlt noch der Grund.
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
+  // Die Putzfirma sagt beim Einstempeln, wie viele Leute da sind.
+  const [personenFuer, setPersonenFuer] = useState<string | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
   const [parkplatz, setParkplatz] = useState<{ datum: string; offen: number; gesamt: number } | null>(null);
   // Ausserhalb des Gelaendes ausgestempelt: Wann war wirklich Feierabend?
@@ -148,6 +150,26 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     }
   }
 
+  async function personenSchicken(anzahl: number) {
+    if (!personenFuer) return;
+    try {
+      const antwort = await fetch("/stempeluhr/personen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: personenFuer, personen: anzahl }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setPersonenFuer(null);
+      setMeldung(anzahl === 1 ? "Notiert: eine Person. Gute Arbeit!" : `Notiert: ${anzahl} Personen. Gute Arbeit!`);
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
   async function grundSchicken(text: string) {
     if (!grundFuer) return;
     try {
@@ -193,6 +215,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         entfernung?: number;
         parkplatz?: { datum: string; offen: number; gesamt: number } | null;
         grundNoetig?: boolean;
+        personenNoetig?: boolean;
         stempelId?: string;
         standortHinweis?: string | null;
         standortHinweisArt?: "unklar" | "verlassen" | null;
@@ -203,6 +226,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         return;
       }
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
+      if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
       if (e.parkplatz) setParkplatz(e.parkplatz);
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
@@ -443,6 +467,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         blockiert, würde im Zweifel dazu führen, dass gar nicht gestempelt
         wird (Florian, 06.10.2026).
       */}
+      {personenFuer && <PersonenFrage onSenden={personenSchicken} />}
+
       {grundFuer && <GrundFrage onSenden={grundSchicken} onZu={() => setGrundFuer(null)} />}
 
       {/*
@@ -456,6 +482,67 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
       <p className="text-center text-xs text-leise">
         Zum Stempeln muss der Standort freigegeben sein. Gestempelt werden kann nur auf dem Gelände.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * "Wie viele seid ihr heute?"
+ *
+ * Fuer die Putzfirma: Abgerechnet wird je Person und Stunde, also muss
+ * die Zahl an der Schicht haengen. Grosse Knoepfe statt eines Zahlen-
+ * feldes, denn die Antwort ist fast immer eine einstellige Zahl und das
+ * Handy steht im Treppenhaus.
+ *
+ * Kein "Spaeter": Ohne Zahl ist die Schicht spaeter nicht abrechenbar,
+ * und nachfragen kann hinterher niemand mehr.
+ */
+function PersonenFrage({ onSenden }: { onSenden: (anzahl: number) => void | Promise<void> }) {
+  const [mehr, setMehr] = useState(false);
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <strong>Wie viele seid ihr heute?</strong> Bitte die Zahl der Leute antippen, die jetzt mit
+        anfangen.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => void onSenden(n)}
+            className="h-14 w-14 rounded-xl border-2 border-linie bg-flaeche text-xl font-semibold"
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      {!mehr ? (
+        <button type="button" onClick={() => setMehr(true)} className="text-xs underline text-leise">
+          Mehr als sechs
+        </button>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {[7, 8, 9, 10, 11, 12].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => void onSenden(n)}
+              className="h-14 w-14 rounded-xl border-2 border-linie bg-flaeche text-xl font-semibold"
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-leise">
+        Die Zahl gilt für diese Schicht. Stimmt sie nachher nicht mehr, sagt bitte im Büro Bescheid,
+        dort lässt sie sich ändern.
       </p>
     </div>
   );

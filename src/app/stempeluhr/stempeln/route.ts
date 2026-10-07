@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     sonst bliebe ein unbeantwortetes Fenster unbemerkt.
   */
   let grundNoetig = false;
-  if (art === "kommen") {
+  if (art === "kommen" && b.rolle !== "reinigung") {
     grundNoetig = !(await eingeteiltAm(b.id, tagHier));
     if (grundNoetig && !(await schonGemeldet(stempel.id, "ohne_dienst"))) {
       await meldungMerken(stempel.id, "ohne_dienst");
@@ -212,6 +212,15 @@ export async function POST(request: Request) {
     entfernung: pruefung.entfernungM,
     // Nach dem Grund fragen, wenn an diesem Tag kein Dienst eingeteilt ist.
     grundNoetig,
+    /*
+      Die Putzfirma sagt beim Einstempeln, wie viele Leute da sind.
+
+      Sie steht in keinem Dienstplan und wird deshalb auch nicht nach
+      einem Grund gefragt: Dass sie kommt, ist der Normalfall. Gefragt
+      wird nach der Zahl, denn danach wird abgerechnet (Florian,
+      07.10.2026).
+    */
+    personenNoetig: art === "kommen" && b.rolle === "reinigung",
     stempelId: stempel.id,
     // Kein Fehler, aber ein Hinweis: ausgestempelt wurde trotzdem.
     standortHinweis: drausenBeimGehen ? "Du befindest dich nicht auf dem Grundstück." : null,
