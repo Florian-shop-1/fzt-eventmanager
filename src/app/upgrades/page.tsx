@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { alleShowtage } from "@/lib/seating/abendliste";
+import { alleShowtage, kartenDerVorstellung } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { termineDesTages, findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { holeSaalplan, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
@@ -105,6 +105,17 @@ export default async function UpgradeSeite({
     vorstellung ? umsetzungenDerVorstellung(vorstellung.ditixEventId) : Promise.resolve([]),
     vorstellung ? eingecheckteSitze(vorstellung.ditixEventId) : Promise.resolve([]),
   ]);
+
+  /*
+    Shows ohne Saalplan, allen voran der Flo-Zirkus.
+
+    Dort sitzt niemand auf einem festen Platz, also gibt es nichts
+    umzusetzen. Die Karten sind trotzdem verkauft, und wer am Einlass
+    steht, will wissen, wie viele kommen: "bei upgrades sieht man beim
+    flo-zirkus nicht wieviele gäste da sind" (Florian, 07.10.2026).
+  */
+  const ohneSaalplan = Boolean(vorstellung && !vorstellung.seatmapEventId);
+  const karten = ohneSaalplan && vorstellung ? await kartenDerVorstellung(vorstellung.ditixEventId) : 0;
 
   const rat = plan ? empfehlung(plan) : null;
 
@@ -251,11 +262,37 @@ export default async function UpgradeSeite({
         </div>
       )}
 
-      {!vorstellung?.seatmapEventId && !fehler && (
-        <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm print:hidden">
-          <div className="font-medium">Für diese Vorstellung gibt es keinen Saalplan</div>
-          <p className="mt-1 text-leise">Ohne Saalplan lässt sich nicht sagen, wer wo sitzt.</p>
-        </div>
+      {ohneSaalplan && !fehler && vorstellung && (
+        <section className="space-y-3">
+          <p className="hidden text-sm print:block">
+            <strong>
+              {karten + gaeste.reduce((n, g) => n + g.anzahl, 0)} Zuschauer erwartet
+            </strong>{" "}
+            ({karten} Karten verkauft
+            {gaeste.length > 0 && ` + ${gaeste.reduce((n, g) => n + g.anzahl, 0)} Gästeliste`}). Freie
+            Platzwahl, es gibt nichts umzusetzen.
+          </p>
+
+          <div className="flex flex-wrap gap-4 print:hidden">
+            <Kachel
+              zahl={karten + gaeste.reduce((n, g) => n + g.anzahl, 0)}
+              was="Zuschauer erwartet"
+              hinweis={
+                gaeste.length > 0
+                  ? `${karten} Karten + ${gaeste.reduce((n, g) => n + g.anzahl, 0)} Gästeliste`
+                  : `${karten} Karten verkauft`
+              }
+              betont
+            />
+          </div>
+
+          <div className="rounded-lg border border-dashed border-linie px-6 py-6 text-center text-sm print:hidden">
+            <div className="font-medium">Freie Platzwahl, kein Saalplan</div>
+            <p className="mt-1 text-leise">
+              Hier sitzt niemand auf einem festen Platz, deshalb gibt es nichts umzusetzen.
+            </p>
+          </div>
+        </section>
       )}
 
       {plan && rat && vorstellung && (

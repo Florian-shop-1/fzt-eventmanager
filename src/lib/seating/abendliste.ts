@@ -202,3 +202,24 @@ export async function vorstellungFuerEvent(
   `) as Array<{ id: string }>;
   return neu[0].id;
 }
+
+/**
+ * Wie viele Karten für eine einzelne Vorstellung verkauft sind.
+ *
+ * Gebraucht für die Shows ohne Saalplan, allen voran den Flo-Zirkus:
+ * Dort gibt es keine Sitzplätze, und damit stand auf der Upgrade-Seite
+ * überhaupt keine Zahl, obwohl die Karten längst verkauft sind
+ * (Florian, 07.10.2026: "bei upgrades sieht man beim flo-zirkus nicht
+ * wieviele gäste da sind").
+ */
+export async function kartenDerVorstellung(ditixEventId: string): Promise<number> {
+  try {
+    const gruppen = await holeShopGruppen();
+    return gruppen
+      .filter((g) => g.ditixEventId === ditixEventId)
+      .reduce((n, g) => n + g.tickets, 0);
+  } catch {
+    // Ohne Shop-Liste lieber keine Zahl als eine falsche.
+    return 0;
+  }
+}
