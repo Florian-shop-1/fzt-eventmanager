@@ -70,6 +70,25 @@ export default async function FoyerCheckSeite({
         })
       : [];
 
+  /*
+    Der Flo-Zirkus hat keine Pause.
+
+    An einem Tag mit Flo-Zirkus faengt die Liste bei dessen Anfangszeit
+    an, weil das Foyer dann aufsperrt. Die Abschnitte Pause, erste und
+    zweite Haelfte gehoeren aber zur ULMFASSBAR am Abend: "beim
+    flo-zirkus gibts keine pause. die checkliste betrifft die show im
+    anschluss ULMFASSBAR" (Florian, 07.10.2026).
+
+    Deshalb steht es an diesen Abenden oben, mit der Uhrzeit der Show,
+    um die es geht.
+  */
+  const zirkus = tag?.shows.find((sh) => /flo.?zirkus/i.test(sh.name)) ?? null;
+  const danach = zirkus
+    ? (tag?.shows.find((sh) => sh.uhrzeit > zirkus.uhrzeit && /ulmfassbar/i.test(sh.name)) ??
+       tag?.shows.find((sh) => sh.uhrzeit > zirkus.uhrzeit) ??
+       null)
+    : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -136,6 +155,27 @@ export default async function FoyerCheckSeite({
             <span className="text-leise">{tag.name}</span>
           </p>
 
+          {zirkus && (
+            <p
+              className="rounded-lg border px-4 py-3 text-sm"
+              style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+            >
+              <strong>Der Flo-Zirkus hat keine Pause.</strong>{" "}
+              {danach ? (
+                <>
+                  Die Abschnitte Pause, erste und zweite Hälfte gehören zur{" "}
+                  <strong>{danach.name}</strong> um {danach.uhrzeit} Uhr im Anschluss. Beim Flo-Zirkus um{" "}
+                  {zirkus.uhrzeit} Uhr läuft der Service durch.
+                </>
+              ) : (
+                <>
+                  Die Abschnitte Pause, erste und zweite Hälfte gehören zur ULMFASSBAR im Anschluss. Beim
+                  Flo-Zirkus um {zirkus.uhrzeit} Uhr läuft der Service durch.
+                </>
+              )}
+            </p>
+          )}
+
           {bereicheVon("foyer").map((bereich) => (
             <Abschnitt
               key={bereich}
@@ -145,6 +185,7 @@ export default async function FoyerCheckSeite({
               datum={tag.datum}
               chef={b.rolle === "chef"}
               showUhrzeit={tag.uhrzeit}
+              pausenUhrzeit={danach?.uhrzeit ?? null}
               nameNoetig={b.geteilt}
               namen={namen}
             />
@@ -171,6 +212,7 @@ function Abschnitt({
   datum,
   chef,
   showUhrzeit,
+  pausenUhrzeit,
   nameNoetig,
   namen,
 }: {
@@ -179,8 +221,10 @@ function Abschnitt({
   abend: string;
   datum: string;
   chef: boolean;
-  /** Anfang der ersten Vorstellung: Daran haengen die Uhrzeiten. */
+  /** Anfang der ersten Vorstellung: Daran haengen Vorbereiten und Einlass. */
   showUhrzeit: string;
+  /** Die Show mit der Pause, wenn es nicht die erste ist (Flo-Zirkus-Tage). */
+  pausenUhrzeit: string | null;
   nameNoetig: boolean;
   namen: string[];
 }) {
@@ -189,7 +233,7 @@ function Abschnitt({
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-leise">
-        {abschnittTitel(bereich, showUhrzeit)}
+        {abschnittTitel(bereich, showUhrzeit, pausenUhrzeit)}
       </h2>
 
       <ShowcheckListe

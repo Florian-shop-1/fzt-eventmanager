@@ -261,9 +261,27 @@ function verschoben(uhrzeit: string, minuten: number): string {
  *
  * Ohne Uhrzeit bleibt es bei der Beschriftung aus BEREICH_TITEL.
  */
-export function abschnittTitel(bereich: Bereich, showUhrzeit?: string | null): string {
+export function abschnittTitel(
+  bereich: Bereich,
+  showUhrzeit?: string | null,
+  /*
+    Die Show mit der Pause, falls das eine andere ist.
+
+    Am Flo-Zirkus-Tag sperrt das Foyer fuer den Zirkus um 13 Uhr auf,
+    aber der hat keine Pause: Erste Haelfte, Pause, zweite Haelfte und
+    Show-Ende gehoeren zur ULMFASSBAR danach (Florian, 07.10.2026).
+    Rechnete alles vom Zirkus aus, stand ueber der Pause eine Uhrzeit,
+    zu der gar keine ist.
+
+    Vorbereiten und Einlass bleiben an der ersten Vorstellung haengen,
+    denn aufgesperrt und eingelassen wird fuer die.
+  */
+  pausenShowUhrzeit?: string | null,
+): string {
   const a = FOYER_ABSTAENDE[bereich];
   if (!a || !showUhrzeit) return BEREICH_TITEL[bereich];
   if (bereich === "foyer_vor") return `Alles vor ${verschoben(showUhrzeit, a.bis)} Uhr`;
-  return `${verschoben(showUhrzeit, a.von)} bis ${verschoben(showUhrzeit, a.bis)} Uhr, ${a.was}`;
+  const anker =
+    bereich === "foyer_einlass" ? showUhrzeit : (pausenShowUhrzeit || showUhrzeit);
+  return `${verschoben(anker, a.von)} bis ${verschoben(anker, a.bis)} Uhr, ${a.was}`;
 }
