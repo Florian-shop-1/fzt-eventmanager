@@ -103,6 +103,16 @@ const OHNE_ANMELDUNG = [
     Information, dass ein Abend ausfaellt (Florian, 05.10.2026).
   */
   "/api/abgesagt",
+  /*
+    Die Stempeluhr der Putzfirma.
+
+    Wer putzt, hat keinen Zugang zum Eventmanager und soll auch keinen
+    brauchen: Er oeffnet den Link, tippt auf seinen Namen und stempelt
+    (Florian, 07.10.2026). Der lange Zufallsschluessel im Link ist der
+    Nachweis, wie bei /angebot und /alternative; die Seite prueft ihn
+    selbst und zeigt ohne ihn nichts.
+  */
+  "/putzen",
 ];
 
 /**

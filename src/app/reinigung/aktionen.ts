@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { MAX_PERSONEN } from "@/lib/stempel/dienstleister";
+import { linkErneuern } from "@/lib/stempel/putzlink";
 
 const text = (f: FormData, k: string, max = 40) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -61,4 +62,23 @@ export async function personenAendern(f: FormData): Promise<void> {
       ? `${datum.split("-").reverse().join(".")}, ${von} Uhr: jetzt ${personen} ${personen === 1 ? "Person" : "Personen"}.`
       : "Diese Schicht finden wir nicht.",
   );
+}
+
+/**
+ * Einen neuen Link erzeugen und den alten abschalten.
+ *
+ * Für den Tag, an dem der Link irgendwo landet, wo er nicht hingehört.
+ * Die gestempelten Zeiten bleiben davon unberührt.
+ */
+export async function linkNeu(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!b) redirect("/anmelden");
+  if (!darfZeitenAendern(b)) redirect("/");
+
+  const wer = text(f, "wer");
+  const monat = text(f, "monat", 7);
+  if (!/^[0-9a-f-]{36}$/.test(wer)) zurueck(monat, wer, "Diese Firma finden wir nicht.");
+
+  await linkErneuern(wer, b.name);
+  zurueck(monat, wer, "Neuer Link erzeugt. Der alte gilt ab sofort nicht mehr.");
 }

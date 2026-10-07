@@ -33,6 +33,8 @@ export async function personenMerken(o: {
 }
 
 export interface Einsatz {
+  /** Wer gestempelt hat. Beim gemeinsamen Zugang der Firmenname. */
+  name: string;
   datum: string;
   von: string;
   bis: string | null;
@@ -73,12 +75,12 @@ export async function monatsabrechnung(o: {
   const satzCent = Number(b[0].satz);
 
   const z = (await db()`
-    select art, zeitpunkt, personen
+    select art, zeitpunkt, personen, name
       from stempel
      where benutzer_id = ${o.benutzerId}::uuid
        and to_char(zeitpunkt at time zone 'Europe/Berlin', 'YYYY-MM') = ${o.monat}
      order by zeitpunkt
-  `.catch(() => [])) as Array<{ art: string; zeitpunkt: string; personen: number | null }>;
+  `.catch(() => [])) as Array<{ art: string; zeitpunkt: string; personen: number | null; name: string }>;
 
   const uhr = (iso: string) =>
     new Date(iso).toLocaleTimeString("de-DE", {
@@ -87,56 +89,63 @@ export async function monatsabrechnung(o: {
       minute: "2-digit",
     });
 
+  /*
+    Gepaart wird je Name, nicht je Firma.
+
+    Seit es den offenen Link gibt, stempelt jeder fuer sich, und dann
+    laufen mehrere Schichten gleichzeitig: Eine Reihenfolge ueber alle
+    Stempel haette Annas Gehen an Berats Kommen gehaengt. Beim
+    gemeinsamen Zugang steht in der Spalte der Firmenname, dort bleibt
+    es eine einzige Reihe (Florian, 07.10.2026).
+  */
   const einsaetze: Einsatz[] = [];
   let offen = 0;
-  let laufend: { start: string; personen: number } | null = null;
+  const laufend = new Map<string, { start: string; personen: number }>();
+
+  const alsOffen = (name: string, l: { start: string; personen: number }) => {
+    offen += 1;
+    einsaetze.push({
+      name,
+      datum: new Date(l.start).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
+      von: uhr(l.start),
+      bis: null,
+      minuten: 0,
+      personen: l.personen,
+      kostenCent: null,
+    });
+  };
 
   for (const r of z) {
+    const name = String((r as { name?: string }).name ?? "");
+    const l = laufend.get(name);
+
     if (r.art === "kommen") {
       // Zwei Kommen ohne Gehen dazwischen: Das erste bleibt offen stehen.
-      if (laufend) {
-        offen += 1;
-        einsaetze.push({
-          datum: new Date(laufend.start).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
-          von: uhr(laufend.start),
-          bis: null,
-          minuten: 0,
-          personen: laufend.personen,
-          kostenCent: null,
-        });
-      }
-      laufend = { start: r.zeitpunkt, personen: Math.max(1, Number(r.personen ?? 1)) };
+      if (l) alsOffen(name, l);
+      laufend.set(name, { start: r.zeitpunkt, personen: Math.max(1, Number(r.personen ?? 1)) });
       continue;
     }
 
-    if (r.art === "gehen" && laufend) {
+    if (r.art === "gehen" && l) {
       const minuten = Math.max(
         0,
-        Math.round((new Date(r.zeitpunkt).getTime() - new Date(laufend.start).getTime()) / 60000),
+        Math.round((new Date(r.zeitpunkt).getTime() - new Date(l.start).getTime()) / 60000),
       );
       einsaetze.push({
-        datum: new Date(laufend.start).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
-        von: uhr(laufend.start),
+        name,
+        datum: new Date(l.start).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
+        von: uhr(l.start),
         bis: uhr(r.zeitpunkt),
         minuten,
-        personen: laufend.personen,
-        kostenCent: Math.round((minuten / 60) * laufend.personen * satzCent),
+        personen: l.personen,
+        kostenCent: Math.round((minuten / 60) * l.personen * satzCent),
       });
-      laufend = null;
+      laufend.delete(name);
     }
   }
 
-  if (laufend) {
-    offen += 1;
-    einsaetze.push({
-      datum: new Date(laufend.start).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }),
-      von: uhr(laufend.start),
-      bis: null,
-      minuten: 0,
-      personen: laufend.personen,
-      kostenCent: null,
-    });
-  }
+  for (const [name, l] of laufend) alsOffen(name, l);
+  einsaetze.sort((a, b) => (a.datum + a.von).localeCompare(b.datum + b.von));
 
   const minuten = einsaetze.reduce((s, e) => s + e.minuten, 0);
   const personenminuten = einsaetze.reduce((s, e) => s + e.minuten * e.personen, 0);

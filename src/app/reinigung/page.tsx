@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfZeitenAendern } from "@/lib/auth/sitzung";
 import { dienstleister, monatsabrechnung } from "@/lib/stempel/dienstleister";
-import { personenAendern } from "./aktionen";
+import { linkSicherstellen } from "@/lib/stempel/putzlink";
+import { LinkKopieren } from "@/components/LinkKopieren";
+import { linkNeu, personenAendern } from "./aktionen";
 
 export const metadata = { title: "Reinigung | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -59,6 +61,18 @@ export default async function ReinigungSeite({
   const gewaehlt = firmen.find((f) => f.id === wer) ?? firmen[0] ?? null;
   const abrechnung = gewaehlt ? await monatsabrechnung({ benutzerId: gewaehlt.id, monat: m }) : null;
 
+  /*
+    Der offene Link, auf dem die Leute selbst stempeln.
+
+    Er wird beim ersten Aufruf dieser Seite angelegt und bleibt dann
+    gleich: Ein Link, der sich staendig aendert, ist keiner, den man
+    jemandem geben kann.
+  */
+  const schluessel = gewaehlt ? await linkSicherstellen(gewaehlt.id, b.name) : null;
+  const linkAdresse = schluessel
+    ? `${process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de"}/putzen/${schluessel}`
+    : "";
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -98,6 +112,25 @@ export default async function ReinigungSeite({
                 </Link>
               ))}
             </div>
+          )}
+
+          {schluessel && (
+            <section className="space-y-2 rounded-lg border border-gold bg-gold-hell px-5 py-4 text-sm">
+              <h2 className="font-semibold">Der Link zum Stempeln</h2>
+              <p className="max-w-prose text-leise">
+                Diesen Link an die Firma geben. Wer putzt, tippt darauf seinen Namen an und stempelt, ohne
+                Anmeldung. Wer zum ersten Mal da ist, schreibt sich einmal hinein und steht danach in der
+                Liste. Gestempelt wird nur auf dem Gelände.
+              </p>
+              <LinkKopieren link={linkAdresse} />
+              <form action={linkNeu}>
+                <input type="hidden" name="wer" value={gewaehlt?.id ?? ""} />
+                <input type="hidden" name="monat" value={m} />
+                <button type="submit" className="text-xs text-leise underline">
+                  Neuen Link erzeugen, alten abschalten
+                </button>
+              </form>
+            </section>
           )}
 
           <div className="flex items-center justify-between gap-2 text-sm">
@@ -145,6 +178,7 @@ export default async function ReinigungSeite({
                 <thead>
                   <tr className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
                     <th className="py-2">Tag</th>
+                    <th>Wer</th>
                     <th>Von</th>
                     <th>Bis</th>
                     <th className="text-right">Dauer</th>
@@ -159,6 +193,7 @@ export default async function ReinigungSeite({
                         {WOCHENTAGE[new Date(`${e.datum}T12:00:00Z`).getUTCDay()]},{" "}
                         {e.datum.split("-").reverse().join(".")}
                       </td>
+                      <td>{e.name}</td>
                       <td className="tabular-nums">{e.von}</td>
                       <td className="tabular-nums">{e.bis ?? <span className="text-leise">offen</span>}</td>
                       <td className="text-right tabular-nums">

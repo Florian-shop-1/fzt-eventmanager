@@ -221,7 +221,16 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
 ];
 
 /** Seiten, die ohne Anmeldung erreichbar sein müssen. */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot", "/alternative"];
+/*
+  Seiten ohne Anmeldung. Dieselbe Liste wie im Proxy, siehe src/proxy.ts:
+  Dort wird vorsortiert, hier wird geprueft, und wer nur an einer der
+  beiden Stellen steht, landet trotzdem auf der Anmeldeseite (genau das
+  passierte dem Ausweichtermin am 05.10.2026).
+
+  "/putzen" ist die Stempeluhr der Putzfirma: ein langer
+  Zufallsschluessel im Link, dahinter nur die eigene Uhr.
+*/
+const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot", "/alternative", "/putzen"];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.
