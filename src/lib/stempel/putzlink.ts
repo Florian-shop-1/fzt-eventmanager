@@ -64,48 +64,51 @@ export async function firmaZuSchluessel(schluessel: string): Promise<Putzlink | 
 }
 
 export interface PutzStand {
+  /** Die laufende Schicht, oder null. */
+  stempelId: string;
+  seit: string;
+  personen: number;
+  /** Wer gestempelt hat, falls jemand seinen Namen hinterlassen hat. */
   name: string;
-  /** Eingestempelt seit, als ISO. Null heißt: gerade nicht da. */
-  seit: string | null;
-  /** Wann zuletzt überhaupt gestempelt wurde, für die Reihenfolge. */
-  zuletzt: string;
 }
 
 /**
- * Wer von der Firma gerade da ist, und wer zuletzt da war.
+ * Die laufende Schicht der Firma.
  *
- * Die Namen kommen aus den eigenen Stempeln der letzten Monate: Eine
- * gepflegte Mitarbeiterliste wäre eine Liste, die niemand pflegt.
+ * Eine Schicht auf einmal, nicht eine je Person: Gestempelt wird fuer
+ * das Unternehmen, und dazu gehoert die Zahl der Leute (Florian,
+ * 07.10.2026: "sie sollen angeben wieviele mitarbeiter da sind").
  */
-export async function staende(firmaId: string): Promise<PutzStand[]> {
+export async function laufendeSchicht(firmaId: string): Promise<PutzStand | null> {
   const z = (await db()`
-    select distinct on (name) name, art, zeitpunkt
-      from stempel
-     where benutzer_id = ${firmaId}::uuid and zeitpunkt > now() - interval '180 days'
-     order by name, zeitpunkt desc
-  `.catch(() => [])) as Array<{ name: string; art: string; zeitpunkt: string }>;
-
-  return z
-    .map((r) => ({
-      name: String(r.name),
-      seit: r.art === "gehen" ? null : new Date(r.zeitpunkt).toISOString(),
-      zuletzt: new Date(r.zeitpunkt).toISOString(),
-    }))
-    .sort((a, b) => {
-      // Wer gerade da ist, steht oben: Der stempelt als Nächstes aus.
-      if (Boolean(a.seit) !== Boolean(b.seit)) return a.seit ? -1 : 1;
-      return b.zuletzt.localeCompare(a.zuletzt);
-    });
+    select id, art, zeitpunkt, personen, name from stempel
+     where benutzer_id = ${firmaId}::uuid
+     order by zeitpunkt desc limit 1
+  `.catch(() => [])) as Array<{
+    id: string;
+    art: string;
+    zeitpunkt: string;
+    personen: number | null;
+    name: string;
+  }>;
+  const r = z[0];
+  if (!r || r.art === "gehen") return null;
+  return {
+    stempelId: String(r.id),
+    seit: new Date(r.zeitpunkt).toISOString(),
+    personen: Math.max(1, Number(r.personen ?? 1)),
+    name: String(r.name ?? ""),
+  };
 }
 
-/** Der Zustand einer einzelnen Person: eingestempelt oder nicht. */
-export async function standVonName(firmaId: string, name: string): Promise<"aus" | "arbeit"> {
+/** Die Zahl der Leute an der laufenden Schicht ändern. */
+export async function anzahlAendern(stempelId: string, firmaId: string, personen: number): Promise<boolean> {
   const z = (await db()`
-    select art from stempel
-     where benutzer_id = ${firmaId}::uuid and name = ${name}
-     order by zeitpunkt desc limit 1
-  `.catch(() => [])) as Array<{ art: string }>;
-  return z[0] && z[0].art !== "gehen" ? "arbeit" : "aus";
+    update stempel set personen = ${personen}
+     where id = ${stempelId}::uuid and benutzer_id = ${firmaId}::uuid and art = 'kommen'
+    returning id
+  `.catch(() => [])) as unknown[];
+  return z.length > 0;
 }
 
 /**

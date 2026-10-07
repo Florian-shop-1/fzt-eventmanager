@@ -223,12 +223,15 @@ export async function stempelSetzen(s: {
   notiz?: string;
   /** Weicht ab, wenn nachgetragen wird, etwa beim Nachtabschluss. */
   zeitpunkt?: string;
+  /** Nur bei Dienstleistern: wie viele Leute zu dieser Schicht gekommen sind. */
+  personen?: number | null;
 }): Promise<Stempel> {
   const z = (await db()`
-    insert into stempel (benutzer_id, name, art, zeitpunkt, lat, lon, genauigkeit, entfernung_m, im_haus, quelle, notiz)
+    insert into stempel (benutzer_id, name, art, zeitpunkt, lat, lon, genauigkeit, entfernung_m, im_haus, quelle, notiz, personen)
     values (${s.benutzerId}, ${s.name}, ${s.art}, ${s.zeitpunkt ?? new Date().toISOString()}::timestamptz,
             ${s.lat ?? null}, ${s.lon ?? null}, ${s.genauigkeit ?? null},
-            ${s.entfernungM ?? null}, ${s.imHaus ?? true}, ${s.quelle ?? "app"}, ${s.notiz ?? ""})
+            ${s.entfernungM ?? null}, ${s.imHaus ?? true}, ${s.quelle ?? "app"}, ${s.notiz ?? ""},
+            ${s.personen ?? null})
     returning *
   `) as Array<Record<string, unknown>>;
   return baue(z[0]);

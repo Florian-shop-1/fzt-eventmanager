@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PutzUhr } from "@/components/PutzUhr";
-import { firmaZuSchluessel, staende } from "@/lib/stempel/putzlink";
+import { firmaZuSchluessel, laufendeSchicht } from "@/lib/stempel/putzlink";
 
 export const metadata = { title: "Stempeln" };
 export const dynamic = "force-dynamic";
@@ -26,18 +26,18 @@ export default async function PutzSeite({
   const firma = await firmaZuSchluessel(schluessel);
   if (!firma) notFound();
 
-  const leute = await staende(firma.firmaId);
+  const schicht = await laufendeSchicht(firma.firmaId);
 
   return (
     <div className="mx-auto max-w-md space-y-5 p-4">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">{firma.firma}</h1>
         <p className="mt-1 text-sm text-leise">
-          Tipp auf deinen Namen, wenn du anfängst, und noch einmal, wenn du gehst.
+          Einstempeln, wenn ihr anfangt, ausstempeln, wenn ihr fertig seid.
         </p>
       </header>
 
-      <PutzUhr schluessel={schluessel} leute={leute} />
+      <PutzUhr schluessel={schluessel} start={schicht} />
 
       <p className="text-center text-xs text-leise">
         Gestempelt werden kann nur am Theater. Dafür muss der Standort freigegeben sein.
