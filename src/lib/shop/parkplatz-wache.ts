@@ -114,18 +114,48 @@ export async function antwortMerken(o: {
 }
 
 /**
- * Der nächtliche Blick: Hängen die Schilder für heute?
+ * Ab wann gemeldet wird, in unserer Zeit.
  *
- * Läuft um 1:30 Uhr, also am Showtag selbst. Gemeldet wird an Florian
- * und Kevin, einmal, und nur wenn wirklich Plätze gebucht sind:
- * "Parkplätze vorhanden, wurden aber nicht gedruckt" (Florian,
- * 06.10.2026).
+ * Die Schilder werden am Abend davor bestückt, und zwar bis spät: "die
+ * mitarbeiter haben bis 8.10. spät abends zeit die parkplätze zu
+ * bestücken. diese Reminder mail sollte also erst am 9.10. bei uns
+ * morgens eingehen" (Florian, 08.10.2026). Eine Meldung um halb zwei in
+ * der Nacht zum Vortag war schlicht zu früh.
  */
-export async function parkplatzMahnung(): Promise<{ gemeldet: boolean; datum?: string; offen?: number }> {
+const MELDEN_AB_STUNDE = 8;
+
+function stundeBerlin(): number {
+  return Number(
+    new Date().toLocaleString("de-DE", {
+      timeZone: "Europe/Berlin",
+      hour: "2-digit",
+      hour12: false,
+    }).slice(0, 2),
+  );
+}
+
+/**
+ * Der Blick am Showtag: Hängen die Schilder für heute?
+ *
+ * Nur für heute, nicht für morgen: Wer morgen dran ist, hat heute Abend
+ * noch Zeit. Gemeldet wird an Florian und Kevin, einmal am Tag, und nur
+ * wenn wirklich Plätze gebucht sind: "Parkplätze vorhanden, wurden aber
+ * nicht gedruckt" (Florian, 06.10.2026).
+ */
+export async function parkplatzMahnung(): Promise<{
+  gemeldet: boolean;
+  datum?: string;
+  offen?: number;
+  grund?: string;
+}> {
   const { melden } = await import("@/lib/stempel/wache");
 
-  const stand = (await offeneSchilderHeute()) ?? (await offeneSchilder(1));
-  if (!stand) return { gemeldet: false };
+  if (stundeBerlin() < MELDEN_AB_STUNDE) {
+    return { gemeldet: false, grund: `vor ${MELDEN_AB_STUNDE} Uhr, noch zu früh` };
+  }
+
+  const stand = await offeneSchilderHeute();
+  if (!stand) return { gemeldet: false, grund: "nichts offen" };
   if (await schonGemahnt(stand.datum, "buero")) return { gemeldet: false };
 
   const tag = stand.datum.split("-").reverse().join(".");

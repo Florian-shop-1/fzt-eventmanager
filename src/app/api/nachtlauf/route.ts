@@ -54,12 +54,6 @@ const NACHT: Teil[] = [
     einmal, damit die Ergebnisse der Nacht frueh da sind.
   */
   { name: "scanner", tun: () => scannerlauf() },
-  /*
-    Hängen die Parkplatzschilder für heute? Um 1:30 Uhr ist der Showtag
-    schon angebrochen, und wer morgens um sechs die Meldung liest, kann
-    noch reagieren, bevor der erste Gast auf den Hof fährt.
-  */
-  { name: "parkplaetze", tun: () => parkplatzMahnung() },
   {
     name: "stempeluhr",
     tun: async () => ({
@@ -69,6 +63,21 @@ const NACHT: Teil[] = [
     }),
   },
 ];
+
+/*
+  Die Parkplatzschilder, am Showtag um acht.
+
+  Stand bis zum 08.10.2026 im Nachtlauf um 1:30 Uhr und schaute dabei
+  einen Tag voraus. Damit kam die Meldung in der Nacht zum Vortag, und
+  da hatte das Foyer noch den ganzen Abend Zeit: "diese mail kommt zu
+  früh ... die mitarbeiter haben bis 8.10. spät abends zeit die
+  parkplätze zu bestücken" (Florian).
+
+  Jetzt ein eigener Lauf, der nur den heutigen Showtag ansieht, und die
+  Uhr von Vercel ruft ihn so auf, dass er um acht Uhr unserer Zeit
+  zuschlaegt. Siehe vercel.json und MELDEN_AB_STUNDE.
+*/
+const PARKPLAETZE: Teil[] = [{ name: "parkplaetze", tun: () => parkplatzMahnung() }];
 
 const MORGEN: Teil[] = [
   { name: "scanner", tun: () => scannerlauf() },
@@ -132,8 +141,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, fehler: "nicht erlaubt" }, { status: 401 });
   }
 
-  const welcher = new URL(request.url).searchParams.get("teil") === "nacht" ? "nacht" : "morgen";
-  const teile = welcher === "nacht" ? NACHT : MORGEN;
+  const gewuenscht = new URL(request.url).searchParams.get("teil");
+  const welcher =
+    gewuenscht === "nacht" ? "nacht" : gewuenscht === "parkplaetze" ? "parkplaetze" : "morgen";
+  const teile = welcher === "nacht" ? NACHT : welcher === "parkplaetze" ? PARKPLAETZE : MORGEN;
 
   const ergebnis: Record<string, unknown> = {};
   const fehler: string[] = [];
