@@ -108,8 +108,17 @@ const BAUSTEINE: Baustein[] = [
     will natürlich nicht mit menü antworten").
 
     Was hier steht, deckt sich mit der Code-Mail in mail/codevorlagen.ts:
-    eine Karte wird gekauft, die zweite ist frei, und der Abriss aus dem
-    Heft muss zur Show mit.
+    eine Karte wird gekauft, die zweite ist frei.
+
+    Der Gutschein gilt NICHT fuer zwei Personen, das stand hier lange
+    falsch. Er macht eine Karte derselben Kategorie frei, und zwar ueber
+    einen Code im Shop (Florian, 08.10.2026).
+
+    Der Code steht bewusst nicht im Programm, sondern wird vor dem
+    Absenden eingesetzt: Jeder Gast bekommt einen eigenen, und einer,
+    der in einer Vorlage steht, waere nach einer Woche in Umlauf.
+    Deshalb ein Platzhalter in Grossbuchstaben, der beim Lesen nicht zu
+    uebersehen ist.
   */
   {
     titel: "Schlemmerblock",
@@ -117,14 +126,14 @@ const BAUSTEINE: Baustein[] = [
     bauen: (d) =>
       brief(
         d.vorname,
-        "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Für den Gutschein kaufst " +
-          "du eine Karte, die zweite geht auf uns. Wir richten das für euren Wunschtermin ein und " +
-          "melden uns mit allem Weiteren bei dir.\n\n" +
-          "Zwei Dinge dazu: Der Gutschein gilt für zwei Personen, weitere Karten kommen ganz " +
-          "normal dazu. Und bitte bring den Abriss aus deinem Schlemmerblock zur Show mit und gib " +
-          "ihn beim Einlass ab, ohne ihn können wir die Freikarte leider nicht anerkennen.\n\n" +
+        "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Mit dem Code " +
+          "[HIER FREICODE EINTRAGEN] ist eine Karte derselben Kategorie für dich frei.\n\n" +
+          "So geht es: Such dir im Shop deine Plätze aus und gib den Code im letzten Schritt vor " +
+          "dem Bezahlen ein. Die Karte wird dann automatisch abgezogen.\n\n" +
+          "WICHTIG: Bitte bring deinen Gutschein am Tag der Veranstaltung mit, und er muss dann " +
+          "noch gültig sein. Ohne gültigen Gutschein müssen wir die Karte nachträglich berechnen.\n\n" +
           "Wenn ihr dazu essen möchtet: Zu beiden Karten lässt sich im Shop ein Menü dazubuchen, " +
-          "auch zur Freikarte.",
+          "auch zur freien Karte.",
       ),
   },
   {
