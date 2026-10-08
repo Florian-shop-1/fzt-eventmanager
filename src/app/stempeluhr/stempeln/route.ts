@@ -13,6 +13,7 @@ import {
 import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/stempel/wache";
 import { eingeteiltAm } from "@/lib/stempel/dienst";
 import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/parkplatz-wache";
+import { istSonntag, letzterImFoyer, schonAbgeschlossen } from "@/lib/stempel/abschluss";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 
@@ -216,10 +217,30 @@ export async function POST(request: Request) {
     }
   }
 
+  /*
+    Der Sonntagsabschluss.
+
+    Sonntag ist der letzte Showtag der Woche, danach steht das Haus ein
+    paar Tage still, und was dann noch läuft, läuft umsonst: "nur wenn
+    der letzte ausstempelt am Sonntag im foyer, sind alle Kühltheken
+    abgeschaltet, Musik und Licht aus?" (Florian, 08.10.2026).
+
+    Hier zählt wirklich, wer der letzte ist, anders als beim
+    Parkplatzhinweis: Die Frage gehört an den, der abschließt. Ein
+    vergessener Stempel macht dabei niemanden mehr zum Anwesenden, siehe
+    letzterImFoyer.
+  */
+  let abschluss = false;
+  if (art === "gehen" && b.rolle === "foyer" && istSonntag()) {
+    abschluss = (await letzterImFoyer(b.id)) && !(await schonAbgeschlossen(tagHier));
+  }
+
   const neu = await standVon(b.id);
   return NextResponse.json({
     ok: true,
     parkplatz,
+    abschluss,
+    abschlussTag: tagHier,
     zustand: neu.zustand,
     arbeitszeit: stunden(neu.minutenHeute),
     pause: stunden(neu.pausenMinutenHeute),

@@ -71,6 +71,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
   // Die Putzfirma sagt beim Einstempeln, wie viele Leute da sind.
   const [personenFuer, setPersonenFuer] = useState<string | null>(null);
+  // Sonntag, letzter aus dem Foyer: Ist alles abgeschaltet?
+  const [abschlussTag, setAbschlussTag] = useState<string | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
   const [parkplatz, setParkplatz] = useState<{ datum: string; offen: number; gesamt: number } | null>(null);
   // Ausserhalb des Gelaendes ausgestempelt: Wann war wirklich Feierabend?
@@ -125,6 +127,26 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       }
       setFeierabendFrage(false);
       setMeldung("Danke, das ist beim Büro. Sobald es übernommen ist, bekommst du Bescheid.");
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
+  async function abschlussAntwort(allesAus: boolean, text: string) {
+    if (!abschlussTag) return;
+    try {
+      const antwort = await fetch("/stempeluhr/abschluss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ datum: abschlussTag, allesAus, text }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setAbschlussTag(null);
+      setMeldung(allesAus ? "Danke dir. Schönen Feierabend!" : "Danke, ist weitergegeben.");
     } catch {
       setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
     }
@@ -214,6 +236,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         zustand?: Zustand;
         entfernung?: number;
         parkplatz?: { datum: string; offen: number; gesamt: number } | null;
+        abschluss?: boolean;
+        abschlussTag?: string;
         grundNoetig?: boolean;
         personenNoetig?: boolean;
         stempelId?: string;
@@ -228,6 +252,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
       if (e.parkplatz) setParkplatz(e.parkplatz);
+      if (e.abschluss && e.abschlussTag) setAbschlussTag(e.abschlussTag);
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
       if (art === "gehen") setFeierabend(true);
@@ -480,6 +505,12 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         nach drei Abenden wegklickt, ohne sie zu lesen.
       */}
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
+
+      {/*
+        Sonntag, und du bist der letzte aus dem Foyer: Danach steht das
+        Haus ein paar Tage still.
+      */}
+      {abschlussTag && <AbschlussFrage onAntwort={abschlussAntwort} />}
       <p className="text-center text-xs text-leise">
         Zum Stempeln muss der Standort freigegeben sein. Gestempelt werden kann nur auf dem Gelände.
       </p>
@@ -544,6 +575,103 @@ function PersonenFrage({ onSenden }: { onSenden: (anzahl: number) => void | Prom
         Die Zahl gilt für diese Schicht. Stimmt sie nachher nicht mehr, sagt bitte im Büro Bescheid,
         dort lässt sie sich ändern.
       </p>
+    </div>
+  );
+}
+
+/**
+ * "Ist alles aus?"
+ *
+ * Nur sonntags, nur bei dem, der als letzter aus dem Foyer geht. Drei
+ * Haken, denn drei Sachen laufen sonst tagelang weiter: Kuehltheken,
+ * Musik, Licht. Erst wenn alle drei stehen, wird der Knopf gruen.
+ */
+function AbschlussFrage({
+  onAntwort,
+}: {
+  onAntwort: (allesAus: boolean, text: string) => void | Promise<void>;
+}) {
+  const [haken, setHaken] = useState<Record<string, boolean>>({});
+  const [offen, setOffen] = useState(false);
+  const [text, setText] = useState("");
+
+  const PUNKTE = ["Alle Kühltheken abgeschaltet", "Musik aus", "Licht aus"];
+  const alleDa = PUNKTE.every((p) => haken[p]);
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <span aria-hidden="true">🐰</span> <strong>Du gehst als Letzter heute.</strong> Bis zur nächsten
+        Show steht das Haus still. Bitte einmal nachsehen:
+      </p>
+
+      {!offen ? (
+        <>
+          <ul className="space-y-2">
+            {PUNKTE.map((p) => (
+              <li key={p}>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(haken[p])}
+                    onChange={(v) => setHaken((h) => ({ ...h, [p]: v.target.checked }))}
+                    className="h-5 w-5"
+                  />
+                  <span>{p}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!alleDa}
+              onClick={() => void onAntwort(true, "")}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Ja, alles aus
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffen(true)}
+              className="rounded-md border border-linie px-4 py-2 text-sm"
+            >
+              Etwas läuft noch
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <textarea
+            value={text}
+            onChange={(v) => setText(v.target.value)}
+            rows={2}
+            maxLength={300}
+            placeholder="Zum Beispiel: Kühltheke hinter der Bar läuft weiter, Schalter klemmt."
+            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={text.trim().length < 3}
+              onClick={() => void onAntwort(false, text)}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Abschicken
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffen(false)}
+              className="rounded-md border border-linie px-4 py-2 text-sm"
+            >
+              Zurück
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
