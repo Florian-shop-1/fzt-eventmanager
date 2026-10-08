@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { rollenVon } from "@/lib/stempel/dienst";
 import {
   einstellungLesen,
   imHaus,
@@ -8,13 +7,12 @@ import {
   schonGemeldet,
   standVon,
   stempelSetzen,
-  werIstDa,
   stunden,
   type StempelArt,
 } from "@/lib/stempel/db";
 import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/stempel/wache";
 import { eingeteiltAm } from "@/lib/stempel/dienst";
-import { mahnungMerken, offeneSchilder, schonGemahnt } from "@/lib/shop/parkplatz-wache";
+import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/parkplatz-wache";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 
@@ -180,23 +178,39 @@ export async function POST(request: Request) {
   /*
     Die Parkplatzschilder für den nächsten Showtag.
 
-    Gefragt wird beim Ausstempeln, und zwar die Person, die als letzte
-    aus dem Foyer geht: "der hase soll das dem letzten mitarbeiter vom
-    foyer der geht am besten gleich beim ausstempeln mitteilen"
-    (Florian, 06.10.2026). Vorher ist der Hinweis wertlos, weil noch
-    jemand da ist, der es sowieso macht; nachher ist niemand mehr da.
+    Gezeigt beim Ausstempeln am Abend, und zwar jedem, solange die
+    Schilder nicht hängen: "du kannst das bei allen anzeigen, solange es
+    noch nicht gemacht ist. wenn abends nach 20:00 Uhr ausgestempelt
+    wird, ist diese Info wichtig" (Florian, 08.10.2026).
 
-    Höchstens einmal am Tag: Gehen zwei nacheinander, bekommt die
-    zweite Person denselben Satz nicht noch einmal.
+    Vorher hing der Hinweis an der Person, die als letzte aus dem Foyer
+    geht. Das ging schief, sobald jemand vergaß auszustempeln: Dann hielt
+    das Programm ihn für anwesend, und die Person, die wirklich als
+    letzte ging, bekam nichts zu sehen.
+
+    Die Zeit entscheidet jetzt statt der Anwesenheit. Vor 20 Uhr geht
+    niemand in den Feierabend, der danach noch Schilder bestückt; nach
+    Mitternacht zählt der angebrochene Tag mit, denn wer um halb eins
+    geht, geht vom gestrigen Abend heim.
+
+    Nur das Foyer: "das ist nur für FOYER, wenn die Foyer leute
+    ausstempeln, die sind verantwortlich für die parkplätze" (Florian,
+    08.10.2026). Das Showteam könnte die Parkplatzseite ohnehin nicht
+    öffnen.
   */
   let parkplatz: { datum: string; offen: number; gesamt: number } | null = null;
-  if (art === "gehen" && (b.rolle === "foyer" || b.rolle === "chef")) {
-    const nochDa = (await werIstDa()).filter((p) => p.benutzerId !== b.id);
-    const foyerNochDa = nochDa.length > 0 ? await rollenVon(nochDa.map((p) => p.benutzerId)) : [];
-    if (!foyerNochDa.includes("foyer")) {
-      const stand = await offeneSchilder().catch(() => null);
-      if (stand && !(await schonGemahnt(stand.datum, "hase"))) {
-        await mahnungMerken(stand.datum, "hase");
+  if (art === "gehen" && b.rolle === "foyer") {
+    const stundeHier = Number(
+      new Date()
+        .toLocaleString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+        .slice(0, 2),
+    );
+    if (stundeHier >= 20 || stundeHier < 5) {
+      const stand = await offeneSchilderAbends().catch(() => null);
+      if (stand) {
+        // Fuer die Spur im Protokoll, nicht als Sperre: Gezeigt wird er
+        // jedem, bis die Schilder hängen.
+        if (!(await schonGemahnt(stand.datum, "hase"))) await mahnungMerken(stand.datum, "hase");
         parkplatz = stand;
       }
     }

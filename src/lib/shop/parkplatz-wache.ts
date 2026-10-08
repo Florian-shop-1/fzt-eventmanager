@@ -77,6 +77,22 @@ export async function offeneSchilderHeute(): Promise<Parkplatzstand | null> {
   return offen > 0 ? { datum: heute, gesamt: buchungen.length, offen } : null;
 }
 
+/**
+ * Woran der Hase beim Ausstempeln erinnert.
+ *
+ * Abends geht es um den naechsten Showtag: Die Schilder werden am Abend
+ * davor bestueckt. Nach Mitternacht gehoert der Blick zuerst dem
+ * angebrochenen Tag selbst, denn wer um halb eins geht, geht vom
+ * gestrigen Abend heim, und die Schilder fuer heute muessten hängen.
+ */
+export async function offeneSchilderAbends(): Promise<Parkplatzstand | null> {
+  const stunde = Number(
+    new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).slice(0, 2),
+  );
+  if (stunde < 5) return (await offeneSchilderHeute()) ?? (await offeneSchilder());
+  return offeneSchilder();
+}
+
 /* ------------------------------------------------------------------ *
  * Einmal je Tag und Anlass melden.
  * ------------------------------------------------------------------ */

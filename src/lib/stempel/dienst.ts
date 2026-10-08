@@ -67,29 +67,3 @@ export async function grundNachtragen(o: {
   `) as unknown[];
   return z.length > 0;
 }
-
-/**
- * Welche Rollen die Leute haben, die noch eingestempelt sind.
- *
- * Gebraucht beim Ausstempeln: Der Hinweis auf die Parkplatzschilder
- * gehört der Person, die als letzte aus dem Foyer geht, und nicht jeder,
- * die zufällig vor den anderen fertig ist.
- */
-export async function rollenVon(benutzerIds: string[]): Promise<string[]> {
-  if (benutzerIds.length === 0) return [];
-  try {
-    const z = (await db()`
-      select distinct rolle from benutzer where id = any(${benutzerIds}::uuid[])
-    `) as Array<{ rolle: string }>;
-    return z.map((r) => String(r.rolle));
-  } catch (f) {
-    console.error("[stempel] Rollen nicht lesbar:", f);
-    /*
-      Im Zweifel annehmen, dass noch jemand aus dem Foyer da ist: Dann
-      bleibt der Hinweis aus. Lieber eine Erinnerung zu wenig als eine
-      an die falsche Person, die Nachtmeldung an Florian und Kevin kommt
-      ohnehin.
-    */
-    return ["foyer"];
-  }
-}
