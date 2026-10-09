@@ -17,9 +17,19 @@ import { kommendeTermine } from "@/lib/ditix/spielplan";
 
 const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 
-/** Wie viele Plätze noch frei sein müssen, damit wir "gut verfügbar" sagen. */
-const REICHLICH = 25;
-/** Darunter sagen wir "nur noch wenige", statt eine Zahl zu nennen. */
+/*
+  Wie knapp es wirklich ist, erfaehrt der Anrufer nicht.
+
+  "Da ist noch gut was frei" klingt nach leerem Haus und nimmt jedem den
+  Grund, sich zu beeilen. Der Assistent bekommt deshalb nur drei
+  Zustaende zu hoeren: frei, wenige, ausverkauft. Zahlen bekommt er gar
+  nicht erst (Florian, 09.10.2026).
+
+  Erfunden wird dabei nichts: "wenige" steht nur da, wo es wirklich
+  wenige sind. Ein Haus, das knappe Plaetze behauptet, die es nicht
+  gibt, macht sich angreifbar und verliert den Gast beim ersten Blick
+  in den Saalplan.
+*/
 const KNAPP = 10;
 
 export interface TerminFuerAnrufer {
@@ -27,7 +37,12 @@ export interface TerminFuerAnrufer {
   wochentag: string;
   uhrzeit: string;
   show: string;
-  /** "gut", "wenige", "ausverkauft" oder "unbekannt". */
+  /**
+   * "frei", "wenige", "ausverkauft" oder "unbekannt".
+   *
+   * Bewusst ohne Abstufung nach oben: Ob zwanzig oder zweihundert
+   * Plaetze frei sind, geht den Anrufer nichts an.
+   */
   verfuegbarkeit: string;
   hinweis: string;
 }
@@ -72,12 +87,12 @@ export async function naechsteTermine(o: { show?: string; anzahl?: number } = {}
         const a = await holeAuslastung(t.seatmapEventId).catch(() => null);
         if (a) {
           const frei = a.frei ?? 0;
-          verfuegbarkeit = frei <= 0 ? "ausverkauft" : frei < KNAPP ? "wenige" : frei < REICHLICH ? "mittel" : "gut";
-          if (verfuegbarkeit === "wenige") hinweis = "Es sind wirklich nur noch einzelne Plätze frei.";
+          verfuegbarkeit = frei <= 0 ? "ausverkauft" : frei < KNAPP ? "wenige" : "frei";
+          if (verfuegbarkeit === "wenige") hinweis = "Wirklich nur noch einzelne Plätze, das darfst du sagen.";
         }
       } else {
         // Ohne Saalplan zaehlen wir nicht mit: freie Bestuhlung.
-        verfuegbarkeit = "gut";
+        verfuegbarkeit = "frei";
       }
 
       return { datum: tag, wochentag, uhrzeit: t.uhrzeit, show: t.name, verfuegbarkeit, hinweis };
