@@ -159,6 +159,16 @@ export async function monatsPositionen(monat: string) {
       day: "2-digit",
       month: "2-digit",
     });
+    /*
+      Und von wem.
+
+      Der Tag allein genuegt nicht: Bei der Gastro bestellen mehrere
+      Leute, und beim Vergleichen will man wissen, wer was angefordert
+      hat (Florian, 09.10.2026). Steht der Name neben dem Tag, laesst
+      sich jede Zeile einer Person zuordnen.
+    */
+    const wer = x.bestellerName.trim();
+    const eintrag = wer ? `${tag} (${wer})` : tag;
     for (const p of x.positionen) {
       const k = `${p.artikelId}|${p.ekCent}`;
       const e = jeSorte.get(k) ?? { name: p.name, menge: 0, einzelCent: p.ekCent, summeCent: 0 };
@@ -166,7 +176,7 @@ export async function monatsPositionen(monat: string) {
       e.summeCent += p.menge * p.ekCent;
       jeSorte.set(k, e);
       const t = tage.get(k) ?? new Set<string>();
-      t.add(tag);
+      t.add(eintrag);
       tage.set(k, t);
     }
   }

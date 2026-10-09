@@ -24,7 +24,8 @@ export interface RechnungsPosition {
   einzelCent: number;
   summeCent: number;
   /**
-   * An welchen Tagen diese Ware bestellt wurde, als fertiger Text.
+   * An welchen Tagen und von wem diese Ware bestellt wurde, als fertiger
+   * Text, etwa "09.10. (Giusi Pirillo)".
    *
    * "wichtig ist, dass z.b. der osman genau sieht auf der Rg, wann er
    * bestellt hat" (Florian, 30.09.2026). Eine Monatsrechnung fasst
