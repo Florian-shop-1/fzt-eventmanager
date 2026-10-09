@@ -37,6 +37,10 @@ export interface WeinBestellung {
   status: "offen" | "uebergeben" | "storniert";
   uebergebenAm: string | null;
   uebergebenVon: string | null;
+  /** Wann die Gastro Bescheid bekommen hat, dass der Wein bereitsteht. */
+  gemeldetAm: string | null;
+  /** An welche Adresse. Leer, wenn noch nichts rausging. */
+  gemeldetAn: string;
   positionen: WeinPosition[];
 }
 
@@ -116,6 +120,8 @@ export async function bestellungen(o: { bestellerId?: string; seit?: string; bis
     status: r.status as WeinBestellung["status"],
     uebergebenAm: t(r.uebergeben_am),
     uebergebenVon: (r.uebergeben_von as string) ?? null,
+    gemeldetAm: r.gemeldet_am ? new Date(r.gemeldet_am as string).toISOString() : null,
+    gemeldetAn: String(r.gemeldet_an ?? ""),
     positionen: r.positionen as WeinPosition[],
   }));
 }
@@ -204,6 +210,13 @@ export async function bestellerVon(
     inhalt: String(r.inhalt ?? ""),
     notiz: String(r.notiz ?? ""),
   };
+}
+
+/** Haelt fest, dass die Gastro Bescheid bekommen hat. */
+export async function bescheidVermerken(id: string, an: string): Promise<void> {
+  await db()`
+    update wein_bestellung set gemeldet_am = now(), gemeldet_an = ${an} where id = ${id}
+  `.catch((f) => console.warn("[wein] Bescheid nicht vermerkt:", f));
 }
 
 export async function uebergeben(id: string, von: string): Promise<boolean> {

@@ -211,6 +211,12 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
         bestellt von {x.bestellerName} am {zeit(x.erstelltAm)}
         {x.notiz && ` · ${x.notiz}`}
         {x.status === "uebergeben" && x.uebergebenAm && ` · abgestellt am ${zeit(x.uebergebenAm)} von ${x.uebergebenVon}`}
+        {/* Ob die Gastro Bescheid weiss. Ohne diese Zeile liess sich das
+            nirgends nachsehen (Florian, 09.10.2026). */}
+        {x.status === "uebergeben" &&
+          (x.gemeldetAm
+            ? ` · Bescheid am ${zeit(x.gemeldetAm)} an ${x.gemeldetAn}`
+            : " · noch kein Bescheid an die Gastro")}
         {x.status === "storniert" && " · zurückgezogen"}
       </div>
       {/*

@@ -9,6 +9,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import {
   ABSTELLORT,
   artikelListe,
+  bescheidVermerken,
   bestellerVon,
   bestellungAnlegen,
   einstellungLesen,
@@ -342,6 +343,8 @@ ${besteller.inhalt ? `<p>${h(besteller.inhalt)}</p>` : ""}
 
   try {
     await mailVerschicken({ an: besteller.email, betreff, text: klartext, html });
+    // Damit spaeter nachsehbar ist, ob und wann Bescheid gegeben wurde.
+    await bescheidVermerken(id, besteller.email);
     return vorname ? ` ${vorname} hat eine Mail bekommen.` : " Die Gastro hat eine Mail bekommen.";
   } catch (fehler) {
     console.error("[wein] Bereitstellungsmail fehlgeschlagen:", fehler);
