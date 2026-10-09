@@ -19,7 +19,7 @@ import {
   werIstDa,
   type Stempel,
 } from "@/lib/stempel/db";
-import { aenderungenAmTag, schichtAmTag, tagInWorten } from "@/lib/stempel/db";
+import { aenderungenAmTag, antraegeAmTag, schichtAmTag, tagInWorten } from "@/lib/stempel/db";
 import { alleKontostaende } from "@/lib/lohn/konto";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
@@ -395,9 +395,13 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   const derTag = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? tag! : heuteBerlin();
   // Die ganze Schicht, auch wenn sie nach Mitternacht endet: Bei
   // Showabenden ist das der Regelfall, nicht die Ausnahme.
-  const [liste, aenderungen] = person
-    ? await Promise.all([schichtAmTag(person.id, derTag), aenderungenAmTag(person.id, derTag)])
-    : [[], []];
+  const [liste, aenderungen, kommentare] = person
+    ? await Promise.all([
+        schichtAmTag(person.id, derTag),
+        aenderungenAmTag(person.id, derTag),
+        antraegeAmTag(person.id, derTag),
+      ])
+    : [[], [], []];
 
   /*
     Was an diesem Tag gestempelt wurde, in einem Satz, und als Vorbelegung
@@ -407,11 +411,21 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   const roh = liste.map((x) => ({ art: x.art, ms: Date.parse(x.zeitpunkt), geaendertVon: x.geaendertVon }));
   const rechnung = tagRechnen(derTag, roh);
   const gestempelt = tagInWorten(roh, rechnung);
+  /*
+    Vorbelegt wird mit dem Gestempelten. Wo ein Stempel fehlt, springt
+    die Zeit ein, die der Mitarbeiter selbst angegeben hat -- das ist
+    genau der Fall, in dem er schreibt, er habe das Ausstempeln
+    vergessen. Ein vorhandener Stempel wird dadurch nie ueberschrieben:
+    Geaendert wird nur, was Florian selbst eintippt.
+  */
+  const angabe = kommentare.find(
+    (k) => k.vorschlagKommen || k.vorschlagGehen || k.vorschlagPauseStart || k.vorschlagPauseEnde,
+  );
   const vorschlag = {
-    kommen: uhr(liste.find((x) => x.art === "kommen")?.zeitpunkt ?? ""),
-    pauseVon: uhr(liste.find((x) => x.art === "pause_start")?.zeitpunkt ?? ""),
-    pauseBis: uhr(liste.find((x) => x.art === "pause_ende")?.zeitpunkt ?? ""),
-    gehen: uhr([...liste].reverse().find((x) => x.art === "gehen")?.zeitpunkt ?? ""),
+    kommen: uhr(liste.find((x) => x.art === "kommen")?.zeitpunkt ?? "") || uhr(angabe?.vorschlagKommen ?? ""),
+    pauseVon: uhr(liste.find((x) => x.art === "pause_start")?.zeitpunkt ?? "") || uhr(angabe?.vorschlagPauseStart ?? ""),
+    pauseBis: uhr(liste.find((x) => x.art === "pause_ende")?.zeitpunkt ?? "") || uhr(angabe?.vorschlagPauseEnde ?? ""),
+    gehen: uhr([...liste].reverse().find((x) => x.art === "gehen")?.zeitpunkt ?? "") || uhr(angabe?.vorschlagGehen ?? ""),
   };
 
   return (
@@ -550,6 +564,58 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
               Geht die Schicht über Mitternacht, trägst du die Uhrzeit einfach ein: Alles, was vor
               der vorherigen Zeit liegt, zählt zum nächsten Tag.
             </p>
+
+            {/*
+              Was der Mitarbeiter selbst zu diesem Tag geschrieben hat.
+
+              Es steht hier, wo korrigiert wird, und nicht in einer
+              eigenen Liste woanders: Wer den Tag anfasst, soll den Grund
+              vor Augen haben. Sobald der Tag berichtigt ist, ist der
+              Kommentar beantwortet und verschwindet (Florian, 09.10.2026).
+            */}
+            {kommentare.length > 0 && (
+              <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.12)" }}>
+                <div className="text-xs font-medium">
+                  {kommentare.length === 1
+                    ? `Das hat ${person.name.split(" ")[0]} dazu geschrieben`
+                    : `Das hat ${person.name.split(" ")[0]} dazu geschrieben (${kommentare.length})`}
+                </div>
+                <ul className="mt-2 space-y-2">
+                  {kommentare.map((k) => (
+                    <li key={k.id} className="rounded-md bg-flaeche px-3 py-2 text-sm">
+                      <div className="text-xs text-leise">
+                        {k.art === "pausengrund" ? "Zur fehlenden Pause" : "Bitte um Korrektur"} ·{" "}
+                        <span className="tabular-nums">
+                          {new Date(k.erstelltAm).toLocaleString("de-DE", {
+                            timeZone: "Europe/Berlin",
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap">{k.text}</p>
+                      {(k.vorschlagKommen || k.vorschlagGehen || k.vorschlagPauseStart || k.vorschlagPauseEnde) && (
+                        <p className="mt-1 text-xs text-leise">
+                          Angegeben:{" "}
+                          {[
+                            k.vorschlagKommen && `gekommen ${uhr(k.vorschlagKommen)}`,
+                            k.vorschlagPauseStart && `Pause ab ${uhr(k.vorschlagPauseStart)}`,
+                            k.vorschlagPauseEnde && `Pause bis ${uhr(k.vorschlagPauseEnde)}`,
+                            k.vorschlagGehen && `gegangen ${uhr(k.vorschlagGehen)}`,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-leise">
+                  Sobald du den Tag übernimmst, gilt das als beantwortet und der Kommentar
+                  verschwindet hier.
+                </p>
+              </div>
+            )}
           </div>
 
           <form action={stempelNachtragen} className="mt-4 flex flex-wrap items-end gap-2 border-t border-linie pt-4">

@@ -333,8 +333,14 @@ export async function tagBerichtigenAktion(f: FormData): Promise<void> {
     d === 0
       ? "Das sind genau die gestempelten Stunden."
       : `Unterschied ${d > 0 ? "+" : "−"}${stunden(Math.abs(d))} Stunden gegenüber dem Gestempelten.`;
+  const kommentare =
+    e.kommentareErledigt === 0
+      ? ""
+      : e.kommentareErledigt === 1
+        ? " Der Kommentar dazu ist damit beantwortet."
+        : ` Die ${e.kommentareErledigt} Kommentare dazu sind damit beantwortet.`;
   zurueck(
-    `Tag übernommen. Gestempelt war ${e.altText}, eingetragen ist ${e.neuText}. ${unterschied}`,
+    `Tag übernommen. Gestempelt war ${e.altText}, eingetragen ist ${e.neuText}. ${unterschied}${kommentare}`,
     "#korrektur",
     f,
   );

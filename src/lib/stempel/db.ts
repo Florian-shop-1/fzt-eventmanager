@@ -642,6 +642,45 @@ export async function antraegeVon(benutzerId: string, anzahl = 10): Promise<Antr
   return z.map(bauAntrag);
 }
 
+/**
+ * Was der Mitarbeiter zu diesem Tag geschrieben hat.
+ *
+ * Beides gehoert dazu: die Bitte um eine Korrektur ("offen") und die
+ * Begruendung einer fehlenden Pause ("notiert"). Was schon entschieden
+ * ist, steht nicht mehr hier -- es ist erledigt (Florian, 09.10.2026).
+ */
+export async function antraegeAmTag(benutzerId: string, tag: string): Promise<Antrag[]> {
+  const z = (await db()`
+    select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag
+     where benutzer_id = ${benutzerId} and tag = ${tag}::date
+       and status in ('offen', 'notiert')
+     order by erstellt_am
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map(bauAntrag);
+}
+
+/**
+ * Hakt alles ab, was zu diesem Tag offen war.
+ *
+ * Wer den Tag berichtigt hat, hat den Kommentar gelesen und beantwortet.
+ * Er verschwindet deshalb aus der Ansicht, bleibt aber mit Antwort und
+ * Namen in der Tabelle stehen.
+ */
+export async function antraegeAmTagErledigen(
+  benutzerId: string,
+  tag: string,
+  antwort: string,
+  von: string,
+): Promise<number> {
+  const z = (await db()`
+    update stempel_antrag
+       set status = 'angenommen', antwort = ${antwort}, entschieden_von = ${von}, entschieden_am = now()
+     where benutzer_id = ${benutzerId} and tag = ${tag}::date and status in ('offen', 'notiert')
+    returning id
+  `.catch(() => [])) as unknown[];
+  return z.length;
+}
+
 export async function antragEntscheiden(
   id: string,
   status: "angenommen" | "abgelehnt",
@@ -762,6 +801,8 @@ export interface Berichtigung {
   neuText: string;
   /** Neu minus gestempelt, in Minuten. Negativ heisst: weniger als gestempelt. */
   unterschied: number;
+  /** Wie viele Kommentare des Mitarbeiters damit beantwortet wurden. */
+  kommentareErledigt: number;
 }
 
 /**
@@ -860,7 +901,22 @@ export async function tagBerichtigen(o: {
     altText,
     neuText,
     unterschied: neueRechnung.arbeitMinuten - alteRechnung.arbeitMinuten,
+    kommentareErledigt: 0,
   };
+
+  /*
+    Der Kommentar des Mitarbeiters ist damit beantwortet.
+
+    Wer den Tag berichtigt, hat ihn gelesen; ihn danach noch als offen
+    stehen zu lassen, hiesse, dieselbe Arbeit zweimal anzubieten
+    (Florian, 09.10.2026).
+  */
+  ergebnis.kommentareErledigt = await antraegeAmTagErledigen(
+    o.benutzerId,
+    o.tag,
+    `Tag berichtigt: ${neuText} (vorher ${altText}).`,
+    o.von,
+  );
 
   await aenderungMerken({
     benutzerId: o.benutzerId,
