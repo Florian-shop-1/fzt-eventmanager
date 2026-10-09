@@ -139,6 +139,44 @@ export async function bestellungAnlegen(
   return id;
 }
 
+/**
+ * Was die Gastro bestellt hat und noch niemand abgestellt hat.
+ *
+ * Es reicht nicht, dass die Bestellung auf einer Seite steht, die man
+ * aufrufen koennte: Sie muss jedem im Foyer ins Auge springen, und zwar
+ * so lange, bis einer sie erledigt hat (Florian, 09.10.2026).
+ *
+ * Gedacht fuer Hinweise, deshalb schlank: Wer die Bestellung bearbeiten
+ * will, geht auf die Bestellseite.
+ */
+export interface OffeneBestellung {
+  id: string;
+  bestellerName: string;
+  erstelltAm: string;
+  /** "6x Magicuvée Weiß, 2x Magicuvée Rot" */
+  inhalt: string;
+  notiz: string;
+}
+
+export async function offeneBestellungen(): Promise<OffeneBestellung[]> {
+  const z = (await db()`
+    select b.id, b.besteller_name, b.erstellt_am, b.notiz,
+           coalesce(string_agg(p.menge || 'x ' || p.name, ', ' order by p.artikel_id), '') as inhalt
+      from wein_bestellung b
+      left join wein_position p on p.bestellung_id = b.id
+     where b.status = 'offen'
+     group by b.id
+     order by b.erstellt_am
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    id: String(r.id),
+    bestellerName: String(r.besteller_name ?? ""),
+    erstelltAm: new Date(r.erstellt_am as string).toISOString(),
+    inhalt: String(r.inhalt ?? ""),
+    notiz: String(r.notiz ?? ""),
+  }));
+}
+
 export async function uebergeben(id: string, von: string): Promise<boolean> {
   const z = (await db()`
     update wein_bestellung set status = 'uebergeben', uebergeben_am = now(), uebergeben_von = ${von}

@@ -16,6 +16,7 @@ import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/pa
 import { istSonntag, letzterImFoyer, schonAbgeschlossen } from "@/lib/stempel/abschluss";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
+import { offeneBestellungen } from "@/lib/wein/db";
 
 /**
  * Ein Stempel vom Handy: Art plus Position.
@@ -230,6 +231,25 @@ export async function POST(request: Request) {
     vergessener Stempel macht dabei niemanden mehr zum Anwesenden, siehe
     letzterImFoyer.
   */
+  /*
+    Eine Bestellung der Gastro, die noch keiner abgestellt hat.
+
+    Das Ausstempeln ist der letzte Moment, in dem es noch jemand machen
+    kann, der im Haus ist (Florian, 09.10.2026). Deshalb dringlich und
+    nicht nur als Randnotiz, aber ohne Sperre: Wer wirklich nicht mehr
+    kann, soll trotzdem nach Hause gehen duerfen.
+  */
+  let bestellung: { anzahl: number; inhalt: string } | null = null;
+  if (art === "gehen" && ["foyer", "team", "chef"].includes(b.rolle)) {
+    const offen = await offeneBestellungen().catch(() => []);
+    if (offen.length > 0) {
+      bestellung = {
+        anzahl: offen.length,
+        inhalt: offen.map((o) => o.inhalt).filter(Boolean).join(" · "),
+      };
+    }
+  }
+
   let abschluss = false;
   if (art === "gehen" && b.rolle === "foyer" && istSonntag()) {
     abschluss = (await letzterImFoyer(b.id)) && !(await schonAbgeschlossen(tagHier));
@@ -239,6 +259,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     parkplatz,
+    bestellung,
     abschluss,
     abschlussTag: tagHier,
     zustand: neu.zustand,

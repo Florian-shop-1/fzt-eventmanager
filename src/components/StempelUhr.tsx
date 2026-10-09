@@ -75,6 +75,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [abschlussTag, setAbschlussTag] = useState<string | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
   const [parkplatz, setParkplatz] = useState<{ datum: string; offen: number; gesamt: number } | null>(null);
+  // Die Gastro hat bestellt, und der Wein steht noch nicht unten.
+  const [bestellung, setBestellung] = useState<{ anzahl: number; inhalt: string } | null>(null);
   // Ausserhalb des Gelaendes ausgestempelt: Wann war wirklich Feierabend?
   const [feierabendFrage, setFeierabendFrage] = useState(false);
   const [entfernung, setEntfernung] = useState<number | null>(null);
@@ -236,6 +238,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         zustand?: Zustand;
         entfernung?: number;
         parkplatz?: { datum: string; offen: number; gesamt: number } | null;
+        bestellung?: { anzahl: number; inhalt: string } | null;
         abschluss?: boolean;
         abschlussTag?: string;
         grundNoetig?: boolean;
@@ -252,6 +255,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
       if (e.parkplatz) setParkplatz(e.parkplatz);
+      if (e.bestellung) setBestellung(e.bestellung);
       if (e.abschluss && e.abschlussTag) setAbschlussTag(e.abschlussTag);
       setZustand(e.zustand ?? zustand);
       if (art === "pause_start") setPause(false);
@@ -505,6 +509,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         nach drei Abenden wegklickt, ohne sie zu lesen.
       */}
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
+      {bestellung && <BestellungHinweis stand={bestellung} onWeg={() => setBestellung(null)} />}
 
       {/*
         Sonntag, und du bist der letzte aus dem Foyer: Danach steht das
@@ -672,6 +677,54 @@ function AbschlussFrage({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Die offene Bestellung der Gastro, beim Ausstempeln.
+ *
+ * Kein Fenster mit Rueckfrage wie beim Parkplatz, sondern ein Hinweis,
+ * der nicht zu uebersehen ist: Hier gibt es nichts zu entscheiden, es
+ * muss nur jemand den Wein hinstellen (Florian, 09.10.2026).
+ *
+ * Gezeigt wird er jedem, der geht, bis einer die Bestellung abhakt.
+ * Keine Sperre: Wer wirklich nicht mehr kann, geht trotzdem heim.
+ */
+function BestellungHinweis({
+  stand,
+  onWeg,
+}: {
+  stand: { anzahl: number; inhalt: string };
+  onWeg: () => void;
+}) {
+  return (
+    <div
+      className="space-y-3 rounded-lg border-2 px-4 py-3 text-sm"
+      style={{ borderColor: "var(--blocker)", background: "var(--warnung-hell)" }}
+    >
+      <p>
+        <span aria-hidden="true">🍷</span>{" "}
+        <strong>
+          {stand.anzahl === 1
+            ? "Die Gastro wartet noch auf ihre Bestellung."
+            : `Die Gastro wartet noch auf ${stand.anzahl} Bestellungen.`}
+        </strong>{" "}
+        {stand.inhalt && <span>{stand.inhalt}. </span>}
+        Bitte stell den Wein noch hin, bevor du gehst, danach ist niemand mehr da.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <a
+          href="/bestellungen"
+          className="rounded-md px-4 py-2 text-sm font-medium text-white"
+          style={{ background: "var(--blocker)" }}
+        >
+          Mach ich jetzt
+        </a>
+        <button type="button" onClick={onWeg} className="rounded-md border border-linie px-4 py-2 text-sm">
+          Geht heute nicht
+        </button>
+      </div>
     </div>
   );
 }

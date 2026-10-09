@@ -14,6 +14,7 @@ import { AbendHinweise } from "@/components/AbendHinweise";
 import { zeitpunkt } from "@/lib/zeit";
 import type { Plan } from "@/lib/seating/types";
 import { LOGEN } from "@/lib/domain/venue";
+import { ABSTELLORT, offeneBestellungen } from "@/lib/wein/db";
 
 export const metadata = { title: "Foyer | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -55,9 +56,12 @@ export default async function FoyerSeite({
   }
 
   const benutzer = await angemeldeterBenutzer();
-  const [blatt, { kopf, gruppen, varianten }] = await Promise.all([
+  const [blatt, { kopf, gruppen, varianten }, bestellungen] = await Promise.all([
     holeKuechenblatt(gewaehlt),
     planeAbend(gewaehlt),
+    // Haengt nicht am gewaehlten Abend: Eine offene Bestellung ist offen,
+    // egal welches Blatt gerade angesehen wird.
+    offeneBestellungen().catch(() => []),
   ]);
   if (!blatt || !kopf) return null;
 
@@ -122,6 +126,53 @@ export default async function FoyerSeite({
             {blatt.gesamtMenues} Gäste essen bei uns · Stand: {zeitpunkt(new Date())}
           </div>
         </header>
+
+        {/*
+          Eine Bestellung der Gastro, die noch niemand abgestellt hat.
+
+          Sie steht ganz oben und bleibt stehen, bis einer sie erledigt
+          hat: Auf der Bestellseite wuerde sie nur sehen, wer dorthin
+          geht (Florian, 09.10.2026). Nicht im Ausdruck, das Blatt geht
+          an die Wand und die Bestellung ist bis dahin hoffentlich weg.
+        */}
+        {bestellungen.length > 0 && (
+          <div
+            className="space-y-2 rounded-lg border-2 px-4 py-3 text-sm print:hidden"
+            style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+          >
+            <strong className="block">
+              <span aria-hidden="true">🍷</span>{" "}
+              {bestellungen.length === 1
+                ? "Die Gastro hat Wein bestellt, und er steht noch nicht da."
+                : `Die Gastro hat ${bestellungen.length} Bestellungen offen, die noch nicht abgestellt sind.`}
+            </strong>
+            <ul className="space-y-1">
+              {bestellungen.map((b) => (
+                <li key={b.id}>
+                  <span className="font-medium">{b.inhalt || "ohne Positionen"}</span>
+                  <span className="text-leise">
+                    {" "}· bestellt von {b.bestellerName} am{" "}
+                    {new Date(b.erstelltAm).toLocaleString("de-DE", {
+                      timeZone: "Europe/Berlin",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {b.notiz && <span> · {b.notiz}</span>}
+                </li>
+              ))}
+            </ul>
+            <p className="text-leise">Abstellort: {ABSTELLORT}.</p>
+            <Link
+              href="/bestellungen"
+              className="inline-block rounded-md border border-linie bg-flaeche px-3 py-1.5 font-medium"
+            >
+              Erledigt? Hier abhaken
+            </Link>
+          </div>
+        )}
 
         {blatt.shopFehler && (
           <p
