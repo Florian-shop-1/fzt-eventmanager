@@ -358,9 +358,21 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     // Nebenbei prüfen, ob jemand das Ausstempeln vergessen hat.
     if (["chef", "team"].includes(benutzer.rolle)) void nebenbeiPruefen();
 
-    // Offene Weinbestellung der Gastro: bei allen, die Bescheid bekommen sollen.
+    /*
+      Offene Weinbestellung der Gastro.
+
+      Gezeigt wird sie jedem, der den Wein hinstellen koennte, nicht nur
+      den dreien auf der Mailliste: "wenn was bestellt wird, reicht es an
+      kevin, olena und mich zu mailen. der hase soll bei allen anzeigen,
+      wenn was noch nicht geliefert wurde" (Florian, 09.10.2026).
+
+      Die Mail bleibt also eng, der Hase wird breit. Ist der Wein
+      abgestellt, kommt offeneWeinbestellungen() mit 0 zurueck und der
+      Hase bleibt weg.
+    */
     const wein = weinVorab;
-    if (wein && wein.meldenAn.includes(benutzer.id) && (wein.freigegeben || benutzer.email.toLowerCase() === "info@florianzimmer.com")) {
+    const darfStellen = ["chef", "team", "foyer"].includes(benutzer.rolle);
+    if (wein && darfStellen && (wein.freigegeben || benutzer.email.toLowerCase() === "info@florianzimmer.com")) {
       const n = await offeneWeinbestellungen().catch(() => 0);
       if (n > 0) {
         aufgaben.push({

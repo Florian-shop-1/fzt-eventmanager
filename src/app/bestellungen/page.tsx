@@ -142,8 +142,14 @@ export default async function BestellungenSeite({
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Zuletzt erledigt</h2>
           <ul className="space-y-2">
+            {/*
+              Hier steht nichts mehr zum Abhaken, aber der Knopf zum
+              Nachschicken der Bereitstellungsmail haengt am selben Recht.
+              Die Karte zeigt Abhaken und Zuruecknehmen ohnehin nur bei
+              offenen Bestellungen (Florian, 09.10.2026).
+            */}
             {erledigt.map((x) => (
-              <BestellKarte key={x.id} x={x} uebergeben={false} darfZurueck={false} />
+              <BestellKarte key={x.id} x={x} uebergeben={z.uebergeben} darfZurueck={false} />
             ))}
           </ul>
         </section>
