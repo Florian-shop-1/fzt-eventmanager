@@ -11,6 +11,7 @@
 
 import { db } from "@/lib/db/client";
 import { nachFamilienname } from "@/lib/domain/namen";
+import { NACHT_BIS, tagRechnen } from "@/lib/stempel/tag";
 
 export type StempelArt = "kommen" | "pause_start" | "pause_ende" | "gehen";
 
@@ -343,6 +344,39 @@ export async function stempelAmTag(benutzerId: string, tag: string): Promise<Ste
   return z.map(baue);
 }
 
+/**
+ * Die ganze Schicht eines Tages, auch wenn sie nach Mitternacht endet.
+ *
+ * Bei uns ist das der Regelfall: Wer um 17 Uhr kommt und nach der Show
+ * aufraeumt, geht um 0:30. Nach Kalendertagen sortiert stuende dieser
+ * Stempel am naechsten Tag, und die Korrekturansicht zeigte eine Schicht
+ * ohne Ende.
+ *
+ * Dieselbe Regel wie in nachtschichtenAnhaengen(): Alles, was vor dem
+ * naechsten Kommen und vor dem Morgen liegt, gehoert noch zum Vortag.
+ */
+export async function schichtAmTag(benutzerId: string, tag: string): Promise<Stempel[]> {
+  const eigene = await stempelAmTag(benutzerId, tag);
+  const letzter = eigene[eigene.length - 1];
+  if (!letzter || letzter.art === "gehen") return eigene;
+
+  const naechster = new Date(`${tag}T12:00:00Z`);
+  naechster.setUTCDate(naechster.getUTCDate() + 1);
+  const morgen = await stempelAmTag(benutzerId, naechster.toISOString().slice(0, 10));
+
+  const dazu: Stempel[] = [];
+  for (const x of morgen) {
+    if (x.art === "kommen") break;
+    const d = new Date(x.zeitpunkt);
+    const minuten = Number(d.toLocaleTimeString("de-DE", { hour: "2-digit", timeZone: "Europe/Berlin" }).slice(0, 2)) * 60
+      + Number(d.toLocaleTimeString("de-DE", { minute: "2-digit", timeZone: "Europe/Berlin" }).slice(0, 2));
+    if (minuten > NACHT_BIS) break;
+    dazu.push(x);
+    if (x.art === "gehen") break;
+  }
+  return [...eigene, ...dazu];
+}
+
 /** Verschiebt einen Stempel auf eine andere Uhrzeit. */
 /**
  * Jede Korrektur wird mitgeschrieben.
@@ -357,17 +391,25 @@ async function aenderungMerken(o: {
   benutzerId: string;
   name: string;
   tag: string;
-  was: "geaendert" | "geloescht" | "nachgetragen";
+  was: "geaendert" | "geloescht" | "nachgetragen" | "tag_berichtigt";
   art: string;
   altZeitpunkt: string | null;
   neuZeitpunkt: string | null;
   grund: string;
   wer: string;
+  /* Nur bei "tag_berichtigt": der ganze Tag vorher und nachher. */
+  altMinuten?: number | null;
+  neuMinuten?: number | null;
+  altText?: string;
+  neuText?: string;
 }): Promise<void> {
   await db()`
-    insert into stempel_aenderung (benutzer_id, name, tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer)
+    insert into stempel_aenderung
+      (benutzer_id, name, tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer,
+       alt_minuten, neu_minuten, alt_text, neu_text)
     values (${o.benutzerId}::uuid, ${o.name}, ${o.tag}::date, ${o.was}, ${o.art},
-            ${o.altZeitpunkt}::timestamptz, ${o.neuZeitpunkt}::timestamptz, ${o.grund}, ${o.wer})
+            ${o.altZeitpunkt}::timestamptz, ${o.neuZeitpunkt}::timestamptz, ${o.grund}, ${o.wer},
+            ${o.altMinuten ?? null}, ${o.neuMinuten ?? null}, ${o.altText ?? ""}, ${o.neuText ?? ""})
   `.catch((f) => console.warn("[stempel] Änderung nicht vermerkt:", f));
 }
 
@@ -442,12 +484,18 @@ export interface Zeitaenderung {
   grund: string;
   wer: string;
   wann: string;
+  /** Nur bei "tag_berichtigt" gesetzt: der ganze Tag vorher und nachher. */
+  altMinuten: number | null;
+  neuMinuten: number | null;
+  altText: string;
+  neuText: string;
 }
 
 /** Was an einem Tag korrigiert wurde. */
 export async function aenderungenAmTag(benutzerId: string, tag: string): Promise<Zeitaenderung[]> {
   const z = (await db()`
-    select id, tag::text as tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer, wann
+    select id, tag::text as tag, was, art, alt_zeitpunkt, neu_zeitpunkt, grund, wer, wann,
+           alt_minuten, neu_minuten, alt_text, neu_text
       from stempel_aenderung
      where benutzer_id = ${benutzerId}::uuid and tag = ${tag}::date
      order by wann desc
@@ -462,6 +510,10 @@ export async function aenderungenAmTag(benutzerId: string, tag: string): Promise
     grund: String(r.grund ?? ""),
     wer: String(r.wer ?? ""),
     wann: new Date(r.wann as string).toISOString(),
+    altMinuten: r.alt_minuten === null || r.alt_minuten === undefined ? null : Number(r.alt_minuten),
+    neuMinuten: r.neu_minuten === null || r.neu_minuten === undefined ? null : Number(r.neu_minuten),
+    altText: String(r.alt_text ?? ""),
+    neuText: String(r.neu_text ?? ""),
   }));
 }
 
@@ -656,6 +708,194 @@ export async function pausengrundHeute(benutzerId: string): Promise<boolean> {
        and tag = (now() at time zone 'Europe/Berlin')::date
   `) as unknown[];
   return z.length > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Den ganzen Tag berichtigen
+ *
+ * Wer das Einstempeln vergisst, vergisst meistens auch das Ausstempeln
+ * und die Pause. Jeden Stempel einzeln zu reparieren sind dann sechs
+ * Formulare fuer einen Abend. Hier wird stattdessen gesagt, wie der Tag
+ * wirklich war; das Programm vergleicht und nimmt die eingetragene Zeit
+ * (Florian, 09.10.2026).
+ *
+ * Die gestempelte Fassung geht dabei nicht verloren. Sie steht als Text
+ * und als Minutenzahl im Aenderungsbuch, zusammen mit der neuen Fassung,
+ * dem Unterschied, dem Grund und dem Namen. Arbeitszeit ist
+ * nachweispflichtig: Es muss spaeter noch zu sehen sein, was der
+ * Mitarbeiter gestempelt hat und was das Buero daraus gemacht hat.
+ * ------------------------------------------------------------------ */
+
+/** Eine Uhrzeit aus einem Zeitpunkt, hiesige Zeit, als "17:05". */
+function uhrzeitVon(ms: number): string {
+  return new Date(ms).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
+
+/**
+ * Ein Tag in einem Satz: "17:05 bis 23:10, Pause 0:30, 5:35 Stunden".
+ *
+ * Gedacht zum Lesen, nicht zum Rechnen. Steht so im Aenderungsbuch und
+ * in der Gegenueberstellung auf dem Schirm.
+ */
+export function tagInWorten(stempel: Array<{ art: string; ms: number }>, rechnung: {
+  arbeitMinuten: number;
+  pauseMinuten: number;
+  offen: boolean;
+}): string {
+  if (stempel.length === 0) return "nicht gestempelt";
+  const kommen = stempel.find((x) => x.art === "kommen");
+  const gehen = [...stempel].reverse().find((x) => x.art === "gehen");
+  const von = kommen ? uhrzeitVon(kommen.ms) : "?";
+  const bis = gehen ? uhrzeitVon(gehen.ms) : rechnung.offen ? "offen" : "?";
+  const pause = rechnung.pauseMinuten > 0 ? `, Pause ${stunden(rechnung.pauseMinuten)}` : "";
+  return `${von} bis ${bis}${pause}, ${stunden(rechnung.arbeitMinuten)} Stunden`;
+}
+
+export interface Berichtigung {
+  altMinuten: number;
+  neuMinuten: number;
+  altText: string;
+  neuText: string;
+  /** Neu minus gestempelt, in Minuten. Negativ heisst: weniger als gestempelt. */
+  unterschied: number;
+}
+
+/**
+ * Setzt den ganzen Tag neu: Kommen, Pause, Gehen.
+ *
+ * Alles, was an diesem Tag gestempelt war, wird ersetzt. Die alten
+ * Zeiten bleiben im Aenderungsbuch stehen, deshalb genuegt EIN Eintrag
+ * fuer den ganzen Vorgang statt sechs einzelner.
+ *
+ * Zeiten nach Mitternacht sind der Normalfall, nicht die Ausnahme: Wer um
+ * 17 Uhr kommt und um 0:30 geht, hat eine Schicht gearbeitet. Deshalb
+ * rutscht jede Uhrzeit, die vor der vorhergehenden liegt, auf den
+ * naechsten Tag.
+ */
+export async function tagBerichtigen(o: {
+  benutzerId: string;
+  tag: string;
+  /** "17:30" */
+  kommen: string;
+  pauseVon?: string;
+  pauseBis?: string;
+  gehen: string;
+  grund: string;
+  von: string;
+}): Promise<Berichtigung> {
+  const p = (await db()`select name from benutzer where id = ${o.benutzerId}`) as Array<{ name: string }>;
+  if (!p[0]) throw new Error("Diese Person gibt es nicht.");
+
+  const vorher = await schichtAmTag(o.benutzerId, o.tag);
+  const alteRechnung = tagRechnen(
+    o.tag,
+    vorher.map((x) => ({ art: x.art, ms: Date.parse(x.zeitpunkt), geaendertVon: x.geaendertVon })),
+  );
+  const altText = tagInWorten(
+    vorher.map((x) => ({ art: x.art, ms: Date.parse(x.zeitpunkt) })),
+    alteRechnung,
+  );
+
+  // Die neuen Zeitpunkte, der Reihe nach. Jede Uhrzeit, die vor der
+  // vorhergehenden liegt, gehoert zum naechsten Tag.
+  const folge: Array<{ art: StempelArt; uhrzeit: string }> = [{ art: "kommen", uhrzeit: o.kommen }];
+  if (o.pauseVon && o.pauseBis) {
+    folge.push({ art: "pause_start", uhrzeit: o.pauseVon });
+    folge.push({ art: "pause_ende", uhrzeit: o.pauseBis });
+  }
+  folge.push({ art: "gehen", uhrzeit: o.gehen });
+
+  let letzte = -1;
+  let tagVersatz = 0;
+  const neu = folge.map((f) => {
+    const [h, m] = f.uhrzeit.split(":").map(Number);
+    const minuten = h * 60 + m;
+    if (minuten < letzte) tagVersatz += 1;
+    letzte = minuten;
+    return { art: f.art, zeitpunkt: berlinZeitpunkt(o.tag, f.uhrzeit, tagVersatz) };
+  });
+
+  /*
+    Erst raus, dann rein: Was gestempelt war, gilt nicht mehr.
+
+    Geloescht wird vom Beginn des Tages bis zum neuen Gehen, mindestens
+    aber bis Mitternacht. So verschwindet auch ein altes Gehen, das nach
+    Mitternacht steht und damit rechnerisch zum naechsten Tag gehoert --
+    sonst bliebe es als Rest stehen.
+  */
+  const fensterVon = berlinZeitpunkt(o.tag, "00:00");
+  const letzterNeuer = neu[neu.length - 1].zeitpunkt;
+  const mitternacht = berlinZeitpunkt(o.tag, "00:00", 1);
+  const fensterBis = letzterNeuer > mitternacht ? letzterNeuer : mitternacht;
+  await db()`
+    delete from stempel
+     where benutzer_id = ${o.benutzerId}
+       and zeitpunkt >= ${fensterVon}::timestamptz
+       and zeitpunkt <= ${fensterBis}::timestamptz
+  `;
+  for (const n of neu) {
+    await db()`
+      insert into stempel (benutzer_id, name, art, zeitpunkt, im_haus, quelle, notiz, geaendert_von, geaendert_am)
+      values (${o.benutzerId}, ${p[0].name}, ${n.art}, ${n.zeitpunkt}::timestamptz, true, 'korrektur',
+              ${`Tag berichtigt von ${o.von}`}, ${o.von}, now())
+    `;
+  }
+
+  const neueRechnung = tagRechnen(
+    o.tag,
+    neu.map((n) => ({ art: n.art, ms: Date.parse(n.zeitpunkt), geaendertVon: o.von })),
+  );
+  const neuText = tagInWorten(
+    neu.map((n) => ({ art: n.art, ms: Date.parse(n.zeitpunkt) })),
+    neueRechnung,
+  );
+
+  const ergebnis: Berichtigung = {
+    altMinuten: alteRechnung.arbeitMinuten,
+    neuMinuten: neueRechnung.arbeitMinuten,
+    altText,
+    neuText,
+    unterschied: neueRechnung.arbeitMinuten - alteRechnung.arbeitMinuten,
+  };
+
+  await aenderungMerken({
+    benutzerId: o.benutzerId,
+    name: p[0].name,
+    tag: o.tag,
+    was: "tag_berichtigt",
+    art: "",
+    altZeitpunkt: null,
+    neuZeitpunkt: null,
+    grund: o.grund,
+    wer: o.von,
+    altMinuten: ergebnis.altMinuten,
+    neuMinuten: ergebnis.neuMinuten,
+    altText,
+    neuText,
+  });
+
+  return ergebnis;
+}
+
+/**
+ * Tag und Uhrzeit zu einem Zeitpunkt, in hiesiger Zeit.
+ *
+ * Deutschland hat zwei Abstaende zur Weltzeit, je nach Jahreszeit. Der
+ * Umweg ueber Intl nimmt den richtigen, ohne dass hier eine Tabelle
+ * gepflegt werden muesste.
+ */
+function berlinZeitpunkt(tag: string, uhrzeit: string, plusTage = 0): string {
+  const [j, m, t] = tag.split("-").map(Number);
+  const [h, min] = uhrzeit.split(":").map(Number);
+  const roh = Date.UTC(j, m - 1, t + plusTage, h, min);
+  const probe = new Date(roh);
+  const berlin = new Date(probe.toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
+  const utc = new Date(probe.toLocaleString("en-US", { timeZone: "UTC" }));
+  return new Date(roh - (berlin.getTime() - utc.getTime())).toISOString();
 }
 
 /** Stunden und Minuten als "7:45". */

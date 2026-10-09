@@ -19,6 +19,8 @@ import {
   antragUebernehmen,
   nachtragen,
   stempelEntfernen,
+  stunden,
+  tagBerichtigen,
   zeitAendern,
   type StempelArt,
 } from "@/lib/stempel/db";
@@ -284,6 +286,58 @@ export async function zeitKorrigieren(f: FormData): Promise<void> {
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur");
   await zeitAendern(id, zeitpunkt, b.name, text(f, "grund", 200));
   zurueck("Zeit geändert.", "#korrektur", f);
+}
+
+/**
+ * Den ganzen Tag eintragen, wie er wirklich war.
+ *
+ * Der kurze Weg, wenn an einem Abend mehrere Stempel fehlen: Kommen,
+ * Pause und Gehen in einem Rutsch. Das Programm vergleicht mit dem
+ * Gestempelten und nimmt die eingetragene Zeit (Florian, 09.10.2026).
+ *
+ * Die Rueckmeldung nennt den Unterschied in Minuten. Genau der wandert
+ * in die Lohnabrechnung, und genau der muss jemandem auffallen, der sich
+ * vertippt hat.
+ */
+export async function tagBerichtigenAktion(f: FormData): Promise<void> {
+  const b = await verlangeBuero();
+  const benutzerId = text(f, "benutzerId", 40);
+  const tag = text(f, "tag", 10);
+  const kommen = text(f, "kommen", 5);
+  const gehen = text(f, "gehen", 5);
+  const pauseVon = text(f, "pauseVon", 5);
+  const pauseBis = text(f, "pauseBis", 5);
+  const grund = text(f, "grund", 200);
+
+  const zeit = /^\d{2}:\d{2}$/;
+  if (!zeit.test(kommen) || !zeit.test(gehen)) {
+    zurueck("Kommen und Gehen brauchen beide eine Uhrzeit (zum Beispiel 17:30).", "#korrektur", f);
+  }
+  // Eine halbe Pause ist keine: Beides oder keines.
+  if (Boolean(pauseVon) !== Boolean(pauseBis)) {
+    zurueck("Bei der Pause fehlt eine der beiden Uhrzeiten.", "#korrektur", f);
+  }
+  if (!grund) {
+    zurueck("Bitte einen Grund angeben, zum Beispiel: Ausstempeln vergessen.", "#korrektur", f);
+  }
+
+  const e = await tagBerichtigen({
+    benutzerId, tag, kommen, gehen,
+    pauseVon: pauseVon || undefined,
+    pauseBis: pauseBis || undefined,
+    grund, von: b.name,
+  });
+
+  const d = e.unterschied;
+  const unterschied =
+    d === 0
+      ? "Das sind genau die gestempelten Stunden."
+      : `Unterschied ${d > 0 ? "+" : "−"}${stunden(Math.abs(d))} Stunden gegenüber dem Gestempelten.`;
+  zurueck(
+    `Tag übernommen. Gestempelt war ${e.altText}, eingetragen ist ${e.neuText}. ${unterschied}`,
+    "#korrektur",
+    f,
+  );
 }
 
 export async function stempelLoeschen(f: FormData): Promise<void> {

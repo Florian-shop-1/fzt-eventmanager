@@ -19,7 +19,7 @@ import {
   werIstDa,
   type Stempel,
 } from "@/lib/stempel/db";
-import { aenderungenAmTag } from "@/lib/stempel/db";
+import { aenderungenAmTag, schichtAmTag, tagInWorten } from "@/lib/stempel/db";
 import { alleKontostaende } from "@/lib/lohn/konto";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
@@ -35,6 +35,7 @@ import {
   standortSpeichern,
   stempelLoeschen,
   stempelNachtragen,
+  tagBerichtigenAktion,
   zeitKorrigieren,
 } from "./aktionen";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -380,13 +381,38 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
 }
 
 /** Zeiten einer Person an einem Tag ändern, nachtragen oder löschen. */
+/** "+0:25 Stunden" oder "−0:10 Stunden", sonst "gleich geblieben". */
+function unterschiedText(minuten: number): string {
+  if (minuten === 0) return "gleich geblieben";
+  const v = Math.abs(minuten);
+  const zahl = `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
+  return `${minuten > 0 ? "+" : "−"}${zahl} Stunden`;
+}
+
 async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   const leute = await stempelnde();
   const person = leute.find((p) => p.id === wer) ?? leute[0];
   const derTag = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? tag! : heuteBerlin();
+  // Die ganze Schicht, auch wenn sie nach Mitternacht endet: Bei
+  // Showabenden ist das der Regelfall, nicht die Ausnahme.
   const [liste, aenderungen] = person
-    ? await Promise.all([stempelAmTag(person.id, derTag), aenderungenAmTag(person.id, derTag)])
+    ? await Promise.all([schichtAmTag(person.id, derTag), aenderungenAmTag(person.id, derTag)])
     : [[], []];
+
+  /*
+    Was an diesem Tag gestempelt wurde, in einem Satz, und als Vorbelegung
+    fuer das Tagesformular. Wer nur das Ausstempeln vergessen hat, muss das
+    Kommen nicht noch einmal abtippen.
+  */
+  const roh = liste.map((x) => ({ art: x.art, ms: Date.parse(x.zeitpunkt), geaendertVon: x.geaendertVon }));
+  const rechnung = tagRechnen(derTag, roh);
+  const gestempelt = tagInWorten(roh, rechnung);
+  const vorschlag = {
+    kommen: uhr(liste.find((x) => x.art === "kommen")?.zeitpunkt ?? ""),
+    pauseVon: uhr(liste.find((x) => x.art === "pause_start")?.zeitpunkt ?? ""),
+    pauseBis: uhr(liste.find((x) => x.art === "pause_ende")?.zeitpunkt ?? ""),
+    gehen: uhr([...liste].reverse().find((x) => x.art === "gehen")?.zeitpunkt ?? ""),
+  };
 
   return (
     <section id="korrektur" className="scroll-mt-24 space-y-3">
@@ -468,6 +494,64 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
             </ul>
           )}
 
+          {/*
+            Der ganze Tag auf einmal.
+
+            Wer das Einstempeln vergisst, vergisst meistens auch das
+            Ausstempeln und die Pause. Jeden Stempel einzeln zu reparieren
+            sind dann sechs Formulare fuer einen Abend
+            (Florian, 09.10.2026).
+
+            Oben steht, was gestempelt wurde, damit der Unterschied beim
+            Eintragen schon zu sehen ist und nicht erst hinterher.
+          */}
+          <div className="mt-4 rounded-lg border p-4"
+               style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}>
+            <div className="text-sm font-medium">Ganzen Tag eintragen, wie er war</div>
+            <p className="mt-1 text-xs text-leise">
+              Für Abende, an denen mehreres fehlt. Was hier steht, ersetzt alle Stempel dieses
+              Tages. Die gestempelte Fassung bleibt im Änderungsbuch stehen.
+            </p>
+
+            <p className="mt-2 text-sm">
+              <span className="text-leise">Gestempelt:</span>{" "}
+              <span className="tabular-nums">{gestempelt}</span>
+            </p>
+
+            <form action={tagBerichtigenAktion} className="mt-3 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="benutzerId" value={person.id} />
+              <input type="hidden" name="tag" value={derTag} />
+              <input type="hidden" name="wer" value={person.id} />
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Gekommen</span>
+                <input type="time" name="kommen" className="w-28" defaultValue={vorschlag.kommen} required />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Pause von</span>
+                <input type="time" name="pauseVon" className="w-28" defaultValue={vorschlag.pauseVon} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">bis</span>
+                <input type="time" name="pauseBis" className="w-28" defaultValue={vorschlag.pauseBis} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Gegangen</span>
+                <input type="time" name="gehen" className="w-28" defaultValue={vorschlag.gehen} required />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Grund</span>
+                <input name="grund" maxLength={200} required
+                       placeholder="z. B. Ausstempeln vergessen"
+                       className="w-64" />
+              </label>
+              <Absendeknopf text="Tag so übernehmen" laeuftText="..." />
+            </form>
+            <p className="mt-2 text-xs text-leise">
+              Geht die Schicht über Mitternacht, trägst du die Uhrzeit einfach ein: Alles, was vor
+              der vorherigen Zeit liegt, zählt zum nächsten Tag.
+            </p>
+          </div>
+
           <form action={stempelNachtragen} className="mt-4 flex flex-wrap items-end gap-2 border-t border-linie pt-4">
             <input type="hidden" name="benutzerId" value={person.id} />
             <input type="hidden" name="tag" value={derTag} />
@@ -509,13 +593,32 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
                 {aenderungen.map((a) => (
                   <li key={a.id}>
                     <span className="tabular-nums">{new Date(a.wann).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" })}</span> ·{" "}
-                    {a.was === "geloescht"
+                    {a.was === "tag_berichtigt"
+                      ? (
+                        <>
+                          <strong className="text-text">Ganzer Tag berichtigt</strong> von {a.wer}
+                          {a.grund && <span> · {a.grund}</span>}
+                          <div className="mt-0.5">
+                            gestempelt: {a.altText || "nichts"} · eingetragen: {a.neuText}
+                            {a.altMinuten !== null && a.neuMinuten !== null && (
+                              <> · <strong style={{ color: a.neuMinuten === a.altMinuten ? undefined : "var(--warnung)" }}>
+                                {unterschiedText(a.neuMinuten - a.altMinuten)}
+                              </strong></>
+                            )}
+                          </div>
+                        </>
+                      )
+                      : a.was === "geloescht"
                       ? `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} um ${uhr(a.altZeitpunkt ?? "")} gelöscht`
                       : a.was === "nachgetragen"
                         ? `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} um ${uhr(a.neuZeitpunkt ?? "")} nachgetragen`
-                        : `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} von ${uhr(a.altZeitpunkt ?? "")} auf ${uhr(a.neuZeitpunkt ?? "")} geändert`}{" "}
-                    von {a.wer}
-                    {a.grund && <span> · {a.grund}</span>}
+                        : `${BEZEICHNUNG[a.art as keyof typeof BEZEICHNUNG] ?? a.art} von ${uhr(a.altZeitpunkt ?? "")} auf ${uhr(a.neuZeitpunkt ?? "")} geändert`}
+                    {a.was !== "tag_berichtigt" && (
+                      <>
+                        {" "}von {a.wer}
+                        {a.grund && <span> · {a.grund}</span>}
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
