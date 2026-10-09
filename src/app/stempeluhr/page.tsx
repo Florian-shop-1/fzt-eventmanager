@@ -418,6 +418,17 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
     vergessen. Ein vorhandener Stempel wird dadurch nie ueberschrieben:
     Geaendert wird nur, was Florian selbst eintippt.
   */
+  /*
+    Sichtbar bleiben die Kommentare, bis der Tag wirklich berichtigt ist.
+
+    Ein angenommener Antrag heisst noch nicht, dass die Zeiten stimmen:
+    Steht keine Uhrzeit darin, aendert das Annehmen gar nichts. Genau so
+    ist Olenas Hinweis zum 08.10. verschwunden, bevor er gebraucht wurde
+    (Florian, 09.10.2026).
+  */
+  const tagBerichtigt = aenderungen.some((a) => a.was === "tag_berichtigt");
+  const offeneKommentare = tagBerichtigt ? [] : kommentare;
+
   const angabe = kommentare.find(
     (k) => k.vorschlagKommen || k.vorschlagGehen || k.vorschlagPauseStart || k.vorschlagPauseEnde,
   );
@@ -573,15 +584,15 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
               vor Augen haben. Sobald der Tag berichtigt ist, ist der
               Kommentar beantwortet und verschwindet (Florian, 09.10.2026).
             */}
-            {kommentare.length > 0 && (
+            {offeneKommentare.length > 0 && (
               <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.12)" }}>
                 <div className="text-xs font-medium">
-                  {kommentare.length === 1
+                  {offeneKommentare.length === 1
                     ? `Das hat ${person.name.split(" ")[0]} dazu geschrieben`
-                    : `Das hat ${person.name.split(" ")[0]} dazu geschrieben (${kommentare.length})`}
+                    : `Das hat ${person.name.split(" ")[0]} dazu geschrieben (${offeneKommentare.length})`}
                 </div>
                 <ul className="mt-2 space-y-2">
-                  {kommentare.map((k) => (
+                  {offeneKommentare.map((k) => (
                     <li key={k.id} className="rounded-md bg-flaeche px-3 py-2 text-sm">
                       <div className="text-xs text-leise">
                         {k.art === "pausengrund" ? "Zur fehlenden Pause" : "Bitte um Korrektur"} ·{" "}
@@ -592,6 +603,11 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
                             timeStyle: "short",
                           })}
                         </span>
+                        {/* Angenommen heisst nicht korrigiert: Steht keine Uhrzeit im
+                            Antrag, aendert das Annehmen nichts an den Stempeln. */}
+                        {k.status === "angenommen" && (
+                          <span> · schon angenommen, die Zeiten stehen aber noch</span>
+                        )}
                       </div>
                       <p className="mt-1 whitespace-pre-wrap">{k.text}</p>
                       {(k.vorschlagKommen || k.vorschlagGehen || k.vorschlagPauseStart || k.vorschlagPauseEnde) && (

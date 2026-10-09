@@ -645,15 +645,23 @@ export async function antraegeVon(benutzerId: string, anzahl = 10): Promise<Antr
 /**
  * Was der Mitarbeiter zu diesem Tag geschrieben hat.
  *
- * Beides gehoert dazu: die Bitte um eine Korrektur ("offen") und die
- * Begruendung einer fehlenden Pause ("notiert"). Was schon entschieden
- * ist, steht nicht mehr hier -- es ist erledigt (Florian, 09.10.2026).
+ * Alles, was zu dem Tag geschrieben wurde, auch schon Angenommenes.
+ *
+ * Zuerst standen hier nur offene Eintraege. Das ging schief: Olena hatte
+ * am 09.10.2026 zum 08.10. geschrieben, wann sie wirklich Feierabend
+ * gemacht hat, Florian hat den Antrag angenommen -- und damit war der
+ * Text verschwunden, obwohl die Zeiten noch gar nicht geaendert waren.
+ * Genau in dem Moment, in dem er korrigieren wollte, fehlte ihm die
+ * Information.
+ *
+ * Verschwinden sollen die Kommentare erst, wenn der Tag wirklich
+ * berichtigt ist. Darueber entscheidet die Seite, nicht diese Abfrage.
  */
 export async function antraegeAmTag(benutzerId: string, tag: string): Promise<Antrag[]> {
   const z = (await db()`
     select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag
      where benutzer_id = ${benutzerId} and tag = ${tag}::date
-       and status in ('offen', 'notiert')
+       and status <> 'abgelehnt'
      order by erstellt_am
   `.catch(() => [])) as Array<Record<string, unknown>>;
   return z.map(bauAntrag);
@@ -675,7 +683,7 @@ export async function antraegeAmTagErledigen(
   const z = (await db()`
     update stempel_antrag
        set status = 'angenommen', antwort = ${antwort}, entschieden_von = ${von}, entschieden_am = now()
-     where benutzer_id = ${benutzerId} and tag = ${tag}::date and status in ('offen', 'notiert')
+     where benutzer_id = ${benutzerId} and tag = ${tag}::date and status <> 'abgelehnt'
     returning id
   `.catch(() => [])) as unknown[];
   return z.length;
