@@ -32,6 +32,27 @@ import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 
 const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 
+/*
+  ZAUBERGELD
+
+  Kinder bis 12 bezahlen im Foyer mit selbst gemaltem Geld. Die Aktion
+  laeuft nur im Oktober 2026 und endet am 31.10. (Florian, 09.10.2026).
+
+  Diese Mail ist die wichtigste Stelle fuer den Hinweis: Gemalt wird zu
+  Hause, also muss er ankommen, solange noch Zeit dafuer ist. Auf der
+  Seite steht er nur fuer den, der von sich aus hinschaut.
+
+  Laeuft die Aktion aus, faellt der Absatz von selbst weg. Fuer eine
+  Neuauflage reicht es, das Datum zu aendern.
+*/
+export const ZAUBERGELD_BIS = "2026-10-31";
+export const ZAUBERGELD_LINK = `${SHOP}/zaubergeld`;
+
+/** Gilt das Zaubergeld an diesem Showtag noch? Datum als YYYY-MM-DD. */
+export function zaubergeldGilt(datum: string): boolean {
+  return datum <= ZAUBERGELD_BIS;
+}
+
 const NL = String.fromCharCode(10);
 const z = (...zeilen: string[]) => zeilen.join(NL);
 
@@ -218,6 +239,9 @@ export function baueVorfreudemail(
   */
   const isstDavor = !buchung.uhrzeit || buchung.uhrzeit >= MENUE_BEGINNT;
 
+  // Siehe ZAUBERGELD_BIS oben.
+  const zaubergeld = zaubergeldGilt(buchung.datum);
+
   const betreff = vn
     ? `In ${VORLAUF_TAGE} Tagen ist es so weit, ${vn} ✨`
     : `In ${VORLAUF_TAGE} Tagen ist es so weit ✨`;
@@ -290,6 +314,23 @@ export function baueVorfreudemail(
     );
   }
 
+  if (zaubergeld) {
+    textZeilen.push(
+      "",
+      "Noch etwas, falls Kinder dabei sind: Im Oktober dürfen Kinder bis 12",
+      "Jahre bei uns mit selbst gemaltem Geld bezahlen. Für Popcorn, für etwas",
+      "zu trinken, für Süßigkeiten und sogar für einen Zaubertrick.",
+      "",
+      "Gemalt wird zu Hause, mitgebracht wird, was fertig ist. Ein Schein gilt",
+      "für eine Sache, Rückgeld gibt es keines. Lieber also viele kleine Scheine",
+      "malen als einen mit einer Million darauf.",
+      "",
+      "Die Aktion läuft nur noch bis zum 31. Oktober. Wie es geht, steht hier:",
+      "",
+      ZAUBERGELD_LINK,
+    );
+  }
+
   textZeilen.push(
     "",
     "Ich freue mich auf dich!",
@@ -322,6 +363,7 @@ export function baueVorfreudemail(
       etwasOffen,
       menueOffen,
       isstDavor,
+      zaubergeld,
     }),
     angeboten,
     vorname: vn,
@@ -398,6 +440,8 @@ function baueHtml(d: {
   menueOffen: boolean;
   /** Wird vor der Show gegessen (Abendvorstellung) oder danach? */
   isstDavor: boolean;
+  /** Laeuft die Zaubergeld-Aktion an diesem Showtag noch? */
+  zaubergeld: boolean;
 }): string {
   const serif = "'Playfair Display', Georgia, 'Times New Roman', serif";
   const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -511,6 +555,25 @@ function baueHtml(d: {
 
     <!-- Knopf -->
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:8px 40px 0;">${knopf}</td></tr>
+
+    ${d.zaubergeld ? `
+    <!-- Zaubergeld. Eigener Kasten, weil es weder Angebot noch Rechnung ist,
+         sondern eine Hausaufgabe: Das Geld muss vorher gemalt werden. -->
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:10px 40px 4px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="border:1px solid rgba(201,168,76,0.35);border-radius:8px;">
+        <tr><td style="padding:20px 22px;">
+          <div style="font-family:${sans};font-size:10px;letter-spacing:0.26em;text-transform:uppercase;color:${GOLD};margin-bottom:8px;">Nur im Oktober</div>
+          <p style="margin:0 0 12px;font-family:${serif};font-size:20px;line-height:1.3;color:${WEISS};">Kinder zahlen mit selbst gemaltem Geld</p>
+          ${absatz("Falls Kinder dabei sind: Bis 12 Jahre dürfen sie bei uns im Foyer mit Geld bezahlen, das sie selbst gemalt haben. Für Popcorn, für etwas zu trinken, für Süßigkeiten und sogar für einen Zaubertrick.", "font-size:15px;")}
+          ${absatz("Gemalt wird zu Hause. Ein Schein gilt für eine Sache, Rückgeld gibt es keines, also lieber viele kleine Scheine als einen mit einer Million darauf.", "font-size:15px;")}
+          <p style="margin:0;font-family:${sans};font-size:15px;line-height:1.6;color:#D8D8D8;">
+            Die Aktion läuft bis zum 31. Oktober.
+            <a href="${h(ZAUBERGELD_LINK)}" style="color:${GOLD_HELL};text-decoration:underline;">So geht das</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>` : ""}
 
     <!-- Nachsatz und Gruss -->
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:0 40px 8px;">
