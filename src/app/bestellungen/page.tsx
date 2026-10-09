@@ -51,12 +51,12 @@ const betrag = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 export default async function BestellungenSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ meldung?: string; monat?: string }>;
+  searchParams: Promise<{ meldung?: string; monat?: string; b?: string }>;
 }) {
   const b = await angemeldeterBenutzer();
   const z = await zugang(b);
   if (!b || !z.sehen) redirect("/");
-  const { meldung, monat } = await searchParams;
+  const { meldung, monat, b: ausDerMail } = await searchParams;
 
   // Beides gleichzeitig: Der Katalog haengt nicht an den Bestellungen.
   const [artikel, alle] = await Promise.all([
@@ -65,6 +65,16 @@ export default async function BestellungenSeite({
   ]);
   const offen = alle.filter((x) => x.status === "offen");
   const erledigt = alle.filter((x) => x.status !== "offen").slice(0, 20);
+
+  /*
+    Aus der Mail gekommen, und ein anderer war schneller.
+
+    Dieselbe Mail geht an drei Leute. Zwei davon klicken auf einen Link
+    zu einer Bestellung, die schon erledigt ist, und suchen dann, was
+    sie noch tun sollen. Nichts sollen sie tun, und genau das steht
+    jetzt oben (Florian, 09.10.2026).
+  */
+  const gemeint = ausDerMail ? alle.find((x) => x.id === ausDerMail) ?? null : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -80,6 +90,28 @@ export default async function BestellungenSeite({
         <div className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--info)", background: "var(--info-hell)" }}>
           <strong>Vorschau, nur für dich sichtbar.</strong> Die Gastro sieht den Bereich erst, wenn du unten
           auf „Freischalten“ drückst.
+        </div>
+      )}
+
+      {gemeint && gemeint.status !== "offen" && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {gemeint.status === "uebergeben" ? (
+            <>
+              <strong>
+                Diese Bestellung hat {gemeint.uebergebenVon || "jemand"} schon bearbeitet.
+              </strong>{" "}
+              Die Ware wurde bereitgestellt
+              {gemeint.uebergebenAm ? ` am ${zeit(gemeint.uebergebenAm)}` : ""}. Du musst nichts
+              mehr tun.
+            </>
+          ) : (
+            <>
+              <strong>Diese Bestellung wurde zurückgezogen.</strong> Du musst nichts mehr tun.
+            </>
+          )}
         </div>
       )}
 

@@ -51,7 +51,16 @@ export async function bestellen(f: FormData): Promise<void> {
   if (mengen.some((m) => m.menge > 500)) zurueck("Höchstens 500 Flaschen je Sorte.");
 
   const notiz = text(f, "notiz");
-  await bestellungAnlegen(b, mengen, notiz);
+  /*
+    Die Nummer der Bestellung wandert in den Link der Mail.
+
+    So weiss die Seite, um welche Bestellung es geht, und kann sagen,
+    wenn ein anderer sie schon erledigt hat (Florian, 09.10.2026). Drei
+    Leute bekommen dieselbe Mail; zwei davon kommen zu spaet, und die
+    sollen das auch lesen, statt zu suchen.
+  */
+  const neueId = await bestellungAnlegen(b, mengen, notiz);
+  const link = `${APP}/bestellungen?b=${neueId}`;
 
   // Bescheid geben. Scheitert die Mail, ist die Bestellung trotzdem da und
   // steht im Eventmanager in der gelben Leiste.
@@ -66,13 +75,13 @@ export async function bestellen(f: FormData): Promise<void> {
     const klartext =
       `${b.name} möchte Magicuvée haben:\n\n${zeilen.map((z) => `- ${z}`).join("\n")}` +
       `${notiz ? `\n\nNotiz: ${notiz}` : ""}\n\nBereitstellen: ${ABSTELLORT}.` +
-      `\n\nWenn der Wein dort steht, bitte abhaken: ${APP}/bestellungen`;
+      `\n\nWenn der Wein dort steht, bitte abhaken: ${link}`;
     const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b18">
 <p><strong>${h(b.name)}</strong> möchte Magicuvée haben:</p>
 <ul>${zeilen.map((z) => `<li>${h(z)}</li>`).join("")}</ul>
 ${notiz ? `<p>Notiz: ${h(notiz)}</p>` : ""}
 <p style="margin:14px 0">Bereitstellen: <strong>${h(ABSTELLORT)}</strong>.</p>
-<p><a href="${APP}/bestellungen" style="display:inline-block;background:#c9a45c;color:#1d1b18;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px">Bestellung ansehen und abhaken</a></p></div>`;
+<p><a href="${link}" style="display:inline-block;background:#c9a45c;color:#1d1b18;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:8px">Bestellung ansehen und abhaken</a></p></div>`;
     for (const p of an) {
       try {
         await mailVerschicken({ an: p.email, betreff, text: klartext, html });
