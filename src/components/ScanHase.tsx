@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type HasenStimmung = "lob" | "keks" | "erinnern";
+export type HasenStimmung = "lob" | "keks" | "erinnern" | "sekt";
 
 export function ScanHase({
   text,
@@ -121,6 +121,29 @@ export function ScanHase({
           )}
           {stimmung === "erinnern" && (
             <text className="sh-frage" x="178" y="40">?</text>
+          )}
+          {/*
+            Das Sektglas, wenn es etwas zu melden gibt, worauf man
+            anstossen kann: "der Hase könnte ein Sektglas in der Hand
+            halten" (Florian, 09.10.2026, als die erste Weinbestellung
+            der Gastro bereitstand).
+          */}
+          {stimmung === "sekt" && (
+            <g className="sh-sekt">
+              {/* Kelch */}
+              <path className="sh-glas" d="M 166 92 L 190 92 L 185 116 Q 178 122 171 116 Z" />
+              {/* Inhalt */}
+              <path className="sh-inhalt" d="M 169 101 L 187 101 L 184 115 Q 178 120 172 115 Z" />
+              {/* Stiel und Fuss */}
+              <rect className="sh-stiel" x="177" y="120" width="2.4" height="16" rx="1.2" />
+              <ellipse className="sh-fuss" cx="178.2" cy="137" rx="9" ry="2.6" />
+              {/* Perlen, steigen auf */}
+              <g className="sh-perlen">
+                <circle cx="174" cy="112" r="1.5" />
+                <circle cx="180" cy="109" r="1.2" />
+                <circle cx="177" cy="106" r="1.6" />
+              </g>
+            </g>
           )}
         </svg>
       </div>

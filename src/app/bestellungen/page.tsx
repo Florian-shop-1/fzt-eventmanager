@@ -20,6 +20,7 @@ import {
 import {
   absenderSpeichern,
   alsUebergebenMarkieren,
+  bereitMeldungNachschicken,
   bestellen,
   bestellungStornieren,
   freischalten,
@@ -174,6 +175,20 @@ function BestellKarte({ x, uebergeben, darfZurueck }: { x: WeinBestellung; ueber
         {x.status === "uebergeben" && x.uebergebenAm && ` · abgestellt am ${zeit(x.uebergebenAm)} von ${x.uebergebenVon}`}
         {x.status === "storniert" && " · zurückgezogen"}
       </div>
+      {/*
+          Dieselbe Mail noch einmal: fuer Bestellungen, die abgehakt
+          wurden, bevor es diese Mail gab, und fuer den Fall, dass der
+          Mailserver gehustet hat (Florian, 09.10.2026).
+      */}
+      {uebergeben && x.status === "uebergeben" && (
+        <form action={bereitMeldungNachschicken} className="mt-2">
+          <input type="hidden" name="id" value={x.id} />
+          <input type="hidden" name="von" value={x.uebergebenVon ?? ""} />
+          <button type="submit" className="text-xs text-leise underline">
+            Bescheid nochmal schicken
+          </button>
+        </form>
+      )}
       {(uebergeben || darfZurueck) && x.status === "offen" && (
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {uebergeben && (

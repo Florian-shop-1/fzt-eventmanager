@@ -29,7 +29,9 @@ export function HasenPost({
 }) {
   const danke = anlass === "danke";
   const gratulation = anlass === "gratulieren";
-  const freundlich = danke || gratulation;
+  // Es gibt etwas zu melden, worauf man anstossen kann.
+  const sekt = anlass === "sekt";
+  const freundlich = danke || gratulation || sekt;
   const [zeigen, setZeigen] = useState(false);
   const gemeldet = useRef(false);
 
@@ -52,9 +54,9 @@ export function HasenPost({
   return (
     <ScanHase
       // Beim Dank wackelt er mit den Ohren statt fragend zu schauen.
-      stimmung={freundlich ? "lob" : "erinnern"}
-      // Beim Gratulieren sagt der Mitarbeiter danke, nicht wir.
-      knopf={gratulation ? "Danke!" : danke ? "Gern!" : "Mach ich!"}
+      stimmung={sekt ? "sekt" : freundlich ? "lob" : "erinnern"}
+      // Beim Gratulieren und beim Anstossen sagt der andere danke, nicht wir.
+      knopf={gratulation || sekt ? "Danke!" : danke ? "Gern!" : "Mach ich!"}
       text={`${freundlich ? "Hallo" : "Psst,"} ${vorname || "du"}! ${text}`}
       onWeg={() => {
         setZeigen(false);

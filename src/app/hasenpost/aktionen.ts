@@ -35,8 +35,9 @@ export async function postAbschicken(f: FormData): Promise<void> {
   if (nachricht.length < 3) zurueck("Da fehlt noch die Nachricht.");
 
   const gewaehlt = text(f, "anlass", 12);
-  const anlass =
-    gewaehlt === "danke" ? "danke" : gewaehlt === "gratulieren" ? "gratulieren" : "erinnern";
+  const anlass = ["danke", "gratulieren", "sekt"].includes(gewaehlt)
+    ? (gewaehlt as "danke" | "gratulieren" | "sekt")
+    : "erinnern";
 
   await postSchicken({ benutzerId, text: nachricht, von: b.name, anlass });
   zurueck(
@@ -44,7 +45,9 @@ export async function postAbschicken(f: FormData): Promise<void> {
       ? "Der Hase bedankt sich."
       : anlass === "gratulieren"
         ? "Der Hase gratuliert."
-        : "Der Hase richtet es aus.",
+        : anlass === "sekt"
+          ? "Der Hase stößt an."
+          : "Der Hase richtet es aus.",
   );
 }
 

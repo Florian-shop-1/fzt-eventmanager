@@ -497,6 +497,20 @@ textarea:focus {
 @keyframes sh-huepfen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .sh-frage { animation: sh-huepfen 1.2s ease-in-out infinite; }
 
+/* Sekt: der Hase prostet zu, im Glas steigen Perlen auf */
+.sh-glas { fill: rgba(255,255,255,0.22); stroke: rgba(255,255,255,0.75); stroke-width: 1.4; }
+.sh-inhalt { fill: #e8c86a; }
+.sh-stiel, .sh-fuss { fill: rgba(255,255,255,0.75); }
+.sh-perlen circle { fill: #fff6d8; }
+.sh-sekt { transform-box: fill-box; transform-origin: 50% 90%; }
+@keyframes sh-prosten { 0%, 100% { transform: rotate(0deg) translateY(0); } 45% { transform: rotate(-13deg) translateY(-5px); } }
+.sh-s-sekt .sh-sekt { animation: sh-auftauchen 0.45s 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both, sh-prosten 2.6s 0.7s ease-in-out infinite; }
+.sh-s-sekt .sh-auge-l, .sh-s-sekt .sh-auge-r { animation: sh-froh 2.4s ease-in-out forwards; }
+@keyframes sh-perlen-auf { 0% { transform: translateY(6px); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(-10px); opacity: 0; } }
+.sh-perlen circle { transform-box: fill-box; transform-origin: center; animation: sh-perlen-auf 2.2s ease-in infinite; }
+.sh-perlen circle:nth-child(2) { animation-delay: 0.7s; }
+.sh-perlen circle:nth-child(3) { animation-delay: 1.4s; }
+
 @media (prefers-reduced-motion: reduce) {
   .sh-wrap, .sh-root, .sh-root * { animation: none !important; }
   .sh-s-keks .sh-keks { opacity: 0; }

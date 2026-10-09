@@ -32,7 +32,7 @@ import { db } from "@/lib/db/client";
   Da sagt der Mitarbeiter danke, nicht wir (Florian, 09.10.2026, als
   Sammy kein Rookie mehr war).
 */
-export type Anlass = "erinnern" | "danke" | "gratulieren";
+export type Anlass = "erinnern" | "danke" | "gratulieren" | "sekt";
 
 export interface Hasenpost {
   id: string;
@@ -52,7 +52,7 @@ function ausZeile(r: Record<string, unknown>): Hasenpost {
   return {
     id: String(r.id),
     text: String(r.text ?? ""),
-    anlass: (r.anlass === "danke" || r.anlass === "gratulieren" ? r.anlass : "erinnern") as Anlass,
+    anlass: (["danke", "gratulieren", "sekt"].includes(String(r.anlass)) ? r.anlass : "erinnern") as Anlass,
     von: String(r.von ?? ""),
     benutzerId: String(r.benutzer_id),
     name: String(r.name ?? ""),
