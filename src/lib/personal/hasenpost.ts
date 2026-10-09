@@ -24,7 +24,15 @@ import { db } from "@/lib/db/client";
  * will nichts. Deshalb schaut der Hase beim Dank nicht fragend, und
  * unter der Blase steht nicht "Mach ich!".
  */
-export type Anlass = "erinnern" | "danke";
+/*
+  Drei Anlaesse, drei Hasen.
+
+  "erinnern" fragt und will ein "Mach ich!". "danke" bedankt sich. Beim
+  Gratulieren gibt es weder etwas zu versprechen noch sich zu bedanken:
+  Da sagt der Mitarbeiter danke, nicht wir (Florian, 09.10.2026, als
+  Sammy kein Rookie mehr war).
+*/
+export type Anlass = "erinnern" | "danke" | "gratulieren";
 
 export interface Hasenpost {
   id: string;
@@ -44,7 +52,7 @@ function ausZeile(r: Record<string, unknown>): Hasenpost {
   return {
     id: String(r.id),
     text: String(r.text ?? ""),
-    anlass: (r.anlass === "danke" ? "danke" : "erinnern") as Anlass,
+    anlass: (r.anlass === "danke" || r.anlass === "gratulieren" ? r.anlass : "erinnern") as Anlass,
     von: String(r.von ?? ""),
     benutzerId: String(r.benutzer_id),
     name: String(r.name ?? ""),

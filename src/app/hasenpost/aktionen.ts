@@ -34,10 +34,18 @@ export async function postAbschicken(f: FormData): Promise<void> {
   if (!/^[0-9a-f-]{36}$/.test(benutzerId)) zurueck("Bitte jemanden auswählen.");
   if (nachricht.length < 3) zurueck("Da fehlt noch die Nachricht.");
 
-  const anlass = text(f, "anlass", 10) === "danke" ? "danke" : "erinnern";
+  const gewaehlt = text(f, "anlass", 12);
+  const anlass =
+    gewaehlt === "danke" ? "danke" : gewaehlt === "gratulieren" ? "gratulieren" : "erinnern";
 
   await postSchicken({ benutzerId, text: nachricht, von: b.name, anlass });
-  zurueck(anlass === "danke" ? "Der Hase bedankt sich." : "Der Hase richtet es aus.");
+  zurueck(
+    anlass === "danke"
+      ? "Der Hase bedankt sich."
+      : anlass === "gratulieren"
+        ? "Der Hase gratuliert."
+        : "Der Hase richtet es aus.",
+  );
 }
 
 export async function postZurueckziehen(f: FormData): Promise<void> {

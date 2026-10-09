@@ -28,6 +28,8 @@ export function HasenPost({
   anlass?: Anlass;
 }) {
   const danke = anlass === "danke";
+  const gratulation = anlass === "gratulieren";
+  const freundlich = danke || gratulation;
   const [zeigen, setZeigen] = useState(false);
   const gemeldet = useRef(false);
 
@@ -50,9 +52,10 @@ export function HasenPost({
   return (
     <ScanHase
       // Beim Dank wackelt er mit den Ohren statt fragend zu schauen.
-      stimmung={danke ? "lob" : "erinnern"}
-      knopf={danke ? "Gern!" : "Mach ich!"}
-      text={`${danke ? "Hallo" : "Psst,"} ${vorname || "du"}! ${text}`}
+      stimmung={freundlich ? "lob" : "erinnern"}
+      // Beim Gratulieren sagt der Mitarbeiter danke, nicht wir.
+      knopf={gratulation ? "Danke!" : danke ? "Gern!" : "Mach ich!"}
+      text={`${freundlich ? "Hallo" : "Psst,"} ${vorname || "du"}! ${text}`}
       onWeg={() => {
         setZeigen(false);
         void quittung(id, "erledigt");

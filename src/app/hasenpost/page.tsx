@@ -96,6 +96,10 @@ export default async function HasenpostSeite({
             <input type="radio" name="anlass" value="danke" />
             Danke sagen
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="anlass" value="gratulieren" />
+            Gratulieren
+          </label>
         </fieldset>
 
         <label className="block">
