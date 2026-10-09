@@ -177,6 +177,35 @@ export async function offeneBestellungen(): Promise<OffeneBestellung[]> {
   }));
 }
 
+/**
+ * Wer diese Bestellung aufgegeben hat, und was drinsteht.
+ *
+ * Fuer die Rueckmeldung an die Gastro, sobald der Wein unten steht.
+ * Liefert null, wenn es den Besteller nicht mehr gibt oder er keine
+ * Adresse hat: Dann gibt es niemanden zu benachrichtigen.
+ */
+export async function bestellerVon(
+  id: string,
+): Promise<{ email: string; name: string; inhalt: string; notiz: string } | null> {
+  const z = (await db()`
+    select u.email, b.besteller_name, b.notiz,
+           coalesce(string_agg(p.menge || 'x ' || p.name, ', ' order by p.artikel_id), '') as inhalt
+      from wein_bestellung b
+      join benutzer u on u.id = b.besteller_id
+      left join wein_position p on p.bestellung_id = b.id
+     where b.id = ${id}
+     group by u.email, b.besteller_name, b.notiz
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  const r = z[0];
+  if (!r || !String(r.email ?? "").includes("@")) return null;
+  return {
+    email: String(r.email),
+    name: String(r.besteller_name ?? ""),
+    inhalt: String(r.inhalt ?? ""),
+    notiz: String(r.notiz ?? ""),
+  };
+}
+
 export async function uebergeben(id: string, von: string): Promise<boolean> {
   const z = (await db()`
     update wein_bestellung set status = 'uebergeben', uebergeben_am = now(), uebergeben_von = ${von}

@@ -9,6 +9,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import {
   ABSTELLORT,
   artikelListe,
+  bestellerVon,
   bestellungAnlegen,
   einstellungLesen,
   leihArtikel,
@@ -87,8 +88,55 @@ export async function alsUebergebenMarkieren(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
   const z = await zugang(b);
   if (!b || !z.uebergeben) throw new Error("Nicht erlaubt.");
-  const ok = await uebergeben(text(f, "id", 40), b.name);
-  zurueck(ok ? "Danke! Als abgestellt gespeichert, das kommt auf die Monatsrechnung." : "Diese Bestellung war schon erledigt.");
+  const id = text(f, "id", 40);
+  const ok = await uebergeben(id, b.name);
+  if (!ok) zurueck("Diese Bestellung war schon erledigt.");
+
+  /*
+    Der Gastro Bescheid sagen, dass der Wein unten steht.
+
+    Bisher lief die Nachricht nur in eine Richtung: Die Gastro bestellt,
+    wir bekommen eine Mail, und danach hoert sie nichts mehr. Wer nicht
+    weiss, ob schon etwas dasteht, laeuft entweder umsonst runter oder
+    holt es zu spaet (Florian, 09.10.2026, nach der ersten Bestellung).
+
+    Scheitert die Mail, bleibt die Bestellung trotzdem abgehakt: Der
+    Wein steht ja da.
+  */
+  let gemeldet = "";
+  const besteller = await bestellerVon(id).catch(() => null);
+  if (besteller) {
+    const vorname = besteller.name.trim().split(/\s+/)[0] ?? "";
+    const betreff = `Dein Magicuvée steht bereit${besteller.inhalt ? `: ${besteller.inhalt}` : ""}`;
+    const klartext = [
+      vorname ? `Hallo ${vorname},` : "Hallo,",
+      "",
+      "dein Wein steht für dich bereit.",
+      ...(besteller.inhalt ? ["", besteller.inhalt] : []),
+      "",
+      `Abholort: ${ABSTELLORT}.`,
+      "",
+      `Abgestellt von ${b.name}.`,
+      "",
+      "Viele Grüße",
+      "Florian Zimmer Theater",
+    ].join("\n");
+    const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1b18">
+<p>Hallo ${h(vorname)},</p>
+<p><strong>dein Wein steht für dich bereit.</strong></p>
+${besteller.inhalt ? `<p>${h(besteller.inhalt)}</p>` : ""}
+<p style="margin:14px 0">Abholort: <strong>${h(ABSTELLORT)}</strong>.</p>
+<p style="color:#6b675f;font-size:13px">Abgestellt von ${h(b.name)}.</p></div>`;
+    try {
+      await mailVerschicken({ an: besteller.email, betreff, text: klartext, html });
+      gemeldet = vorname ? ` ${vorname} hat eine Mail bekommen.` : " Die Gastro hat eine Mail bekommen.";
+    } catch (fehler) {
+      console.error("[wein] Bereitstellungsmail fehlgeschlagen:", fehler);
+      gemeldet = " Die Mail an die Gastro ging allerdings nicht raus.";
+    }
+  }
+
+  zurueck(`Danke! Als abgestellt gespeichert, das kommt auf die Monatsrechnung.${gemeldet}`);
 }
 
 export async function bestellungStornieren(f: FormData): Promise<void> {
