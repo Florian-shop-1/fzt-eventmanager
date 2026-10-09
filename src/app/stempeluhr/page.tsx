@@ -34,6 +34,7 @@ import {
   sollzeitLoeschen,
   standortSpeichern,
   stempelLoeschen,
+  korrekturAnzeigen,
   stempelNachtragen,
   tagBerichtigenAktion,
   zeitKorrigieren,
@@ -443,7 +444,7 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
     <section id="korrektur" className="scroll-mt-24 space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">Zeiten korrigieren</h2>
 
-      <form method="get" action="/stempeluhr" className="flex flex-wrap items-end gap-3 text-sm">
+      <form action={korrekturAnzeigen} className="flex flex-wrap items-end gap-3 text-sm">
         <label className="block">
           <span className="mb-1 block text-xs text-leise">Wer</span>
           <select name="wer" defaultValue={person?.id}>

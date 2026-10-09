@@ -299,6 +299,23 @@ export async function zeitKorrigieren(f: FormData): Promise<void> {
  * in die Lohnabrechnung, und genau der muss jemandem auffallen, der sich
  * vertippt hat.
  */
+/**
+ * Person und Tag umstellen, ohne den Blick zu verlieren.
+ *
+ * Vorher war das ein gewoehnliches GET-Formular. Es laedt die Seite neu
+ * und landet oben, also scrollt man nach jedem Wechsel wieder nach
+ * unten zur Korrektur (Florian, 09.10.2026). Diese Umleitung haengt den
+ * Anker an, wie es die uebrigen Aktionen auf dieser Seite auch tun.
+ */
+export async function korrekturAnzeigen(f: FormData): Promise<void> {
+  await verlangeBuero();
+  const wer = text(f, "wer", 40);
+  const tag = text(f, "tag", 10);
+  redirect(
+    `/stempeluhr?${new URLSearchParams({ ...(wer ? { wer } : {}), ...(tag ? { tag } : {}) }).toString()}#korrektur`,
+  );
+}
+
 export async function tagBerichtigenAktion(f: FormData): Promise<void> {
   const b = await verlangeBuero();
   const benutzerId = text(f, "benutzerId", 40);
