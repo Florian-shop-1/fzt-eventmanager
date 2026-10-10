@@ -460,9 +460,34 @@ export function UpgradeTafel({
     };
   }, [sitze]);
 
+  /*
+    Was frei ist, wenn die Leute schon aufgestanden sind.
+
+    "ich kann D aber nicht dahin setzen, wo ich gerade leute weggesetzt
+    habe, muesste doch gehen" (Florian, 10.10.2026). Ein verkaufter Platz
+    galt als besetzt, auch wenn seine Gruppe laengst umgesetzt war und
+    der Stuhl vor einem stand. Genau so rueckt der Saal aber auf: B geht
+    nach vorne, D rutscht in Bs alte Reihe.
+
+    Drei Faelle gelten als frei: der Platz war nie verkauft, seine
+    Gruppe ist schon woanders, oder es ist die Gruppe, die man gerade in
+    der Hand hat (dann schiebt sie sich in der eigenen Reihe zurecht).
+
+    Reihe 4, Platz 3 bleibt leer, egal was passiert: freiLassen sticht
+    alles.
+  */
   const istFrei = useCallback(
-    (s: TafelSitz, fuer: string | null) => s.nutzbar && (!belegt.has(s.id) || belegt.get(s.id) === fuer),
-    [belegt],
+    (s: TafelSitz, fuer: string | null) => {
+      if (s.freiLassen) return false;
+
+      const heimat = gruppeVonSitz.get(s.id) ?? null;
+      const aufgestanden =
+        Boolean(heimat) && (Boolean(umsetzungVon(heimat!.schluessel)) || heimat!.schluessel === fuer);
+      const nutzbar = s.nutzbar || aufgestanden;
+
+      return nutzbar && (!belegt.has(s.id) || belegt.get(s.id) === fuer);
+    },
+    [belegt, gruppeVonSitz, umsetzungVon],
   );
 
   /** Der Block, der ab diesem Platz für so viele Leute frei ist. */
