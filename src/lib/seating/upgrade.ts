@@ -805,13 +805,28 @@ function bestenBlockSuchen(
  * Upgrades: am Stück, nah an den anderen, mittig und vorne.
  *
  * Die größten Gruppen zuerst, denn für sie gibt es die wenigsten Blöcke.
- * Findet sich keiner, bleibt der Vorschlag leer, und das Showteam setzt
- * sie vor Ort, wo es passt.
+ *
+ * Passt die Gruppe nicht am Stück in die Zone, wird sie dort aufgeteilt,
+ * statt sie geschlossen nach hinten zu schicken: "wenn du Gästeliste
+ * hast, mach den Vorschlag im Saalplan bitte auch so, dass du sie zum
+ * auffüllen im gestrichelten Bereich nutzt. wir wollen die leute immer
+ * mittig im block vor der Bühne. das ist für die atmosphäre am besten"
+ * (Florian, 10.10.2026).
+ *
+ * Das ist die Umkehrung dessen, was für zahlende Gruppen gilt. Wer eine
+ * Karte gekauft hat, sitzt zusammen, da wird nicht getrennt. Die
+ * Gästeliste dagegen ist genau das Mittel, mit dem sich die Löcher vorne
+ * schliessen lassen, und zwei Reihen auseinander zu sitzen ist für
+ * eingeladene Gäste zumutbar. Zusammengehalten wird trotzdem, so weit es
+ * geht: erst der ganze Block, dann die groesstmoeglichen Teile.
+ *
+ * Findet sich gar nichts, bleibt der Vorschlag leer, und das Showteam
+ * setzt sie vor Ort, wo es passt.
  */
 export function gaestePlaetze(
   rat: Empfehlung,
   gaeste: Array<{ id: string; anzahl: number }>,
-): Map<string, Bereich | null> {
+): Map<string, Bereich[]> {
   const belegt = new Set<number>();
   for (const u of rat.umzuege) for (const s of [...u.ziel.sitze, ...(u.ziel2?.sitze ?? [])]) belegt.add(s.id);
 
@@ -827,14 +842,65 @@ export function gaestePlaetze(
     sitze: new Set(parkett.flatMap((r) => r.sitze.map((s) => s.id))),
   };
 
-  const ergebnis = new Map<string, Bereich | null>();
+  /**
+   * Die Gruppe vorne unterbringen, notfalls in Teilen.
+   *
+   * Zuerst der gestrichelte Bereich, und zwar in jeder Groesse: Ein
+   * Zweierplatz mitten im Block ist mehr wert als ein Viererblock am
+   * Rand daneben. Erst wenn die Zone nichts mehr hergibt, kommt der
+   * breitere Bereich dran.
+   *
+   * Hoechstens drei Teile, und keine Einzelplaetze, solange noch zwei
+   * Leute zusammengehoeren. Eine Gruppe, die auf lauter einzelne
+   * Luecken verteilt wird, findet sich am Einlass nicht wieder, und das
+   * Foyer sucht den ganzen Abend. Wer allein kommt, passt dagegen genau
+   * in so eine Luecke.
+   */
+  const MAX_TEILE = 3;
+
+  const vorneUnterbringen = (anzahl: number): Bereich[] => {
+    const teile: Bereich[] = [];
+    let offen = anzahl;
+
+    for (const suchen of [
+      (groesse: number) => bestenBlockSuchen(rat.zone, groesse, belegt, Number.POSITIVE_INFINITY),
+      (groesse: number) =>
+        bestenBlockSuchen(breiteZone(rat.zone), groesse, belegt, Number.POSITIVE_INFINITY, rat.zone.sitze),
+    ]) {
+      while (offen > 0 && teile.length < MAX_TEILE) {
+        // Zu zweit bleibt man zu zweit: ein Einzelplatz nur fuer den Letzten.
+        const kleinstes = offen === 1 ? 1 : 2;
+        let stueck: Bereich | null = null;
+        for (let groesse = offen; groesse >= kleinstes && !stueck; groesse--) stueck = suchen(groesse);
+        if (!stueck) break;
+        for (const s of stueck.sitze) belegt.add(s.id);
+        teile.push(stueck);
+        offen -= stueck.sitze.length;
+      }
+    }
+
+    return teile;
+  };
+
+  const ergebnis = new Map<string, Bereich[]>();
   for (const g of [...gaeste].sort((a, b) => b.anzahl - a.anzahl)) {
-    const ziel =
-      bestenBlockSuchen(rat.zone, g.anzahl, belegt, Number.POSITIVE_INFINITY) ??
-      bestenBlockSuchen(breiteZone(rat.zone), g.anzahl, belegt, Number.POSITIVE_INFINITY, rat.zone.sitze) ??
-      bestenBlockSuchen(weit, g.anzahl, belegt, Number.POSITIVE_INFINITY);
-    if (ziel) for (const s of ziel.sitze) belegt.add(s.id);
-    ergebnis.set(g.id, ziel);
+    const teile = vorneUnterbringen(g.anzahl);
+    const fehlt = g.anzahl - teile.reduce((n, t) => n + t.sitze.length, 0);
+
+    /*
+      Was die Zone nicht mehr fasst, kommt ins übrige Parkett. Das ist
+      der seltene Fall: Die Zone ist voll, und ein Platz weiter hinten
+      ist immer noch besser als keiner.
+    */
+    if (fehlt > 0) {
+      const draussen = bestenBlockSuchen(weit, fehlt, belegt, Number.POSITIVE_INFINITY);
+      if (draussen) {
+        for (const s of draussen.sitze) belegt.add(s.id);
+        teile.push(draussen);
+      }
+    }
+
+    ergebnis.set(g.id, teile);
   }
   return ergebnis;
 }

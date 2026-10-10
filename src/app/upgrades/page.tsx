@@ -120,7 +120,7 @@ export default async function UpgradeSeite({
   const rat = plan ? empfehlung(plan) : null;
 
   // Die Gästeliste: ohne Ticket, vor Ort zu setzen. Vorschläge nach den Upgrades.
-  const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich | null>();
+  const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich[]>();
   const darfEintragen = benutzer?.rolle === "chef" || benutzer?.rolle === "team";
   /*
     Testmodus: Umsetzen und Durch-x-en gehen sonst erst ab Saalöffnung.
@@ -563,7 +563,7 @@ function Gaesteliste({
   eintragenLink,
 }: {
   gaeste: Gast[];
-  vorschlaege: Map<string, Bereich | null>;
+  vorschlaege: Map<string, Bereich[]>;
   mitVorschlag: boolean;
   eintragenLink: string | null;
 }) {
@@ -592,7 +592,12 @@ function Gaesteliste({
           </p>
           <ul className="space-y-2">
             {gaeste.map((g, i) => {
-              const v = vorschlaege.get(g.id);
+              const teile = vorschlaege.get(g.id) ?? [];
+              // Ein Satz aus allen Teilen: "Reihe 4, Platz 7 bis 8 und Reihe 5, Platz 9".
+              const v =
+                teile.length > 0
+                  ? teile.map((t) => `Reihe ${t.reihe.nummer}, ${plaetze(t)}`).join(" und ")
+                  : "";
               return (
                 <li
                   key={g.id}
@@ -619,10 +624,13 @@ function Gaesteliste({
                       </>
                     ) : v ? (
                       <>
-                        <span className="text-leise">Vorschlag:</span>{" "}
-                        <strong>
-                          Reihe {v.reihe.nummer}, {plaetze(v)}
-                        </strong>
+                        <span className="text-leise">Vorschlag:</span> <strong>{v}</strong>
+                        {teile.length > 1 && (
+                          <span className="text-leise">
+                            {" "}
+                            (auf {teile.length === 2 ? "zwei" : "drei"} Stellen verteilt, dafür vorne)
+                          </span>
+                        )}
                       </>
                     ) : (
                       <span className="text-leise">
@@ -635,7 +643,7 @@ function Gaesteliste({
                       <input type="hidden" name="id" value={g.id} />
                       <input
                         name="platz"
-                        defaultValue={g.platz ?? (v ? `Reihe ${v.reihe.nummer}, ${plaetze(v)}` : "")}
+                        defaultValue={g.platz ?? v}
                         placeholder="Reihe, Platz"
                         className="w-40 text-xs"
                         aria-label={`Platz für ${g.name}`}
@@ -681,10 +689,14 @@ function Saalzeichnung({
   plan: Saalplan;
   rat: Empfehlung;
   gaeste: Gast[];
-  vorschlaege: Map<string, Bereich | null>;
+  vorschlaege: Map<string, Bereich[]>;
 }) {
   const gastSitz = new Map<number, string>();
-  gaeste.forEach((g, i) => vorschlaege.get(g.id)?.sitze.forEach((s) => gastSitz.set(s.id, gastZeichen(i))));
+  gaeste.forEach((g, i) =>
+    (vorschlaege.get(g.id) ?? []).forEach((t) =>
+      t.sitze.forEach((s) => gastSitz.set(s.id, gastZeichen(i))),
+    ),
+  );
   const ziel = new Map<number, number>();
   const quelle = new Map<number, number>();
   rat.umzuege.forEach((u, i) => {
@@ -924,7 +936,7 @@ function tafelSitze(plan: Saalplan, rat: Empfehlung): TafelSitz[] {
 function tafelGruppen(
   rat: Empfehlung,
   gaeste: Gast[],
-  vorschlaege: Map<string, Bereich | null>,
+  vorschlaege: Map<string, Bereich[]>,
 ): TafelGruppe[] {
   const ausBereich = (b: Bereich): string => `g:${b.sitze.map((s) => s.id).sort((x, y) => x - y).join("-")}`;
 
@@ -960,7 +972,12 @@ function tafelGruppen(
   }));
 
   const gaesteliste: TafelGruppe[] = gaeste.map((g, i) => {
-    const v = vorschlaege.get(g.id) ?? null;
+    /*
+      Mehrere Teile, wenn die Gruppe vorne nur verteilt Platz findet.
+      Zusammen genannt, damit am Einlass klar ist, dass beides zu
+      derselben Anmeldung gehoert.
+    */
+    const teile = vorschlaege.get(g.id) ?? [];
     return {
       schluessel: `gast:${g.id}`,
       art: "gast" as const,
@@ -969,8 +986,11 @@ function tafelGruppen(
       zusatz: g.notiz || "Gästeliste, ohne Ticket",
       personen: g.anzahl,
       quelleIds: [],
-      vorschlagText: v ? `Reihe ${v.reihe.nummer}, ${plaetze(v)}` : null,
-      vorschlagIds: v ? v.sitze.map((s) => s.id) : [],
+      vorschlagText:
+        teile.length > 0
+          ? teile.map((t) => `Reihe ${t.reihe.nummer}, ${plaetze(t)}`).join(" und ")
+          : null,
+      vorschlagIds: teile.flatMap((t) => t.sitze.map((s) => s.id)),
       gastId: g.id,
     };
   });
