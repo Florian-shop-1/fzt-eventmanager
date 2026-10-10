@@ -218,6 +218,40 @@ export function UpgradeTafel({
     setBereit(true);
   }, []);
 
+  /*
+    Was vom Server kommt, gilt, und beim Zurueckkommen wird nachgesehen.
+
+    Dieselbe Sache wie bei der Checkliste: Wer die Tafel offen liegen
+    laesst, sah die Umsetzungen der Kollegen nicht, solange er nicht neu
+    lud (Florian, 10.10.2026). Verglichen wird ueber die Umsetzungen
+    selbst, weil jede Antwort des Servers ein neues Feld ist.
+  */
+  const umsetzungSignatur = umsetzungen
+    .map((u) => `${u.schluessel}:${u.zielIds.join(",")}`)
+    .join("|");
+  useEffect(() => {
+    setGesetzt(umsetzungen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [umsetzungSignatur]);
+
+  const eingechecktSignatur = eingecheckteIds.join(",");
+  useEffect(() => {
+    setEingecheckt(new Set(eingecheckteIds));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eingechecktSignatur]);
+
+  useEffect(() => {
+    const nachsehen = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", nachsehen);
+    window.addEventListener("focus", nachsehen);
+    return () => {
+      document.removeEventListener("visibilitychange", nachsehen);
+      window.removeEventListener("focus", nachsehen);
+    };
+  }, [router]);
+
   useEffect(() => {
     if (erzwingeOffen || !abZeitpunkt) return;
     const pruefen = () => setOffen(Date.now() >= Date.parse(abZeitpunkt));

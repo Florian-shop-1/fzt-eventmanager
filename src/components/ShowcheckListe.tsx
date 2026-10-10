@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export interface CheckPunkt {
   id: string;
@@ -44,6 +45,45 @@ export function ShowcheckListe({
   const [stand, setStand] = useState<CheckPunkt[]>(punkte);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const router = useRouter();
+
+  /*
+    Was vom Server kommt, gilt.
+
+    Die Liste uebernahm den Serverstand nur beim ersten Aufbau. Wer die
+    Seite offen liess, sah stundenlang den Stand von damals: Sammy hatte
+    sie auf dem Handy offen, waehrend die Kollegen abhakten, und bei ihm
+    blieb sie leer. Gespeichert war alles, nur nicht bei ihm auf dem
+    Schirm (Florian, 10.10.2026).
+
+    Verglichen wird ueber die Haken selbst, nicht ueber die Liste: Jede
+    Antwort des Servers ist ein neues Feld, das als Abhaengigkeit sonst
+    bei jedem Durchlauf feuern wuerde.
+  */
+  const signatur = punkte.map((p) => `${p.id}:${p.erledigtAm ?? ""}`).join("|");
+  useEffect(() => {
+    setStand(punkte);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatur]);
+
+  /*
+    Zurueck auf der Seite: nachsehen, was inzwischen passiert ist.
+
+    Am Abend liegt das Handy zwischendurch in der Tasche. Wer es wieder
+    herausholt, soll den Stand der anderen sehen und nicht den von vor
+    einer Stunde.
+  */
+  useEffect(() => {
+    const nachsehen = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", nachsehen);
+    window.addEventListener("focus", nachsehen);
+    return () => {
+      document.removeEventListener("visibilitychange", nachsehen);
+      window.removeEventListener("focus", nachsehen);
+    };
+  }, [router]);
 
   /*
     Wer gerade abhakt.
