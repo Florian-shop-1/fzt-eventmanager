@@ -16,7 +16,34 @@ export const dynamic = "force-dynamic";
 export default async function PersonalbogenSeite() {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/anmelden");
-  if (benutzer.art !== "intern") redirect("/");
+
+  /*
+    Nur wer ausdruecklich extern ist, hat hier nichts verloren.
+
+    Vorher musste "intern" dastehen, sonst ging es wortlos zurueck zur
+    Uebersicht. Bei Florian und Werner steht gar nichts, weil ihre
+    Zugaenge aelter sind als das Feld, und beide landeten deshalb beim
+    Klick auf "Personalbogen" wieder auf der Startseite (Florian,
+    10.10.2026). Der Menuepunkt stand trotzdem da.
+
+    Externe bekommen jetzt einen Satz statt einer stummen Umleitung: Wer
+    irgendwo landet, wo er nicht hinwollte, soll wenigstens lesen koennen,
+    warum.
+  */
+  if (benutzer.art === "extern") {
+    return (
+      <div className="mx-auto max-w-xl space-y-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Personalbogen</h1>
+        <p className="rounded-lg border border-linie bg-flaeche px-5 py-4 text-sm">
+          Der Personalbogen ist für Angestellte des Florian Zimmer Theaters. Dein Zugang ist als extern
+          hinterlegt, deshalb brauchst du ihn nicht. Wenn das nicht stimmt, sag Florian Bescheid.
+        </p>
+        <Link href="/" className="text-sm underline">
+          Zurück zur Übersicht
+        </Link>
+      </div>
+    );
+  }
 
   const [vorname, ...rest] = benutzer.name.split(" ");
 
