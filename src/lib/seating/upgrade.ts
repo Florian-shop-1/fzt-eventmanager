@@ -304,10 +304,18 @@ function nebeneinander(a: Sitz, b: Sitz, abstand: number): boolean {
 }
 
 /** Kommt dieser Platz als Ziel in Frage? */
-function alsZielMoeglich(s: Sitz, zone: Spielzone): boolean {
+function alsZielMoeglich(s: Sitz, zone: Spielzone, freiWerdend?: Set<number>): boolean {
   if (!zone.sitze.has(s.id)) return false;
   if (NICHT_ZIEL.test(s.sektor) || NICHT_ZIEL.test(s.kategorie)) return false;
   if (ROLLSTUHL.test(s.sektor) || ROLLSTUHL.test(s.kategorie)) return false;
+  /*
+    Plaetze, die durch einen anderen Umzug gerade frei werden.
+
+    Reihe 6 ist belegt, aber ihre Leute ziehen nach vorne in die Zone.
+    Dann ist sie der naechste Platz fuer die Reihe dahinter, und genau so
+    rueckt der Saal von hinten auf (Florian, 10.10.2026).
+  */
+  if (freiWerdend?.has(s.id)) return true;
   return s.status === "frei";
 }
 
@@ -465,6 +473,82 @@ export function empfehlung(plan: Saalplan): Empfehlung {
     bleiben.push(gruppe);
   }
 
+  /*
+    Fünfte Stufe: aufrücken, auch wenn die Zone voll ist.
+
+    Bis zum 10.10.2026 blieb eine Gruppe einfach hinten sitzen, sobald
+    vorne nichts mehr frei war. Am 10.10. sah das so aus: A zog aus Reihe
+    9 nach vorne, B und C aus Reihe 6 in die Zone, und D blieb allein in
+    Reihe 9, mit zwei leeren Reihen davor. "du lässt D einfach hinten,
+    nicht gut ... auf jeden fall ist es doof, wenn du zwei reihen
+    auslässt" (Florian).
+
+    Also rücken die Übrigen hinter der Zone so weit nach vorne, wie es
+    geht, und zwar in die Plätze, die durch die anderen Umzüge gerade
+    frei werden. Das Publikum sitzt danach in einem Stück, ohne Loch
+    dazwischen.
+
+    Das läuft erst hier, nach der ersten Runde: Vorher weiss niemand,
+    welche Plätze frei werden. Deshalb auch die Reihenfolge beim Ansagen:
+    erst die Umzüge in die Zone, dann die, die nachrücken.
+  */
+  const freiWerdend = new Set<number>();
+  for (const u of umzuege) for (const s of u.gruppe.sitze) freiWerdend.add(s.id);
+
+  const nachrueck: Spielzone = {
+    ...zone,
+    reihen: parkett,
+    sitze: new Set(parkett.flatMap((r) => r.sitze.map((s) => s.id))),
+  };
+
+  const nochBleiben: Bereich[] = [];
+  for (const gruppe of [...bleiben].sort((a, b) => b.reihe.y - a.reihe.y)) {
+    /*
+      Die eigenen Plaetze zaehlen bei der Suche als frei.
+
+      Sonst gilt die Gruppe sich selbst als Nachbar in der Reihe
+      dahinter, und genau das hat sie am 10.10. an Ort und Stelle
+      festgehalten: Reihe 8 bekam acht senkrechte Nachbarn geschenkt,
+      naemlich die eigenen Leute in Reihe 9, und schlug damit Reihe 6.
+      Wer umzieht, laesst seine Plaetze hinter sich.
+    */
+    const auchEigene = new Set(freiWerdend);
+    for (const s of gruppe.sitze) auchEigene.add(s.id);
+
+    const ziel =
+      bestenBlockSuchen(nachrueck, gruppe.sitze.length, belegt, gruppe.reihe.y, undefined, auchEigene) ??
+      null;
+
+    // Nur nach vorne. Innerhalb der eigenen Reihe zu schieben bringt
+    // nichts und macht am Einlass nur Unruhe.
+    if (ziel && ziel.reihe.y < gruppe.reihe.y - 0.5) {
+      for (const s of ziel.sitze) belegt.add(s.id);
+      // Die eigenen Plätze werden damit auch frei, für die Reihe dahinter.
+      for (const s of gruppe.sitze) freiWerdend.add(s.id);
+      umzuege.push({ gruppe, ziel });
+      continue;
+    }
+
+    const block = blockAufZweiReihen(
+      nachrueck,
+      gruppe.sitze.length,
+      belegt,
+      gruppe.reihe.y,
+      undefined,
+      auchEigene,
+    );
+    if (block && block.vorne.reihe.y < gruppe.reihe.y - 0.5) {
+      for (const s of [...block.vorne.sitze, ...block.hinten.sitze]) belegt.add(s.id);
+      for (const s of gruppe.sitze) freiWerdend.add(s.id);
+      umzuege.push({ gruppe, ziel: block.vorne, ziel2: block.hinten });
+      continue;
+    }
+
+    nochBleiben.push(gruppe);
+  }
+  bleiben.length = 0;
+  bleiben.push(...nochBleiben);
+
   // Für die Ansage von vorne nach hinten sortieren, damit der Mitarbeiter
   // die Liste von oben nach unten abarbeiten kann.
   umzuege.sort((a, b) => {
@@ -508,12 +592,15 @@ function blockAufZweiReihen(
   belegt: Set<number>,
   hoechstensBis: number,
   kern?: Set<number>,
+  /** Plaetze, deren Gaeste selbst gerade umziehen. Siehe alsZielMoeglich. */
+  freiWerdend?: Set<number>,
 ): { vorne: Bereich; hinten: Bereich } | null {
   if (groesse < 3) return null;
   const nVorne = Math.ceil(groesse / 2);
   const nHinten = groesse - nVorne;
-  const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
-  const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+  const frei = (s: Sitz) => alsZielMoeglich(s, zone, freiWerdend) && !belegt.has(s.id);
+  const istBelegt = (s: Sitz) =>
+    (s.status === "verkauft" && !freiWerdend?.has(s.id)) || belegt.has(s.id);
   /*
     Sitzt ueberhaupt schon jemand beim Eingeweihten? Davon haengt ab, wie
     schwer der naechste Platz bei ihm wiegt (Florian, 03.10.2026).
@@ -603,11 +690,14 @@ function bestenBlockSuchen(
   belegt: Set<number>,
   hoechstensBis: number,
   kern?: Set<number>,
+  /** Plaetze, deren Gaeste selbst gerade umziehen. Siehe alsZielMoeglich. */
+  freiWerdend?: Set<number>,
 ): Bereich | null {
   let bester: Bereich | null = null;
   let bestePunkte = -Infinity;
 
-  const istBelegt = (s: Sitz) => s.status === "verkauft" || belegt.has(s.id);
+  const istBelegt = (s: Sitz) =>
+    (s.status === "verkauft" && !freiWerdend?.has(s.id)) || belegt.has(s.id);
   // Sitzt schon jemand beim Eingeweihten? Siehe zuschauerBonus.
   const schonBeimZuschauer = zone.reihen.some((r) =>
     r.sitze.some((s) => umDenZuschauer({ reihe: r.nummer, name: s.name }) !== null && istBelegt(s)),
@@ -636,7 +726,7 @@ function bestenBlockSuchen(
     if (reihe.y > hoechstensBis + 0.5) return;
 
     const abstand = sitzabstand(reihe);
-    const frei = (s: Sitz) => alsZielMoeglich(s, zone) && !belegt.has(s.id);
+    const frei = (s: Sitz) => alsZielMoeglich(s, zone, freiWerdend) && !belegt.has(s.id);
     const innen = reihe.sitze.filter((s) => zone.sitze.has(s.id));
 
     for (let start = 0; start + groesse <= innen.length; start++) {
