@@ -8,7 +8,7 @@
  * Florian liest sie und entscheidet.
  */
 
-import type { Vorschlag } from "@/lib/showcheck/db";
+import type { Liste, Vorschlag } from "@/lib/showcheck/db";
 
 export function CheckVorschlag({
   liste,
@@ -18,7 +18,7 @@ export function CheckVorschlag({
   einreichen,
   abhaken,
 }: {
-  liste: "show" | "foyer";
+  liste: Liste;
   /** Zurueck zur richtigen Seite nach dem Abschicken. */
   abend: string;
   /** Nur fuer Florian: was bisher eingegangen ist. */

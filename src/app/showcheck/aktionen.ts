@@ -36,12 +36,13 @@ async function zugang() {
 }
 
 function zurueck(abend: string, liste: Liste = "show", meldung = ""): never {
+  // FOH liegt auf derselben Seite wie die Show, nur mit anderer Liste.
   const pfad = liste === "foyer" ? "/foyer/check" : "/showcheck";
+  const teile = new URLSearchParams({ abend });
+  if (liste === "foh") teile.set("liste", "foh");
+  if (meldung) teile.set("meldung", meldung);
   revalidatePath(pfad);
-  redirect(
-    `${pfad}?abend=${encodeURIComponent(abend)}` +
-      (meldung ? `&meldung=${encodeURIComponent(meldung)}` : ""),
-  );
+  redirect(`${pfad}?${teile.toString()}`);
 }
 
 export async function punktHaken(f: FormData): Promise<void> {
@@ -74,7 +75,8 @@ export async function punktDazu(f: FormData): Promise<void> {
 
 /** "show" oder "foyer". Alles andere ist die Show. */
 function listeAus(f: FormData): Liste {
-  return text(f, "liste", 10) === "foyer" ? "foyer" : "show";
+  const l = text(f, "liste", 10);
+  return l === "foyer" ? "foyer" : l === "foh" ? "foh" : "show";
 }
 
 /**

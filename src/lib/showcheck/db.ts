@@ -19,7 +19,15 @@ import { db } from "@/lib/db/client";
  * machen das nun so wie in der show" (Florian). Deshalb dieselben
  * Tabellen und dasselbe Abhaken, nur ein anderer Satz Punkte.
  */
-export type Liste = "show" | "foyer";
+/*
+  Drei Listen, dieselbe Mechanik.
+
+  "show" ist die Liste hinter der Buehne, "foyer" die des Service, und
+  "foh" gehoert ans Pult: Licht, Ton, Nebel, Funkstrecken (Florian,
+  10.10.2026). FOH und Show teilen sich die Abschnitte, denn beide
+  arbeiten denselben Abend ab: vor der Show, in der Pause, danach.
+*/
+export type Liste = "show" | "foyer" | "foh";
 
 export type Bereich =
   | "vor_show"
@@ -46,6 +54,13 @@ export const FOYER_BEREICHE: Bereich[] = [
 export function bereicheVon(liste: Liste): Bereich[] {
   return liste === "foyer" ? FOYER_BEREICHE : BEREICHE;
 }
+
+/** Wie die Liste im Text heisst. */
+export const LISTE_TITEL: Record<Liste, string> = {
+  show: "Show",
+  foh: "FOH",
+  foyer: "Foyer",
+};
 
 export const BEREICH_TITEL: Record<Bereich, string> = {
   vor_show: "Vor der Show",

@@ -33,13 +33,24 @@ export const dynamic = "force-dynamic";
 export default async function ShowcheckSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string; show?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; show?: string; liste?: string }>;
 }) {
   const b = await angemeldeterBenutzer();
   if (!b) redirect("/anmelden");
   if (!["chef", "team", "showteam"].includes(b.rolle)) redirect("/");
 
-  const { abend, monat, show } = await searchParams;
+  const { abend, monat, show, liste: listeRoh } = await searchParams;
+
+  /*
+    Zwei Listen fuer denselben Abend: hinter der Buehne und am Pult.
+
+    Das FOH hat eigene Handgriffe, Licht, Ton, Nebel, Funkstrecken, und
+    die stehen niemandem im Weg, der hinter der Buehne arbeitet
+    (Florian, 10.10.2026). Dieselbe Seite, dieselben Abschnitte, nur ein
+    anderer Satz Punkte und eigene Haken.
+  */
+  // Nicht als Typ Liste: Hier unten heisst eine Komponente schon so.
+  const liste: "show" | "foh" = listeRoh === "foh" ? "foh" : "show";
   const termine = await alleShowtage();
 
   /*
@@ -79,7 +90,7 @@ export default async function ShowcheckSeite({
     gewaehlt;
 
   const vorstellung = tag?.shows.find((sh) => sh.ditixEventId === gezeigteShow) ?? null;
-  const punkte = gezeigteShow ? await checkliste(gezeigteShow) : [];
+  const punkte = gezeigteShow ? await checkliste(gezeigteShow, liste) : [];
 
   /*
     Die Liste gehoert zur ULMFASSBAR.
@@ -90,13 +101,13 @@ export default async function ShowcheckSeite({
     dahin sagt die Seite es dazu, damit niemand an der falschen Show
     Haken setzt.
   */
-  const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege("show") : [];
+  const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege(liste) : [];
 
   // Am geteilten Zugang fragen wir, wer abhakt (Florian, 05.10.2026).
   const namen =
     b.geteilt && tag
       ? await namenImDienst({
-          liste: "show",
+          liste,
           eventIds: tag.shows.map((sh) => sh.ditixEventId),
           datum: tag.datum,
         })
@@ -116,6 +127,37 @@ export default async function ShowcheckSeite({
           Diese Liste gehört zur <strong>ULMFASSBAR</strong>. Für Flo-Zirkus und Magic Memories
           erstellen wir noch eigene Listen.
         </p>
+
+        {/*
+          Hinter der Buehne oder am Pult.
+
+          Zwei Listen fuer denselben Abend, mit eigenen Haken. Wer am
+          Pult sitzt, soll nicht durch die Requisiten scrollen, und
+          umgekehrt (Florian, 10.10.2026).
+        */}
+        <div className="mt-3 flex flex-wrap gap-2 text-sm print:hidden">
+          {(["show", "foh"] as const).map((l) => {
+            const aktiv = l === liste;
+            const ziel = new URLSearchParams();
+            if (gewaehlt) ziel.set("abend", gewaehlt);
+            if (show) ziel.set("show", show);
+            if (l === "foh") ziel.set("liste", "foh");
+            return (
+              <Link
+                key={l}
+                href={`/showcheck?${ziel.toString()}`}
+                className="rounded-md border px-3 py-1.5"
+                style={{
+                  borderColor: aktiv ? "var(--gold)" : "var(--linie)",
+                  background: aktiv ? "var(--gold-hell)" : "transparent",
+                  fontWeight: aktiv ? 600 : 400,
+                }}
+              >
+                {l === "show" ? "Hinter der Bühne" : "FOH, am Pult"}
+              </Link>
+            );
+          })}
+        </div>
       </header>
 
       <AbendAuswahl
@@ -193,11 +235,12 @@ export default async function ShowcheckSeite({
               chef={b.rolle === "chef"}
               nameNoetig={b.geteilt}
               namen={namen}
+              liste={liste}
             />
           ))}
 
           <CheckVorschlag
-            liste="show"
+            liste={liste}
             abend={gezeigteShow ?? ""}
             vorschlaege={vorschlaege}
             chef={b.rolle === "chef"}
@@ -218,6 +261,7 @@ function Liste({
   chef,
   nameNoetig,
   namen,
+  liste,
 }: {
   bereich: Bereich;
   punkte: Punkt[];
@@ -227,6 +271,8 @@ function Liste({
   /** Geteilter Zugang: erst fragen, wer abhakt. */
   nameNoetig: boolean;
   namen: string[];
+  /** Hinter der Buehne oder am Pult: Ein neuer Punkt gehoert in die richtige Liste. */
+  liste: "show" | "foh";
 }) {
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
@@ -255,6 +301,7 @@ function Liste({
         <form action={punktDazu} className="mt-3 flex flex-wrap items-end gap-2">
           <input type="hidden" name="abend" value={abend} />
           <input type="hidden" name="bereich" value={bereich} />
+          <input type="hidden" name="liste" value={liste} />
           <input name="text" maxLength={300} placeholder="Punkt ergänzen" className="min-w-[16rem] flex-1 text-sm" />
           <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
             Dazu
@@ -270,6 +317,7 @@ function Liste({
               <li key={p.id} className="flex flex-wrap items-center gap-2">
                 <form action={punktUmbenennen} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   <input type="hidden" name="abend" value={abend} />
+                  <input type="hidden" name="liste" value={liste} />
                   <input type="hidden" name="punkt" value={p.id} />
                   <input name="text" defaultValue={p.text} maxLength={300} className="min-w-[18rem] flex-1 text-sm" />
                   <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs">
@@ -278,6 +326,7 @@ function Liste({
                 </form>
                 <form action={punktEntfernen}>
                   <input type="hidden" name="abend" value={abend} />
+                  <input type="hidden" name="liste" value={liste} />
                   <input type="hidden" name="punkt" value={p.id} />
                   <button type="submit" className="text-xs underline text-leise">
                     raus
