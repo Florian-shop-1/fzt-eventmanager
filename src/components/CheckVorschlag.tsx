@@ -38,10 +38,27 @@ export function CheckVorschlag({
 
   return (
     <section className="rounded-lg border border-dashed border-linie p-4 print:hidden">
-      <h2 className="text-sm font-semibold">Fehlt was auf der Checkliste?</h2>
+      {/*
+        Drei Fragen statt einer.
+
+        "Fehlt was?" hat nur Punkte dazugebracht, und eine Liste, die
+        immer nur waechst, liest nach einem halben Jahr niemand mehr.
+        Gefragt wird deshalb auch nach dem, was weg kann und was an der
+        falschen Stelle steht: "was ist unwichtig und kann weg, was
+        fehlt? was muss an andere stelle? dann kann ich das nach und
+        nach einbauen" (Florian, 10.10.2026).
+      */}
+      <h2 className="text-sm font-semibold">Wie können wir die Liste besser machen?</h2>
       <p className="mt-1 max-w-prose text-sm text-leise">
-        Schreib es auf, dann schauen wir es uns an. Auch Kleinigkeiten: Was dir am Abend auffällt,
-        vergisst du bis zum nächsten Mal wieder.
+        Du arbeitest damit, du merkst es zuerst. Drei Fragen, antworte auf das, was dir auffällt:
+      </p>
+      <ul className="mt-2 max-w-prose list-disc space-y-0.5 pl-5 text-sm text-leise">
+        <li>Was fehlt?</li>
+        <li>Was ist unwichtig geworden und kann weg?</li>
+        <li>Was steht an der falschen Stelle, etwa zu früh oder zu spät am Abend?</li>
+      </ul>
+      <p className="mt-2 max-w-prose text-sm text-leise">
+        Auch Kleinigkeiten. Was dir am Abend auffällt, vergisst du bis zum nächsten Mal wieder.
       </p>
 
       {/*
@@ -61,7 +78,10 @@ export function CheckVorschlag({
           rows={3}
           maxLength={1000}
           required
-          placeholder="Zum Beispiel: Beim eingestellten Timer schaltet sich der Ofen nicht ein."
+          placeholder={
+            "Zum Beispiel: Der Punkt mit den Postkarten kann weg, das macht längst die Spätschicht. " +
+            "Oder: Der Gong müsste vor den Tür-Check, sonst ist es zu spät."
+          }
           className="w-full rounded-md border border-linie px-3 py-2 text-sm"
         />
         <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
