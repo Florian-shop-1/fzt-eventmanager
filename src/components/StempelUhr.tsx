@@ -71,6 +71,13 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
   // Die Putzfirma sagt beim Einstempeln, wie viele Leute da sind.
   const [personenFuer, setPersonenFuer] = useState<string | null>(null);
+  // Nach der Pause noch da: Warum?
+  const [nachPause, setNachPause] = useState<{
+    seit: string;
+    leute: Array<{ benutzerId: string; name: string; minuten: number }>;
+    bleibt: string | null;
+    gehtVorschlag: string | null;
+  } | null>(null);
   // Sonntag, letzter aus dem Foyer: Ist alles abgeschaltet?
   const [abschlussTag, setAbschlussTag] = useState<string | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
@@ -149,6 +156,25 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       }
       setAbschlussTag(null);
       setMeldung(allesAus ? "Danke dir. Schönen Feierabend!" : "Danke, ist weitergegeben.");
+    } catch {
+      setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
+    }
+  }
+
+  async function nachPauseAntwort(text: string) {
+    try {
+      const antwort = await fetch("/stempeluhr/nachpause", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const e = (await antwort.json()) as { ok: boolean; fehler?: string };
+      if (!e.ok) {
+        setFehler(e.fehler ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setNachPause(null);
+      setMeldung("Danke, ist notiert und beim Büro.");
     } catch {
       setFehler("Keine Verbindung. Bitte noch einmal versuchen.");
     }
@@ -310,9 +336,20 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
             genauigkeit: p.coords.accuracy,
           }),
         });
-        const e = (await antwort.json()) as { drin?: boolean; entfernung?: number; pauseFaellig?: boolean };
+        const e = (await antwort.json()) as {
+          drin?: boolean;
+          entfernung?: number;
+          pauseFaellig?: boolean;
+          nachPause?: {
+            seit: string;
+            leute: Array<{ benutzerId: string; name: string; minuten: number }>;
+            bleibt: string | null;
+            gehtVorschlag: string | null;
+          } | null;
+        };
         if (gestoppt) return;
         if (e.pauseFaellig) setPause(true);
+        if (e.nachPause) setNachPause(e.nachPause);
         if (e.drin === false) {
           setFehler(
             `Du bist rund ${e.entfernung} Meter vom Haus entfernt und noch eingestempelt. Bitte stempel aus.`,
@@ -508,6 +545,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         Plaetze gebucht sind. Alles andere waere eine Erinnerung, die man
         nach drei Abenden wegklickt, ohne sie zu lesen.
       */}
+      {nachPause && <NachPauseFrage stand={nachPause} onSenden={nachPauseAntwort} />}
+
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
       {bestellung && <BestellungHinweis stand={bestellung} onWeg={() => setBestellung(null)} />}
 
@@ -580,6 +619,116 @@ function PersonenFrage({ onSenden }: { onSenden: (anzahl: number) => void | Prom
         Die Zahl gilt für diese Schicht. Stimmt sie nachher nicht mehr, sagt bitte im Büro Bescheid,
         dort lässt sie sich ändern.
       </p>
+    </div>
+  );
+}
+
+/**
+ * "Du bist nach der Pause noch da."
+ *
+ * Nach der Pause bleibt im Foyer eine Kraft. Wer dann noch eingestempelt
+ * ist, soll ausstempeln oder sagen, warum nicht: "das problem ist, dass
+ * die einfach da bleiben und nichts zu tun haben" (Florian,
+ * 11.10.2026).
+ *
+ * Der Ton ist freundlich, der Inhalt klar. Die Zeit ist nicht
+ * budgetiert, und sie wird bezahlt, wenn ein Grund dasteht und das Buero
+ * ihn gelten laesst. Das muss dastehen, sonst steht am Monatsende
+ * Aussage gegen Aussage.
+ */
+function NachPauseFrage({
+  stand,
+  onSenden,
+}: {
+  stand: {
+    seit: string;
+    leute: Array<{ benutzerId: string; name: string; minuten: number }>;
+    bleibt: string | null;
+    gehtVorschlag: string | null;
+  };
+  onSenden: (text: string) => void | Promise<void>;
+}) {
+  const [text, setText] = useState("");
+  const [offen, setOffen] = useState(false);
+
+  const stunden = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <span aria-hidden="true">🐰</span>{" "}
+        <strong>
+          Die Pause ist vorbei, und ihr seid noch zu{" "}
+          {stand.leute.length === 2 ? "zweit." : `${stand.leute.length}.`}
+        </strong>{" "}
+        Nach der Pause bleibt nur eine Kraft im Foyer, die anderen dürfen Feierabend machen. Danke für
+        heute!
+      </p>
+
+      {stand.bleibt ? (
+        <p>
+          {stand.bleibt} bleibt da. Wer sonst noch hier ist: einmal ausstempeln und gut nach Hause kommen.
+        </p>
+      ) : (
+        <p>
+          Wer bleibt, entscheidet ihr unter euch.
+          {stand.gehtVorschlag && (
+            <>
+              {" "}
+              Vorschlag: <strong>{stand.gehtVorschlag}</strong> geht,{" "}
+              {stand.leute.find((p) => p.name === stand.gehtVorschlag)
+                ? `schon ${stunden(stand.leute.find((p) => p.name === stand.gehtVorschlag)!.minuten)} Stunden auf der Uhr.`
+                : "die längste Zeit auf der Uhr."}
+            </>
+          )}
+        </p>
+      )}
+
+      {!offen ? (
+        <button
+          type="button"
+          onClick={() => setOffen(true)}
+          className="rounded-md border border-linie px-4 py-2 text-sm"
+        >
+          Ich bleibe, weil ...
+        </button>
+      ) : (
+        <>
+          <p className="text-xs">
+            Kurz zur Einordnung: Die Zeit nach der Pause steht in keinem Dienstplan und ist nicht
+            eingeplant. Wir können sie bezahlen, wenn ein Grund dasteht und das Büro ihn nachträglich
+            genehmigt. Deshalb die Frage, nicht aus Misstrauen.
+          </p>
+          <textarea
+            value={text}
+            onChange={(v) => setText(v.target.value)}
+            rows={2}
+            maxLength={400}
+            placeholder="Zum Beispiel: Noch eine Gruppe am Stehtisch, die Rechnung braucht."
+            className="w-full rounded-md border border-linie px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void onSenden(text)}
+              disabled={text.trim().length < 3}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Abschicken
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffen(false)}
+              className="rounded-md border border-linie px-4 py-2 text-sm"
+            >
+              Zurück
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

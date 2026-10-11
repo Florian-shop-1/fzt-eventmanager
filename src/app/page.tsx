@@ -3,8 +3,17 @@ import { redirect } from "next/navigation";
 import { LOGEN, EVENTGALERIE_TISCHE, FOYER_STEHTISCHE, kapazitaet } from "@/lib/domain/venue";
 import { angemeldeterBenutzer, startseiteFuer } from "@/lib/auth/sitzung";
 import { heutigeGeburtstage } from "@/lib/db/geburtstag";
+import { gelerntesPausenende, heuteBerlin, pausenendeHeute } from "@/lib/foyer/pause";
+import { termineDesTages } from "@/lib/ditix/spielplan";
+import { pauseIstVorbei } from "@/app/pausenende/aktionen";
+import { Absendeknopf } from "@/components/Absendeknopf";
 
-export default async function Startseite() {
+export default async function Startseite({
+  searchParams,
+}: {
+  searchParams: Promise<{ meldung?: string }>;
+}) {
+  const { meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
 
   /*
@@ -32,6 +41,23 @@ export default async function Startseite() {
   // ganzen Tag stehen, damit es im Büro niemand verpasst.
   const geburtstage = await heutigeGeburtstage().catch(() => []);
 
+  /*
+    Der Knopf fuer das Ende der Pause.
+
+    Nur Florian, nur an einem Tag mit Show, und nur im Zeitfenster, in
+    dem eine Pause ueberhaupt sein kann: ab einer halben Stunde nach
+    Beginn bis drei Stunden danach. Sonst steht auf der Uebersicht das
+    ganze Jahr ein Knopf, den man einmal aus Versehen drueckt.
+  */
+  const heute = heuteBerlin();
+  const termine = rolle === "chef" ? await termineDesTages(heute).catch(() => []) : [];
+  const jetzt = Date.now();
+  const laufend = termine.find(
+    (t) => jetzt >= t.beginn.getTime() + 30 * 60000 && jetzt <= t.beginn.getTime() + 180 * 60000,
+  );
+  const schonGedrueckt = laufend ? await pausenendeHeute(heute).catch(() => null) : null;
+  const gelernt = laufend ? await gelerntesPausenende().catch(() => null) : null;
+
   return (
     <div className="space-y-10">
       <header>
@@ -40,6 +66,45 @@ export default async function Startseite() {
           Internes Programm für Firmenevents, Angebote und die Platzierung in der Magicuisine.
         </p>
       </header>
+
+      {meldung && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
+        </p>
+      )}
+
+      {laufend && (
+        <section
+          className="rounded-lg border px-5 py-4"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          {schonGedrueckt ? (
+            <p className="text-sm">
+              <strong>Pause-Ende notiert</strong> für heute,{" "}
+              {new Date(schonGedrueckt).toLocaleTimeString("de-DE", {
+                timeZone: "Europe/Berlin",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              Uhr. Das Foyer wird fünf Minuten später erinnert.
+            </p>
+          ) : (
+            <form action={pauseIstVorbei} className="space-y-2">
+              <p className="text-sm">
+                <strong>Die Pause ist zu Ende?</strong> Ein Druck, und zwei Dinge passieren: Das Programm
+                lernt, wann die Pause bei uns wirklich endet, und das Foyer wird daran erinnert, dass nach
+                der Pause nur eine Kraft bleibt.
+                {gelernt &&
+                  ` Bisher im Schnitt ${Math.floor(gelernt.minuten / 60)}:${String(gelernt.minuten % 60).padStart(2, "0")} Stunden nach Showbeginn, aus ${gelernt.abende} ${gelernt.abende === 1 ? "Abend" : "Abenden"}.`}
+              </p>
+              <Absendeknopf text="Pause ist zu Ende" laeuftText="Einen Moment..." />
+            </form>
+          )}
+        </section>
+      )}
 
       {geburtstage.length > 0 && (
         <section

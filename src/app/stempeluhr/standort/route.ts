@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { einstellungLesen, imHaus, minutenOhnePause, standVon } from "@/lib/stempel/db";
 import { PAUSE_NACH_MINUTEN, gelaendeVerlassen, pausenPflichtPruefen } from "@/lib/stempel/wache";
+import { fragenNachDerPause } from "@/lib/foyer/pause";
 
 /**
  * Der regelmäßige Standort-Ping, solange die Stempeluhr offen ist.
@@ -28,12 +29,27 @@ export async function POST(request: Request) {
   const ohnePause = minutenOhnePause(stand);
   if (ohnePause >= PAUSE_NACH_MINUTEN) void pausenPflichtPruefen().catch(() => undefined);
 
+  /*
+    Nach der Pause bleibt im Foyer nur eine Kraft.
+
+    Der Ping ist der Weg dorthin: Das Handy meldet sich ohnehin alle
+    paar Minuten, und so erreicht die Frage die Leute, ohne dass jemand
+    die Seite neu laedt (Florian, 11.10.2026).
+  */
+  const nachPause =
+    stand.zustand === "aus"
+      ? { fragen: false as const }
+      : await fragenNachDerPause({ benutzerId: b.id, rolle: b.rolle, name: b.name }).catch(() => ({
+          fragen: false as const,
+        }));
+
   if (stand.zustand === "aus" || p.drin) {
     return NextResponse.json({
       ok: true,
       drin: p.drin,
       entfernung: p.entfernungM,
       pauseFaellig: ohnePause >= PAUSE_NACH_MINUTEN,
+      nachPause: nachPause.fragen ? ("stand" in nachPause ? nachPause.stand : null) : null,
     });
   }
 
