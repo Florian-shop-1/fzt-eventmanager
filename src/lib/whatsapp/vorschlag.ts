@@ -86,6 +86,17 @@ function linkTeil(d: VorschlagDaten): string {
   );
 }
 
+/**
+ * Derselbe Absatz, aber als eigener Satz.
+ *
+ * ablauf() ist so geschrieben, dass er direkt hinter "Hallo Marion,"
+ * steht, also klein. Steht er weiter unten als eigener Absatz, gehört
+ * ein großer Buchstabe an den Anfang.
+ */
+function alsAbsatz(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** Anrede, Mitte, Gruß. */
 function brief(vorname: string, mitte: string): string {
   return `Hallo ${vorname},\n\n${mitte}\n\n${GRUSS}`;
@@ -155,17 +166,37 @@ const BAUSTEINE: Baustein[] = [
           linkTeil(d),
       ),
   },
+  /*
+    "Ich habe Karten, wie buche ich das Menü dazu?"
+
+    Die häufigste Frage überhaupt, und sie hat eine Antwort, die niemand
+    tippen muss: den persönlichen Link zur Buchung. Darüber wählt der
+    Gast selbst aus, was er essen möchte.
+
+    Die Erkennung war zu eng. Marion schrieb "Dinner-Paket Magcuisine
+    hinzubuchen", und weil dort "hinzu" stand statt "dazu", kam
+    überhaupt kein Vorschlag (Florian, 11.10.2026). Jetzt zählen alle
+    Schreibweisen des Dazubuchens, dazu Dinner-Paket, Essenspaket und
+    die Magicuisine, solange im Text auch gebucht werden soll.
+  */
   {
     titel: "Menü dazubuchen",
-    erkennt: /(dazu|nach).{0,10}buchen|men[uü].{0,30}(dazu|noch|nachtr)|(noch|nachtr).{0,30}men[uü]|upgrade/i,
+    erkennt:
+      /(hinzu|dazu|nach|zusätzlich|zusaetzlich)\s*-?\s*buchen|(men[uü]|dinner\s*-?\s*paket|essenspaket|mag.?cuisine)[\s\S]{0,60}buchen|buchen[\s\S]{0,60}(men[uü]|dinner\s*-?\s*paket|essenspaket)|men[uü][\s\S]{0,30}(dazu|noch|nachtr)|(noch|nachtr)[\s\S]{0,30}men[uü]|upgrade/i,
     bauen: (d) =>
       brief(
         d.vorname,
         d.link
-          ? "sehr gern! Du musst dafür keine neuen Karten kaufen." + linkTeil(d) + "\n\n" + ablauf(d)
-          : "sehr gern! Schreib uns einfach, welches Menü ihr möchtet, dann buchen wir es zu euren " +
-            "Karten dazu.\n\n" +
-            ablauf(d),
+          ? "sehr gern, das geht, und ihr braucht dafür keine neuen Karten. Über den Link unten " +
+            "kommst du direkt zu deiner Buchung und wählst das Magic-Menü unserer Magicuisine dazu, " +
+            "für so viele Personen, wie du möchtest." +
+            linkTeil(d) +
+            "\n\n" +
+            alsAbsatz(ablauf(d))
+          : "sehr gern, das geht auch nachträglich, ihr braucht dafür keine neuen Karten. Schreib uns " +
+            "kurz, für welchen Termin und für wie viele Personen, dann buchen wir das Magic-Menü zu " +
+            "euren Karten dazu und schicken dir die Bestätigung.\n\n" +
+            alsAbsatz(ablauf(d)),
       ),
   },
   {
