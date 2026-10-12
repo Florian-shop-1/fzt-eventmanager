@@ -14,7 +14,7 @@ import {
   perWhatsAppAntworten,
   vorfreudeJetztSchicken,
 } from "@/lib/whatsapp/aktionen";
-import { naechsteBuchungZu } from "@/lib/db/shop-buchungen";
+import { buchungZuGast } from "@/lib/shop/buchung-finden";
 import { LinkKopieren } from "@/components/LinkKopieren";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -606,7 +606,16 @@ function Kontaktdaten({ u }: { u: Unterhaltung }) {
 async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
   // Hat der Schreiber schon Karten? Dann kann er alles Weitere selbst
   // dazubuchen, ohne dass jemand etwas eintippt (Florian, 21.09.2026).
-  const buchung = u.email ? await naechsteBuchungZu(u.email) : null;
+  /*
+    Erst die eigene Tabelle, dann Ditix.
+
+    Wer vor der neuen Kasse gebucht hat oder telefonisch, steht nicht in
+    shop_buchung und bekam deshalb keinen Link, obwohl die Bestellung
+    existiert (Marion, 11.10.2026). buchungZuGast sucht zusaetzlich in
+    den Ditix-Bestellungen und legt bei eindeutigem Treffer die Zeile an.
+  */
+  const gefunden = u.email ? await buchungZuGast({ email: u.email, name: u.profilname }).catch(() => null) : null;
+  const buchung = gefunden?.buchung ?? null;
   const link = buchung ? `${SHOP}/upgrade/${buchung.zugangToken}` : null;
   const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
   // Laesst sich die hinterlassene Nummer als WhatsApp-Nummer lesen?
