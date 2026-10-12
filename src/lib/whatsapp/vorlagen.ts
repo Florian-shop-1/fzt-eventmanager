@@ -22,9 +22,13 @@ export interface Vorlage {
   text: string;
   beispiel: string[];
   fusszeile: string;
+  /** Der Knopf unter der Nachricht. */
+  knopf: { text: string; url: string };
   /** Wofür sie da ist, für die Einstellungsseite. */
   wofuer: string;
 }
+
+const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
 export const PAUSE_VORLAGE: Vorlage = {
   name: "pause_vorbei_foyer",
@@ -32,10 +36,17 @@ export const PAUSE_VORLAGE: Vorlage = {
   kategorie: "UTILITY",
   text:
     "Hallo {{1}}, die Pause ist vorbei. Im Foyer bleibt heute {{2}}. "
-    + "Du bist noch eingestempelt. Wenn du länger bleibst, schreib uns bitte kurz, warum, "
-    + "dann können wir die Zeit genehmigen. Danke dir und schönen Feierabend!",
+    + "Du bist noch eingestempelt. Wenn du Feierabend hast, stempel bitte aus. "
+    + "Bleibst du länger, schreib unten kurz, warum, dann können wir die Zeit genehmigen. "
+    + "Danke dir und schönen Feierabend!",
   beispiel: ["Veronica", "Olena"],
   fusszeile: "Florian Zimmer Theater, Eventmanager",
+  /*
+    Der Knopf führt dorthin, wo beides zusammenkommt: ausstempeln und
+    den Grund eintragen. Eine Antwort per WhatsApp geht trotzdem, sie
+    landet im Posteingang (Florian, 12.10.2026).
+  */
+  knopf: { text: "Stempeluhr öffnen", url: `${APP}/stempeluhr` },
   wofuer: "Nach der Pause: Hinweis an die Foyer-Aushilfe, die noch eingestempelt ist.",
 };
 

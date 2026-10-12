@@ -194,6 +194,8 @@ export async function vorlageAnlegen(v: {
   /** Beispielwerte für {{1}}, {{2}}, ... Meta verlangt sie zur Prüfung. */
   beispiel: string[];
   fusszeile?: string;
+  /** Ein fester Knopf unter der Nachricht, etwa in den Eventmanager. */
+  knopf?: { text: string; url: string };
 }): Promise<string> {
   const daten = await graph("POST", `/${kontoId()}/message_templates`, {
     name: v.name,
@@ -207,6 +209,9 @@ export async function vorlageAnlegen(v: {
         ...(v.beispiel.length > 0 ? { example: { body_text: [v.beispiel] } } : {}),
       },
       ...(v.fusszeile ? [{ type: "FOOTER", text: v.fusszeile }] : []),
+      ...(v.knopf
+        ? [{ type: "BUTTONS", buttons: [{ type: "URL", text: v.knopf.text, url: v.knopf.url }] }]
+        : []),
     ],
   });
   return String(daten.id ?? "");

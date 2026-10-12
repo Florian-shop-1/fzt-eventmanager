@@ -368,6 +368,7 @@ export async function vorlageEinreichen(formData: FormData): Promise<void> {
       text: vorlage.text,
       beispiel: vorlage.beispiel,
       fusszeile: vorlage.fusszeile,
+      knopf: vorlage.knopf,
     });
     ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(
       "Vorlage bei Meta eingereicht. Die Prüfung dauert meist ein bis zwei Tage.",

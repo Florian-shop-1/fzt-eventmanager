@@ -197,6 +197,8 @@ const KURZFRISTIG: Abschnitt[] = [
     titel: "§ 11 Pflichten des Arbeitnehmers",
     absaetze: [
       "(1) Der Arbeitnehmer verpflichtet sich, die ihm übertragenen Aufgaben sorgfältig und gewissenhaft auszuführen, Weisungen des Arbeitgebers und seiner Beauftragten zu beachten, Sicherheits-, Hygiene-, Datenschutz- und Brandschutzregelungen einzuhalten, pünktlich und arbeitsfähig zum Dienst zu erscheinen, betriebliche Einrichtungen und Arbeitsmittel sorgfältig zu behandeln und betriebliche Störungen, Schäden oder besondere Vorkommnisse unverzüglich zu melden.",
+      "(2) Die betriebliche Kommunikation zu Dienstplan, Einsätzen, Schichtwechseln und kurzfristigen Abstimmungen erfolgt über E-Mail, den Eventmanager und Messenger-Dienste, insbesondere WhatsApp. Der Arbeitnehmer teilt dem Arbeitgeber dafür eine Mobilfunknummer mit, unter der er erreichbar ist, und ist mit der Verarbeitung dieser Nummer zu diesem Zweck einverstanden. Änderungen der Nummer sind unverzüglich mitzuteilen.",
+      "(3) Übermittelt werden ausschließlich dienstliche Inhalte. Gesundheitsdaten und sonstige besondere Kategorien personenbezogener Daten im Sinne des Art. 9 DSGVO werden auf diesem Weg nicht versendet. Eine Pflicht, außerhalb der Arbeitszeit zu antworten, besteht nicht."
     ],
   },
   {
@@ -378,6 +380,8 @@ const MINIJOB: Abschnitt[] = [
     titel: "§ 12 Pflichten des Arbeitnehmers",
     absaetze: [
       "(1) Der Arbeitnehmer verpflichtet sich, die ihm übertragenen Aufgaben sorgfältig und gewissenhaft auszuführen, Weisungen des Arbeitgebers und seiner Beauftragten zu beachten, Sicherheits-, Hygiene-, Datenschutz- und Brandschutzregelungen einzuhalten, pünktlich und arbeitsfähig zum Dienst zu erscheinen, betriebliche Einrichtungen und Arbeitsmittel sorgfältig zu behandeln und betriebliche Störungen, Schäden oder besondere Vorkommnisse unverzüglich zu melden.",
+      "(2) Die betriebliche Kommunikation zu Dienstplan, Einsätzen, Schichtwechseln und kurzfristigen Abstimmungen erfolgt über E-Mail, den Eventmanager und Messenger-Dienste, insbesondere WhatsApp. Der Arbeitnehmer teilt dem Arbeitgeber dafür eine Mobilfunknummer mit, unter der er erreichbar ist, und ist mit der Verarbeitung dieser Nummer zu diesem Zweck einverstanden. Änderungen der Nummer sind unverzüglich mitzuteilen.",
+      "(3) Übermittelt werden ausschließlich dienstliche Inhalte. Gesundheitsdaten und sonstige besondere Kategorien personenbezogener Daten im Sinne des Art. 9 DSGVO werden auf diesem Weg nicht versendet. Eine Pflicht, außerhalb der Arbeitszeit zu antworten, besteht nicht."
     ],
   },
 {
@@ -608,6 +612,8 @@ const TEILZEIT: Abschnitt[] = [
     absaetze: [
       "(1) Der Arbeitnehmer verpflichtet sich, sämtliche Datenschutz-, IT-Sicherheits- und betrieblichen Vorgaben einzuhalten und personenbezogene Daten ausschließlich im Rahmen seiner dienstlichen Aufgaben zu verarbeiten.",
       "(2) Zugangsdaten und Passwörter dürfen nicht an Dritte weitergegeben werden.",
+      "(3) Die betriebliche Kommunikation zu Dienstplan, Einsätzen, Schichtwechseln und kurzfristigen Abstimmungen erfolgt über E-Mail, den Eventmanager und Messenger-Dienste, insbesondere WhatsApp. Der Arbeitnehmer teilt dem Arbeitgeber dafür eine Mobilfunknummer mit, unter der er erreichbar ist, und ist mit der Verarbeitung dieser Nummer zu diesem Zweck einverstanden. Änderungen der Nummer sind unverzüglich mitzuteilen.",
+      "(4) Übermittelt werden ausschließlich dienstliche Inhalte. Gesundheitsdaten und sonstige besondere Kategorien personenbezogener Daten im Sinne des Art. 9 DSGVO werden auf diesem Weg nicht versendet. Eine Pflicht, außerhalb der Arbeitszeit zu antworten, besteht nicht."
     ],
   },
   {

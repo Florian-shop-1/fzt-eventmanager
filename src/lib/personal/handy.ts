@@ -3,13 +3,17 @@
  * Siehe migrations/170_handy_einwilligung.sql.
  *
  * Gebraucht für die Dienstnachricht per WhatsApp, zum Beispiel nach der
- * Pause im Foyer. Zwei Dinge gehören dazu, und beide zählen einzeln:
- * die Nummer und die Einwilligung.
+ * Pause im Foyer.
  *
- * Die Einwilligung muss freiwillig sein. Wer nein sagt, bekommt die
- * Nachricht weiter per Mail und hat sonst keinen Nachteil, und wer
- * später anders denkt, kann sie jederzeit zurücknehmen. Deshalb
- * blockiert nichts davon den Zugang zum Eventmanager.
+ * Die Grundlage steht seit dem 12.10.2026 im Arbeitsvertrag: Dienstliche
+ * Abstimmung läuft über Mail, den Eventmanager und WhatsApp, und wer
+ * bei uns anfängt, nennt dafür eine Mobilfunknummer. Gefragt wird
+ * deshalb nicht mehr im Programm (Florian, 12.10.2026).
+ *
+ * Das Feld whatsapp_ok bleibt als Ausnahme: Steht es auf false, geht an
+ * diese Person nichts über WhatsApp hinaus, etwa bei einem alten
+ * Vertrag oder einem begründeten Widerspruch. Ohne Eintrag gilt der
+ * Vertrag.
  */
 
 import { db } from "@/lib/db/client";
@@ -23,7 +27,7 @@ export interface Erreichbarkeit {
   handy: string;
   /** Lesbar, für die Anzeige: "+491761234567". */
   handyLesbar: string;
-  /** null heisst: noch nicht gefragt. */
+  /** false heisst: ausgenommen. null heisst: es gilt der Vertrag. */
   whatsappOk: boolean | null;
   gefragtAm: string | null;
 }
@@ -61,18 +65,23 @@ export async function handySetzen(benutzerId: string, roh: string): Promise<stri
   return nummer;
 }
 
-/** Was der Mitarbeiter selbst entschieden hat. */
+/** Eine Person von WhatsApp ausnehmen oder sie wieder aufnehmen. */
 export async function einwilligungSetzen(benutzerId: string, ja: boolean): Promise<void> {
   await db()`
     update benutzer set whatsapp_ok = ${ja}, whatsapp_ok_am = now() where id = ${benutzerId}::uuid
   `;
 }
 
-/** Wer per WhatsApp erreichbar ist: Nummer da und Ja gegeben. */
+/**
+ * Wer per WhatsApp erreichbar ist: Nummer da und nicht ausgenommen.
+ *
+ * Fehlt die Nummer, bleibt es bei der Mail. Das ist kein Sonderweg,
+ * sondern der Normalfall, solange die Nummern noch nachgetragen werden.
+ */
 export async function perWhatsAppErreichbar(benutzerId: string): Promise<string | null> {
   const z = (await db()`
     select handy from benutzer
-     where id = ${benutzerId}::uuid and whatsapp_ok and handy <> ''
+     where id = ${benutzerId}::uuid and coalesce(whatsapp_ok, true) and handy <> ''
   `.catch(() => [])) as Array<{ handy: string }>;
   return z[0]?.handy ?? null;
 }

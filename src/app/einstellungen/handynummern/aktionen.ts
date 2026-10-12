@@ -29,15 +29,18 @@ export async function handySpeichern(formData: FormData): Promise<void> {
 }
 
 /**
- * Eine Einwilligung zurücknehmen.
+ * Eine Person von WhatsApp ausnehmen oder sie wieder aufnehmen.
  *
- * Geben kann sie nur die Person selbst, das Büro kann sie nur
- * widerrufen: Ein Ja, das jemand anderes anklickt, ist keines.
+ * Die Grundlage steht im Arbeitsvertrag. Die Ausnahme ist für alte
+ * Verträge und für den Fall, dass jemand mit gutem Grund widerspricht.
  */
-export async function einwilligungZurueck(formData: FormData): Promise<void> {
+export async function whatsappUmschalten(formData: FormData): Promise<void> {
   const ich = await angemeldeterBenutzer();
   if (!ich || !darfBenutzerVerwalten(ich.rolle)) redirect("/");
-  await einwilligungSetzen(String(formData.get("id") ?? ""), false);
+  const an = String(formData.get("an") ?? "") === "ja";
+  await einwilligungSetzen(String(formData.get("id") ?? ""), an);
   revalidatePath("/einstellungen/handynummern");
-  redirect(ziel("Einwilligung zurückgenommen. Es gehen keine WhatsApp-Nachrichten mehr hinaus."));
+  redirect(
+    ziel(an ? "Bekommt wieder Nachrichten per WhatsApp." : "Ausgenommen. Es bleibt bei der Mail."),
+  );
 }

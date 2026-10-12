@@ -3,7 +3,7 @@ import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung"
 import { erreichbarkeiten } from "@/lib/personal/handy";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
-import { einwilligungZurueck, handySpeichern } from "./aktionen";
+import { handySpeichern, whatsappUmschalten } from "./aktionen";
 
 export const metadata = { title: "Handynummern | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -15,9 +15,9 @@ export const dynamic = "force-dynamic";
  * der Pause im Foyer. Bisher stand keine einzige Nummer im Programm,
  * auch nicht in den Personalbögen (Florian, 12.10.2026).
  *
- * Zwei Dinge gehören dazu, und sie werden hier bewusst getrennt
- * gezeigt: die Nummer, die du nachtragen darfst, und die Einwilligung,
- * die nur die Person selbst geben kann.
+ * Die Grundlage steht im Arbeitsvertrag, deshalb wird hier nur noch die
+ * Nummer gepflegt. Der Schalter daneben ist die Ausnahme: für alte
+ * Verträge und für den Fall, dass jemand mit gutem Grund widerspricht.
  */
 export default async function HandynummernSeite({
   searchParams,
@@ -36,9 +36,9 @@ export default async function HandynummernSeite({
         <h1 className="text-2xl font-semibold tracking-tight">Handynummern</h1>
         <p className="mt-1 max-w-prose text-sm text-leise">
           Für kurze Dienstnachrichten per WhatsApp, zum Beispiel den Hinweis nach der Pause im Foyer.
-          Die Nummer kannst du hier nachtragen. Das Ja dazu gibt jede Person selbst im Eventmanager,
-          und sie kann es jederzeit wieder zurücknehmen. Ohne Ja geht nichts hinaus, dann bleibt es
-          bei der Mail.
+          Dass die Abstimmung auch über WhatsApp läuft, steht im Arbeitsvertrag; hier pflegst du nur
+          die Nummern. Wer keine hinterlegt hat, bekommt dieselben Hinweise per Mail. Mit dem
+          Schalter rechts kannst du einzelne Leute ausnehmen, etwa bei einem alten Vertrag.
         </p>
       </header>
 
@@ -74,29 +74,26 @@ export default async function HandynummernSeite({
               <Absendeknopf text="Speichern" laeuftText="..." />
             </form>
 
-            {/*
-              Der Stand der Einwilligung. Geben kann sie nur die Person
-              selbst, hier steht nur, woran wir sind.
-            */}
-            <div className="min-w-40 text-xs">
-              {p.whatsappOk === true ? (
-                <span style={{ color: "var(--gut)" }}>
-                  hat zugestimmt{p.gefragtAm ? `, ${vorZeit(p.gefragtAm)}` : ""}
-                </span>
-              ) : p.whatsappOk === false ? (
-                <span className="text-leise">möchte lieber Mail</span>
-              ) : (
-                <span style={{ color: "var(--warnung)" }}>noch nicht gefragt</span>
+            {/* Ohne Eintrag gilt der Vertrag, also WhatsApp. */}
+            <form action={whatsappUmschalten} className="min-w-32 text-xs">
+              <input type="hidden" name="id" value={p.benutzerId} />
+              <input type="hidden" name="an" value={p.whatsappOk === false ? "ja" : "nein"} />
+              <button
+                type="submit"
+                className="rounded px-2 py-0.5"
+                style={
+                  p.whatsappOk === false
+                    ? { background: "var(--hintergrund)", color: "var(--text-leise)" }
+                    : { background: "var(--gut-hell)", color: "var(--gut)" }
+                }
+                title={p.whatsappOk === false ? "Wieder aufnehmen" : "Von WhatsApp ausnehmen"}
+              >
+                {p.whatsappOk === false ? "nur Mail" : "per WhatsApp"}
+              </button>
+              {p.whatsappOk === false && p.gefragtAm && (
+                <span className="ml-1 text-leise">seit {vorZeit(p.gefragtAm)}</span>
               )}
-              {p.whatsappOk === true && (
-                <form action={einwilligungZurueck} className="mt-1">
-                  <input type="hidden" name="id" value={p.benutzerId} />
-                  <button type="submit" className="text-xs text-leise underline">
-                    zurücknehmen
-                  </button>
-                </form>
-              )}
-            </div>
+            </form>
           </li>
         ))}
       </ul>

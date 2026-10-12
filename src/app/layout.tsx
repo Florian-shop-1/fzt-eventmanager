@@ -12,8 +12,6 @@ import { ChecklistenErinnerung } from "@/components/ChecklistenErinnerung";
 import { offeneChecklisten } from "@/lib/showcheck/erinnerung";
 import { GeschenkErinnerung } from "@/components/GeschenkErinnerung";
 import { geschenkeHeute } from "@/lib/abbrecher/geschenk-erinnerung";
-import { WhatsAppEinwilligung } from "@/components/WhatsAppEinwilligung";
-import { db as datenbank } from "@/lib/db/client";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
@@ -534,22 +532,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       ? await geschenkeHeute().catch(() => null)
       : null;
 
-  /*
-    Die Frage nach der Einwilligung in WhatsApp-Dienstnachrichten.
-
-    Nur bei denen, die solche Nachrichten bekommen sollen, und nur,
-    solange sie noch nicht geantwortet haben. Sie versperrt nichts:
-    "sie könnten es anklicken" (Florian, 12.10.2026), und ein Ja, ohne
-    das man nicht arbeiten kann, waere keine freiwillige Einwilligung.
-  */
-  const einwilligung =
-    benutzer && !offen && !benutzer.geteilt && ["foyer", "showteam"].includes(benutzer.rolle)
-      ? (((await datenbank()`
-          select handy, whatsapp_ok from benutzer where id = ${benutzer.id}::uuid
-        `.catch(() => [])) as Array<{ handy: string; whatsapp_ok: boolean | null }>)[0] ?? null)
-      : null;
-  const fragtNachWhatsApp = einwilligung !== null && einwilligung.whatsapp_ok === null;
-
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
     benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
@@ -661,7 +643,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             offen ? "w-full flex-1" : "mx-auto w-full max-w-6xl flex-1 px-6 py-8"
           }
         >
-          {fragtNachWhatsApp && <WhatsAppEinwilligung handy={einwilligung?.handy ?? ""} />}
           {children}
         </main>
 
