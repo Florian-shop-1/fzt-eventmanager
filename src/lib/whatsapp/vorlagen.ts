@@ -34,9 +34,18 @@ export const PAUSE_VORLAGE: Vorlage = {
   name: "pause_vorbei_foyer",
   sprache: "de",
   kategorie: "UTILITY",
+  /*
+    Der Grund steht im ersten Satz, nicht die Regel.
+
+    "es muss klarer formuliert sein, zum Beispiel: Nach der Show-Pause
+    bleibt bei uns nur ein Mitarbeiter, da es nach der Show keinen
+    Verkauf gibt" (Florian, 12.10.2026). Wer versteht, warum, muss sich
+    nicht fragen, ob er gerade etwas falsch gemacht hat.
+  */
   text:
-    "Hallo {{1}}, die Pause ist vorbei. Im Foyer bleibt heute {{2}}. "
-    + "Du bist noch eingestempelt. Wenn du Feierabend hast, stempel bitte aus. "
+    "Hallo {{1}}, nach der Show-Pause bleibt bei uns nur noch ein Mitarbeiter im Foyer, "
+    + "weil danach kein Verkauf mehr läuft. Heute ist das {{2}}. "
+    + "Du bist noch eingestempelt: Wenn du fertig bist, stempel bitte aus. "
     + "Bleibst du länger, schreib unten kurz, warum, dann können wir die Zeit genehmigen. "
     + "Danke dir und schönen Feierabend!",
   beispiel: ["Veronica", "Olena"],

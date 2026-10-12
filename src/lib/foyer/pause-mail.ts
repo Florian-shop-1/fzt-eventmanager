@@ -74,12 +74,13 @@ export async function nachPauseMahnen(): Promise<Mahnung[]> {
     const vorname = p.name.split(" ")[0];
     const link = `${appUrl()}/stempeluhr`;
     const absaetze = [
-      "du bist nach der Pause noch eingestempelt. Das ist kein Vorwurf, wir wollen nur, dass du es weißt: "
-        + "Nach der Pause bleibt im Foyer normalerweise nur eine Person, und diese Zeit ist im Dienstplan nicht vorgesehen.",
-      bleibt ? `Für heute Abend wäre das ${bleibt.name}.` : "",
-      "Wenn du einen Grund hast, warum du länger bleibst, schreib ihn uns kurz. "
-        + "Bezahlt wird die Zeit, wenn sie begründet und nachträglich genehmigt ist, und das machen wir gern, "
-        + "wenn wir wissen, worum es ging.",
+      "nach der Show-Pause bleibt bei uns nur noch ein Mitarbeiter im Foyer, weil danach kein Verkauf "
+        + "mehr läuft. Diese Zeit ist im Dienstplan deshalb nur für eine Person vorgesehen.",
+      bleibt ? `Heute Abend ist das ${bleibt.name}.` : "",
+      "Du bist noch eingestempelt. Das ist kein Vorwurf, wir wollen nur, dass du es weißt: Wenn du fertig "
+        + "bist, stempel bitte aus.",
+      "Bleibst du länger, schreib uns kurz, warum. Bezahlt wird die Zeit, wenn sie begründet und "
+        + "nachträglich genehmigt ist, und das machen wir gern, wenn wir wissen, worum es ging.",
       "Und wenn dir am Ablauf etwas auffällt, das uns den Abend leichter macht: immer her damit.",
     ].filter(Boolean);
 
