@@ -145,6 +145,18 @@ export default async function GeschenkeSeite({
               <span className="mb-1 block text-xs text-leise">Warum (nur intern)</span>
               <input name="notiz" className="w-64" />
             </label>
+            {/*
+              Am geteilten Foyer-Zugang weiss sonst niemand, wer das
+              Geschenk zugesagt hat: "wenn sie es vom eigenen account
+              machen, dann sind sie ja identifiziert" (Florian,
+              12.10.2026).
+            */}
+            {b.geteilt && (
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Wer trägt es ein?</span>
+                <input name="wer" required minLength={2} maxLength={60} placeholder="dein Name" className="w-44" />
+              </label>
+            )}
             <Absendeknopf text="Eintragen" laeuftText="..." />
           </form>
         </details>
@@ -261,9 +273,12 @@ export default async function GeschenkeSeite({
                   <input type="hidden" name="id" value={g.id} />
                   <label className="block">
                     <span className="sr-only">Wer gibt es aus?</span>
+                    {/* Am geteilten Zugang ist der vorbelegte Name
+                        keiner, deshalb dort leer und Pflicht. */}
                     <input
                       name="wer"
-                      defaultValue={b.name}
+                      defaultValue={b.geteilt ? "" : b.name}
+                      required={b.geteilt}
                       placeholder="dein Name"
                       maxLength={60}
                       className="w-32 text-sm"

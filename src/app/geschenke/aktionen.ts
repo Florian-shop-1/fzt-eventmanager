@@ -23,7 +23,12 @@ export async function ausgegeben(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
   if (!b) throw new Error("Nicht angemeldet.");
   const wer = String(f.get("wer") ?? "").trim().slice(0, 60);
-  await geschenkEinloesen(String(f.get("id") ?? ""), wer || b.name);
+  // Am geteilten Zugang sagt "Foyer" nicht, wer es ausgegeben hat.
+  if (b.geteilt && wer.length < 2) throw new Error("Bitte den eigenen Namen eintragen.");
+  await geschenkEinloesen(
+    String(f.get("id") ?? ""),
+    b.geteilt ? `${wer} (Foyer-Zugang)` : wer || b.name,
+  );
   revalidatePath("/geschenke");
 }
 
@@ -42,6 +47,18 @@ export async function vonHandEintragen(f: FormData): Promise<void> {
 
   const text = (k: string) => String(f.get(k) ?? "").trim();
   const art = text("art") as GeschenkArt;
+
+  /*
+    Am geteilten Foyer-Zugang gehoert der Eintrag niemandem.
+
+    Deshalb traegt dort jeder seinen Namen dazu. Wer mit dem eigenen
+    Zugang arbeitet, ist ohnehin erkannt (Florian, 12.10.2026).
+  */
+  const eigenerName = text("wer").slice(0, 60);
+  if (b!.geteilt && eigenerName.length < 2) {
+    redirect(`/geschenke?meldung=${encodeURIComponent("Bitte dazuschreiben, wer es einträgt.")}`);
+  }
+  const erfasstVon = b!.geteilt ? `${eigenerName} (Foyer-Zugang)` : b!.name;
   if (!["baendchen", "glas", "zauberstab", "getraenk", "popcorn", "sonstiges"].includes(art)) {
     throw new Error("Bitte ein Geschenk auswaehlen.");
   }
@@ -57,7 +74,7 @@ export async function vonHandEintragen(f: FormData): Promise<void> {
       datum: text("datum"),
       uhrzeit: text("uhrzeit"),
       notiz: text("notiz"),
-      erfasstVon: b!.name,
+      erfasstVon,
     });
   } catch (fehler) {
     const meldung = fehler instanceof Error ? fehler.message : "Das hat nicht geklappt.";
