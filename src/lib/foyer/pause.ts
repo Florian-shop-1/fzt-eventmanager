@@ -146,7 +146,7 @@ export interface NachDerPause {
   /** Wann die Pause zu Ende war. */
   seit: string;
   /** Wer vom Foyer gerade noch eingestempelt ist. */
-  leute: Array<{ benutzerId: string; name: string; minuten: number }>;
+  leute: Array<{ benutzerId: string; name: string; email: string; fest: boolean; minuten: number }>;
   /** Wer nach unserer Regel bleiben sollte. */
   bleibt: string | null;
   /** Wer gehen könnte, mit der längsten Zeit auf der Uhr. */
@@ -165,7 +165,7 @@ export async function nachDerPause(datum = heuteBerlin()): Promise<NachDerPause 
   if (!seit) return null;
 
   const z = (await db()`
-    select b.id, b.name,
+    select b.id, b.name, b.email, b.fest,
            extract(epoch from now() - k.zeitpunkt) / 60 as minuten
       from benutzer b
       join lateral (
@@ -177,11 +177,13 @@ export async function nachDerPause(datum = heuteBerlin()): Promise<NachDerPause 
          where s.benutzer_id = b.id and s.art = 'kommen' order by s.zeitpunkt desc limit 1
       ) k on true
      where b.rolle = 'foyer' and b.aktiv and not b.geteilt and letzter.art <> 'gehen'
-  `.catch(() => [])) as Array<{ id: string; name: string; minuten: number }>;
+  `.catch(() => [])) as Array<{ id: string; name: string; email: string; fest: boolean; minuten: number }>;
 
   const leute = z.map((r) => ({
     benutzerId: String(r.id),
     name: String(r.name),
+    email: String(r.email ?? ""),
+    fest: Boolean(r.fest),
     minuten: Math.max(0, Math.round(Number(r.minuten))),
   }));
 

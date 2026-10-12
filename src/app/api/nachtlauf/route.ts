@@ -15,6 +15,7 @@ import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
 import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
 import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
+import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -132,6 +133,16 @@ const MORGEN: Teil[] = [
   },
 ];
 
+/*
+  Der Viertelstundenlauf am Abend.
+
+  Einziger Teil: die Mail an die Aushilfe, die nach der Pause noch
+  eingestempelt ist. Die Pause endet nicht zu einer festen Uhrzeit,
+  deshalb muss oft genug nachgesehen werden; geschrieben wird je Abend
+  und Person trotzdem nur einmal.
+*/
+const PAUSE: Teil[] = [{ name: "nach_pause", tun: () => nachPauseMahnen() }];
+
 export async function GET(request: Request) {
   const geheimnis = process.env.CRON_SECRET;
   const vonDerUhr = geheimnis && request.headers.get("authorization") === `Bearer ${geheimnis}`;
@@ -143,8 +154,21 @@ export async function GET(request: Request) {
 
   const gewuenscht = new URL(request.url).searchParams.get("teil");
   const welcher =
-    gewuenscht === "nacht" ? "nacht" : gewuenscht === "parkplaetze" ? "parkplaetze" : "morgen";
-  const teile = welcher === "nacht" ? NACHT : welcher === "parkplaetze" ? PARKPLAETZE : MORGEN;
+    gewuenscht === "nacht"
+      ? "nacht"
+      : gewuenscht === "parkplaetze"
+        ? "parkplaetze"
+        : gewuenscht === "pause"
+          ? "pause"
+          : "morgen";
+  const teile =
+    welcher === "nacht"
+      ? NACHT
+      : welcher === "parkplaetze"
+        ? PARKPLAETZE
+        : welcher === "pause"
+          ? PAUSE
+          : MORGEN;
 
   const ergebnis: Record<string, unknown> = {};
   const fehler: string[] = [];

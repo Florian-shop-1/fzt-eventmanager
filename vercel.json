@@ -18,6 +18,10 @@
     {
       "path": "/api/nachtlauf?teil=parkplaetze",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/nachtlauf?teil=pause",
+      "schedule": "*/15 13-23 * * *"
     }
   ]
 }
