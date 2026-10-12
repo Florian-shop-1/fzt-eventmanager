@@ -6,7 +6,7 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { ausgegeben, dochNicht, vonHandEintragen } from "./aktionen";
 
-export const metadata = { title: "Abbrecher-Geschenke | FZT Eventmanager" };
+export const metadata = { title: "Geschenke | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
 
 /**

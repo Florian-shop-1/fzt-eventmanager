@@ -191,7 +191,7 @@ export async function alternativeGewaehltMelden(o: {
     `Plätze: ${o.plaetze}`,
     o.kompensationArt === "upgrade"
       ? `Bitte beim Umbuchen auf ${o.neueKategorie} upgraden (bisher ${o.alteKategorie}), ohne Aufpreis.`
-      : `Bitte in der bisherigen Kategorie (${o.alteKategorie}) umbuchen. Entschädigung: ${o.plaetze === 1 ? "ein Souvenirglas" : `${o.plaetze} Souvenirgläser`} (steht schon unter Abbrecher-Geschenke).`,
+      : `Bitte in der bisherigen Kategorie (${o.alteKategorie}) umbuchen. Entschädigung: ${o.plaetze === 1 ? "ein Souvenirglas" : `${o.plaetze} Souvenirgläser`} (steht schon unter Geschenke).`,
     "",
     "Das muss von Hand in Ditix umgebucht werden, eine direkte Anbindung gibt es nicht.",
     "",

@@ -158,7 +158,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
       { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
       { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
-      { href: "/geschenke", label: "Abbrecher-Geschenke", rollen: ["chef", "team", "foyer"] },
+      { href: "/geschenke", label: "Geschenke", rollen: ["chef", "team", "foyer"] },
       // Dieselbe Seite, nur der Foyer-Teil (Florian, 05.10.2026).
       { href: "/tipps?bereich=foyer", label: "Tipps & Tricks", rollen: ["chef", "team", "foyer"] },
     ],
