@@ -14,6 +14,8 @@ import {
   type Punkt,
 } from "@/lib/showcheck/db";
 import { namenImDienst } from "@/lib/showcheck/namen";
+import Link from "next/link";
+import { geschenkeAmTag, type Geschenkstand } from "@/lib/abbrecher/geschenk-erinnerung";
 import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "@/app/showcheck/aktionen";
 
 export const metadata = { title: "Foyer-Check | FZT Eventmanager" };
@@ -55,6 +57,21 @@ export default async function FoyerCheckSeite({
 
   const tag = termine.find((t) => t.ditixEventId === gewaehlt) ?? null;
   const punkte = gewaehlt ? await checkliste(gewaehlt, "foyer") : [];
+
+  /*
+    Die Geschenke an der Magic-Bar, als Punkt in der Liste.
+
+    "bitte in der foyer checkliste einen punkt auftauchen lassen, heute
+    gibts geschenke, dann den link dahinter direkt in geschenke, dort
+    wird dann abgehakt" (Florian, 12.10.2026).
+
+    Deshalb kein Punkt in der Datenbank: Er steht nur an den Abenden da,
+    an denen wirklich etwas bereitliegt, und sein Haken kommt von der
+    Geschenkeliste selbst. Zweimal abhaken waere zweimal dieselbe
+    Arbeit, und die zweite macht dann keiner.
+  */
+  const geschenkstand: Geschenkstand | null = tag ? await geschenkeAmTag(tag.datum) : null;
+
   const vorschlaege = b.rolle === "chef" ? await offeneVorschlaege("foyer") : [];
 
   /*
@@ -188,6 +205,9 @@ export default async function FoyerCheckSeite({
               pausenUhrzeit={danach?.uhrzeit ?? null}
               nameNoetig={b.geteilt}
               namen={namen}
+              // Die Geschenke gehoeren zum Einlass: Dann stehen die
+              // Gaeste an der Bar und fragen danach.
+              geschenke={bereich === "foyer_einlass" ? geschenkstand : null}
             />
           ))}
 
@@ -215,6 +235,7 @@ function Abschnitt({
   pausenUhrzeit,
   nameNoetig,
   namen,
+  geschenke,
 }: {
   bereich: Bereich;
   punkte: Punkt[];
@@ -227,14 +248,64 @@ function Abschnitt({
   pausenUhrzeit: string | null;
   nameNoetig: boolean;
   namen: string[];
+  /** Was heute an der Magic-Bar bereitliegt, oder nichts. */
+  geschenke: Geschenkstand | null;
 }) {
-  if (punkte.length === 0 && !chef) return null;
+  if (punkte.length === 0 && !chef && !geschenke) return null;
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-leise">
         {abschnittTitel(bereich, showUhrzeit, pausenUhrzeit)}
       </h2>
+
+      {/*
+        Der Geschenkepunkt. Abgehakt wird er nicht hier, sondern auf der
+        Geschenkeliste, wenn der Gast seines bekommen hat. Deshalb kein
+        Kaestchen zum Tippen, sondern der Haken als Anzeige und ein
+        Knopf, der direkt dorthin fuehrt.
+      */}
+      {geschenke && (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2 text-sm"
+          style={{
+            borderColor: geschenke.offeneGaeste === 0 ? "var(--gut)" : "var(--gold)",
+            background: geschenke.offeneGaeste === 0 ? "var(--gut-hell)" : "var(--gold-hell)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border text-base"
+            style={{
+              borderColor: geschenke.offeneGaeste === 0 ? "var(--gut)" : "var(--linie)",
+              color: "var(--gut)",
+            }}
+          >
+            {geschenke.offeneGaeste === 0 ? "✓" : ""}
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong>Heute gibt es Geschenke.</strong>{" "}
+            {geschenke.offeneGaeste === 0 ? (
+              <>Alle {geschenke.gaeste === 1 ? "ein Gast hat seines" : `${geschenke.gaeste} Gäste haben ihre`} bekommen.</>
+            ) : (
+              <>
+                {geschenke.offeneGaeste === 1 ? "Ein Gast" : `${geschenke.offeneGaeste} Gäste`} holen sich an
+                der Magic-Bar etwas ab
+                {geschenke.offeneStueck !== geschenke.offeneGaeste
+                  ? `, zusammen ${geschenke.offeneStueck} Stück`
+                  : ""}
+                . Abgehakt wird in der Geschenkeliste, sobald es ausgegeben ist.
+              </>
+            )}
+          </span>
+          <Link
+            href="/geschenke"
+            className="whitespace-nowrap rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm print:hidden"
+          >
+            Zur Geschenkeliste
+          </Link>
+        </div>
+      )}
 
       <ShowcheckListe
         abend={abend}

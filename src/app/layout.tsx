@@ -692,8 +692,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {benutzer && !hasenpost && geschenkstand && (
           <GeschenkErinnerung
             vorname={benutzer.name.split(" ")[0]}
-            gaeste={geschenkstand.gaeste}
-            stueck={geschenkstand.stueck}
+            gaeste={geschenkstand.offeneGaeste}
+            stueck={geschenkstand.offeneStueck}
           />
         )}
 
