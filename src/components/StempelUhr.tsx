@@ -71,6 +71,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   const [grundFuer, setGrundFuer] = useState<string | null>(null);
   // Die Putzfirma sagt beim Einstempeln, wie viele Leute da sind.
   const [personenFuer, setPersonenFuer] = useState<string | null>(null);
+  // Heute schon ausgestempelt: Wirklich noch einmal anfangen?
+  const [nochmalFrage, setNochmalFrage] = useState<string | null>(null);
   // Nach der Pause noch da: Warum?
   const [nachPause, setNachPause] = useState<{
     seit: string;
@@ -240,7 +242,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
     }
   }
 
-  async function stempeln(art: string) {
+  async function stempeln(art: string, nochmal = false) {
     setLaeuft(true);
     setFehler("");
     setMeldung("");
@@ -252,6 +254,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           art,
+          nochmal,
           lat: p?.coords.latitude,
           lon: p?.coords.longitude,
           genauigkeit: p?.coords.accuracy,
@@ -260,6 +263,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       const e = (await antwort.json()) as {
         ok: boolean;
         fehler?: string;
+        rueckfrage?: "schon_ausgestempelt";
         sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
         entfernung?: number;
@@ -274,10 +278,16 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         standortHinweisArt?: "unklar" | "verlassen" | null;
       };
       if (!e.ok) {
+        // Rueckfrage statt Fehler: Der Stempel kommt erst nach dem Ja.
+        if (e.rueckfrage === "schon_ausgestempelt") {
+          setNochmalFrage(e.fehler ?? "Du warst heute schon ausgestempelt. Noch einmal anfangen?");
+          return;
+        }
         setFehler(e.fehler ?? "Das hat nicht geklappt.");
         if (e.sperre) setSperre(e.sperre);
         return;
       }
+      setNochmalFrage(null);
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
       if (e.parkplatz) setParkplatz(e.parkplatz);
@@ -545,6 +555,36 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         Plaetze gebucht sind. Alles andere waere eine Erinnerung, die man
         nach drei Abenden wegklickt, ohne sie zu lesen.
       */}
+      {nochmalFrage && (
+        <div
+          className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <p>{nochmalFrage}</p>
+          <p className="text-xs">
+            Wolltest du eigentlich ausstempeln? Dann ist alles in Ordnung, dein Feierabend ist schon
+            gespeichert. Tipp einfach auf &bdquo;Alles gut&ldquo;.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setNochmalFrage(null)}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white"
+            >
+              Alles gut, ich bin fertig
+            </button>
+            <button
+              type="button"
+              disabled={laeuft}
+              onClick={() => void stempeln("kommen", true)}
+              className="rounded-md border border-linie px-4 py-2 text-sm"
+            >
+              Doch noch einmal anfangen
+            </button>
+          </div>
+        </div>
+      )}
+
       {nachPause && <NachPauseFrage stand={nachPause} onSenden={nachPauseAntwort} />}
 
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}

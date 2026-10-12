@@ -25,6 +25,7 @@ import {
   type StempelArt,
 } from "@/lib/stempel/db";
 import { melden } from "@/lib/stempel/wache";
+import { zeitpunktAusBerlin } from "@/lib/zeit";
 import { sollzeitEntfernen, sollzeitSpeichern } from "@/lib/lohn/konto";
 
 const text = (f: FormData, k: string, max = 1000) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -153,7 +154,7 @@ export async function nachmeldungSenden(f: FormData): Promise<void> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tag)) zurueck("Bitte einen Tag auswählen.", "#nachmelden");
 
   const gehenUhrzeit = text(f, "gehen", 5);
-  const gehen = zeitpunktAus(tag, gehenUhrzeit);
+  const gehen = zeitpunktAusBerlin(tag, gehenUhrzeit);
   if (!gehen) zurueck("Die Uhrzeit fürs Gehen sieht nicht richtig aus (zum Beispiel 21:30).", "#nachmelden");
 
   // Eine Pause zählt nur, wenn Anfang und Ende beide dastehen. Nur eine
@@ -161,8 +162,8 @@ export async function nachmeldungSenden(f: FormData): Promise<void> {
   const pauseVonUhrzeit = text(f, "pauseVon", 5);
   const pauseBisUhrzeit = text(f, "pauseBis", 5);
   const pauseVollstaendig = Boolean(pauseVonUhrzeit && pauseBisUhrzeit);
-  const pauseVon = pauseVollstaendig ? zeitpunktAus(tag, pauseVonUhrzeit) : null;
-  const pauseBis = pauseVollstaendig ? zeitpunktAus(tag, pauseBisUhrzeit) : null;
+  const pauseVon = pauseVollstaendig ? zeitpunktAusBerlin(tag, pauseVonUhrzeit) : null;
+  const pauseBis = pauseVollstaendig ? zeitpunktAusBerlin(tag, pauseBisUhrzeit) : null;
 
   const notiz = text(f, "text");
   const zusammenfassung = [
@@ -256,21 +257,6 @@ export async function antragUebernehmenAktion(f: FormData): Promise<void> {
   zurueck("Übernommen und eingetragen.", "#antraege");
 }
 
-function zeitpunktAus(tag: string, uhrzeit: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || !/^\d{1,2}:\d{2}$/.test(uhrzeit)) return null;
-  // Über die Datenbank in die richtige Zeitzone bringen wäre sauberer, aber
-  // Deutschland hat nur zwei Abstände zur Weltzeit. Den nimmt der Browser-
-  // unabhängige Weg über Intl heraus.
-  const [j, m, t] = tag.split("-").map(Number);
-  const [h, min] = uhrzeit.split(":").map(Number);
-  const roh = Date.UTC(j, m - 1, t, h, min);
-  // Abstand zur Weltzeit an diesem Tag bestimmen (1 oder 2 Stunden).
-  const probe = new Date(roh);
-  const berlin = new Date(probe.toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
-  const utc = new Date(probe.toLocaleString("en-US", { timeZone: "UTC" }));
-  return new Date(roh - (berlin.getTime() - utc.getTime())).toISOString();
-}
-
 export async function zeitKorrigieren(f: FormData): Promise<void> {
   const b = await verlangeBuero();
   const id = text(f, "id", 40);
@@ -282,7 +268,7 @@ export async function zeitKorrigieren(f: FormData): Promise<void> {
     und neu anlegen; so schiebt er den Stempel einfach hinueber.
   */
   const zielTag = text(f, "neuerTag", 10) || text(f, "tag", 10);
-  const zeitpunkt = zeitpunktAus(zielTag, text(f, "uhrzeit", 5));
+  const zeitpunkt = zeitpunktAusBerlin(zielTag, text(f, "uhrzeit", 5));
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur");
   await zeitAendern(id, zeitpunkt, b.name, text(f, "grund", 200));
   zurueck("Zeit geändert.", "#korrektur", f);
@@ -373,7 +359,7 @@ export async function stempelNachtragen(f: FormData): Promise<void> {
   const b = await verlangeBuero();
   const benutzerId = text(f, "benutzerId", 40);
   const art = text(f, "art", 20) as StempelArt;
-  const zeitpunkt = zeitpunktAus(text(f, "tag", 10), text(f, "uhrzeit", 5));
+  const zeitpunkt = zeitpunktAusBerlin(text(f, "tag", 10), text(f, "uhrzeit", 5));
   if (!["kommen", "pause_start", "pause_ende", "gehen"].includes(art)) zurueck("Unbekannte Art.", "#korrektur", f);
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur", f);
   await nachtragen({ benutzerId, art, zeitpunkt, von: b.name, grund: text(f, "grund", 200) });

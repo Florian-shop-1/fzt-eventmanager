@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   const daten = (await request.json().catch(() => null)) as
-    | { art?: string; lat?: number; lon?: number; genauigkeit?: number }
+    | { art?: string; lat?: number; lon?: number; genauigkeit?: number; nochmal?: boolean }
     | null;
   const art = daten?.art as StempelArt;
   if (!ERLAUBT.includes(art)) return NextResponse.json({ ok: false, fehler: "Unbekannter Stempel." }, { status: 400 });
@@ -59,6 +59,45 @@ export async function POST(request: Request) {
   };
   if (!erlaubtJetzt[stand.zustand].includes(art)) {
     return NextResponse.json({ ok: false, fehler: "Das passt gerade nicht. Bitte die Seite neu laden." }, { status: 409 });
+  }
+
+  /*
+    Schon einmal gestempelt und wieder einstempeln?
+
+    Olena hatte am 11.10. um 18:44 ausgestempelt und zehn Minuten
+    später noch einmal gedrückt, weil sie nicht sicher war, ob es
+    geklappt hatte. Damit war sie wieder eingestempelt, und die Schicht
+    lief bis zum nächsten Morgen (Florian, 12.10.2026).
+
+    Deshalb hier eine Rückfrage statt eines stillen Stempels: Wer heute
+    schon eine abgeschlossene Schicht hat, wird gefragt, ob er wirklich
+    neu anfängt. Erst die Antwort stempelt.
+  */
+  if (art === "kommen" && !daten?.nochmal) {
+    const hatteSchicht =
+      stand.stempelHeute.some((x) => x.art === "kommen") &&
+      stand.stempelHeute.some((x) => x.art === "gehen");
+    if (hatteSchicht) {
+      const letztesGehen = [...stand.stempelHeute].reverse().find((x) => x.art === "gehen");
+      const uhr = letztesGehen
+        ? new Date(letztesGehen.zeitpunkt).toLocaleTimeString("de-DE", {
+            timeZone: "Europe/Berlin",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "";
+      return NextResponse.json(
+        {
+          ok: false,
+          rueckfrage: "schon_ausgestempelt",
+          fehler: uhr
+            ? `Du hast dich heute um ${uhr} Uhr schon ausgestempelt. Willst du wirklich noch einmal anfangen?`
+            : "Du warst heute schon ausgestempelt. Willst du wirklich noch einmal anfangen?",
+          stunden: stunden(stand.minutenHeute),
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const hatOrt = typeof daten?.lat === "number" && typeof daten?.lon === "number";
