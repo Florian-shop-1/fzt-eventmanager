@@ -190,12 +190,27 @@ export async function passwortZuruecksetzen(benutzerId: string): Promise<Benutze
 }
 
 /** Schaltet einen Zugang ab oder wieder frei. */
-export async function benutzerUmschalten(benutzerId: string): Promise<void> {
+export async function benutzerUmschalten(benutzerId: string, formData?: FormData): Promise<void> {
   const ich = await angemeldeterBenutzer();
   if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
   if (ich.id === benutzerId) return; // sich selbst nicht aussperren
 
-  await db()`update benutzer set aktiv = not aktiv where id = ${benutzerId}`;
+  /*
+    Beim Sperren kann ein Grund dabeistehen.
+
+    Ein gesperrter Zugang allein sagt nichts: Ein Jahr spaeter weiss
+    niemand mehr, ob jemand gekuendigt hat, nie angefangen hat oder nur
+    versehentlich gesperrt wurde (Florian, 12.10.2026). Wer wieder
+    freigegeben wird, verliert den Eintrag.
+  */
+  const grund = String(formData?.get("grund") ?? "").trim().slice(0, 300);
+  await db()`
+    update benutzer
+       set aktiv = not aktiv,
+           ausgeschieden_am = case when aktiv then now() else null end,
+           ausscheiden_grund = case when aktiv then ${grund} else '' end
+     where id = ${benutzerId}
+  `;
   revalidatePath("/einstellungen/benutzer");
 }
 

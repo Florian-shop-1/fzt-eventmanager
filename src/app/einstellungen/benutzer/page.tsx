@@ -40,6 +40,8 @@ interface Zeile {
   art: "intern" | "extern" | null;
   personalbogen_am: string | null;
   benutzername: string | null;
+  ausgeschieden_am: string | null;
+  ausscheiden_grund: string;
 }
 
 export default async function BenutzerSeite() {
@@ -48,7 +50,8 @@ export default async function BenutzerSeite() {
 
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
-           startpasswort, whatsapp, art, personalbogen_am, benutzername
+           startpasswort, whatsapp, art, personalbogen_am, benutzername,
+           ausgeschieden_am, ausscheiden_grund
       from benutzer order by rolle
   `) as Zeile[];
   /*
@@ -302,6 +305,14 @@ export default async function BenutzerSeite() {
                     >
                       {b.aktiv ? "aktiv" : "gesperrt"}
                     </span>
+                    {!b.aktiv && b.ausscheiden_grund && (
+                      <span className="text-xs text-leise" title={b.ausscheiden_grund}>
+                        {b.ausgeschieden_am
+                          ? `seit ${new Date(b.ausgeschieden_am).toLocaleDateString("de-DE")}: `
+                          : ""}
+                        {b.ausscheiden_grund}
+                      </span>
+                    )}
                     {b.muss_passwort_aendern && b.startpasswort && (
                       <span
                         className="select-all rounded px-1.5 py-0.5 font-mono text-xs"
@@ -320,7 +331,16 @@ export default async function BenutzerSeite() {
                       <span className="text-xs text-leise">eigenes Passwort</span>
                     )}
                     {b.id !== ich.id && (
-                      <form action={benutzerUmschalten.bind(null, b.id)}>
+                      <form action={benutzerUmschalten.bind(null, b.id)} className="flex items-center gap-1">
+                        {/* Beim Sperren darf dabeistehen, warum. */}
+                        {b.aktiv && (
+                          <input
+                            name="grund"
+                            placeholder="Grund, freiwillig"
+                            maxLength={300}
+                            className="w-36 text-xs"
+                          />
+                        )}
                         <button
                           type="submit"
                           className="text-xs text-leise underline hover:text-text"
