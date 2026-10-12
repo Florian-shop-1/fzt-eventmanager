@@ -56,3 +56,29 @@ export function zeitpunkt(datum: Date): string {
     timeStyle: "short",
   });
 }
+
+/**
+ * Tag und Uhrzeit unserer Zeitzone zu einem echten Zeitpunkt.
+ *
+ * "18:35 am 12.10." heißt 18:35 Uhr in Neu-Ulm, nicht in Greenwich. Auf
+ * dem Server bei Vercel läuft die Uhr nach Weltzeit, und `new
+ * Date("2026-10-12T18:35")` wird dort als 18:35 UTC gelesen, also 20:35
+ * bei uns. Genau so landete Olenas Feierabend zwei Stunden zu spät im
+ * Änderungswunsch (Florian, 12.10.2026: "wenn ich das bestätige, wird
+ * dann 18:35 oder 20:35 bestätigt?").
+ *
+ * Deutschland hat nur zwei Abstände zur Weltzeit. Welcher an diesem Tag
+ * gilt, holt Intl heraus, und das geht ohne zusätzliches Paket.
+ */
+export function zeitpunktAusBerlin(tag: string, uhrzeit: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || !/^\d{1,2}:\d{2}$/.test(uhrzeit)) return null;
+  const [j, m, t] = tag.split("-").map(Number);
+  const [h, min] = uhrzeit.split(":").map(Number);
+  if (h > 23 || min > 59) return null;
+
+  const roh = Date.UTC(j, m - 1, t, h, min);
+  const probe = new Date(roh);
+  const berlin = new Date(probe.toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
+  const welt = new Date(probe.toLocaleString("en-US", { timeZone: "UTC" }));
+  return new Date(roh - (berlin.getTime() - welt.getTime())).toISOString();
+}

@@ -3,6 +3,7 @@ import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { antragStellen, letzteStempel } from "@/lib/stempel/db";
 import { wegPruefen } from "@/lib/stempel/plausibel";
 import { melden } from "@/lib/stempel/wache";
+import { zeitpunktAusBerlin } from "@/lib/zeit";
 
 /**
  * "Wann hast du die Arbeitszeit beendet?"
@@ -47,10 +48,19 @@ export async function POST(request: Request) {
   }
 
   /*
-    Die Uhrzeit gehört zu dem Tag, an dem gestempelt wurde. Nach
-    Mitternacht ausgestempelt und "23:40" angegeben heißt: der Tag davor.
+    Die Uhrzeit gehört zu dem Tag, an dem gestempelt wurde, und sie ist
+    unsere Uhrzeit, nicht die des Servers. Ohne diese Umrechnung stand
+    im Änderungswunsch 20:35, wo der Mitarbeiter 18:35 eingetippt hatte
+    (Florian, 12.10.2026).
+
+    Nach Mitternacht ausgestempelt und "23:40" angegeben heißt: der Tag
+    davor.
   */
-  const ende = new Date(`${tag}T${String(stunde).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`);
+  const roh = zeitpunktAusBerlin(tag, `${String(stunde).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+  if (!roh) {
+    return NextResponse.json({ ok: false, fehler: "Diese Uhrzeit gibt es nicht." }, { status: 400 });
+  }
+  const ende = new Date(roh);
   if (ende.getTime() > gestempelt.getTime() + 60 * 60 * 1000) ende.setDate(ende.getDate() - 1);
 
   const pruefung = wegPruefen({
