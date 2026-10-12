@@ -156,6 +156,88 @@ export async function kontoAnschliessen(): Promise<void> {
   }
 }
 
+export interface Vorlagenstand {
+  name: string;
+  sprache: string;
+  status: string;
+  kategorie: string;
+}
+
+/** Welche Vorlagen bei Meta liegen und wie weit die Prüfung ist. */
+export async function vorlagenLesen(): Promise<Vorlagenstand[]> {
+  const daten = await graph(
+    "GET",
+    `/${kontoId()}/message_templates?fields=name,status,language,category&limit=100`,
+  );
+  const liste = (daten.data as Array<Record<string, unknown>> | undefined) ?? [];
+  return liste.map((v) => ({
+    name: String(v.name ?? ""),
+    sprache: String(v.language ?? ""),
+    status: String(v.status ?? ""),
+    kategorie: String(v.category ?? ""),
+  }));
+}
+
+/**
+ * Eine Vorlage bei Meta einreichen.
+ *
+ * Ausserhalb der 24 Stunden nach der letzten Nachricht des Empfängers
+ * lässt WhatsApp nur genehmigte Vorlagen durch. Die Prüfung dauert
+ * üblicherweise ein bis zwei Tage, danach steht der Text fest: Ändern
+ * heisst neu einreichen.
+ */
+export async function vorlageAnlegen(v: {
+  name: string;
+  kategorie: "UTILITY" | "MARKETING" | "AUTHENTICATION";
+  sprache: string;
+  text: string;
+  /** Beispielwerte für {{1}}, {{2}}, ... Meta verlangt sie zur Prüfung. */
+  beispiel: string[];
+  fusszeile?: string;
+}): Promise<string> {
+  const daten = await graph("POST", `/${kontoId()}/message_templates`, {
+    name: v.name,
+    category: v.kategorie,
+    language: v.sprache,
+    parameter_format: "POSITIONAL",
+    components: [
+      {
+        type: "BODY",
+        text: v.text,
+        ...(v.beispiel.length > 0 ? { example: { body_text: [v.beispiel] } } : {}),
+      },
+      ...(v.fusszeile ? [{ type: "FOOTER", text: v.fusszeile }] : []),
+    ],
+  });
+  return String(daten.id ?? "");
+}
+
+/** Eine genehmigte Vorlage an eine Nummer schicken. */
+export async function vorlageSchicken(
+  an: string,
+  name: string,
+  sprache: string,
+  werte: string[],
+): Promise<string> {
+  if (!istNummer(an)) throw new WhatsAppFehler("Das ist keine Nummer, an die WhatsApp liefern kann.");
+  const { telefonId } = zugang();
+  const daten = await graph("POST", `/${telefonId}/messages`, {
+    messaging_product: "whatsapp",
+    to: an,
+    type: "template",
+    template: {
+      name,
+      language: { code: sprache },
+      components:
+        werte.length > 0
+          ? [{ type: "body", parameters: werte.map((t) => ({ type: "text", text: t })) }]
+          : [],
+    },
+  });
+  const nachrichten = (daten.messages as Array<{ id?: string }> | undefined) ?? [];
+  return String(nachrichten[0]?.id ?? "");
+}
+
 /**
  * Fragt bei Meta nach, ob Schlüssel und Nummer zusammenpassen.
  * Für den Prüfknopf in den Einstellungen.

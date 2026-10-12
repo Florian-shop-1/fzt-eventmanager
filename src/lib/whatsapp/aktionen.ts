@@ -22,8 +22,10 @@ import {
   kontoAnschliessen,
   textSchicken,
   verbindungPruefen,
+  vorlageAnlegen,
   WhatsAppFehler,
 } from "@/lib/whatsapp/senden";
+import { VORLAGEN } from "@/lib/whatsapp/vorlagen";
 import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
 import { merkeMailGesendet, naechsteBuchungZu } from "@/lib/db/shop-buchungen";
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
@@ -344,6 +346,39 @@ export async function verbindungTesten(): Promise<void> {
  * an den Webhook schickt. Ein Knopf statt eines Aufrufs von Hand: Der
  * Zugangsschlüssel liegt nur bei Vercel und soll dort bleiben.
  */
+/**
+ * Eine Vorlage bei Meta einreichen.
+ *
+ * Ausserhalb der 24 Stunden geht nur eine genehmigte Vorlage hinaus.
+ * Die Prüfung dauert üblicherweise ein bis zwei Tage; der Stand steht
+ * danach auf dieser Seite.
+ */
+export async function vorlageEinreichen(formData: FormData): Promise<void> {
+  await verlangeInhaber();
+  const name = String(formData.get("name") ?? "");
+  const vorlage = VORLAGEN.find((v) => v.name === name);
+  if (!vorlage) redirect("/einstellungen/whatsapp");
+
+  let ziel: string;
+  try {
+    await vorlageAnlegen({
+      name: vorlage.name,
+      kategorie: vorlage.kategorie,
+      sprache: vorlage.sprache,
+      text: vorlage.text,
+      beispiel: vorlage.beispiel,
+      fusszeile: vorlage.fusszeile,
+    });
+    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(
+      "Vorlage bei Meta eingereicht. Die Prüfung dauert meist ein bis zwei Tage.",
+    )}`;
+  } catch (e) {
+    const meldung = e instanceof WhatsAppFehler ? e.message : "Das Einreichen ist fehlgeschlagen.";
+    ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;
+  }
+  redirect(ziel);
+}
+
 export async function kontoAnschliessenAktion(): Promise<void> {
   await verlangeInhaber();
 

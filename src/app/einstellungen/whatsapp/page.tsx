@@ -1,8 +1,10 @@
 import { db } from "@/lib/db/client";
-import { istEingerichtet } from "@/lib/whatsapp/senden";
+import { istEingerichtet, vorlagenLesen } from "@/lib/whatsapp/senden";
+import { VORLAGEN } from "@/lib/whatsapp/vorlagen";
 import {
   autoantwortSpeichern,
   kontoAnschliessenAktion,
+  vorlageEinreichen,
   meldungTesten,
   verbindungTesten,
 } from "@/lib/whatsapp/aktionen";
@@ -32,6 +34,11 @@ export default async function WhatsAppEinrichten({
   const { gespeichert, verbunden, getestet, fehler } = await searchParams;
   const stand = istEingerichtet();
   const einstellung = await holeEinstellung();
+  /*
+    Der Stand unserer Vorlagen bei Meta. Ohne Schlüssel gar nicht erst
+    fragen, dann steht auf der Seite ohnehin, dass noch nichts da ist.
+  */
+  const vorlagen = stand.zugangstoken ? await vorlagenLesen().catch(() => []) : [];
   const appUrl = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
   const [letzte] = (await db()`
@@ -119,6 +126,65 @@ export default async function WhatsAppEinrichten({
             />
           </form>
         </div>
+      </section>
+
+      {/*
+        Vorlagen.
+
+        Später als 24 Stunden nach der letzten Nachricht des Empfängers
+        lässt WhatsApp nur genehmigte Vorlagen durch. Genau das brauchen
+        wir für die Nachricht nach der Pause (Florian, 12.10.2026).
+      */}
+      <section className="rounded-lg border border-linie bg-flaeche p-5 text-sm">
+        <h2 className="font-semibold">Vorlagen bei Meta</h2>
+        <p className="mt-1 max-w-prose text-leise">
+          Wer uns nicht gerade geschrieben hat, erreichen wir nur mit einer Vorlage, die Meta geprüft hat.
+          Die Prüfung dauert meist ein bis zwei Tage. Danach steht der Text fest, nur die Platzhalter
+          wechseln. Jede verschickte Vorlage kostet in Deutschland rund fünf Cent.
+        </p>
+
+        <ul className="mt-4 space-y-3">
+          {VORLAGEN.map((v) => {
+            const beiMeta = vorlagen.find((m) => m.name === v.name && m.sprache === v.sprache);
+            return (
+              <li key={v.name} className="rounded-lg border border-linie px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>{v.wofuer}</strong>
+                  <span
+                    className="rounded px-1.5 py-0.5 text-xs"
+                    style={
+                      beiMeta?.status === "APPROVED"
+                        ? { background: "var(--gut-hell)", color: "var(--gut)" }
+                        : beiMeta
+                          ? { background: "var(--gold-hell)", color: "var(--gold-dunkel)" }
+                          : { background: "var(--warnung-hell)", color: "var(--warnung)" }
+                    }
+                  >
+                    {beiMeta?.status === "APPROVED"
+                      ? "genehmigt"
+                      : beiMeta
+                        ? `bei Meta: ${beiMeta.status}`
+                        : "noch nicht eingereicht"}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-line rounded-md bg-hintergrund px-3 py-2 text-xs">{v.text}</p>
+                <p className="mt-1 text-xs text-leise">
+                  Platzhalter: {v.beispiel.map((b, i) => `{{${i + 1}}} = ${b}`).join(", ")}
+                </p>
+                {!beiMeta && (
+                  <form action={vorlageEinreichen} className="mt-3">
+                    <input type="hidden" name="name" value={v.name} />
+                    <Absendeknopf
+                      text="Bei Meta einreichen"
+                      laeuftText="Wird eingereicht..."
+                      deaktiviert={!stand.zugangstoken}
+                    />
+                  </form>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       <section className="rounded-lg border border-linie bg-flaeche p-5 text-sm">
