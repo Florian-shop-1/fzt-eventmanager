@@ -28,20 +28,104 @@ export async function pausenendeMerken(o: {
   ditixEventId: string;
   von: string;
   nachBeginnMin: number | null;
+  /** Ohne Angabe jetzt. Gesetzt wird er, wenn die Zeit errechnet wurde. */
+  zeitpunkt?: string;
 }): Promise<void> {
   await db()`
-    insert into pausenende (datum, ditix_event_id, von, nach_beginn_min)
-    values (${o.datum}::date, ${o.ditixEventId}, ${o.von}, ${o.nachBeginnMin})
+    insert into pausenende (datum, ditix_event_id, von, nach_beginn_min, zeitpunkt)
+    values (${o.datum}::date, ${o.ditixEventId}, ${o.von}, ${o.nachBeginnMin},
+            coalesce(${o.zeitpunkt ?? null}::timestamptz, now()))
   `;
 }
 
-/** Wann heute die Pause zu Ende war, oder null. */
+/** So lange dauert die Pause, von Florian: 20 bis 25 Minuten. */
+export const PAUSE_MINUTEN = 20;
+/** Mehr als das ist keine Pause mehr, sondern ein vergessener Haken. */
+const SPAETESTENS_MINUTEN = 35;
+
+/**
+ * Das Ende der Pause aus den Checklisten lesen.
+ *
+ * "die mitarbeiter der show bearbeiten ja im idealfall die
+ * checklisten, da guckst du einfach, wann das bearbeitet wird, die
+ * pause geht 20 bis 25 minuten insgesamt" (Florian, 12.10.2026).
+ *
+ * Die Abschnitte "In der Pause" von Bühne und Pult werden genau dann
+ * abgehakt, wenn die Pause läuft. Zwei Arbeitsweisen gibt es dabei:
+ * Wer am Ende abhakt, hinterlässt mit dem letzten Haken fast die
+ * richtige Zeit. Wer gleich zu Beginn alles wegtippt, hinterlässt den
+ * Beginn, und dann zählen die zwanzig Minuten.
+ *
+ * Deshalb der spätere der beiden Werte, gedeckelt bei 35 Minuten nach
+ * dem ersten Haken: Was danach kommt, ist ein nachgetragener Haken und
+ * keine Pause.
+ */
+export async function pausenendeAusHaken(datum = heuteBerlin()): Promise<string | null> {
+  const z = (await db()`
+    select min(h.erledigt_am) as erster, max(h.erledigt_am) as letzter
+      from showcheck_haken h
+      join showcheck_punkt p on p.id = h.punkt_id
+     where h.datum = ${datum}::date and p.bereich = 'pause' and p.liste in ('show', 'foh')
+  `.catch(() => [])) as Array<{ erster: string | null; letzter: string | null }>;
+
+  const erster = z[0]?.erster ? Date.parse(z[0].erster) : null;
+  const letzter = z[0]?.letzter ? Date.parse(z[0].letzter) : null;
+  if (!erster || !letzter) return null;
+
+  const ende = Math.min(
+    Math.max(letzter, erster + PAUSE_MINUTEN * 60000),
+    erster + SPAETESTENS_MINUTEN * 60000,
+  );
+  // Erst wenn die Zeit wirklich um ist. Vorher läuft die Pause noch.
+  if (Date.now() < ende) return null;
+  return new Date(ende).toISOString();
+}
+
+/**
+ * Wann heute die Pause zu Ende war, oder null.
+ *
+ * Erst der Knopf, den Florian drückt. Fehlt er, rechnen wir es aus den
+ * Checklisten aus und schreiben es einmal fest: So lernt das Programm
+ * auch an den Abenden weiter, an denen niemand gedrückt hat, und das
+ * Foyer wird trotzdem erinnert.
+ */
 export async function pausenendeHeute(datum = heuteBerlin()): Promise<string | null> {
   const z = (await db()`
     select zeitpunkt from pausenende where datum = ${datum}::date
      order by zeitpunkt desc limit 1
   `.catch(() => [])) as Array<{ zeitpunkt: string }>;
-  return z[0] ? new Date(z[0].zeitpunkt).toISOString() : null;
+  if (z[0]) return new Date(z[0].zeitpunkt).toISOString();
+
+  const errechnet = await pausenendeAusHaken(datum).catch(() => null);
+  if (!errechnet) return null;
+  await merkeErrechnetes(datum, errechnet).catch(() => undefined);
+  return errechnet;
+}
+
+/** Das errechnete Ende festhalten, damit es nicht jeden Aufruf wandert. */
+async function merkeErrechnetes(datum: string, zeitpunkt: string): Promise<void> {
+  const { termineDesTages } = await import("@/lib/ditix/spielplan");
+  const termine = await termineDesTages(datum).catch(() => []);
+  const laufend = [...termine]
+    .filter((t) => t.beginn.getTime() <= Date.parse(zeitpunkt))
+    .sort((a, b) => b.beginn.getTime() - a.beginn.getTime())[0];
+
+  const nachBeginn = laufend
+    ? Math.round((Date.parse(zeitpunkt) - laufend.beginn.getTime()) / 60000)
+    : null;
+
+  /*
+    Nur, wenn für den Tag noch nichts dasteht.
+
+    Zwei Seitenaufrufe im selben Moment wuerden sonst zwei Zeilen
+    schreiben, und der gelernte Schnitt zaehlte den Abend doppelt.
+  */
+  await db()`
+    insert into pausenende (datum, ditix_event_id, von, nach_beginn_min, zeitpunkt)
+    select ${datum}::date, ${laufend?.ditixEventId ?? ""}, 'aus den Checklisten',
+           ${nachBeginn}, ${zeitpunkt}::timestamptz
+     where not exists (select 1 from pausenende where datum = ${datum}::date)
+  `;
 }
 
 /**
