@@ -8,6 +8,17 @@ import { vorZeit } from "@/components/Status";
 import { ausgegeben, dochNicht, vonHandEintragen } from "./aktionen";
 
 export const metadata = { title: "Geschenke | FZT Eventmanager" };
+
+/**
+ * Ein Name, mit dem das Foyer etwas anfangen kann.
+ *
+ * Leer kommt aus der Abbrecher-Strecke, "Gast" aus der Absage-Strecke.
+ * Beides sagt nichts, und dann ist die Mailadresse die bessere Angabe.
+ */
+function echterName(name: string): string | null {
+  const n = name.trim();
+  return n && n.toLowerCase() !== "gast" ? n : null;
+}
 export const dynamic = "force-dynamic";
 
 /**
@@ -183,11 +194,20 @@ export default async function GeschenkeSeite({
               }}
             >
               <div className="min-w-48 flex-1">
-                <div className="text-lg font-semibold">{g.name || namen.get(g.id) || g.email}</div>
-                {/* Die Adresse bleibt sichtbar, wenn der Name aus den
-                    Bestellungen kommt: An der Bar prüft man damit nach,
-                    ob es wirklich derselbe Gast ist. */}
-                {!g.name && namen.get(g.id) && <div className="text-xs text-leise">{g.email}</div>}
+                {/*
+                  Oben steht, was sicher stimmt: der eingetragene Name,
+                  sonst die Adresse. "zeig dann einfach die email
+                  adresse an, die hast du ja" (Florian, 12.10.2026).
+                  "Gast" zaehlt dabei nicht als Name, das ist nur ein
+                  Platzhalter aus der Absage-Strecke.
+                */}
+                <div className="break-all text-lg font-semibold">{echterName(g.name) ?? g.email}</div>
+                {/* Der Name aus der Ditix-Bestellung steht darunter und
+                    als Vermutung: Er ist über die Adresse gefunden,
+                    nicht vom Gast selbst eingetragen. */}
+                {!echterName(g.name) && namen.get(g.id) && (
+                  <div className="text-xs text-leise">vermutlich {namen.get(g.id)}</div>
+                )}
                 <div className="text-sm">
                   <strong>{g.gilt}</strong> × {geschenkText(g)}
                 </div>
