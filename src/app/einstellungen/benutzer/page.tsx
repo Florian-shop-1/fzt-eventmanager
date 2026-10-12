@@ -108,6 +108,12 @@ export default async function BenutzerSeite() {
             >
               WhatsApp
             </a>
+            <a
+              href="/einstellungen/handynummern"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              Handynummern
+            </a>
           </div>
         </div>
         <p className="mt-1 text-sm text-leise">
