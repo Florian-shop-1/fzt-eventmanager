@@ -16,6 +16,7 @@ import {
   darfUebernehmen,
   istRookieFuer,
   schonImDienst,
+  ZUSCHAUER_KLEIDUNG,
   type FestePosition,
   type Person,
   type Position,
@@ -582,6 +583,12 @@ function SlotZeile({
               <span className="ml-2 rounded bg-gold-hell px-1.5 py-0.5 text-xs text-gold-dunkel">
                 {michGefragt ? "du bist gefragt" : `angefragt: ${slot.angefragt.vorname}`}
               </span>
+            )}
+            {/* Der Kleiderhinweis steht beim Dienst selbst, nicht nur in
+                der Mail: Die Mail liest man einmal, den Plan am
+                Showtag nochmal (Florian, 12.10.2026). */}
+            {slot.position === "ZUSCHAUER" && (
+              <span className="mt-1 block text-xs text-leise">{ZUSCHAUER_KLEIDUNG}</span>
             )}
           </>
         ) : (

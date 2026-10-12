@@ -54,6 +54,18 @@ export const BEZEICHNUNG: Record<Position, string> = {
   ZUSATZ5: "Zusätzlich",
 };
 
+/**
+ * Was der eingeweihte Zuschauer vorher wissen muss.
+ *
+ * "bitte kein schwarzes oberteil anziehen und auch keine cappy"
+ * (Florian, 12.10.2026). Schwarz ist im Haus die Farbe des Teams, und
+ * eine Cappy fällt in Reihe 4 auf. Wer eingeweiht ist, soll aussehen
+ * wie ein Gast, sonst sucht das Publikum ihn.
+ */
+export const ZUSCHAUER_KLEIDUNG =
+  "Bitte zieh kein schwarzes Oberteil an und lass die Cappy weg. Du sollst "
+  + "im Publikum aussehen wie ein Gast und nicht wie jemand vom Team.";
+
 export const ERKLAERUNG: Record<Position, string> = {
   FOH: "Front of House, Licht und Ton",
   // Im Haus heißt Bens Position T2, die Runde um Mario und Noel ist T1

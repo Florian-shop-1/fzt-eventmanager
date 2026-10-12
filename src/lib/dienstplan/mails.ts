@@ -7,7 +7,7 @@ import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
 import type { Vorstellungstermin } from "@/lib/ditix/spielplan";
-import { BEZEICHNUNG, ERKLAERUNG, type Person, type Position } from "./plan";
+import { BEZEICHNUNG, ERKLAERUNG, ZUSCHAUER_KLEIDUNG, type Person, type Position } from "./plan";
 
 export function appUrl(): string {
   return process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
@@ -158,6 +158,8 @@ export async function eingeteiltMail(o: {
     absaetze: [
       `${vorname} hat dich für diese Show eingeteilt:`,
       ...(o.notiz ? [`Notiz von ${vorname}: ${o.notiz}`] : []),
+      // Der Kleiderhinweis gehört zur Position, nicht in jede Mail.
+      ...(o.position === "ZUSCHAUER" ? [ZUSCHAUER_KLEIDUNG] : []),
       "Wenn du nicht kannst, klick im Dienstplan auf „Ich kann nicht“, dann werden die anderen gefragt.",
     ],
     liste: [schichtText(o.termin, o.position)],
@@ -183,6 +185,7 @@ export async function anfrageMail(o: {
     absaetze: [
       `${vorname} fragt, ob du diese Show übernehmen kannst:`,
       ...(o.notiz ? [`Notiz von ${vorname}: ${o.notiz}`] : []),
+      ...(o.position === "ZUSCHAUER" ? [ZUSCHAUER_KLEIDUNG] : []),
       "Im Dienstplan kannst du mit einem Klick zusagen oder absagen. Erst mit deiner Zusage bist du eingeteilt.",
     ],
     liste: [schichtText(o.termin, o.position)],
@@ -349,6 +352,7 @@ export async function zuschauerGesuchtMail(o: {
     absaetze: [
       "für diese Show fehlt uns noch der eingeweihte Zuschauer im Publikum.",
       "Das kann jeder von euch: Wir zeigen es dir 30 Minuten vor Einlass, es ist wirklich einfach, und du bist nur in der ersten Hälfte dran.",
+      ZUSCHAUER_KLEIDUNG,
       ...(o.notiz ? [`${o.wer} schreibt dazu: ${o.notiz}`] : []),
       "Trag dich einfach im Dienstplan ein. Fragen dazu kannst du gern als Kommentar unter die Show schreiben, dann sehen es alle.",
       "Wenn du an dem Abend als Rookie mitläufst: Du darfst wechseln. Deine bisherige Position wird dann automatisch wieder ausgeschrieben.",

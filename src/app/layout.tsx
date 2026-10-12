@@ -517,7 +517,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   */
   const checklisten =
     benutzer && !offen && !hasenpost && benutzer.rolle === "showteam"
-      ? await offeneChecklisten().catch(() => null)
+      ? await offeneChecklisten(benutzer.id).catch(() => null)
       : null;
 
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
