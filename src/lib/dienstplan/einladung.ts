@@ -42,6 +42,18 @@ export const BEREICHE: Array<{ rolle: string; titel: string; text: string; achtu
     text: "Küche und Sitzplan. Sieht Funktionsheet, Küchenblatt und Belegung, keine Preise und keine Kundendaten.",
   },
   {
+    /*
+      Nebenjob: jemand ohne Dienst im Haus, zunaechst der Videoschnitt
+      (Florian, 12.10.2026). Er braucht nur seine eigenen Papiere.
+    */
+    rolle: "nebenjob",
+    titel: "Nebenjob",
+    text:
+      "Für Leute ohne Dienst im Haus, zum Beispiel den Videoschnitt. Sieht nur den eigenen "
+      + "Personalbogen, den Arbeitsvertrag und die Geheimhaltungsvereinbarung. Keine Stempeluhr, "
+      + "kein Dienstplan, keine Checklisten, keine Gästedaten.",
+  },
+  {
     rolle: "kiosk",
     titel: "Food-Kiosk",
     text: "Externer Partner. Sieht ausschließlich die Stehtische je Abend.",
