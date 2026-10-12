@@ -208,7 +208,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
   {
     titel: "Mitarbeiter",
     punkte: [
-      { href: "/personalbogen", label: "Personalbogen", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung"] },
+      { href: "/personalbogen", label: "Personalbogen", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung", "nebenjob"] },
       { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
       // Hasenpost: nur Florian, siehe app/hasenpost/aktionen.ts.
       { href: "/hasenpost", label: "Hasenpost", rollen: ["chef"] },

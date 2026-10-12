@@ -43,6 +43,14 @@ export type Rolle =
     sonst nichts (Florian, 07.10.2026).
   */
   | "reinigung"
+  /*
+    Nebenjobber ohne Dienst im Haus, zum Beispiel der Videoschnitt.
+
+    Er braucht einen Zugang, seinen Personalbogen und seinen
+    Arbeitsvertrag, sonst nichts: keine Stempeluhr, kein Dienstplan,
+    kein Saal (Florian, 12.10.2026).
+  */
+  | "nebenjob"
   | "buchhaltung";
 
 /**
@@ -78,7 +86,9 @@ export function darfStempeln(
   // buchen waere niemandem zuzuordnen (Florian, 05.10.2026).
   if (b.geteilt) return false;
   if (b.art === "extern") return false;
-  return !["kiosk", "gastro"].includes(b.rolle);
+  // Der Nebenjob wird nach Absprache bezahlt, nicht nach gestempelten
+  // Stunden im Haus (Florian, 12.10.2026).
+  return !["kiosk", "gastro", "nebenjob"].includes(b.rolle);
 }
 
 /**
@@ -441,6 +451,16 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       // Werner meldet die Arbeitszeiten ans Steuerbüro, siehe /lohn.
       pfad.startsWith("/stempeluhr") ||
       pfad.startsWith("/lohn") ||
+      pfad.startsWith("/konto")
+    );
+  }
+  if (rolle === "nebenjob") {
+    // Nur die eigenen Papiere. Alles andere im Haus geht ihn nichts an.
+    return (
+      pfad === "/" ||
+      pfad.startsWith("/personalbogen") ||
+      pfad.startsWith("/vertrag") ||
+      pfad.startsWith("/geheimhaltung") ||
       pfad.startsWith("/konto")
     );
   }

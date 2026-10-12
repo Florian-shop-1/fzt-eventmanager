@@ -36,6 +36,11 @@ export default async function Startseite({
   if (rolle === "buchhaltung") redirect("/bewirtung");
   // Das Showteam braucht keine Übersicht mit Restaurant und Vorgängen, nur seinen Plan.
   if (rolle === "showteam") redirect("/dienstplan");
+  /*
+    Der Nebenjob hat im Haus nichts zu tun, nur seine Papiere. Erst der
+    Bogen, danach der Vertrag (Florian, 12.10.2026).
+  */
+  if (rolle === "nebenjob") redirect(benutzer?.personalbogenAm ? "/vertrag" : "/personalbogen");
 
   // Der Hase gratuliert einmal und verschwindet. Hier bleibt es den
   // ganzen Tag stehen, damit es im Büro niemand verpasst.
