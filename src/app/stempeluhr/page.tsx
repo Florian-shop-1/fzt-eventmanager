@@ -23,9 +23,11 @@ import { aenderungenAmTag, antraegeAmTag, schichtAmTag, tagInWorten } from "@/li
 import { alleKontostaende } from "@/lib/lohn/konto";
 import { PAUSE_NACH_MINUTEN } from "@/lib/stempel/wache";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
+import { nachPauseGruende } from "@/lib/foyer/pause";
 import { nachFamilienname } from "@/lib/domain/namen";
 import {
   antragBeantworten,
+  nachPauseEntscheidenAktion,
   antragUebernehmenAktion,
   korrekturBeantragen,
   nachmeldungSenden,
@@ -297,6 +299,8 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
   const alle = await antraege();
   const offen = alle.filter((a) => a.status === "offen");
   const gruende = alle.filter((a) => a.art === "pausengrund").slice(0, 8);
+  // Wer nach der Pause im Foyer geblieben ist, mit Grund und Freigabe.
+  const nachPause = await nachPauseGruende().catch(() => []);
 
   return (
     <section id="antraege" className="scroll-mt-24 space-y-3">
@@ -360,6 +364,64 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
             );
           })}
         </div>
+      )}
+
+      {/*
+        Nach der Pause geblieben.
+
+        Im Foyer bleibt nach der Pause eine Kraft, in der Regel Olena,
+        weil sie fest angestellt ist. Alles andere ist nicht geplant und
+        nicht budgetiert, es muss angefragt und freigegeben werden
+        (Florian, 12.10.2026). Hier steht die Anfrage, und hier wird sie
+        entschieden.
+      */}
+      {nachPause.length > 0 && (
+        <section className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
+          <h2 className="font-medium">Nach der Pause im Foyer geblieben</h2>
+          <p className="mt-1 text-xs text-leise">
+            Diese Zeit steht in keinem Dienstplan. Freigegeben wird sie hier, und nur dann wird sie
+            bezahlt.
+          </p>
+          <ul className="mt-2 divide-y divide-linie">
+            {nachPause.map((n) => (
+              <li key={n.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+                <span className="text-leise">
+                  {n.datum.split("-").reverse().join(".")} · {n.name}:
+                </span>
+                <span className="min-w-0 flex-1">{n.grund}</span>
+                {n.genehmigt === null ? (
+                  <span className="flex gap-2">
+                    <form action={nachPauseEntscheidenAktion}>
+                      <input type="hidden" name="id" value={n.id} />
+                      <input type="hidden" name="wie" value="ja" />
+                      <button type="submit" className="rounded-md border border-linie px-3 py-1 text-xs">
+                        freigeben
+                      </button>
+                    </form>
+                    <form action={nachPauseEntscheidenAktion}>
+                      <input type="hidden" name="id" value={n.id} />
+                      <input type="hidden" name="wie" value="nein" />
+                      <button type="submit" className="text-xs text-leise underline">
+                        nicht freigeben
+                      </button>
+                    </form>
+                  </span>
+                ) : (
+                  <span
+                    className="rounded px-2 py-0.5 text-xs"
+                    style={{
+                      background: n.genehmigt ? "var(--gut-hell)" : "var(--blocker-hell)",
+                      color: n.genehmigt ? "var(--gut)" : "var(--blocker)",
+                    }}
+                  >
+                    {n.genehmigt ? "freigegeben" : "nicht freigegeben"}
+                    {n.entschiedenVon ? `, ${n.entschiedenVon}` : ""}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {gruende.length > 0 && (

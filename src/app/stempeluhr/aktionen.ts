@@ -26,6 +26,7 @@ import {
 } from "@/lib/stempel/db";
 import { melden } from "@/lib/stempel/wache";
 import { zeitpunktAusBerlin } from "@/lib/zeit";
+import { nachPauseEntscheiden } from "@/lib/foyer/pause";
 import { sollzeitEntfernen, sollzeitSpeichern } from "@/lib/lohn/konto";
 
 const text = (f: FormData, k: string, max = 1000) => String(f.get(k) ?? "").trim().slice(0, max);
@@ -364,4 +365,19 @@ export async function stempelNachtragen(f: FormData): Promise<void> {
   if (!zeitpunkt) zurueck("Die Uhrzeit sieht nicht richtig aus (zum Beispiel 17:30).", "#korrektur", f);
   await nachtragen({ benutzerId, art, zeitpunkt, von: b.name, grund: text(f, "grund", 200) });
   zurueck("Nachgetragen.", "#korrektur", f);
+}
+
+/**
+ * Nach der Pause geblieben: genehmigen oder nicht.
+ *
+ * Die Zeit ist nicht budgetiert, bezahlt wird sie nur mit Freigabe
+ * (Florian, 12.10.2026). Die Entscheidung bleibt am Eintrag stehen,
+ * damit am Monatsende niemand raten muss.
+ */
+export async function nachPauseEntscheidenAktion(f: FormData): Promise<void> {
+  const b = await verlangeBuero();
+  const id = text(f, "id", 40);
+  if (!/^[0-9a-f-]{36}$/.test(id)) zurueck("Diesen Eintrag finden wir nicht.");
+  await nachPauseEntscheiden({ id, genehmigt: text(f, "wie", 10) === "ja", von: b.name });
+  zurueck(text(f, "wie", 10) === "ja" ? "Freigegeben, die Zeit wird bezahlt." : "Nicht freigegeben.");
 }

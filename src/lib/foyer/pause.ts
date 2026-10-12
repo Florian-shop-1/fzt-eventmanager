@@ -164,3 +164,49 @@ export async function fragenNachDerPause(o: {
 
   return { fragen: true, stand };
 }
+
+export interface Nachgefragt {
+  id: string;
+  datum: string;
+  name: string;
+  grund: string;
+  gemeldetAm: string;
+  genehmigt: boolean | null;
+  entschiedenVon: string | null;
+}
+
+/**
+ * Wer nach der Pause geblieben ist, für das Büro.
+ *
+ * Die Zeit nach der Pause ist nicht budgetiert: "Anderes muss angefragt
+ * und freigegeben werden" (Florian, 12.10.2026). Deshalb steht hier
+ * jede Angabe mit zwei Knöpfen, und was entschieden wurde, bleibt
+ * sichtbar.
+ */
+export async function nachPauseGruende(anzahl = 12): Promise<Nachgefragt[]> {
+  const z = (await db()`
+    select id, datum::text as datum, name, grund, gemeldet_am, genehmigt, entschieden_von
+      from nach_pause_grund order by gemeldet_am desc limit ${anzahl}
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    id: String(r.id),
+    datum: String(r.datum),
+    name: String(r.name ?? ""),
+    grund: String(r.grund ?? ""),
+    gemeldetAm: new Date(r.gemeldet_am as string).toISOString(),
+    genehmigt: r.genehmigt === null ? null : Boolean(r.genehmigt),
+    entschiedenVon: r.entschieden_von ? String(r.entschieden_von) : null,
+  }));
+}
+
+export async function nachPauseEntscheiden(o: {
+  id: string;
+  genehmigt: boolean;
+  von: string;
+}): Promise<void> {
+  await db()`
+    update nach_pause_grund
+       set genehmigt = ${o.genehmigt}, entschieden_von = ${o.von}, entschieden_am = now()
+     where id = ${o.id}::uuid
+  `;
+}
