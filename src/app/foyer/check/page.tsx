@@ -246,6 +246,8 @@ function Abschnitt({
           text: p.text,
           erledigtVon: p.erledigtVon,
           erledigtAm: p.erledigtAm,
+          videoUrl: p.videoUrl,
+          videoTitel: p.videoTitel,
         }))}
       />
 

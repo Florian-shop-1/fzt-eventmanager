@@ -20,6 +20,9 @@ export interface CheckPunkt {
   text: string;
   erledigtVon: string | null;
   erledigtAm: string | null;
+  /** Ein Video aus Tipps und Tricks, das diesen Handgriff zeigt. */
+  videoUrl?: string | null;
+  videoTitel?: string | null;
 }
 
 export function ShowcheckListe({
@@ -285,13 +288,34 @@ export function ShowcheckListe({
               {p.erledigtAm ? "✓" : ""}
             </button>
 
-            <button
-              type="button"
-              onClick={() => void umschalten(p)}
-              className={`min-w-0 flex-1 text-left text-sm ${p.erledigtAm ? "text-leise line-through" : ""}`}
-            >
-              {p.text}
-            </button>
+            <span className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => void umschalten(p)}
+                className={`text-left text-sm ${p.erledigtAm ? "text-leise line-through" : ""}`}
+              >
+                {p.text}
+              </button>
+              {/*
+                Das Video zum Handgriff.
+
+                Wer ihn zum ersten Mal macht, soll ihn sehen koennen,
+                ohne in Tipps und Tricks zu suchen (Florian,
+                11.10.2026). Als eigener Link neben dem Text, damit ein
+                Tipp darauf nicht aus Versehen abhakt.
+              */}
+              {p.videoUrl && (
+                <a
+                  href={p.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-2 whitespace-nowrap rounded-md border border-linie px-2 py-0.5 text-xs text-leise print:hidden"
+                  title={p.videoTitel ?? "Video ansehen"}
+                >
+                  ▶ Video
+                </a>
+              )}
+            </span>
 
             {p.erledigtAm && (
               <span className="text-xs text-leise">

@@ -81,6 +81,9 @@ export interface Punkt {
   bereich: Bereich;
   text: string;
   reihenfolge: number;
+  /** Ein Video aus Tipps und Tricks, das diesen Handgriff zeigt. */
+  videoUrl: string | null;
+  videoTitel: string | null;
   /** Gesetzt, wenn er für diese Vorstellung schon abgehakt ist. */
   erledigtVon: string | null;
   erledigtAm: string | null;
@@ -89,10 +92,12 @@ export interface Punkt {
 /** Alle Punkte einer Liste, mit dem Stand des Abends. */
 export async function checkliste(ditixEventId: string, liste: Liste = "show"): Promise<Punkt[]> {
   const z = (await db()`
-    select p.id, p.bereich, p.text, p.reihenfolge, h.erledigt_von, h.erledigt_am
+    select p.id, p.bereich, p.text, p.reihenfolge, h.erledigt_von, h.erledigt_am,
+           t.video_url, t.titel as video_titel
       from showcheck_punkt p
       left join showcheck_haken h
         on h.punkt_id = p.id and h.ditix_event_id = ${ditixEventId}
+      left join tipp t on t.id = p.tipp_id
      where p.aktiv and p.liste = ${liste}
      order by p.bereich, p.reihenfolge, p.angelegt_am
   `.catch(() => [])) as Array<Record<string, unknown>>;
@@ -102,6 +107,8 @@ export async function checkliste(ditixEventId: string, liste: Liste = "show"): P
     bereich: r.bereich as Bereich,
     text: String(r.text),
     reihenfolge: Number(r.reihenfolge ?? 0),
+    videoUrl: r.video_url ? String(r.video_url) : null,
+    videoTitel: r.video_titel ? String(r.video_titel) : null,
     erledigtVon: r.erledigt_von ? String(r.erledigt_von) : null,
     erledigtAm: r.erledigt_am ? new Date(r.erledigt_am as string).toISOString() : null,
   }));
