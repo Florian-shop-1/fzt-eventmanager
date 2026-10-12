@@ -1,10 +1,16 @@
 import { db } from "@/lib/db/client";
 import { nachFamilienname } from "@/lib/domain/namen";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { artSetzen, benutzerUmschalten, personalbogenAnfordern } from "@/lib/auth/aktionen";
+import {
+  abmeldungAnsLohnbuero,
+  artSetzen,
+  benutzerUmschalten,
+  personalbogenAnfordern,
+} from "@/lib/auth/aktionen";
 import { whatsappFreigabeUmschalten } from "@/lib/whatsapp/aktionen";
 import { BenutzerAnlegen } from "@/components/BenutzerAnlegen";
 import { PasswortZuruecksetzen } from "@/components/PasswortZuruecksetzen";
+import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { BEREICHE, einladungsLink, offeneEinladungen } from "@/lib/dienstplan/einladung";
 import { LinkKopieren } from "@/components/LinkKopieren";
@@ -42,16 +48,22 @@ interface Zeile {
   benutzername: string | null;
   ausgeschieden_am: string | null;
   ausscheiden_grund: string;
+  abgemeldet_am: string | null;
 }
 
-export default async function BenutzerSeite() {
+export default async function BenutzerSeite({
+  searchParams,
+}: {
+  searchParams: Promise<{ meldung?: string; fehler?: string }>;
+}) {
   const ich = await angemeldeterBenutzer();
   if (!ich) return null;
+  const { meldung, fehler } = await searchParams;
 
   const benutzer = (await db()`
     select id, name, email, rolle, aktiv, letzter_login, muss_passwort_aendern,
            startpasswort, whatsapp, art, personalbogen_am, benutzername,
-           ausgeschieden_am, ausscheiden_grund
+           ausgeschieden_am, ausscheiden_grund, abgemeldet_am
       from benutzer order by rolle
   `) as Zeile[];
   /*
@@ -131,6 +143,16 @@ export default async function BenutzerSeite() {
           seines vergisst, bekommt über <strong>Passwort neu vergeben</strong> ein neues.
         </p>
       </header>
+      {meldung && (
+        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
+          {meldung}
+        </p>
+      )}
+      {fehler && (
+        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}>
+          {fehler}
+        </p>
+      )}
 
       <section className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -305,6 +327,22 @@ export default async function BenutzerSeite() {
                     >
                       {b.aktiv ? "aktiv" : "gesperrt"}
                     </span>
+                    {/*
+                      Die Abmeldung beim Lohnbüro. Steht beim gesperrten
+                      Zugang, weil hier auffällt, wenn sie fehlt
+                      (Florian, 12.10.2026).
+                    */}
+                    {!b.aktiv && b.art !== "extern" && (
+                      b.abgemeldet_am ? (
+                        <span className="text-xs" style={{ color: "var(--gut)" }}>
+                          beim Lohnbüro abgemeldet, {new Date(b.abgemeldet_am).toLocaleDateString("de-DE")}
+                        </span>
+                      ) : (
+                        <form action={abmeldungAnsLohnbuero.bind(null, b.id)}>
+                          <Absendeknopf text="Ans Lohnbüro abmelden" laeuftText="Wird verschickt..." />
+                        </form>
+                      )
+                    )}
                     {!b.aktiv && b.ausscheiden_grund && (
                       <span className="text-xs text-leise" title={b.ausscheiden_grund}>
                         {b.ausgeschieden_am

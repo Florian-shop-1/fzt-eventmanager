@@ -190,6 +190,30 @@ export async function passwortZuruecksetzen(benutzerId: string): Promise<Benutze
 }
 
 /** Schaltet einen Zugang ab oder wieder frei. */
+/**
+ * Die Abmeldung ans Lohnbüro schicken.
+ *
+ * Steht beim gesperrten Zugang, weil dort auffällt, dass sie fehlt. Je
+ * Person nur einmal: Danach steht am Zugang, wann sie hinausging.
+ */
+export async function abmeldungAnsLohnbuero(benutzerId: string): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
+
+  const { abmeldungSchicken } = await import("@/lib/lohn/abmeldung");
+  try {
+    const e = await abmeldungSchicken({ benutzerId, von: ich.name });
+    revalidatePath("/einstellungen/benutzer");
+    redirect(
+      `/einstellungen/benutzer?meldung=${encodeURIComponent(`Abmeldung für ${e.name} ist an ${e.an} raus.`)}`,
+    );
+  } catch (f) {
+    if (f instanceof Error && f.message.includes("NEXT_REDIRECT")) throw f;
+    const text = f instanceof Error ? f.message : "Die Mail ging nicht hinaus.";
+    redirect(`/einstellungen/benutzer?fehler=${encodeURIComponent(text.slice(0, 300))}`);
+  }
+}
+
 export async function benutzerUmschalten(benutzerId: string, formData?: FormData): Promise<void> {
   const ich = await angemeldeterBenutzer();
   if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
