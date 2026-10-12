@@ -10,6 +10,8 @@ import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { ChecklistenErinnerung } from "@/components/ChecklistenErinnerung";
 import { offeneChecklisten } from "@/lib/showcheck/erinnerung";
+import { GeschenkErinnerung } from "@/components/GeschenkErinnerung";
+import { geschenkeHeute } from "@/lib/abbrecher/geschenk-erinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
@@ -520,6 +522,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       ? await offeneChecklisten(benutzer.id).catch(() => null)
       : null;
 
+  /*
+    Die Geschenke an der Magic-Bar: Das Foyer gibt sie aus, und in 180
+    Tagen wurde keines abgehakt (Florian, 12.10.2026). Nur an Abenden,
+    an denen wirklich etwas bereitliegt.
+  */
+  const geschenkstand =
+    benutzer && !offen && !hasenpost && benutzer.rolle === "foyer"
+      ? await geschenkeHeute().catch(() => null)
+      : null;
+
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
     benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
@@ -677,7 +689,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           />
         )}
 
-        {benutzer && !hasenpost && !checklisten && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
+        {benutzer && !hasenpost && geschenkstand && (
+          <GeschenkErinnerung
+            vorname={benutzer.name.split(" ")[0]}
+            gaeste={geschenkstand.gaeste}
+            stueck={geschenkstand.stueck}
+          />
+        )}
+
+        {benutzer && !hasenpost && !checklisten && !geschenkstand && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
           <ScanErinnerung tage={scanPause} vorname={benutzer.name.split(" ")[0]} />
         )}
       </body>
