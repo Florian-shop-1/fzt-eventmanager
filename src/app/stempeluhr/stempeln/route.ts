@@ -14,6 +14,7 @@ import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/
 import { eingeteiltAm } from "@/lib/stempel/dienst";
 import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/parkplatz-wache";
 import { istSonntag, letzterImFoyer, schonAbgeschlossen } from "@/lib/stempel/abschluss";
+import { darfUeberallStempeln } from "@/lib/auth/sitzung";
 import { servicegruss, type Servicegruss } from "@/lib/foyer/service";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
@@ -36,10 +37,18 @@ export async function POST(request: Request) {
   const b = await angemeldeterBenutzer();
   if (!b) return NextResponse.json({ ok: false, fehler: "Bitte neu anmelden." }, { status: 401 });
 
-  // Nur am Handy. Geprueft auf dem Server, damit es nicht reicht, im
-  // Browser einen Knopf sichtbar zu machen (Florian, 23.09.2026).
+  /*
+    Nur am Handy. Geprueft auf dem Server, damit es nicht reicht, im
+    Browser einen Knopf sichtbar zu machen (Florian, 23.09.2026).
+
+    Die Regel kommt daher, dass im Haus an jedem Rechner jemand fuer
+    einen anderen stempeln koennte. Wer ohnehin von zu Hause arbeitet,
+    sitzt dort am Schnittrechner, und dieser Grund trifft nicht zu
+    (Florian, 12.10.2026).
+  */
+  const ueberall = darfUeberallStempeln(b);
   const geraet = geraetPruefen(request.headers.get("user-agent"));
-  if (!geraet.handy) {
+  if (!geraet.handy && !ueberall) {
     return NextResponse.json({ ok: false, fehler: geraet.grund }, { status: 403 });
   }
 
@@ -123,7 +132,14 @@ export async function POST(request: Request) {
     Niemand verliert dabei seine Zeit: Wer nicht stempeln kann, meldet
     sie unter "Nachmelden" nach, und das steht auch in der Antwort.
   */
-  const mussImHaus = art !== "gehen";
+  /*
+    Wer zu Hause arbeitet, stempelt auch dort.
+
+    Für den Content Creator gilt die Geländegrenze nicht: Er dreht hier
+    und schneidet daheim (Florian, 12.10.2026). Festgehalten wird es
+    trotzdem, an jedem Stempel steht die Entfernung.
+  */
+  const mussImHaus = art !== "gehen" && !ueberall;
   if (e.aktiv && mussImHaus && !pruefung.drin) {
     return NextResponse.json(
       {
@@ -142,7 +158,7 @@ export async function POST(request: Request) {
   // eigene, passende Meldung statt der GPS-Meldung fürs Einstempeln: Hier
   // geht es nicht um ein Ortungsproblem, sondern darum, dass er das Haus
   // schon verlassen hat (Florian, 28.09.2026).
-  const drausenBeimGehen = art === "gehen" && hatOrt && !pruefung.drin;
+  const drausenBeimGehen = art === "gehen" && hatOrt && !pruefung.drin && !ueberall;
 
   const stempel = await stempelSetzen({
     benutzerId: b.id,
@@ -155,7 +171,9 @@ export async function POST(request: Request) {
     imHaus: pruefung.drin,
     notiz: drausenBeimGehen
       ? `Ausgestempelt außerhalb des Geländes (rund ${pruefung.entfernungM} Meter entfernt)`
-      : "",
+      : ueberall && hatOrt && !pruefung.drin
+        ? `Nicht auf dem Gelände gestempelt (rund ${pruefung.entfernungM} Meter entfernt)`
+        : "",
   });
 
   /*
@@ -195,7 +213,7 @@ export async function POST(request: Request) {
     sonst bliebe ein unbeantwortetes Fenster unbemerkt.
   */
   let grundNoetig = false;
-  if (art === "kommen" && b.rolle !== "reinigung") {
+  if (art === "kommen" && b.rolle !== "reinigung" && !ueberall) {
     grundNoetig = !(await eingeteiltAm(b.id, tagHier));
     if (grundNoetig && !(await schonGemeldet(stempel.id, "ohne_dienst"))) {
       await meldungMerken(stempel.id, "ohne_dienst");
@@ -203,7 +221,7 @@ export async function POST(request: Request) {
     }
   }
 
-  if (art === "gehen" && !pruefung.drin && hatOrt) {
+  if (art === "gehen" && !pruefung.drin && hatOrt && !ueberall) {
     // Auf den Kommen-Stempel beziehen, damit dieselbe Schicht nicht zweimal
     // gemeldet wird, falls die Stempeluhr das schon getan hat.
     await gelaendeVerlassen({

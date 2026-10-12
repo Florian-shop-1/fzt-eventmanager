@@ -51,7 +51,27 @@ export type Rolle =
     kein Saal (Florian, 12.10.2026).
   */
   | "nebenjob"
+  /*
+    Content Creator: zeichnet Videos auf und schneidet sie zu Hause.
+
+    Er stempelt wie alle anderen, nur eben nicht nur auf dem Gelaende:
+    Die Schnittarbeit faellt zu Hause an (Florian, 12.10.2026). Wo
+    gestempelt wurde, steht am Stempel.
+  */
+  | "content"
   | "buchhaltung";
+
+/**
+ * Wer ueberall stempeln darf, nicht nur auf dem Gelaende.
+ *
+ * Die Geländegrenze schuetzt davor, dass jemand vom Sofa aus eine
+ * Schicht beginnt, die er nicht arbeitet. Beim Content Creator ist das
+ * Sofa der Arbeitsplatz, also greift sie nicht. Sichtbar bleibt es
+ * trotzdem: Jeder Stempel haelt fest, wie weit weg er war.
+ */
+export function darfUeberallStempeln(b: { rolle: Rolle } | null | undefined): boolean {
+  return b?.rolle === "content";
+}
 
 /**
  * Buchhaltung: Florian und sein Vater (Rolle buchhaltung). Die anderen
@@ -451,6 +471,17 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       // Werner meldet die Arbeitszeiten ans Steuerbüro, siehe /lohn.
       pfad.startsWith("/stempeluhr") ||
       pfad.startsWith("/lohn") ||
+      pfad.startsWith("/konto")
+    );
+  }
+  if (rolle === "content") {
+    // Seine Arbeitszeit und seine eigenen Papiere, sonst nichts.
+    return (
+      pfad === "/" ||
+      pfad.startsWith("/stempeluhr") ||
+      pfad.startsWith("/personalbogen") ||
+      pfad.startsWith("/vertrag") ||
+      pfad.startsWith("/geheimhaltung") ||
       pfad.startsWith("/konto")
     );
   }

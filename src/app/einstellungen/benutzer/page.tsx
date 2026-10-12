@@ -31,6 +31,7 @@ const ROLLE_KURZ: Record<string, string> = {
   buchhaltung: "Buchhaltung",
   reinigung: "Reinigungsfirma",
   nebenjob: "Nebenjob",
+  content: "Content Creator",
 };
 
 interface Zeile {

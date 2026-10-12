@@ -546,12 +546,12 @@ export async function nachtragen(o: {
 }
 
 /** Alle, die stempeln: für die Auswahl in der Korrektur. */
-export async function stempelnde(): Promise<Array<{ id: string; name: string }>> {
+export async function stempelnde(): Promise<Array<{ id: string; name: string; rolle: string }>> {
   // Nach Familienname, wie ueberall (Florian, 29.09.2026).
   return ((await db()`
-    select id, name from benutzer
+    select id, name, rolle from benutzer
      where aktiv and rolle not in ('kiosk', 'gastro') and coalesce(art, 'intern') <> 'extern'
-  `) as Array<{ id: string; name: string }>).sort(nachFamilienname);
+  `) as Array<{ id: string; name: string; rolle: string }>).sort(nachFamilienname);
 }
 
 /* ------------------------------------------------------------------ *

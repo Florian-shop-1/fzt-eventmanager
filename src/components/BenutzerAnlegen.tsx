@@ -67,6 +67,7 @@ export function BenutzerAnlegen() {
             <option value="kiosk">Food-Kiosk, nur Stehtische je Abend, keine Gäste- oder Kundendaten</option>
             <option value="agentur">Werbeagentur, nur die Auswertung „Woher die Verkäufe kommen“</option>
             <option value="nebenjob">Nebenjob, nur Personalbogen und Arbeitsvertrag, keine Stempeluhr</option>
+            <option value="content">Content Creator, nur Stempeluhr und eigene Papiere, darf auch zu Hause stempeln</option>
             <option value="buchhaltung">Buchhaltung, nur Bewirtungsbelege und was zur Buchhaltung gehört</option>
             <option value="chef">Geschäftsführung, darf auch Zugänge verwalten</option>
           </select>

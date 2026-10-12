@@ -5,7 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, darfVertraege, startseiteFuer, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfUeberallStempeln, darfZeitenAendern, darfVertraege, startseiteFuer, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { ChecklistenErinnerung } from "@/components/ChecklistenErinnerung";
@@ -403,7 +403,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const amHandy = istHandy(kopf.get("user-agent"));
   // Auch diese beiden haengen nicht voneinander ab.
   const [stempelZustand, weinZugriff] = await Promise.all([
-    benutzer && !offen && amHandy && darfStempeln(benutzer)
+    benutzer && !offen && (amHandy || darfUeberallStempeln(benutzer)) && darfStempeln(benutzer)
       ? zustandVon(benutzer.id).catch(() => null)
       : Promise.resolve(null),
     benutzer && !offen ? weinZugang(benutzer).catch(() => null) : Promise.resolve(null),

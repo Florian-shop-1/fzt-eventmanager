@@ -41,6 +41,8 @@ export default async function Startseite({
     Bogen, danach der Vertrag (Florian, 12.10.2026).
   */
   if (rolle === "nebenjob") redirect(benutzer?.personalbogenAm ? "/vertrag" : "/personalbogen");
+  // Der Content Creator braucht vor allem eines: seine Uhr.
+  if (rolle === "content") redirect(benutzer?.personalbogenAm ? "/stempeluhr" : "/personalbogen");
 
   // Der Hase gratuliert einmal und verschwindet. Hier bleibt es den
   // ganzen Tag stehen, damit es im Büro niemand verpasst.

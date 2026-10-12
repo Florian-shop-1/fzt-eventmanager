@@ -43,6 +43,17 @@ export const BEREICHE: Array<{ rolle: string; titel: string; text: string; achtu
   },
   {
     /*
+      Content Creator: dreht und schneidet Videos, auch von zu Hause
+      (Florian, 12.10.2026).
+    */
+    rolle: "content",
+    titel: "Content Creator",
+    text:
+      "Dreht und schneidet Videos. Sieht die Stempeluhr, den eigenen Personalbogen und den "
+      + "Arbeitsvertrag. Darf auch von zu Hause stempeln; wo gestempelt wurde, steht an jedem Stempel.",
+  },
+  {
+    /*
       Nebenjob: jemand ohne Dienst im Haus, zunaechst der Videoschnitt
       (Florian, 12.10.2026). Er braucht nur seine eigenen Papiere.
     */

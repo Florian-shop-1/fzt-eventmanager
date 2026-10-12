@@ -1,6 +1,12 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfSelbstauskunftUebernehmen, darfStempeln, darfZeitenAendern } from "@/lib/auth/sitzung";
+import {
+  angemeldeterBenutzer,
+  darfSelbstauskunftUebernehmen,
+  darfStempeln,
+  darfUeberallStempeln,
+  darfZeitenAendern,
+} from "@/lib/auth/sitzung";
 import { StempelUhr } from "@/components/StempelUhr";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 import { NurAmHandy } from "@/components/NurAmHandy";
@@ -78,7 +84,8 @@ export default async function StempeluhrSeite({
   const stempelt = darfStempeln(b);
   // Gestempelt wird nur am Handy, siehe lib/stempel/geraet.ts.
   const kennung = (await headers()).get("user-agent");
-  const amHandy = geraetPruefen(kennung).handy;
+  // Wer zu Hause arbeitet, stempelt dort auch am Rechner.
+  const amHandy = geraetPruefen(kennung).handy || darfUeberallStempeln(b);
   /*
     Die Gerätekennung steht im Hinweis, gekürzt.
 
@@ -445,6 +452,12 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
 
 /** Zeiten einer Person an einem Tag ändern, nachtragen oder löschen. */
 /** "+0:25 Stunden" oder "−0:10 Stunden", sonst "gleich geblieben". */
+/** "840 m" oder "12,4 km": Meter sind erst bei kurzen Wegen eine Angabe. */
+function entfernungText(meter: number): string {
+  if (meter < 1000) return `${Math.round(meter)} m`;
+  return `${(meter / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
 function unterschiedText(minuten: number): string {
   if (minuten === 0) return "gleich geblieben";
   const v = Math.abs(minuten);
@@ -455,6 +468,9 @@ function unterschiedText(minuten: number): string {
 async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   const leute = await stempelnde();
   const person = leute.find((p) => p.id === wer) ?? leute[0];
+  // Wer überall stempeln darf, siehe lib/auth/sitzung: Dann ist
+  // "nicht im Haus" keine Auffälligkeit, sondern sein Arbeitsplatz.
+  const zuHauseErlaubt = person?.rolle === "content";
   const derTag = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? tag! : heuteBerlin();
   // Die ganze Schicht, auch wenn sie nach Mitternacht endet: Bei
   // Showabenden ist das der Regelfall, nicht die Ausnahme.
@@ -571,9 +587,21 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
                       Löschen
                     </button>
                   </form>
+                  {/*
+                    Wo gestempelt wurde.
+
+                    Beim Content Creator ist "nicht im Haus" der
+                    Normalfall, er schneidet zu Hause: Dann steht die
+                    Entfernung da, aber nicht in Warnfarbe
+                    (Florian, 12.10.2026).
+                  */}
                   {!s.imHaus && (
-                    <span className="text-xs" style={{ color: "var(--warnung)" }}>
-                      außerhalb{s.entfernungM ? `, ${s.entfernungM} m` : ""}
+                    <span
+                      className="text-xs"
+                      style={{ color: zuHauseErlaubt ? "var(--text-leise)" : "var(--warnung)" }}
+                    >
+                      {zuHauseErlaubt ? "nicht im Haus" : "außerhalb"}
+                      {s.entfernungM ? `, ${entfernungText(s.entfernungM)}` : ""}
                     </span>
                   )}
                   {s.geaendertVon && <span className="text-xs text-leise">geändert von {s.geaendertVon}</span>}
