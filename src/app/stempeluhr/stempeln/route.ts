@@ -14,6 +14,7 @@ import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/
 import { eingeteiltAm } from "@/lib/stempel/dienst";
 import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/parkplatz-wache";
 import { istSonntag, letzterImFoyer, schonAbgeschlossen } from "@/lib/stempel/abschluss";
+import { servicegruss, type Servicegruss } from "@/lib/foyer/service";
 import { istSilvester, NACHT_BIS, NACHT_VON } from "@/lib/stempel/tag";
 import { geraetPruefen } from "@/lib/stempel/geraet";
 import { offeneBestellungen } from "@/lib/wein/db";
@@ -289,6 +290,21 @@ export async function POST(request: Request) {
     }
   }
 
+  /*
+    Der Servicegedanke zu Schichtbeginn.
+
+    "erinnere jeden Foyermitarbeiter bei Beginn seiner Schicht daran,
+    wie wichtig uns der Gast ist, auf keinen Fall wollen wir
+    Diskussionen wegen fünf Euro" (Florian, 12.10.2026), nach Kevins
+    Nachricht vom selben Tag.
+
+    Jede Schicht, nicht nur einmal in der Woche: Das ist der eine
+    Gedanke, der sitzen soll. Damit er nicht zur Tapete wird, wechselt
+    das Beispiel darunter täglich.
+  */
+  const service: Servicegruss | null =
+    art === "kommen" && b.rolle === "foyer" ? servicegruss() : null;
+
   let abschluss = false;
   if (art === "gehen" && b.rolle === "foyer" && istSonntag()) {
     abschluss = (await letzterImFoyer(b.id)) && !(await schonAbgeschlossen(tagHier));
@@ -297,6 +313,7 @@ export async function POST(request: Request) {
   const neu = await standVon(b.id);
   return NextResponse.json({
     ok: true,
+    service,
     parkplatz,
     bestellung,
     abschluss,

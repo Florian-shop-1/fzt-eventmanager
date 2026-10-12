@@ -82,6 +82,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   } | null>(null);
   // Sonntag, letzter aus dem Foyer: Ist alles abgeschaltet?
   const [abschlussTag, setAbschlussTag] = useState<string | null>(null);
+  // Der Servicegedanke zu Schichtbeginn, nur fuers Foyer.
+  const [service, setService] = useState<{ kern: string; beispiel: string } | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
   const [parkplatz, setParkplatz] = useState<{ datum: string; offen: number; gesamt: number } | null>(null);
   // Die Gastro hat bestellt, und der Wein steht noch nicht unten.
@@ -267,6 +269,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
         entfernung?: number;
+        service?: { kern: string; beispiel: string } | null;
         parkplatz?: { datum: string; offen: number; gesamt: number } | null;
         bestellung?: { anzahl: number; inhalt: string } | null;
         abschluss?: boolean;
@@ -290,6 +293,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       setNochmalFrage(null);
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
+      if (e.service) setService(e.service);
       if (e.parkplatz) setParkplatz(e.parkplatz);
       if (e.bestellung) setBestellung(e.bestellung);
       if (e.abschluss && e.abschlussTag) setAbschlussTag(e.abschlussTag);
@@ -587,6 +591,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
 
       {nachPause && <NachPauseFrage stand={nachPause} onSenden={nachPauseAntwort} />}
 
+      {service && <ServiceGruss stand={service} onWeg={() => setService(null)} />}
+
       {parkplatz && <ParkplatzFrage stand={parkplatz} onAntwort={parkplatzAntwort} />}
       {bestellung && <BestellungHinweis stand={bestellung} onWeg={() => setBestellung(null)} />}
 
@@ -866,6 +872,41 @@ function AbschlussFrage({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Der Hase und der Servicegedanke, zu Beginn jeder Foyer-Schicht.
+ *
+ * Nichts zu entscheiden, nichts abzuhaken: Der Gedanke soll kurz vor
+ * der Schicht einmal dastehen. Deshalb nur ein Knopf, und keine Sperre
+ * am Stempeln, das ist ohnehin schon passiert.
+ */
+function ServiceGruss({
+  stand,
+  onWeg,
+}: {
+  stand: { kern: string; beispiel: string };
+  onWeg: () => void;
+}) {
+  return (
+    <div
+      className="space-y-3 rounded-lg border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+    >
+      <p>
+        <span aria-hidden="true">🐰</span> <strong>Schön, dass du da bist.</strong> Unser Abend steht und
+        fällt mit den Gästen und damit, wie sie von uns erzählen. {stand.kern}
+      </p>
+      <p className="text-xs">{stand.beispiel}</p>
+      <button
+        type="button"
+        onClick={onWeg}
+        className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white"
+      >
+        Verstanden
+      </button>
     </div>
   );
 }
