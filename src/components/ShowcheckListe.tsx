@@ -23,6 +23,9 @@ export interface CheckPunkt {
   /** Ein Video aus Tipps und Tricks, das diesen Handgriff zeigt. */
   videoUrl?: string | null;
   videoTitel?: string | null;
+  /** Eine Anleitung in mehreren Schritten aus Tipps und Tricks. */
+  linkUrl?: string | null;
+  linkTitel?: string | null;
 }
 
 export function ShowcheckListe({
@@ -304,6 +307,17 @@ export function ShowcheckListe({
                 11.10.2026). Als eigener Link neben dem Text, damit ein
                 Tipp darauf nicht aus Versehen abhakt.
               */}
+              {/* Die Anleitung in Schritten, wenn ein Video allein
+                  nicht reicht (Florian, 12.10.2026). */}
+              {p.linkUrl && (
+                <a
+                  href={p.linkUrl}
+                  className="ml-2 whitespace-nowrap rounded-md border border-linie px-2 py-0.5 text-xs text-leise print:hidden"
+                  title={p.linkTitel ?? "Anleitung ansehen"}
+                >
+                  ▶ Anleitung
+                </a>
+              )}
               {p.videoUrl && (
                 <a
                   href={p.videoUrl}

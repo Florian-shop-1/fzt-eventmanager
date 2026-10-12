@@ -30,7 +30,7 @@ import {
 import { db } from "@/lib/db/client";
 
 /** Aus "marion.tomescheit@gmx.de" wird ["marion", "tomescheit"]. */
-function teileAusAdresse(email: string): string[] {
+export function teileAusAdresse(email: string): string[] {
   return email
     .split("@")[0]
     .toLowerCase()
@@ -38,7 +38,7 @@ function teileAusAdresse(email: string): string[] {
     .filter((t) => t.length >= 3);
 }
 
-function teileAusName(name: string): string[] {
+export function teileAusName(name: string): string[] {
   return name
     .toLowerCase()
     .split(/\s+/)
@@ -53,7 +53,7 @@ function teileAusName(name: string): string[] {
  * Ein einzelner Vorname wie "Peter" trifft an einem vollen Abend sonst
  * drei Bestellungen.
  */
-function passt(bestellung: ShopGruppe, gesucht: string[]): boolean {
+export function passt(bestellung: ShopGruppe, gesucht: string[]): boolean {
   if (gesucht.length === 0 || !bestellung.name) return false;
   const teile = teileAusName(bestellung.name);
   if (teile.length === 0) return false;

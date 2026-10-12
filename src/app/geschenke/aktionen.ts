@@ -42,13 +42,16 @@ export async function vonHandEintragen(f: FormData): Promise<void> {
 
   const text = (k: string) => String(f.get(k) ?? "").trim();
   const art = text("art") as GeschenkArt;
-  if (!["baendchen", "glas", "zauberstab"].includes(art)) throw new Error("Bitte ein Geschenk auswaehlen.");
+  if (!["baendchen", "glas", "zauberstab", "getraenk", "popcorn", "sonstiges"].includes(art)) {
+    throw new Error("Bitte ein Geschenk auswaehlen.");
+  }
 
   try {
     await geschenkVonHand({
       name: text("name"),
       email: text("email"),
       art,
+      eigenes: text("eigenes"),
       anzahl: Number(text("anzahl")) || 1,
       show: text("show"),
       datum: text("datum"),

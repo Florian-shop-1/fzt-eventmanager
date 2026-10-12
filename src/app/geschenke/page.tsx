@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { darfGeschenkEintragen, geschenke, GESCHENK_TEXT } from "@/lib/abbrecher/geschenk";
+import { darfGeschenkEintragen, geschenke, geschenkText } from "@/lib/abbrecher/geschenk";
+import { namenZuGeschenken } from "@/lib/abbrecher/gastname";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { ausgegeben, dochNicht, vonHandEintragen } from "./aktionen";
@@ -43,6 +44,12 @@ export default async function GeschenkeSeite({
   const roh = await geschenke(ansicht === "ausgegeben");
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const heuteListe = roh.filter((g) => g.gebuchtDatum === heute && !g.eingeloestAm);
+  /*
+    Der Name steht nicht am Geschenk, nur die Adresse. Geholt wird er
+    aus den Bestellungen des Abends, siehe lib/abbrecher/gastname.
+  */
+  const namen = await namenZuGeschenken(roh).catch(() => new Map<string, string>());
+
   const liste =
     ansicht === "heute"
       ? roh.filter((g) => g.gebuchtDatum === heute)
@@ -76,12 +83,15 @@ export default async function GeschenkeSeite({
           <p className="mt-2 max-w-prose text-xs text-leise">
             Für Gäste, die nicht über den Shop gebucht haben: telefonisch gebucht, oder weil wir jemandem
             einfach etwas Gutes tun wollen. Der Abend gehört dazu, damit der Gast am richtigen Tag in
-            dieser Liste steht.
+            dieser Liste steht. Für mehrere Sachen am selben Abend trägst du sie einzeln ein, dann kann
+            die Bar jede für sich abhaken.
           </p>
           <form action={vonHandEintragen} className="mt-3 flex flex-wrap items-end gap-3">
             <label className="block">
-              <span className="mb-1 block text-xs text-leise">Name des Gastes</span>
-              <input name="name" required className="w-56" />
+              {/* Es muss kein Gast sein: Kevin hinterlegt auch mal ein
+                  Kontingent für einen Abend (12.10.2026). */}
+              <span className="mb-1 block text-xs text-leise">Für wen ist es?</span>
+              <input name="name" required placeholder="Name des Gastes, oder wofür" className="w-56" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">E-Mail (falls bekannt)</span>
@@ -93,11 +103,20 @@ export default async function GeschenkeSeite({
                 <option value="glas">Souvenir-Glas</option>
                 <option value="zauberstab">Zauberstab</option>
                 <option value="baendchen">VIP-Bändchen</option>
+                <option value="getraenk">Freigetränk</option>
+                <option value="popcorn">Popcorn</option>
+                <option value="sonstiges">etwas anderes</option>
               </select>
             </label>
             <label className="block">
+              {/* Was auf keine Kachel passt, steht hier im Klartext.
+                  Die Bar muss wissen, was sie herausgibt. */}
+              <span className="mb-1 block text-xs text-leise">Wenn etwas anderes: was genau?</span>
+              <input name="eigenes" maxLength={120} placeholder="zum Beispiel: Eis für die Kinder" className="w-56" />
+            </label>
+            <label className="block">
               <span className="mb-1 block text-xs text-leise">Anzahl</span>
-              <input name="anzahl" type="number" min={1} max={20} defaultValue={1} className="w-20" />
+              <input name="anzahl" type="number" min={1} max={50} defaultValue={1} className="w-20" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Abend</span>
@@ -164,9 +183,13 @@ export default async function GeschenkeSeite({
               }}
             >
               <div className="min-w-48 flex-1">
-                <div className="text-lg font-semibold">{g.name || g.email}</div>
+                <div className="text-lg font-semibold">{g.name || namen.get(g.id) || g.email}</div>
+                {/* Die Adresse bleibt sichtbar, wenn der Name aus den
+                    Bestellungen kommt: An der Bar prüft man damit nach,
+                    ob es wirklich derselbe Gast ist. */}
+                {!g.name && namen.get(g.id) && <div className="text-xs text-leise">{g.email}</div>}
                 <div className="text-sm">
-                  <strong>{g.gilt}</strong> × {GESCHENK_TEXT[g.art]}
+                  <strong>{g.gilt}</strong> × {geschenkText(g)}
                 </div>
                 {/* Hat er am Ende weniger Plätze gebucht, gibt es auch
                     weniger. Die Zahl steht trotzdem dabei, damit im Foyer

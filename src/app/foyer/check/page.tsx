@@ -207,7 +207,8 @@ export default async function FoyerCheckSeite({
               namen={namen}
               // Die Geschenke gehoeren zum Einlass: Dann stehen die
               // Gaeste an der Bar und fragen danach.
-              geschenke={bereich === "foyer_einlass" ? geschenkstand : null}
+              geschenkeZeigen={bereich === "foyer_einlass"}
+              geschenke={geschenkstand}
             />
           ))}
 
@@ -236,6 +237,7 @@ function Abschnitt({
   nameNoetig,
   namen,
   geschenke,
+  geschenkeZeigen,
 }: {
   bereich: Bereich;
   punkte: Punkt[];
@@ -248,10 +250,12 @@ function Abschnitt({
   pausenUhrzeit: string | null;
   nameNoetig: boolean;
   namen: string[];
-  /** Was heute an der Magic-Bar bereitliegt, oder nichts. */
+  /** Was an diesem Abend an der Magic-Bar bereitliegt, oder nichts. */
   geschenke: Geschenkstand | null;
+  /** Nur im Abschnitt Einlass: Dort steht die Zeile zu den Geschenken. */
+  geschenkeZeigen: boolean;
 }) {
-  if (punkte.length === 0 && !chef && !geschenke) return null;
+  if (punkte.length === 0 && !chef && !geschenkeZeigen) return null;
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-4">
@@ -265,7 +269,20 @@ function Abschnitt({
         Kaestchen zum Tippen, sondern der Haken als Anzeige und ein
         Knopf, der direkt dorthin fuehrt.
       */}
-      {geschenke && (
+      {/*
+        Nichts hinterlegt? Dann steht das auch da. "bei der To-Do liste
+        könntest du machen wenn keine drin sind: heute keine
+        hinterlegten Geschenke" (Florian, 12.10.2026). Eine Zeile, die
+        an leeren Abenden einfach fehlt, verwechselt man mit einer
+        Zeile, die man übersehen hat.
+      */}
+      {geschenkeZeigen && !geschenke && (
+        <p className="mb-3 rounded-lg border border-dashed border-linie px-3 py-2 text-sm text-leise">
+          Heute keine hinterlegten Geschenke.
+        </p>
+      )}
+
+      {geschenkeZeigen && geschenke && (
         <div
           className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2 text-sm"
           style={{
@@ -319,6 +336,8 @@ function Abschnitt({
           erledigtAm: p.erledigtAm,
           videoUrl: p.videoUrl,
           videoTitel: p.videoTitel,
+          linkUrl: p.linkUrl,
+          linkTitel: p.linkTitel,
         }))}
       />
 

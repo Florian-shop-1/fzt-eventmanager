@@ -296,6 +296,8 @@ function Liste({
           erledigtAm: p.erledigtAm,
           videoUrl: p.videoUrl,
           videoTitel: p.videoTitel,
+          linkUrl: p.linkUrl,
+          linkTitel: p.linkTitel,
         }))}
       />
 
