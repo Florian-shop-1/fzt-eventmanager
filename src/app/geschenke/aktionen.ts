@@ -11,11 +11,19 @@ import {
 } from "@/lib/abbrecher/geschenk";
 import { redirect } from "next/navigation";
 
-/** Das Foyer hakt ab, sobald es ausgegeben ist. */
+/**
+ * Das Foyer hakt ab, sobald es ausgegeben ist.
+ *
+ * Wer es ausgibt, steht im Feld daneben und ist mit dem angemeldeten
+ * Namen vorbelegt: An der Bar arbeiten mehrere Leute am selben Zugang,
+ * und hinterher soll dastehen, wer das Glas wirklich herausgegeben hat
+ * (Florian, 12.10.2026).
+ */
 export async function ausgegeben(f: FormData): Promise<void> {
   const b = await angemeldeterBenutzer();
   if (!b) throw new Error("Nicht angemeldet.");
-  await geschenkEinloesen(String(f.get("id") ?? ""), b.name);
+  const wer = String(f.get("wer") ?? "").trim().slice(0, 60);
+  await geschenkEinloesen(String(f.get("id") ?? ""), wer || b.name);
   revalidatePath("/geschenke");
 }
 

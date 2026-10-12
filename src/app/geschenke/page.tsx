@@ -33,13 +33,22 @@ export default async function GeschenkeSeite({
     (Florian, 23.09.2026). Deshalb ist "Heute" die Vorgabe.
   */
   const { zeige, meldung } = await searchParams;
-  const ansicht = zeige === "offen" || zeige === "alle" ? zeige : "heute";
-  const alleZeigen = ansicht === "alle";
-  const roh = await geschenke(alleZeigen);
+  const ansicht = zeige === "offen" || zeige === "ausgegeben" ? zeige : "heute";
+  /*
+    "bei ausgegeben sollte nur ausgegebene stehen" (Florian,
+    12.10.2026). Vorher standen unter "Auch schon ausgegeben" auch alle
+    offenen mit drin, und weil bis dahin noch nie jemand abgehakt hatte,
+    sah die Liste aus wie ein Archiv, das keines war.
+  */
+  const roh = await geschenke(ansicht === "ausgegeben");
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const heuteListe = roh.filter((g) => g.gebuchtDatum === heute && !g.eingeloestAm);
   const liste =
-    ansicht === "heute" ? roh.filter((g) => g.gebuchtDatum === heute) : roh;
+    ansicht === "heute"
+      ? roh.filter((g) => g.gebuchtDatum === heute)
+      : ansicht === "ausgegeben"
+        ? roh.filter((g) => g.eingeloestAm)
+        : roh;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -122,7 +131,7 @@ export default async function GeschenkeSeite({
         {[
           ["heute", `Heute (${heuteListe.length})`],
           ["offen", "Alle offenen"],
-          ["alle", "Auch schon ausgegeben"],
+          ["ausgegeben", "Ausgegeben"],
         ].map(([wert, titel]) => (
           <Link
             key={wert}
@@ -138,7 +147,9 @@ export default async function GeschenkeSeite({
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
           {ansicht === "heute"
             ? "Für heute Abend liegt nichts bereit. Wenn jemand trotzdem danach fragt, schau unter „Alle offenen“."
-            : "Gerade liegt nichts bereit."}
+            : ansicht === "ausgegeben"
+              ? "Hier steht, was schon über die Bar gegangen ist. Bisher ist noch nichts abgehakt."
+              : "Gerade liegt nichts bereit."}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -182,8 +193,8 @@ export default async function GeschenkeSeite({
                   </div>
                 )}
                 {g.eingeloestAm && (
-                  <div className="text-xs" style={{ color: "var(--gut)" }}>
-                    ausgegeben {vorZeit(g.eingeloestAm)}
+                  <div className="text-xs font-medium" style={{ color: "var(--gut)" }}>
+                    ✓ ausgegeben {vorZeit(g.eingeloestAm)}
                     {g.eingeloestVon ? ` von ${g.eingeloestVon}` : ""}
                   </div>
                 )}
@@ -197,8 +208,24 @@ export default async function GeschenkeSeite({
                   </button>
                 </form>
               ) : (
-                <form action={ausgegeben}>
+                /*
+                  An der Bar hängen oft mehrere Leute am selben Zugang.
+                  Deshalb steht neben dem Knopf, wer es ausgibt: Der
+                  Name ist vorbelegt und kann überschrieben werden
+                  (Florian, 12.10.2026).
+                */
+                <form action={ausgegeben} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="id" value={g.id} />
+                  <label className="block">
+                    <span className="sr-only">Wer gibt es aus?</span>
+                    <input
+                      name="wer"
+                      defaultValue={b.name}
+                      placeholder="dein Name"
+                      maxLength={60}
+                      className="w-32 text-sm"
+                    />
+                  </label>
                   <Absendeknopf text="Ausgegeben" laeuftText="..." />
                 </form>
               )}
