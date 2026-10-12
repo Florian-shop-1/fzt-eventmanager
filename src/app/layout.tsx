@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfZeitenAendern, darfVertraege, startseiteFuer, type Rolle } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
+import { ChecklistenErinnerung } from "@/components/ChecklistenErinnerung";
+import { offeneChecklisten } from "@/lib/showcheck/erinnerung";
 import { Erinnerungen, type Erinnerung } from "@/components/Erinnerungen";
 import { geheimhaltungUnterschrieben } from "@/lib/db/personal";
 import { tageSeitLetztemScan } from "@/lib/db/scanner";
@@ -505,6 +507,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   */
   const hasenpost = benutzer && !offen && persoenlich ? await naechstePost(benutzer.id).catch(() => null) : null;
 
+  /*
+    Die Checklisten. "es sieht so aus, als wäre die checkliste von der
+    show nicht verwendet worden für nach der show, und foh hat sie
+    gestern gar nicht genutzt" (Florian, 12.10.2026).
+
+    Gefragt wird nur beim Showteam und nur, wenn heute Show ist: An
+    einem freien Tag lernt man, den Hasen wegzuklicken.
+  */
+  const checklisten =
+    benutzer && !offen && !hasenpost && benutzer.rolle === "showteam"
+      ? await offeneChecklisten().catch(() => null)
+      : null;
+
   // Der Scan-Hase erinnert nach einer Woche ohne gescannte Karte.
   const scanPause =
     benutzer && !offen && ["chef", "team", "foyer"].includes(benutzer.rolle)
@@ -645,7 +660,24 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           />
         )}
 
-        {benutzer && !hasenpost && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
+        {/*
+          Die Checklisten benutzen.
+
+          Nur fuer das Showteam, nur an einem Showtag, an dem noch etwas
+          offen ist, und hoechstens einmal am Tag. Steht vor dem
+          Scan-Hinweis: Eine Liste, die heute Abend gebraucht wird,
+          draengt mehr als die Losbox (Florian, 12.10.2026).
+        */}
+        {benutzer && !hasenpost && checklisten && (
+          <ChecklistenErinnerung
+            vorname={benutzer.name.split(" ")[0]}
+            show={checklisten.show}
+            foh={checklisten.foh}
+            eventId={checklisten.ditixEventId}
+          />
+        )}
+
+        {benutzer && !hasenpost && !checklisten && aufgaben.length === 0 && scanPause !== null && scanPause >= 7 && (
           <ScanErinnerung tage={scanPause} vorname={benutzer.name.split(" ")[0]} />
         )}
       </body>
