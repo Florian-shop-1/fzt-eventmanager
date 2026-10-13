@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { findeTermin, kommendeTermine } from "@/lib/ditix/spielplan";
 import { buchungenFuerTag } from "@/lib/db/shop-buchungen";
+import { holeShopGruppen, type ShopGruppe } from "@/lib/shop/rohdaten";
 import { naechstbessereKategorie } from "@/lib/absage/kategorie";
 import { alternativenAufteilen, absageEntwurf } from "@/lib/absage/mailtext";
 import {
@@ -57,22 +58,40 @@ export async function showAbsagen(f: FormData): Promise<void> {
     von: benutzer.name,
   });
 
-  const [buchungen, kommende] = await Promise.all([buchungenFuerTag(termin.datum), kommendeTermine(60)]);
-  const betroffen = buchungen.filter((b) => b.ditixEventId === termin.ditixEventId && b.bestaetigt && b.email);
+  /*
+    Angeschrieben wird jeder, der an dem Abend eine Karte hat.
+
+    Vorher kam die Liste aus unserer eigenen Buchungstabelle, und die
+    kennt nur, was durch die neue Kasse im Shop lief. Am 17.10.2026
+    standen dort 5 Parteien, in der Verkaufsliste aber 13: Freikarten,
+    telefonisch Gebuchtes und von Hand Angelegtes fehlten alle, und
+    Kevin musste sie einzeln nachtelefonieren (13.10.2026).
+
+    Quelle ist deshalb die Verkaufsliste aus Ditix. Unsere Tabelle
+    liefert nur noch das Zusatzwissen, wo es sie gibt: die Buchungsnummer
+    fuer das Geschenk und die Adresse aus der Kasse.
+  */
+  const [buchungen, kommende, verkauft] = await Promise.all([
+    buchungenFuerTag(termin.datum),
+    kommendeTermine(60),
+    holeShopGruppen().catch(() => [] as ShopGruppe[]),
+  ]);
   const alternativen = alternativenAufteilen(termin, kommende);
 
+  const eigene = buchungen.filter((b) => b.ditixEventId === termin.ditixEventId && b.bestaetigt);
+  const betroffen = parteienDesAbends(verkauft, termin.ditixEventId, eigene);
+
   for (const buchung of betroffen) {
-    const sitzplatzPosten = buchung.posten.find((p) => p.gruppe === "sitzplatz") ?? buchung.posten[0];
-    const alteKategorie = sitzplatzPosten?.name || "unbekannt";
+    const alteKategorie = buchung.kategorie;
     const neueKategorie = naechstbessereKategorie(alteKategorie);
     const kompensationArt: "upgrade" | "glas" = neueKategorie ? "upgrade" : "glas";
-    const plaetze = Math.max(1, buchung.plaetze ?? 1);
+    const plaetze = Math.max(1, buchung.plaetze);
 
     // Erst anlegen, damit der Zugangs-Token feststeht, dann den Entwurf mit
     // dem persönlichen Link nachtragen.
     const gast = await gastAnlegen({
       absageId: absage.id,
-      buchungId: buchung.id,
+      buchungId: buchung.buchungId,
       name: buchung.name || "Gast",
       email: buchung.email,
       plaetze,
@@ -93,6 +112,7 @@ export async function showAbsagen(f: FormData): Promise<void> {
       kompensationArt,
       neueKategorie,
       plaetze,
+      mitMenue: buchung.mitMenue,
     });
     await entwurfSpeichern(gast.id, entwurf.betreff, entwurf.text);
 
@@ -100,7 +120,7 @@ export async function showAbsagen(f: FormData): Promise<void> {
       const giltBis = new Date();
       giltBis.setFullYear(giltBis.getFullYear() + 1);
       await geschenkVersprechen({
-        buchungId: buchung.id,
+        buchungId: buchung.buchungId,
         email: buchung.email,
         name: buchung.name || "Gast",
         art: "glas",
@@ -112,6 +132,67 @@ export async function showAbsagen(f: FormData): Promise<void> {
 
   revalidatePath("/absagen");
   redirect(`/absagen/${absage.id}`);
+}
+
+/** Eine Partei des Abends, so wie sie angeschrieben wird. */
+interface Partei {
+  buchungId: string | null;
+  name: string;
+  email: string;
+  plaetze: number;
+  kategorie: string;
+  /** Hatte diese Partei ein Menü gebucht? Dann zählt der Sonntagshinweis. */
+  mitMenue: boolean;
+}
+
+/**
+ * Alle Parteien einer Vorstellung, aus der Verkaufsliste.
+ *
+ * Zusammengefasst wird je Adresse: Wer zweimal bestellt hat, ist ein
+ * Mensch und bekommt eine Mail. Wer keine Adresse hinterlassen hat,
+ * steht trotzdem in der Liste, mit leerer Adresse: Dann sieht das Büro,
+ * dass dort jemand anzurufen ist, statt ihn gar nicht zu bemerken.
+ */
+function parteienDesAbends(
+  verkauft: ShopGruppe[],
+  ditixEventId: string,
+  eigene: Array<{ id: string; email: string; name: string; posten: Array<{ name: string; gruppe: string }> }>,
+): Partei[] {
+  const zuAdresse = new Map<string, { id: string; name: string }>();
+  for (const b of eigene) {
+    if (b.email) zuAdresse.set(b.email.trim().toLowerCase(), { id: b.id, name: b.name });
+  }
+
+  const parteien = new Map<string, Partei>();
+  for (const g of verkauft.filter((x) => x.ditixEventId === ditixEventId)) {
+    const adresse = g.email.trim().toLowerCase();
+    // Ohne Adresse wird je Bestellung eine eigene Zeile daraus: Zwei
+    // namenlose Bestellungen sind zwei verschiedene Leute.
+    const schluessel = adresse || `ohne:${g.orderId}`;
+    const vorhanden = parteien.get(schluessel);
+
+    // Die groesste Ticketart bestimmt die Kategorie fuer das Upgrade.
+    const groesste = [...g.ticketArten].sort((a, b) => b.menge - a.menge)[0];
+    const kategorie = groesste?.bezeichnung || "unbekannt";
+
+    if (vorhanden) {
+      vorhanden.plaetze += g.tickets;
+      vorhanden.mitMenue = vorhanden.mitMenue || g.menuesGesamt > 0;
+      if (vorhanden.kategorie === "unbekannt") vorhanden.kategorie = kategorie;
+      continue;
+    }
+    parteien.set(schluessel, {
+      buchungId: zuAdresse.get(adresse)?.id ?? null,
+      name: g.name || zuAdresse.get(adresse)?.name || "Gast",
+      email: g.email,
+      plaetze: g.tickets,
+      kategorie,
+      mitMenue: g.menuesGesamt > 0,
+    });
+  }
+
+  // Wer keine einzige Karte hat, hat an dem Abend auch nichts verloren.
+  return [...parteien.values()].filter((p) => p.plaetze > 0);
 }
 
 export async function entwurfAktualisieren(f: FormData): Promise<void> {

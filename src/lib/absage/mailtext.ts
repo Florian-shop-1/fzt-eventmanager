@@ -62,8 +62,14 @@ export function alternativenAufteilen(
   };
 }
 
+/** Ist dieser Termin an einem Sonntag? */
+function istSonntag(datum: string): boolean {
+  return new Date(`${datum}T12:00:00Z`).getUTCDay() === 0;
+}
+
 function terminZeile(t: Vorstellungstermin): string {
-  return `- ${datumLang(t.datum)}, ${t.uhrzeit} Uhr – ${t.name}`;
+  const sonntag = istSonntag(t.datum) ? " (ohne Menü)" : "";
+  return `- ${datumLang(t.datum)}, ${t.uhrzeit} Uhr – ${t.name}${sonntag}`;
 }
 
 export function absageEntwurf(o: {
@@ -75,6 +81,8 @@ export function absageEntwurf(o: {
   kompensationArt: "upgrade" | "glas";
   neueKategorie: string | null;
   plaetze: number;
+  /** Hatte diese Partei ein Menü gebucht? */
+  mitMenue?: boolean;
 }): { betreff: string; text: string } {
   const zeilen: string[] = [
     `Hallo ${o.vorname},`,
@@ -95,6 +103,32 @@ export function absageEntwurf(o: {
     if (termine.length === 0) continue;
     zeilen.push(ueberschrift);
     zeilen.push(...termine.map(terminZeile));
+    zeilen.push("");
+  }
+
+  /*
+    Sonntags gibt es derzeit kein Menü.
+
+    "da wäre es auch wichtig, dass in der mail ein hinweis zu menüs ist,
+    diese bieten wir aktuell sonntags nicht an, dann bitte einen anderen
+    tag als den sonntag wählen" (Florian, 13.10.2026). Der Hinweis steht
+    nur da, wenn unter den Vorschlägen wirklich ein Sonntag ist, und nur
+    bei Gästen, die ein Menü gebucht hatten: Sonst verwirrt er die
+    anderen.
+  */
+  const sonntageDabei = [
+    ...o.alternativen.selberTag,
+    ...o.alternativen.tagDavor,
+    ...o.alternativen.tagDanach,
+    ...o.alternativen.weitere,
+  ].some((t) => istSonntag(t.datum));
+
+  if (sonntageDabei && o.mitMenue) {
+    zeilen.push(
+      "Ein Hinweis zu eurem Menü: Sonntags bieten wir das Menü derzeit nicht an. "
+      + "Wenn ihr wieder mit Essen kommen möchtet, wählt bitte einen anderen Tag. "
+      + "Die Sonntagstermine haben wir deshalb mit \"ohne Menü\" gekennzeichnet.",
+    );
     zeilen.push("");
   }
 

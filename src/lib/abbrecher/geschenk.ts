@@ -204,7 +204,8 @@ export function istGutscheinkorb(a: {
 }
 
 export async function geschenkVersprechen(o: {
-  buchungId: string;
+  /** Null, wenn die Karte nicht ueber unsere Kasse kam (Freikarte, Telefon). */
+  buchungId: string | null;
   email: string;
   name: string;
   art: GeschenkArt;
@@ -213,7 +214,7 @@ export async function geschenkVersprechen(o: {
 }): Promise<void> {
   await db()`
     insert into abbruch_geschenk (buchung_id, email, name, art, anzahl, gilt_bis)
-    values (${o.buchungId}, ${o.email}, ${o.name}, ${o.art}, ${Math.max(1, o.anzahl)}, ${o.giltBis.toISOString()})
+    values (${o.buchungId || null}, ${o.email}, ${o.name}, ${o.art}, ${Math.max(1, o.anzahl)}, ${o.giltBis.toISOString()})
   `;
 }
 

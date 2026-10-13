@@ -29,6 +29,15 @@ export interface ShopGruppe {
   orderId: string;
   /** Name des Bestellers. Wird im Sitzplan als Gruppenname verwendet. */
   name: string;
+  /**
+   * Die Adresse des Bestellers, soweit die Verkaufsliste sie hat.
+   *
+   * Gebraucht bei einer Show-Absage: Dort muss jeder angeschrieben
+   * werden, auch wer eine Freikarte hat oder am Telefon gebucht wurde
+   * (Kevin, 13.10.2026). Unsere eigene Buchungstabelle kennt nur, was
+   * durch die neue Kasse lief, und das sind längst nicht alle.
+   */
+  email: string;
   firma: string | null;
   ditixEventId: string;
   /** Alle Menüs dieser Bestellung. */
@@ -36,6 +45,8 @@ export interface ShopGruppe {
   menuesGesamt: number;
   /** Sitzplätze im Saal, also gekaufte Showtickets. */
   tickets: number;
+  /** Welche Ticketarten das sind, namentlich: für Kategorie und Upgrade. */
+  ticketArten: Array<{ bezeichnung: string; menge: number }>;
   getraenkeArmbaender: number;
   /**
    * Alles, was weder Menue noch Ticket ist, mit Bezeichnung und Menge:
@@ -128,6 +139,7 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
 
   const iOrder = sp("order_id");
   const iName = sp("customer_name");
+  const iMail = sp("customer_email");
   const iFirma = sp("customer_company");
   const iEvent = sp("event_id");
   const iTyp = sp("tickettype_name");
@@ -164,10 +176,12 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
         // auf unseren Listen und Schildern soll es trotzdem gut aussehen.
         name: nameOrdentlich((z[iName] ?? "").trim()) || "Ohne Namen",
         firma: firma && firma !== "KEINE ANGABE" ? nameOrdentlich(firma) : null,
+        email: (z[iMail] ?? "").trim().toLowerCase(),
         ditixEventId: eventId,
         menues: {},
         menuesGesamt: 0,
         tickets: 0,
+        ticketArten: [],
         getraenkeArmbaender: 0,
         zusatzleistungen: [],
         eingegangen: (z[iZeit] ?? "").trim(),
@@ -186,6 +200,9 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
       g.menuesGesamt += menge;
     } else if (istTicket(bezeichnung)) {
       g.tickets += menge;
+      const schon = g.ticketArten.find((t) => t.bezeichnung === bezeichnung);
+      if (schon) schon.menge += menge;
+      else g.ticketArten.push({ bezeichnung, menge });
     } else {
       // Alles andere bleibt namentlich erhalten. Frueher fielen
       // Stehtische hier stillschweigend heraus, und im Foyer stand dann
