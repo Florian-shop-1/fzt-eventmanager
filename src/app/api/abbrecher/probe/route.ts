@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { angebotMail, frageMail } from "@/lib/abbrecher/mails";
+import { angebotMail, frageMail, gutscheinFrageMail } from "@/lib/abbrecher/mails";
 import { ANGEBOT_STUNDEN } from "@/lib/abbrecher/lauf";
 import type { Abbrecher } from "@/lib/abbrecher/db";
 import type { GeschenkArt } from "@/lib/abbrecher/geschenk";
@@ -82,6 +82,8 @@ export async function GET(request: Request) {
   };
 
   await schicken("frage", frageMail(BEISPIEL));
+  // Die Frage beim Gutschein sieht anders aus, also auch anders pruefen.
+  await schicken("gutschein-frage", gutscheinFrageMail(BEISPIEL));
   for (const art of arten) await schicken(art, angebotMail(BEISPIEL, art, bis));
 
   return NextResponse.json({ ok: fehler.length === 0, verschickt: raus, fehler });

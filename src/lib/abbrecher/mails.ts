@@ -155,6 +155,95 @@ export function frageMail(a: Abbrecher) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 1b. Die Frage beim Gutschein
+ * ------------------------------------------------------------------ */
+
+/**
+ * Wer einen Gutschein kaufen wollte, bekommt eine eigene Frage.
+ *
+ * Die normale Mail nennt Show und Datum, und beides gibt es hier nicht.
+ * Statt des Geschenks, das an einem Abend an der Bar bereitliegt,
+ * stehen hier die drei Dinge, die beim Verschenken wirklich zählen
+ * (Florian, 13.10.2026): ab 100 Euro kostenloser Versand, ein
+ * Zaubertrick liegt dabei, und ein abgelaufener Gutschein wird auch
+ * nach den drei Jahren noch eingelöst.
+ */
+export function gutscheinFrageMail(a: Abbrecher) {
+  const vn = vorname(a.name);
+  const anrede = vn ? `Hallo ${vn},` : "Hallo,";
+  const link = (grund: string) => `${APP}/warum/${a.zugangToken}?grund=${grund}`;
+  const betreff = `${vn ? `${vn}, ` : ""}was hat dich beim Gutschein abgehalten?`;
+
+  const punkte: Array<[string, string]> = [
+    [
+      "Versand geht auf uns",
+      "Ab 100 Euro schicken wir dir den Gutschein kostenlos nach Hause, schön verpackt zum Verschenken.",
+    ],
+    [
+      "Ein Zaubertrick liegt dabei",
+      "Kostenlos und zum sofort Ausprobieren. So ist schon das Auspacken ein kleiner Moment Magie.",
+    ],
+    [
+      "Abgelaufen gibt es bei uns nicht",
+      "Gutscheine gelten drei Jahre. Meldet sich jemand später, lösen wir ihn trotzdem ein. Niemand muss "
+        + "Angst haben, dass das Geschenk am Ende verfällt.",
+    ],
+  ];
+
+  const text = [
+    anrede,
+    "",
+    "du wolltest bei uns einen Gutschein kaufen und bist kurz vor Schluss stehen geblieben.",
+    "",
+    "Wir wollen dir mit dieser Mail nichts verkaufen. Wir würden nur gern wissen,",
+    "woran es lag. Ein Klick genügt:",
+    "",
+    ...GRUND_KNOEPFE.map(([g, t]) => `${t}: ${link(g)}`),
+    "",
+    "Drei Dinge, die du vielleicht noch nicht weißt:",
+    "",
+    ...punkte.map(([t, w]) => `- ${t}: ${w}`),
+    "",
+    "Fragen? Schreib einfach zurück oder ruf an unter 0731 7906 110.",
+    "",
+    "Herzliche Grüße",
+    "Florian",
+  ].join("\n");
+
+  const antworten = GRUND_KNOEPFE.map(
+    ([g, t]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px">
+      <tr><td align="center" style="background-color:#191919;border:1px solid rgba(201,168,76,0.35);border-radius:8px;">
+        <a href="${h(link(g))}" style="display:block;padding:14px 18px;font-family:${SANS};font-size:15px;color:${WEISS};text-decoration:none;">${h(t)}</a>
+      </td></tr></table>`,
+  ).join("");
+
+  const html = mailRahmen({
+    titel: "Was hat dich abgehalten?",
+    vorschau: "Ab 100 Euro versandkostenfrei, mit Zaubertrick dazu.",
+    ueberschrift: ueberschrift("Was hat dich<br />abgehalten?"),
+    inhalt: [
+      absatz(h(anrede), `color:${WEISS};font-size:17px;`),
+      absatz("du wolltest bei uns einen Gutschein kaufen und bist kurz vor Schluss stehen geblieben."),
+      absatz("Wir wollen dir nichts verkaufen. Wir würden nur gern wissen, woran es lag:"),
+      antworten,
+      absatz("Und drei Dinge, die du vielleicht noch nicht weißt:"),
+      ...punkte.map(([t, w]) =>
+        kasten(
+          `${klein(t)}<p style="margin:8px 0 0;font-family:${SANS};font-size:15px;line-height:1.6;color:#D8D8D8;">${h(w)}</p>`,
+        ),
+      ),
+      absatz(
+        `Fragen? Schreib einfach zurück oder ruf an unter <strong style="color:${WEISS}">0731 7906 110</strong>.`,
+      ),
+      `<p style="margin:22px 0 26px;font-family:${SERIF};font-size:23px;line-height:1.3;color:#E3C46F;">Florian</p>`,
+    ].join(""),
+    fuss: fussZeile(a),
+  });
+
+  return { betreff, text, html };
+}
+
+/* ------------------------------------------------------------------ *
  * 2. Das Angebot
  * ------------------------------------------------------------------ */
 

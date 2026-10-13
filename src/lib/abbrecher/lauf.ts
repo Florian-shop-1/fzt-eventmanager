@@ -24,7 +24,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { widersprochene } from "@/lib/db/werbewiderspruch";
 import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, heuteAngeschrieben, type Abbrecher } from "./db";
 import { geschenkVersprechen, istGutscheinkorb, passendesGeschenk, type GeschenkArt } from "./geschenk";
-import { abmeldenLink, angebotMail, frageMail } from "./mails";
+import { abmeldenLink, angebotMail, frageMail, gutscheinFrageMail } from "./mails";
 
 /** Wie viele Getränkepakete in einer Woche vergeben werden. */
 export const KONTINGENT_JE_WOCHE = 20;
@@ -165,19 +165,8 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   ergebnis.uebersprungen = alle.length - offen.length;
 
   /* 1. Die Frage, frühestens vier Stunden und spätestens drei Tage danach. */
-  /*
-    Ohne Abend auch keine Frage.
-
-    Die Mail sagt "du wolltest Plätze für ... am ... buchen". Bei einem
-    Gutscheinkauf steht da nichts Richtiges, und eine Mail mit einem
-    falschen Datum ist schlimmer als keine (13.10.2026).
-  */
   const fragen = offen.filter(
-    (a) =>
-      !a.frageAm
-      && !istGutscheinkorb(a)
-      && stundenSeit(a.eingegangenAm) >= 4
-      && stundenSeit(a.eingegangenAm) <= 72,
+    (a) => !a.frageAm && stundenSeit(a.eingegangenAm) >= 4 && stundenSeit(a.eingegangenAm) <= 72,
   );
   const grossteFrage = groessteJeAdresse(fragen);
   for (const a of fragen) {
@@ -195,7 +184,16 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
     }
     if (uebrig <= 0) break;
     try {
-      const mail = frageMail(a);
+      /*
+        Beim Gutschein eine eigene Frage.
+
+        Die normale nennt Show und Datum, und beides gibt es hier nicht.
+        Dafür stehen in der Gutscheinmail die Dinge, die beim
+        Verschenken zählen: Versand ab 100 Euro frei, ein Zaubertrick
+        liegt dabei, und abgelaufen wird bei uns trotzdem eingelöst
+        (Florian, 13.10.2026).
+      */
+      const mail = istGutscheinkorb(a) ? gutscheinFrageMail(a) : frageMail(a);
       await mailVerschicken({
         an: a.email,
         betreff: mail.betreff,
