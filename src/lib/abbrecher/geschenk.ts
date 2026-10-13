@@ -42,10 +42,21 @@ export const GESCHENK_TEXT: Record<GeschenkArt, string> = {
   sonstiges: "etwas anderes",
 };
 
-/** Was an der Bar wirklich herausgegeben wird. */
+/**
+ * Was an der Bar wirklich herausgegeben wird, in der Sprache der Bar.
+ *
+ * "beim Souvenirglas muss stehen, dass es nur das Glas ist, ohne
+ * Inhalt" (Florian, 13.10.2026). Für den Gast heißt es in der Mail
+ * weiter schlicht "Souvenirglas"; wer es herausgibt, muss den
+ * Unterschied kennen.
+ */
+const AUSGABE_TEXT: Partial<Record<GeschenkArt, string>> = {
+  glas: "Souvenirglas (nur das Glas, ohne Inhalt)",
+};
+
 export function geschenkText(g: { art: GeschenkArt; eigenes?: string }): string {
   if (g.art === "sonstiges") return g.eigenes?.trim() || "etwas anderes, siehe Notiz";
-  return GESCHENK_TEXT[g.art];
+  return AUSGABE_TEXT[g.art] ?? GESCHENK_TEXT[g.art];
 }
 
 /** Mit Artikel, damit die Sätze in der Mail stimmen ("wir legen dir ... dazu"). */

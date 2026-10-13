@@ -15,6 +15,11 @@ export const metadata = { title: "Geschenke | FZT Eventmanager" };
  * Leer kommt aus der Abbrecher-Strecke, "Gast" aus der Absage-Strecke.
  * Beides sagt nichts, und dann ist die Mailadresse die bessere Angabe.
  */
+/** Adresse und Abend zusammen: So erkennt man denselben Gast wieder. */
+function schluessel(g: { email: string; name: string; gebuchtDatum: string | null }): string {
+  return `${(g.email || g.name).trim().toLowerCase()}|${g.gebuchtDatum ?? ""}`;
+}
+
 function echterName(name: string): string | null {
   const n = name.trim();
   return n && n.toLowerCase() !== "gast" ? n : null;
@@ -61,6 +66,20 @@ export default async function GeschenkeSeite({
   */
   const namen = await namenZuGeschenken(roh).catch(() => new Map<string, string>());
 
+  /*
+    Wer an einem Abend mehr als einmal in der Liste steht.
+
+    Gezählt wird über Adresse und Abend, denn genau so meldet sich der
+    Gast an der Bar. Beide Einträge werden markiert, nicht nur der
+    zweite: An der Bar sieht man immer nur den, den man gerade sucht.
+  */
+  const gesehen = new Map<string, number>();
+  for (const g of roh) {
+    const k = schluessel(g);
+    gesehen.set(k, (gesehen.get(k) ?? 0) + 1);
+  }
+  const doppelt = new Set([...gesehen].filter(([, n]) => n > 1).map(([k]) => k));
+
   const liste =
     ansicht === "heute"
       ? roh.filter((g) => g.gebuchtDatum === heute)
@@ -76,6 +95,11 @@ export default async function GeschenkeSeite({
           Diese Gäste haben von uns etwas geschenkt bekommen, weil ihre Buchung zuerst abgebrochen war. Sie
           melden sich an der Bar, du gibst es aus und hakst ab. In Ditix steht davon nichts, es läuft nur über
           diese Liste.
+        </p>
+        <p className="mt-2 max-w-prose rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          <strong>Es gibt zu jeder Eintrittskarte nur ein Geschenk.</strong> Welches, ist ausgelost: Mal das
+          Bändchen, mal das Glas, mal der Zauberstab. Steht bei einem Gast zweierlei, stimmt etwas nicht.
+          Dann gib bitte nur eines aus und sag im Büro Bescheid.
         </p>
       </header>
 
@@ -223,6 +247,23 @@ export default async function GeschenkeSeite({
                 <div className="text-sm">
                   <strong>{g.gilt}</strong> × {geschenkText(g)}
                 </div>
+                {/*
+                  Zweimal derselbe Gast am selben Abend.
+
+                  "es gibt zu jeder Eintrittskarte nur ein Geschenk, das
+                  ist wie eine Auslosung" (Florian, 13.10.2026). Glas und
+                  Bändchen nebeneinander ist deshalb kein Angebot zur
+                  Auswahl, sondern ein Fehler, den jemand sehen muss.
+                */}
+                {doppelt.has(schluessel(g)) && (
+                  <div
+                    className="mt-1 rounded px-2 py-1 text-xs font-medium"
+                    style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}
+                  >
+                    Achtung: Für diesen Gast steht an diesem Abend noch ein weiteres Geschenk. Es gibt nur
+                    eines je Eintrittskarte. Bitte nur eines ausgeben und uns Bescheid sagen.
+                  </div>
+                )}
                 {/* Hat er am Ende weniger Plätze gebucht, gibt es auch
                     weniger. Die Zahl steht trotzdem dabei, damit im Foyer
                     niemand rätselt (Florian, 23.09.2026). */}
