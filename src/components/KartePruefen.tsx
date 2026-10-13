@@ -113,16 +113,38 @@ export function KartePruefen({ karte }: { karte: ScanKarte }) {
 
           {l.claude?.hinweis && <p className="text-xs text-leise">Claude: {l.claude.hinweis}</p>}
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          {/*
+            Zwei gleichwertige Wege, nebeneinander.
+
+            "beim Emoji-Scanner wäre gut, wenn man auch das Feld
+            verwerfen anklicken könnte, es geht nur an Brevo
+            weitergeben" (Florian, 13.10.2026): Verwerfen stand als
+            kleiner grauer Link darunter und sah aus wie eine
+            Bildunterschrift. Jetzt ist es ein Knopf in derselben Zeile,
+            nur ohne Gold, damit klar bleibt, was der Normalfall ist.
+
+            Er steht im Formular daneben (form=...), denn Formulare
+            lassen sich nicht ineinander verschachteln.
+          */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Absendeknopf text={fehler ? "Erneut an Brevo" : "Passt, an Brevo"} laeuftText="Wird eingetragen..." />
+            <button
+              type="submit"
+              form={`verwerfen-${karte.id}`}
+              className="rounded-lg border border-linie px-4 py-2 text-sm hover:bg-blocker-hell"
+              style={{ color: "var(--blocker)" }}
+              title="Leer, unleserlich oder gar keine Karte"
+            >
+              Verwerfen
+            </button>
           </div>
         </form>
 
-        <form action={karteVerwerfen}>
+        <form id={`verwerfen-${karte.id}`} action={karteVerwerfen}>
           <input type="hidden" name="id" value={karte.id} />
-          <button type="submit" className="text-xs text-leise underline hover:text-text">
-            Verwerfen (leer, unleserlich oder keine Karte)
-          </button>
+          <p className="text-xs text-leise">
+            Verwerfen heißt: leer, unleserlich oder gar keine Karte. Sie geht dann nicht an Brevo.
+          </p>
         </form>
       </div>
     </article>
