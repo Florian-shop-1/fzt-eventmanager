@@ -1,4 +1,5 @@
 import { nameMerken } from "@/app/wer/aktionen";
+import { WER_MINUTEN } from "@/lib/personal/wer";
 
 /**
  * Die Frage, wer gerade am geteilten Zugang arbeitet.
@@ -21,7 +22,7 @@ export function WerBistDu({
   if (gewaehlt) {
     return (
       <p className="text-xs text-leise">
-        Du arbeitest gerade als <strong>{gewaehlt}</strong>.{" "}
+        Du arbeitest gerade als <strong>{gewaehlt}</strong>, noch für höchstens {WER_MINUTEN} Minuten.{" "}
         <form action={nameMerken} className="inline">
           <input type="hidden" name="name" value="" />
           <input type="hidden" name="zurueck" value={zurueck} />
@@ -37,7 +38,8 @@ export function WerBistDu({
     <div className="rounded-lg border-2 px-4 py-3" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
       <p className="text-sm font-semibold">Wer arbeitet gerade hier?</p>
       <p className="mt-0.5 text-xs text-leise">
-        Damit an dem, was du erledigst, dein Name steht. Gilt für diesen Abend und dieses Gerät.
+        Damit an dem, was du erledigst, dein Name steht. Die Auswahl gilt {WER_MINUTEN} Minuten auf
+        diesem Gerät, danach fragen wir noch einmal.
       </p>
 
       {namen.length > 0 && (

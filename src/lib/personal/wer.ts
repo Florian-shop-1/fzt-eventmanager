@@ -5,9 +5,10 @@
  * jedem erledigten Versand ein Name stehen: "Mitarbeiter soll sich
  * identifizieren, wer er ist, wenn er es macht" (Florian, 12.10.2026).
  *
- * Dafür ein Keks statt einer Anmeldung. Er hält einen Tag und steht auf
- * dem Gerät, nicht an der Person: Am nächsten Abend fragt das Programm
- * neu, und das ist richtig so, weil dann jemand anderes dort steht.
+ * Dafür ein Keks statt einer Anmeldung. Er hält eine halbe Stunde und
+ * steht auf dem Gerät, nicht an der Person (Florian, 13.10.2026): Am
+ * Tablet wechseln die Leute, und ein Name, der den ganzen Abend stehen
+ * bleibt, ist nach der zweiten Übergabe falsch.
  *
  * An einem persönlichen Zugang passiert nichts davon. Dort ist der Name
  * bekannt.
@@ -17,6 +18,9 @@ import { cookies } from "next/headers";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 
 export const WER_KEKS = "fzt_wer";
+
+/** So lange gilt die Auswahl. Danach fragt das Programm neu. */
+export const WER_MINUTEN = 30;
 
 /** Der Zusatz macht später klar, dass der Name von Hand gewählt wurde. */
 const ZUSATZ = " (Foyer-Zugang)";
