@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { verlangeWer } from "@/lib/personal/wer";
 import { zauberstabAbhaken, zauberstabEintragen, zauberstabZurueck } from "@/lib/shop/zauberstab";
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -30,8 +31,13 @@ function zurueck(meldung: string, ziel = "/zauberstab"): never {
 
 /** Umschlag ist raus. */
 export async function abhaken(f: FormData): Promise<void> {
-  const b = await zugang();
-  await zauberstabAbhaken(text(f, "id"), b.name);
+  await zugang();
+  /*
+    Am geteilten Zugang heisst der Benutzer "Foyer", und das sagt nicht,
+    wer den Umschlag zugeklebt hat. Deshalb der gewaehlte Name
+    (Florian, 12.10.2026).
+  */
+  await zauberstabAbhaken(text(f, "id"), await verlangeWer());
   zurueck("Abgehakt, der Umschlag ist raus.", text(f, "ziel"));
 }
 

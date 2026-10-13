@@ -361,7 +361,7 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
  */
 const GETEILTE_SEITEN: Record<string, string[]> = {
   // Foyer: Parkplatzschilder drucken, Geschenke nachsehen, Karten scannen.
-  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check"],
+  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check", "/versand", "/zauberstab"],
   // Show: der Abend im Saal.
   showteam: ["/upgrades", "/hoerezu", "/tipps", "/showcheck"],
   // Die Putzfirma: stempeln, mehr nicht.
@@ -512,6 +512,13 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       // Geschenke fuer Gaeste, deren Buchung erst abgebrochen war: Die
       // gibt das Foyer an der Magic-Bar aus (Florian, 23.09.2026).
       pfad.startsWith("/geschenke") ||
+      /*
+        Der Gutscheinversand. Bisher nur im Buero, jetzt auch im Foyer:
+        Zwischen Einlass und Pause ist dort Zeit dafuer, und die Post
+        soll nicht liegen bleiben (Florian, 12.10.2026).
+      */
+      pfad.startsWith("/versand") ||
+      pfad.startsWith("/zauberstab") ||
       pfad.startsWith("/sitzplan") ||
       // Sarah macht seit 21.09.2026 auch im Showteam mit und braucht
       // deshalb die Upgrades wie die anderen am Abend.

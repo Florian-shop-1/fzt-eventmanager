@@ -570,7 +570,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   beide etwas melden, das liegen bleibt, wenn niemand
                   hinsieht (Florian, 25.09.2026).
                 */}
-                {["chef", "team"].includes(benutzer.rolle) && <VersandMelder />}
+                {["chef", "team", "foyer"].includes(benutzer.rolle) && <VersandMelder />}
                 {benutzer.whatsapp && <WhatsAppMelder />}
               </nav>
 

@@ -23,7 +23,7 @@ const LEER = { offen: 0, klaerung: 0 };
 
 export async function GET() {
   const benutzer = await angemeldeterBenutzer();
-  if (!benutzer || !["chef", "team"].includes(benutzer.rolle)) {
+  if (!benutzer || !["chef", "team", "foyer"].includes(benutzer.rolle)) {
     return NextResponse.json(LEER, { status: 403 });
   }
 

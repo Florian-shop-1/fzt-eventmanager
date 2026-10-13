@@ -21,6 +21,11 @@ import {
 } from "@/lib/shop/zauberstab";
 import { abhaken as zauberstabAbhaken, dochNicht as zauberstabDochNicht } from "@/app/zauberstab/aktionen";
 import { DruckKnopf } from "@/components/DruckKnopf";
+import { WerBistDu } from "@/components/WerBistDu";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { gewaehlterName } from "@/lib/personal/wer";
+import { namenImDienst } from "@/lib/showcheck/namen";
+import { heuteBerlin } from "@/lib/foyer/pause";
 import { ZauberstabBrief } from "@/components/ZauberstabBrief";
 import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang, zeitpunkt } from "@/lib/zeit";
@@ -65,6 +70,21 @@ export default async function VersandSeite({
   }>;
 }) {
   const { zeige, nur, drucken, sofort, zuletzt, aktion, meldung } = await searchParams;
+
+  /*
+    Am geteilten Foyer-Zugang muss dastehen, wer gerade arbeitet.
+
+    Sonst stuende an jedem erledigten Versand nur "Foyer", und damit
+    liesse sich spaeter nichts klaeren (Florian, 12.10.2026).
+  */
+  const ich = await angemeldeterBenutzer();
+  const nameNoetig = Boolean(ich?.geteilt);
+  const [werIchBin, namenHeute] = await Promise.all([
+    nameNoetig ? gewaehlterName() : Promise.resolve(""),
+    nameNoetig
+      ? namenImDienst({ liste: "foyer", eventIds: [], datum: heuteBerlin() }).catch(() => [])
+      : Promise.resolve([] as string[]),
+  ]);
   const alleZeigen = zeige === "alle";
   const erledigteZeigen = zeige === "erledigt";
   // Die aktuelle Ansicht wandert mit in die Aktion, damit man nach dem
@@ -211,6 +231,12 @@ export default async function VersandSeite({
           />
         )}
       </header>
+
+      {nameNoetig && (
+        <div className="print:hidden">
+          <WerBistDu namen={namenHeute} gewaehlt={werIchBin} zurueck="/versand" />
+        </div>
+      )}
 
       {/*
         Rückmeldung nach dem Abhaken.

@@ -13,6 +13,23 @@ import { redirect } from "next/navigation";
 import { db } from "./client";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 
+/**
+ * Wer den Versand abhaken darf: Buero und Foyer.
+ *
+ * Am geteilten Foyer-Zugang steht der Name nicht fest, deshalb kommt er
+ * von der Auswahl auf der Seite (siehe lib/personal/wer.ts). Ohne
+ * Auswahl geht nichts: Ein Haken ohne Namen hilft spaeter niemandem.
+ */
+async function verlangeVersand(): Promise<string> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) throw new Error("Nicht angemeldet.");
+  if (!darfKaufmaennisches(benutzer.rolle) && benutzer.rolle !== "foyer") {
+    throw new Error("Für diese Änderung fehlt die Berechtigung.");
+  }
+  const { verlangeWer } = await import("@/lib/personal/wer");
+  return verlangeWer();
+}
+
 async function verlangeBuero(): Promise<string> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) throw new Error("Nicht angemeldet.");
@@ -96,7 +113,7 @@ export async function versandAbhaken(
   zurueck: boolean,
   ansicht: string = "",
 ): Promise<void> {
-  const name = await verlangeBuero();
+  const name = await verlangeVersand();
 
   if (zurueck) {
     await db()`
