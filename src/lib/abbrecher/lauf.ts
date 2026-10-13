@@ -23,7 +23,7 @@ import { offeneNachfuehren } from "@/lib/db/shop-buchungen";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { widersprochene } from "@/lib/db/werbewiderspruch";
 import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, heuteAngeschrieben, type Abbrecher } from "./db";
-import { geschenkVersprechen, passendesGeschenk, type GeschenkArt } from "./geschenk";
+import { geschenkVersprechen, istGutscheinkorb, passendesGeschenk, type GeschenkArt } from "./geschenk";
 import { abmeldenLink, angebotMail, frageMail } from "./mails";
 
 /** Wie viele Getränkepakete in einer Woche vergeben werden. */
@@ -165,7 +165,20 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   ergebnis.uebersprungen = alle.length - offen.length;
 
   /* 1. Die Frage, frühestens vier Stunden und spätestens drei Tage danach. */
-  const fragen = offen.filter((a) => !a.frageAm && stundenSeit(a.eingegangenAm) >= 4 && stundenSeit(a.eingegangenAm) <= 72);
+  /*
+    Ohne Abend auch keine Frage.
+
+    Die Mail sagt "du wolltest Plätze für ... am ... buchen". Bei einem
+    Gutscheinkauf steht da nichts Richtiges, und eine Mail mit einem
+    falschen Datum ist schlimmer als keine (13.10.2026).
+  */
+  const fragen = offen.filter(
+    (a) =>
+      !a.frageAm
+      && !istGutscheinkorb(a)
+      && stundenSeit(a.eingegangenAm) >= 4
+      && stundenSeit(a.eingegangenAm) <= 72,
+  );
   const grossteFrage = groessteJeAdresse(fragen);
   for (const a of fragen) {
     const adresse = a.email.toLowerCase();
@@ -208,9 +221,28 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
     trotzdem etwas: den Zauberstab bei den Familienshows, sonst das
     Souvenirglas. Leer ausgehen soll niemand.
   */
-  const kandidaten = offen.filter(
+  const inFrage = offen.filter(
     (a) => !a.angebotAm && stundenSeit(a.eingegangenAm) >= 72 && stundenSeit(a.eingegangenAm) <= 30 * 24,
   );
+
+  /*
+    Gutscheinkäufe bekommen kein Geschenk.
+
+    Das Geschenk liegt an einem Abend an der Magic-Bar bereit. Bei einem
+    Gutschein gibt es diesen Abend nicht, und meistens kommt am Ende
+    jemand ganz anderes als der Käufer (Florian, 13.10.2026). Abgehakt
+    werden sie trotzdem, sonst stünden sie dreißig Tage lang jede Nacht
+    wieder auf der Liste.
+  */
+  const kandidaten: Abbrecher[] = [];
+  for (const a of inFrage) {
+    if (istGutscheinkorb(a)) {
+      if (!probelauf) await angebotVermerken(a.id);
+      ergebnis.uebersprungen++;
+      continue;
+    }
+    kandidaten.push(a);
+  }
   const groessteAngebot = groessteJeAdresse(kandidaten);
   const rest = Math.max(0, KONTINGENT_JE_WOCHE - (await schonVergeben()));
   const gezogene = new Set(ziehen(kandidaten, rest).map((a) => a.id));

@@ -165,6 +165,33 @@ export function passendesGeschenk(show: string): GeschenkArt {
   return /zirkus|family|kinder/i.test(show) ? "zauberstab" : "glas";
 }
 
+/**
+ * Ein liegengebliebener Gutscheinkauf. Dafür gibt es kein Geschenk.
+ *
+ * "diese dürfen NICHT beim gutscheinverkauf versendet werden, wie
+ * sollen wir da was hinterlegen, wenn wir nicht wissen, wann sie
+ * kommen" (Florian, 13.10.2026).
+ *
+ * Genau daran hängt es: Das Geschenk liegt an einem Abend an der
+ * Magic-Bar bereit. Wer einen Gutschein kauft, hat keinen Abend, und
+ * oft ist der Beschenkte ein ganz anderer Mensch als der Käufer.
+ *
+ * Erkannt wird es am Wort im Namen der Vorstellung oder der Posten und
+ * daran, dass kein richtiger Termin dranhängt.
+ */
+export function istGutscheinkorb(a: {
+  show: string;
+  ditixEventId: string;
+  datum: string;
+  posten: Array<{ name: string; gruppe: string }>;
+}): boolean {
+  if (/gutschein/i.test(a.show)) return true;
+  if (a.posten.some((p) => /gutschein/i.test(p.name) || /gutschein/i.test(p.gruppe))) return true;
+  // Kein Termin, kein Abend: Dann wissen wir nicht, wann jemand kommt.
+  const terminFehlt = a.ditixEventId.trim().length < 5 || !/^\d{4}-\d{2}-\d{2}$/.test(a.datum.slice(0, 10));
+  return terminFehlt;
+}
+
 export async function geschenkVersprechen(o: {
   buchungId: string;
   email: string;
