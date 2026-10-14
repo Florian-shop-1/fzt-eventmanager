@@ -50,6 +50,8 @@ export function PersonalbogenFormular({
   const [bestaetigt, setBestaetigt] = useState(false);
   // Laeuft das Konto auf jemand anderen? Siehe unten bei der Bankverbindung.
   const [fremdesKonto, setFremdesKonto] = useState(false);
+  // "Ich habe noch keine Sozialversicherungsnummer", vom Mitarbeiter selbst.
+  const [ohneSv, setOhneSv] = useState(ohneSvNummer);
   const [fertig, setFertig] = useState(false);
 
   const setze = (k: Feld, v: string) => {
@@ -58,7 +60,7 @@ export function PersonalbogenFormular({
   };
 
   function weiter() {
-    const alle = pruefen(b, { ohneSvNummer });
+    const alle = pruefen(b, { ohneSvNummer: ohneSvNummer || ohneSv });
     const hier = Object.fromEntries(Object.entries(alle).filter(([k]) => SCHRITTE[schritt].felder.includes(k as Feld)));
     if (Object.keys(hier).length > 0) {
       setFehler(hier);
@@ -71,7 +73,7 @@ export function PersonalbogenFormular({
   async function absenden() {
     setSendet(true);
     setMeldung(null);
-    const e = await personalbogenAbsenden(b);
+    const e = await personalbogenAbsenden(b, ohneSv);
     setSendet(false);
     if (e.ok) {
       setFertig(true);
@@ -235,11 +237,31 @@ export function PersonalbogenFormular({
               "Steht auf deinem Sozialversicherungsausweis oder deiner Krankenkassenkarte (Rückseite, „Rentenversicherungsnummer“).",
             )}
             {sv && !fehler.svNummer && <p className="-mt-2 text-xs" style={{ color: "var(--warnung)" }}>{sv}</p>}
-            {ohneSvNummer && !b.svNummer.trim() && (
-              <p className="-mt-2 text-xs text-leise">
-                Du hast noch keine? Dann lass das Feld frei und mach weiter. Wir erinnern dich später daran,
-                die Nummer nachzutragen.
-              </p>
+
+            {/*
+              Wer noch keine Nummer hat, kommt sonst nicht weiter.
+
+              Beim ersten Job vergibt sie die Krankenkasse erst mit der
+              Anmeldung. Anita stand genau davor (Florian, 14.10.2026).
+            */}
+            {!b.svNummer.trim() && (
+              <label className="-mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={ohneSv}
+                  onChange={(e) => {
+                    setOhneSv(e.target.checked);
+                    if (e.target.checked) setze("svNummer", "");
+                  }}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  Ich habe noch keine Sozialversicherungsnummer
+                  <span className="block text-xs text-leise">
+                    Beim ersten Job normal. Lass das Feld dann frei, wir fragen später noch einmal nach.
+                  </span>
+                </span>
+              </label>
             )}
             {text(
               "steuerId",

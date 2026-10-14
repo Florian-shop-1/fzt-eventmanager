@@ -26,7 +26,17 @@ function h(s: string): string {
 
 export type Absendeergebnis = { ok: true } | { ok: false; fehler: string; felder?: Record<string, string> };
 
-export async function personalbogenAbsenden(roh: Personalbogen): Promise<Absendeergebnis> {
+export async function personalbogenAbsenden(
+  roh: Personalbogen,
+  /*
+    Der Mitarbeiter sagt selbst, dass er noch keine Nummer hat.
+
+    Anita hat wegen ihres Alters noch keine und kam nicht weiter: "kann
+    nicht das einfach frei lassen" (Florian, 14.10.2026). Bisher musste
+    das Buero den Haken vorher setzen, und niemand wusste davon.
+  */
+  ohneSvLautMitarbeiter = false,
+): Promise<Absendeergebnis> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) return { ok: false, fehler: "Bitte neu anmelden." };
 
@@ -44,7 +54,18 @@ export async function personalbogenAbsenden(roh: Personalbogen): Promise<Absende
   const z = (await db()`
     select sv_nummer_spaeter from benutzer where id = ${benutzer.id}
   `.catch(() => [])) as Array<{ sv_nummer_spaeter: boolean }>;
-  const ohneSvNummer = Boolean(z[0]?.sv_nummer_spaeter);
+  const ohneSvNummer = Boolean(z[0]?.sv_nummer_spaeter) || (ohneSvLautMitarbeiter && !b.svNummer.trim());
+
+  /*
+    Wer hier sagt, er habe noch keine, wird dafuer vorgemerkt: Dann
+    laeuft die freundliche Erinnerung alle paar Tage an (siehe
+    lib/personal/sv-erinnerung.ts).
+  */
+  if (ohneSvLautMitarbeiter && !b.svNummer.trim()) {
+    await db()`
+      update benutzer set sv_nummer_spaeter = true where id = ${benutzer.id}
+    `.catch(() => undefined);
+  }
 
   const felder = pruefen(b, { ohneSvNummer });
   if (Object.keys(felder).length > 0) {
