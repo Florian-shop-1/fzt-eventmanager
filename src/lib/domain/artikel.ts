@@ -370,8 +370,10 @@ export const ARTIKEL: Artikel[] = [
   */
   {
     nummer: "SPARKLER",
-    bezeichnung: "Sparkler-Effekt",
-    beschreibung: "Kalte Funken von der Decke und aus dem Boden, zum Beispiel zum Auftritt.",
+    bezeichnung: "Sparkler-Effekt, zehn Geräte",
+    beschreibung:
+      "Kalte Funken aus acht Geräten in der Decke und zwei im Boden, zum Beispiel zum Auftritt "
+      + "oder zum Anstoßen. Preis für den gesamten Effekt.",
     einheit: "Stück",
     bruttoCent: 15000,
     ust: 0.19,
