@@ -136,6 +136,20 @@ export default async function MarketingSeite({
       ) : (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">Nach Kanal</h2>
+          {/*
+            Bezahlt und organisch stehen getrennt, und hier steht die
+            Summe darueber: Sonst liest man die Zeilen einzeln und nimmt
+            nie mit, wie viel davon wirklich Werbung war
+            (Florian, 14.10.2026).
+          */}
+          <p className="text-xs text-leise">
+            Über Anzeigen kam{" "}
+            <strong>
+              {bericht.umsatzCent > 0 ? prozent(bericht.bezahltUmsatzCent / bericht.umsatzCent) : "0 %"}
+            </strong>{" "}
+            vom Umsatz ({euro(bericht.bezahltUmsatzCent)} aus {bericht.bezahltBuchungen}{" "}
+            {bericht.bezahltBuchungen === 1 ? "Buchung" : "Buchungen"}). Der Rest kam ohne bezahlten Klick.
+          </p>
           <div className="overflow-hidden rounded-lg border border-linie bg-flaeche">
             {bericht.kanaele.map((k) => (
               <div key={k.quelle} className="border-b border-linie px-4 py-3 last:border-0">

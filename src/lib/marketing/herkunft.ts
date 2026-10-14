@@ -52,6 +52,9 @@ export interface Herkunftsbericht {
   waren: Warengruppe[];
   /** Anteil der Verkäufe, denen keine Herkunft anhängt. */
   ohneHerkunft: number;
+  /** Was über bezahlte Klicks kam: Anzeigen, nicht Suchtreffer. */
+  bezahltUmsatzCent: number;
+  bezahltBuchungen: number;
 }
 
 /**
@@ -78,13 +81,56 @@ const NAMEN: Record<string, string> = {
   duckduckgo: "DuckDuckGo",
 };
 
+/**
+ * Wurde für diesen Besuch bezahlt?
+ *
+ * "unterscheide bei Google: kam organisch oder über Ad" (Florian,
+ * 14.10.2026). Das steht nicht in der Quelle, sondern im Medium: Der
+ * Shop meldet für dieselbe Quelle google einmal organic und einmal cpc.
+ * Zusammengezählt sah es so aus, als brächte Google 166 Buchungen,
+ * dabei sind davon nur zwölf bezahlt.
+ */
+const BEZAHLTE_MEDIEN = new Set([
+  "cpc",
+  "ppc",
+  "paid",
+  "paid_social",
+  "paidsocial",
+  "ads",
+  "display",
+  "retargeting",
+  "remarketing",
+  "sea",
+]);
+
+export function istBezahlt(quelle: string, medium: string): boolean {
+  const m = medium.trim().toLowerCase();
+  if (BEZAHLTE_MEDIEN.has(m)) return true;
+  // Manche Quellen sagen es schon im Namen: "google-ads".
+  return /(^|[-_])ads?$/.test(quelle.trim().toLowerCase());
+}
+
+/** Quelle und Art zusammen: Danach wird gruppiert und sortiert. */
+export function kanalSchluessel(quelle: string, medium: string): string {
+  const q = quelle.trim().toLowerCase();
+  if (!q) return "";
+  return `${q}|${istBezahlt(q, medium) ? "bezahlt" : "frei"}`;
+}
+
 export function kanalName(quelle: string, medium: string): string {
   const q = quelle.trim().toLowerCase();
-  if (NAMEN[q]) return NAMEN[q];
   if (!q) return NAMEN[""];
-  // Ohne Eintrag wenigstens ordentlich schreiben, plus die Art dahinter.
-  const schoen = q.charAt(0).toUpperCase() + q.slice(1);
-  return medium ? `${schoen} (${medium})` : schoen;
+
+  const basis = NAMEN[q] ?? q.charAt(0).toUpperCase() + q.slice(1);
+  const bezahlt = istBezahlt(q, medium);
+
+  // "Google Ads Ads" wäre albern: Steht es schon im Namen, bleibt es dabei.
+  if (bezahlt) return /ads/i.test(basis) ? basis : `${basis} Ads`;
+
+  const m = medium.trim().toLowerCase();
+  if (m === "organic") return `${basis} (organisch)`;
+  if (!m || NAMEN[q]) return basis;
+  return `${basis} (${m})`;
 }
 
 /**
@@ -117,11 +163,19 @@ export async function herkunftsbericht(tage = 30, bisVorTagen = 0): Promise<Herk
      group by 1, 2
   `) as Array<Record<string, unknown>>;
 
+  /*
+    Gruppiert wird nach Quelle UND Art, nicht nur nach Quelle.
+
+    Sonst stehen die bezahlten Klicks in derselben Zeile wie die Leute,
+    die uns ohnehin gefunden hätten, und dann sieht jede Suchmaschine
+    aus wie eine erfolgreiche Kampagne (Florian, 14.10.2026).
+  */
   const proQuelle = new Map<string, Kanal>();
   for (const z of zeilen) {
     const quelle = String(z.quelle);
-    const vorhanden = proQuelle.get(quelle) ?? {
-      quelle,
+    const schluessel = kanalSchluessel(quelle, String(z.medium));
+    const vorhanden = proQuelle.get(schluessel) ?? {
+      quelle: schluessel,
       name: kanalName(quelle, String(z.medium)),
       buchungen: 0,
       karten: 0,
@@ -131,10 +185,13 @@ export async function herkunftsbericht(tage = 30, bisVorTagen = 0): Promise<Herk
     vorhanden.buchungen += Number(z.buchungen);
     vorhanden.karten += Number(z.karten);
     vorhanden.umsatzCent += Number(z.umsatz);
-    proQuelle.set(quelle, vorhanden);
+    proQuelle.set(schluessel, vorhanden);
   }
 
   const kanaele = [...proQuelle.values()].sort((a, b) => b.umsatzCent - a.umsatzCent || b.buchungen - a.buchungen);
+  const bezahlte = kanaele.filter((k) => k.quelle.endsWith("|bezahlt"));
+  const bezahltUmsatzCent = bezahlte.reduce((n, k) => n + k.umsatzCent, 0);
+  const bezahltBuchungen = bezahlte.reduce((n, k) => n + k.buchungen, 0);
   const umsatzCent = kanaele.reduce((n, k) => n + k.umsatzCent, 0);
   const buchungen = kanaele.reduce((n, k) => n + k.buchungen, 0);
   const karten = kanaele.reduce((n, k) => n + k.karten, 0);
@@ -160,6 +217,8 @@ export async function herkunftsbericht(tage = 30, bisVorTagen = 0): Promise<Herk
   const von = new Date(bis.getTime() - tage * 86400000);
 
   return {
+    bezahltUmsatzCent,
+    bezahltBuchungen,
     von: von.toLocaleDateString("sv-SE"),
     bis: bis.toLocaleDateString("sv-SE"),
     buchungen,
