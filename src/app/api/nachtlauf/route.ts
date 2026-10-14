@@ -16,6 +16,7 @@ import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
 import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
 import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
+import { anfragenMelden } from "@/lib/shop/lead-meldung";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -141,7 +142,16 @@ const MORGEN: Teil[] = [
   deshalb muss oft genug nachgesehen werden; geschrieben wird je Abend
   und Person trotzdem nur einmal.
 */
-const PAUSE: Teil[] = [{ name: "nach_pause", tun: () => nachPauseMahnen() }];
+const PAUSE: Teil[] = [
+  { name: "nach_pause", tun: () => nachPauseMahnen() },
+  /*
+    Neue Anfragen melden.
+
+    Laeuft im selben Viertelstundentakt: Eine Eventanfrage darf nicht
+    bis zum naechsten Morgen liegen bleiben (Florian, 14.10.2026).
+  */
+  { name: "anfragen", tun: () => anfragenMelden() },
+];
 
 export async function GET(request: Request) {
   const geheimnis = process.env.CRON_SECRET;
