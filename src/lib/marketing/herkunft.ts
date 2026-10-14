@@ -71,6 +71,14 @@ const NAMEN: Record<string, string> = {
   meta: "Meta",
   facebook: "Facebook",
   instagram: "Instagram",
+  /*
+    Radio 7 heisst in der Liste nach dem, was der Gast getan hat.
+
+    Die Leute hoeren den Spot und tippen die Adresse ein; genau so soll
+    die Zeile heissen (Florian, 14.10.2026). Der Schluessel bleibt
+    radio7, damit die Kampagnenzeile darunter weiter stimmt.
+  */
+  radio7: "florianzimmer.com eingegeben",
   swp: "Zeitungsanzeige (SWP)",
   regiotv: "RegioTV",
   bruecke: "Brückenbanner",
