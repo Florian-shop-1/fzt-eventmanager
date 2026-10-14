@@ -158,8 +158,17 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
     ),
   );
 
-  /** Volle Stunden, abgerundet, höchstens zwei. */
-  const alsZuschauerstunden = (minuten: number): number => Math.min(120, Math.floor(minuten / 60) * 60);
+  /**
+   * Volle Stunden, abgerundet, höchstens zwei.
+   *
+   * Unter einer Stunde bleibt die echte Zeit stehen, statt auf null zu
+   * fallen: "das passiert also nie, ausser er kommt total spät und geht
+   * früh, dafür wäre es sinnvoll" (Florian, 14.10.2026). Wer 45 Minuten
+   * da war, bekommt 45 Minuten; wer eine Hälfte bleibt, eine Stunde;
+   * wer beide bleibt, zwei.
+   */
+  const alsZuschauerstunden = (minuten: number): number =>
+    minuten < 60 ? minuten : Math.min(120, Math.floor(minuten / 60) * 60);
 
   const imZeitraum = (tag: string) => tag >= z.von && tag <= z.bis;
   const leute = new Map<string, Mitarbeiterzeiten>();
