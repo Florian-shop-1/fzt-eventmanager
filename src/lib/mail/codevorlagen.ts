@@ -16,8 +16,12 @@
  *   die Codes, je Vorrat mit seinem Einlösehinweis
  *   Schluss
  *
- * Reiner Text, keine Formatierung. Das kommt in jedem Mailprogramm an,
- * landet seltener im Spam und sieht auf dem Handy nicht kaputt aus.
+ * Geschrieben wird hier reiner Text. Verschickt wird er seit dem
+ * 14.10.2026 zusätzlich im Hausdesign, schwarz mit Gold wie die
+ * Vorfreude-Mail, siehe lib/mail/codemail.ts. Die Textfassung geht
+ * weiter mit: Sie kommt in jedem Programm an und hilft gegen den
+ * Spamfilter. Leerzeilen trennen die Absätze, mehr Formatierung
+ * braucht es hier nicht.
  */
 
 export interface Codevorlage {

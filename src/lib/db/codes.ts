@@ -264,10 +264,26 @@ export async function codesVerschicken(formData: FormData): Promise<void> {
       "",
     ]);
 
+    /*
+      Dieselbe Mail zweimal: als Text und im Hausdesign.
+
+      "warum machst du die nicht in dem schoenen Design, wie wenn jemand
+      Vorfreude-Mail kriegt" (Florian, 14.10.2026). Der Text bleibt
+      trotzdem drin, fuer Programme ohne HTML und fuer den Spamfilter.
+    */
+    const { codeMailHtml } = await import("@/lib/mail/codemail");
+    const titel = betreff || "Ein Geschenk vom Florian Zimmer Theater";
+
     await mailVerschicken({
       an: email,
-      betreff: betreff || "Ein Geschenk vom Florian Zimmer Theater",
+      betreff: titel,
       text: [einleitung, "", ...zeilenText, schluss].join(UMBRUCH).trim(),
+      html: codeMailHtml({
+        betreff: titel,
+        einleitung,
+        bloecke: vergeben,
+        schluss,
+      }),
     });
   } catch (f) {
     // Die schon reservierten Codes wieder freigeben, sonst sind sie
