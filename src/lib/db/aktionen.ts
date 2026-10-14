@@ -314,6 +314,51 @@ export async function anfrageAufnehmen(formData: FormData): Promise<void> {
   redirect(`/vorgaenge/${vorgangId}`);
 }
 
+/**
+ * Den Termin eines Vorgangs setzen oder wieder offenlassen.
+ *
+ * "bei Angebot erstellen kam die Nachfrage, wo der denn das Datum
+ * eingeben kann" (Florian, 14.10.2026): Bisher ging das nur beim
+ * Anlegen des Vorgangs. Wer am Telefon einen Abend ausmacht, musste den
+ * Vorgang neu anlegen.
+ *
+ * Gewählt wird aus dem Spielplan, nicht frei getippt: So steht nie ein
+ * Datum im Vorgang, an dem gar keine Show läuft, und Sitzplan und
+ * Küchenblatt finden den Abend wieder.
+ */
+export async function terminSetzen(vorgangId: string, formData: FormData): Promise<void> {
+  await verlangeTeam();
+  const gewaehlt = text(formData, "ditixEventId");
+
+  if (!gewaehlt) {
+    await db()`update vorgang set vorstellung_id = null, geaendert_am = now() where id = ${vorgangId}`;
+    revalidatePath("/vorgaenge");
+    revalidatePath(`/vorgaenge/${vorgangId}`);
+    redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Termin wieder offen.")}`);
+  }
+
+  const termine = await kommendeTermine();
+  const termin = termine.find((t) => t.ditixEventId === gewaehlt);
+  if (!termin) {
+    redirect(
+      `/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Diese Vorstellung steht nicht mehr im Spielplan.")}`,
+    );
+  }
+
+  const vorstellungId = await vorstellungFinden(termin.datum, termin.name, termin.ditixEventId);
+  await db()`
+    update vorgang set vorstellung_id = ${vorstellungId}, geaendert_am = now() where id = ${vorgangId}
+  `;
+
+  revalidatePath("/vorgaenge");
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+  redirect(
+    `/vorgaenge/${vorgangId}?meldung=${encodeURIComponent(
+      `Termin gesetzt: ${termin.datum.split("-").reverse().join(".")}, ${termin.uhrzeit} Uhr, ${termin.name}.`,
+    )}`,
+  );
+}
+
 export async function statusSetzen(vorgangId: string, status: VorgangStatus): Promise<void> {
   await verlangeTeam();
   await db()`

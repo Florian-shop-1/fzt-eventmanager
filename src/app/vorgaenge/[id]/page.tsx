@@ -7,6 +7,7 @@ import {
   aufgabeHinzufuegen,
   aufgabeUmschalten,
   kontaktAendern,
+  terminSetzen,
   ausnahmeSetzen,
   gruppeEntfernen,
   gruppeHinzufuegen,
@@ -19,7 +20,7 @@ import {
 import { StatusBadge, datumKurz, vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 import { STATUS_LABEL, STATUS_REIHENFOLGE, type VorgangStatus } from "@/lib/domain/vorgang";
-import { findeTermin } from "@/lib/ditix/spielplan";
+import { findeTermin, kommendeTermine } from "@/lib/ditix/spielplan";
 import { holeAuslastung } from "@/lib/ditix/auslastung";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
 import type { Buchungsgruppe, MenueVariante } from "@/lib/domain/types";
@@ -260,14 +261,30 @@ export default async function VorgangSeite({
             <AuslastungKarte ditixEventId={vorgang.vorstellung.ditixEventId} />
           )}
 
-          {!vorgang.vorstellung && (
+          {/*
+            Der Termin, zu setzen und zu ändern.
+
+            "bei Angebot erstellen kam die Nachfrage, wo der denn das
+            Datum eingeben kann" (Florian, 14.10.2026). Gewählt wird aus
+            dem Spielplan: So steht nie ein Abend im Vorgang, an dem
+            keine Show läuft.
+          */}
+          {!vorgang.vorstellung ? (
             <div className="rounded-lg border border-warnung bg-warnung-hell px-4 py-3 text-sm">
               <strong style={{ color: "var(--warnung)" }}>Kein Termin festgelegt.</strong>
               <p className="mt-1 text-leise">
                 Ein Angebot lässt sich trotzdem schreiben. Für Sitzplan und Küchenblatt wird
                 der Termin gebraucht.
               </p>
+              <TerminWahl vorgangId={vorgang.id} aktuell={null} />
             </div>
+          ) : (
+            <Karte titel="Termin">
+              <p className="text-sm">
+                <strong>{datumKurz(vorgang.vorstellung.datum)}</strong> · {vorgang.vorstellung.show}
+              </p>
+              <TerminWahl vorgangId={vorgang.id} aktuell={vorgang.vorstellung.ditixEventId} />
+            </Karte>
           )}
 
           <Karte titel="Kontakt">
@@ -773,6 +790,36 @@ function Karte({ titel, children }: { titel: string; children: React.ReactNode }
       <h2 className="mb-3 text-sm font-semibold">{titel}</h2>
       {children}
     </section>
+  );
+}
+
+/** Die Auswahl aus dem Spielplan. Serverseitig, damit sie immer stimmt. */
+async function TerminWahl({ vorgangId, aktuell }: { vorgangId: string; aktuell: string | null }) {
+  const termine = await kommendeTermine(120).catch(() => []);
+
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-xs text-leise">
+        {aktuell ? "Termin ändern" : "Termin festlegen"}
+      </summary>
+      <form action={terminSetzen.bind(null, vorgangId)} className="mt-2 space-y-2">
+        <select name="ditixEventId" defaultValue={aktuell ?? ""} className="w-full text-sm">
+          <option value="">Termin offen lassen</option>
+          {termine.map((t) => (
+            <option key={t.ditixEventId} value={t.ditixEventId}>
+              {datumKurz(t.datum)}, {t.uhrzeit} Uhr · {t.name}
+              {t.ausverkauft ? " (ausverkauft)" : ""}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm">
+          Speichern
+        </button>
+        <p className="text-xs text-leise">
+          Nur Abende aus dem Spielplan. Fehlt einer, muss er zuerst in Ditix angelegt werden.
+        </p>
+      </form>
+    </details>
   );
 }
 
