@@ -274,5 +274,22 @@ export async function personalbogenAnfordern(benutzerId: string): Promise<void> 
   const ich = await angemeldeterBenutzer();
   if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
   await db()`update benutzer set personalbogen_am = null where id = ${benutzerId}`;
+
+  /*
+    Zusaetzlich eine Mail.
+
+    Der Haken allein bringt nur die Aufgabe im Programm zurueck, und die
+    sieht nur, wer sich anmeldet (Florian, 14.10.2026).
+  */
+  let meldung: string;
+  try {
+    const { bogenAnfordern } = await import("@/lib/personal/bogen-anfordern");
+    const e = await bogenAnfordern(benutzerId);
+    meldung = `Aufforderung an ${e.name} geschickt, an ${e.email}.`;
+  } catch (f) {
+    meldung = f instanceof Error ? f.message : "Die Mail ging nicht hinaus.";
+  }
+
   revalidatePath("/einstellungen/benutzer");
+  redirect(`/einstellungen/benutzer?meldung=${encodeURIComponent(meldung)}`);
 }
