@@ -20,6 +20,7 @@ import {
 import { StatusBadge, datumKurz, vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 import { STATUS_LABEL, STATUS_REIHENFOLGE, type VorgangStatus } from "@/lib/domain/vorgang";
+import { terminlage } from "@/lib/domain/terminlage";
 import { findeTermin, kommendeTermine } from "@/lib/ditix/spielplan";
 import { holeAuslastung } from "@/lib/ditix/auslastung";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
@@ -273,17 +274,58 @@ export default async function VorgangSeite({
             <div className="rounded-lg border border-warnung bg-warnung-hell px-4 py-3 text-sm">
               <strong style={{ color: "var(--warnung)" }}>Kein Termin festgelegt.</strong>
               <p className="mt-1 text-leise">
-                Ein Angebot lässt sich trotzdem schreiben. Für Sitzplan und Küchenblatt wird
-                der Termin gebraucht.
+                {vorgang.wunschzeitraum
+                  ? `Der Kunde hat sich gewünscht: ${vorgang.wunschzeitraum}. Bitte den Abend auswählen.`
+                  : "Ein Angebot lässt sich trotzdem schreiben. Für Sitzplan und Küchenblatt wird der Termin gebraucht."}
               </p>
-              <TerminWahl vorgangId={vorgang.id} aktuell={null} />
+              <TerminWahl vorgangId={vorgang.id} aktuell={null} wunsch={vorgang.wunschzeitraum} />
             </div>
           ) : (
             <Karte titel="Termin">
               <p className="text-sm">
                 <strong>{datumKurz(vorgang.vorstellung.datum)}</strong> · {vorgang.vorstellung.show}
               </p>
-              <TerminWahl vorgangId={vorgang.id} aktuell={vorgang.vorstellung.ditixEventId} />
+
+              {/*
+                Zusage oder nicht. "es muss klar ersichtlich sein, ob es
+                noch Zusage ausstehend ist oder bestätigt" (Florian,
+                14.10.2026). Bestätigt ist es mit der ersten Zahlung,
+                auch bei Ratenzahlung.
+              */}
+              {(() => {
+                const lage = terminlage({ status: vorgang.status, zahlungen: vorgang.zahlungen });
+                return (
+                  <>
+                    <p className="mt-2">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={
+                          lage.bestaetigt
+                            ? { background: "var(--gut-hell)", color: "var(--gut)" }
+                            : { background: "var(--warnung-hell)", color: "var(--warnung)" }
+                        }
+                      >
+                        {lage.text}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-leise">{lage.erklaerung}</p>
+                  </>
+                );
+              })()}
+
+              {/* Ein Abend, den es in Ditix nicht gibt: dann fehlt der Saalplan. */}
+              {!vorgang.vorstellung.ditixEventId && (
+                <p className="mt-2 text-xs" style={{ color: "var(--warnung)" }}>
+                  An diesem Tag steht keine Show im Spielplan. Saalplan, Auslastung und Einlass über die
+                  App gibt es für diesen Abend nicht.
+                </p>
+              )}
+
+              <TerminWahl
+                vorgangId={vorgang.id}
+                aktuell={vorgang.vorstellung.ditixEventId}
+                wunsch={vorgang.wunschzeitraum}
+              />
             </Karte>
           )}
 
@@ -794,16 +836,38 @@ function Karte({ titel, children }: { titel: string; children: React.ReactNode }
 }
 
 /** Die Auswahl aus dem Spielplan. Serverseitig, damit sie immer stimmt. */
-async function TerminWahl({ vorgangId, aktuell }: { vorgangId: string; aktuell: string | null }) {
+async function TerminWahl({
+  vorgangId,
+  aktuell,
+  wunsch,
+}: {
+  vorgangId: string;
+  aktuell: string | null;
+  /** Was der Kunde sich gewünscht hat, als Text aus der Anfrage. */
+  wunsch?: string | null;
+}) {
   const termine = await kommendeTermine(120).catch(() => []);
 
+  /*
+    Steht im Wunsch ein Datum, ist der passende Abend vorausgewählt.
+
+    "wenn der Kunde schon gesagt hat, wann er möchte, sollte der Termin
+    drin stehen" (Florian, 14.10.2026).
+  */
+  const passend = wunschTermin(wunsch, termine);
+
   return (
-    <details className="mt-2">
+    <details className="mt-2" open={!aktuell}>
       <summary className="cursor-pointer text-xs text-leise">
         {aktuell ? "Termin ändern" : "Termin festlegen"}
       </summary>
+
       <form action={terminSetzen.bind(null, vorgangId)} className="mt-2 space-y-2">
-        <select name="ditixEventId" defaultValue={aktuell ?? ""} className="w-full text-sm">
+        <select
+          name="ditixEventId"
+          defaultValue={aktuell ?? passend?.ditixEventId ?? ""}
+          className="w-full text-sm"
+        >
           <option value="">Termin offen lassen</option>
           {termine.map((t) => (
             <option key={t.ditixEventId} value={t.ditixEventId}>
@@ -812,15 +876,60 @@ async function TerminWahl({ vorgangId, aktuell }: { vorgangId: string; aktuell: 
             </option>
           ))}
         </select>
+        {passend && !aktuell && (
+          <p className="text-xs" style={{ color: "var(--gut)" }}>
+            Vorausgewählt nach dem Wunsch des Kunden: {datumKurz(passend.datum)}.
+          </p>
+        )}
         <button type="submit" className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm">
           Speichern
         </button>
-        <p className="text-xs text-leise">
-          Nur Abende aus dem Spielplan. Fehlt einer, muss er zuerst in Ditix angelegt werden.
-        </p>
       </form>
+
+      {/*
+        Ein Abend ohne Show. Firmen mieten das Haus auch an spielfreien
+        Tagen (Florian, 14.10.2026). Getrennt vom Spielplan-Formular,
+        damit niemand aus Versehen beides ausfüllt.
+      */}
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs text-leise">Tag ohne Show im Spielplan</summary>
+        <form action={terminSetzen.bind(null, vorgangId)} className="mt-2 space-y-2">
+          <input type="hidden" name="ditixEventId" value="" />
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Datum</span>
+            <input name="freiesDatum" type="date" required className="w-full text-sm" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Wie soll der Abend heißen?</span>
+            <input name="freierName" placeholder="Sonderveranstaltung" className="w-full text-sm" />
+          </label>
+          <button type="submit" className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm">
+            Termin ohne Show speichern
+          </button>
+          <p className="text-xs" style={{ color: "var(--warnung)" }}>
+            Dafür gibt es keinen Saalplan, keine Auslastung und keinen Einlass über die App. Soll der
+            Abend verkauft werden, muss er zuerst in Ditix angelegt werden.
+          </p>
+        </form>
+      </details>
     </details>
   );
+}
+
+/** Der Abend, der zum Wunschtext des Kunden passt, falls einer darin steht. */
+function wunschTermin<T extends { datum: string }>(wunsch: string | null | undefined, termine: T[]): T | undefined {
+  const t = (wunsch ?? "").trim();
+  const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  const de = t.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{2,4})/);
+
+  let tag: string | null = null;
+  if (iso) {
+    tag = `${iso[1]}-${iso[2]}-${iso[3]}`;
+  } else if (de) {
+    const jahr = de[3].length === 2 ? `20${de[3]}` : de[3];
+    tag = `${jahr}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
+  }
+  return tag ? termine.find((x) => x.datum === tag) : undefined;
 }
 
 function Zeile({ bezeichnung, wert }: { bezeichnung: string; wert: string | null }) {

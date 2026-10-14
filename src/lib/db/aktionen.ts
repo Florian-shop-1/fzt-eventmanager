@@ -329,6 +329,36 @@ export async function anfrageAufnehmen(formData: FormData): Promise<void> {
 export async function terminSetzen(vorgangId: string, formData: FormData): Promise<void> {
   await verlangeTeam();
   const gewaehlt = text(formData, "ditixEventId");
+  const freiesDatum = text(formData, "freiesDatum");
+
+  /*
+    Ein Abend ohne Show im Spielplan.
+
+    "es muss auch möglich sein, Termine anzulegen ohne dass an dem Tag
+    eine Show ist, aber es muss ein Hinweis kommen" (Florian,
+    14.10.2026). Firmen mieten das Haus auch an spielfreien Tagen; was
+    dann fehlt, ist der Saalplan aus Ditix, und genau das sagt die
+    Meldung.
+  */
+  if (!gewaehlt && freiesDatum) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(freiesDatum)) {
+      redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Bitte ein Datum auswählen.")}`);
+    }
+    const bezeichnung = text(formData, "freierName") || "Sonderveranstaltung";
+    const vorstellungId = await vorstellungFinden(freiesDatum, bezeichnung);
+    await db()`
+      update vorgang set vorstellung_id = ${vorstellungId}, geaendert_am = now() where id = ${vorgangId}
+    `;
+    revalidatePath("/vorgaenge");
+    revalidatePath(`/vorgaenge/${vorgangId}`);
+    redirect(
+      `/vorgaenge/${vorgangId}?meldung=${encodeURIComponent(
+        `Termin gesetzt: ${freiesDatum.split("-").reverse().join(".")}, ${bezeichnung}. `
+        + "Achtung: An diesem Tag steht keine Show im Spielplan. Ohne Vorstellung in Ditix gibt es "
+        + "keinen Saalplan, keine Auslastung und keinen Einlass über die App.",
+      )}`,
+    );
+  }
 
   if (!gewaehlt) {
     await db()`update vorgang set vorstellung_id = null, geaendert_am = now() where id = ${vorgangId}`;

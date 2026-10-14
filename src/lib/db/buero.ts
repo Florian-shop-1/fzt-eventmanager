@@ -268,6 +268,22 @@ export async function leadSpeichern(schluessel: string, formData: FormData): Pro
  * entstandenen Vorgang, und danach geht es dort weiter mit Angebot,
  * Sitzplan und Rechnung.
  */
+/**
+ * Aus "12.12.2026", "12.12.26" oder "2026-12-12" wird "2026-12-12".
+ *
+ * Mehr muss es nicht koennen: Steht im Wunsch nur "im Dezember", bleibt
+ * der Termin offen, und genau das ist dann auch richtig.
+ */
+function alsDatum(roh: string): string | null {
+  const t = roh.trim();
+  const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const de = t.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{2,4})/);
+  if (!de) return null;
+  const jahr = de[3].length === 2 ? `20${de[3]}` : de[3];
+  return `${jahr}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
+}
+
 export async function leadZuVorgang(schluessel: string, formData: FormData): Promise<void> {
   const name = await verlangeBuero();
 
@@ -303,11 +319,42 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
     praefix +
     String((letzte.length > 0 ? Number(letzte[0].nummer.split("-")[2]) : 0) + 1).padStart(3, "0");
 
+  /*
+    Hat der Kunde ein Datum genannt, steht es gleich im Vorgang.
+
+    "wenn der Kunde schon gesagt hat, wann er möchte, sollte der Termin
+    drin stehen" (Florian, 14.10.2026). Nur bei genau einer Vorstellung
+    an dem Tag: Laufen zwei, soll ein Mensch entscheiden, und der
+    Wunschtext bleibt ja sichtbar.
+  */
+  let vorstellungId: string | null = null;
+  const wunschTag = alsDatum(wunsch);
+  if (wunschTag) {
+    const { termineDesTages } = await import("@/lib/ditix/spielplan");
+    const amTag = await termineDesTages(wunschTag).catch(() => []);
+    if (amTag.length === 1) {
+      const t = amTag[0];
+      const vorhanden = (await db()`
+        select id from vorstellung where datum = ${wunschTag} and show = ${t.name} limit 1
+      `) as Array<{ id: string }>;
+      if (vorhanden[0]) {
+        vorstellungId = vorhanden[0].id;
+      } else {
+        const neu = (await db()`
+          insert into vorstellung (datum, show, ditix_event_id)
+          values (${wunschTag}, ${t.name}, ${t.ditixEventId}) returning id
+        `) as Array<{ id: string }>;
+        vorstellungId = neu[0].id;
+      }
+    }
+  }
+
   const vorgang = (await db()`
-    insert into vorgang (nummer, status, kunde_id, quelle, personen_ungefaehr, wunschzeitraum)
+    insert into vorgang (nummer, status, kunde_id, quelle, personen_ungefaehr, wunschzeitraum,
+                         vorstellung_id)
     values (${nummer}, 'anfrage', ${kundeId},
             ${anfragetyp ? `Anfrage (${anfragetyp})` : "Anfrage"},
-            ${personen || null}, ${wunsch || null})
+            ${personen || null}, ${wunsch || null}, ${vorstellungId})
     returning id
   `) as Array<{ id: string }>;
 
