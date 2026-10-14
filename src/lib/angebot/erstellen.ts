@@ -284,11 +284,15 @@ export interface Angebotssumme {
 }
 
 /**
- * Rechnet die Angebotssumme aus. Alternativpositionen zählen nicht mit,
- * sie sind nur ein Wahlangebot an den Kunden.
+ * Rechnet die Angebotssumme aus.
+ *
+ * Nicht mit zählen Alternativpositionen, die nur ein Wahlangebot sind,
+ * und optionale Positionen: Die stehen mit Preis in Klammern im Angebot
+ * und werden erst berechnet, wenn der Kunde sie dazunimmt
+ * (Florian, 14.10.2026).
  */
 export function angebotssumme(positionen: Position[]): Angebotssumme {
-  const echte = positionen.filter((p) => !p.istAlternativeZu);
+  const echte = positionen.filter((p) => !p.istAlternativeZu && !p.optional);
   const nachSatz = new Map<number, { nettoCent: number; ustCent: number }>();
   let bruttoCent = 0;
 

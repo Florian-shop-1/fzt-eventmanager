@@ -340,14 +340,14 @@ export function Angebotsvorschau({
           </thead>
           <tbody>
             {positionen.map((p) => {
-              const alternative = Boolean(p.istAlternativeZu);
+              const alternative = Boolean(p.istAlternativeZu) || Boolean(p.optional);
               const nummer = nummern.get(p.id) ?? "";
               return (
                 <tr key={p.id} className="border-b border-linie align-top last:border-0">
                   <td className={`py-2 ${alternative ? "text-leise" : ""}`}>{nummer}</td>
                   <td className="py-2">
                     <div className={alternative ? "text-leise" : "font-medium"}>
-                      {alternative && "(Alternativposition) "}
+                      {p.istAlternativeZu ? "(Alternativposition) " : p.optional ? "(Optional) " : ""}
                       {p.bezeichnung}
                     </div>
                     <div className="text-[10px] text-leise">Art.-Nr.: {p.artikelNummer}</div>

@@ -92,6 +92,14 @@ export interface Position {
    * und zählen nicht zur Summe. Der Kunde wählt eine davon aus.
    */
   istAlternativeZu?: string;
+  /**
+   * Optionale Positionen stehen im Angebot mit dem Preis in Klammern und
+   * zählen nicht zur Summe (Florian, 14.10.2026).
+   *
+   * Unterschied zur Alternative: Eine Alternative ersetzt etwas, eine
+   * Option kommt obendrauf. Der Kunde sagt dazu Ja oder lässt es.
+   */
+  optional?: boolean;
 }
 
 /** Nachweis, dass und wann der Kunde das Angebot angesehen hat. */

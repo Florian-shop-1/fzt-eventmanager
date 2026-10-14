@@ -126,10 +126,11 @@ export async function angebotErzeugen(
   for (const p of positionen.filter((x) => !x.istAlternativeZu)) {
     const zeile = (await db()`
       insert into position (angebot_id, artikel_nummer, bezeichnung, beschreibung, menge,
-                            einheit, einzel_brutto_cent, ust, rabatt_prozent, sortierung)
+                            einheit, einzel_brutto_cent, ust, rabatt_prozent, sortierung,
+                            optional)
       values (${angebotId}, ${p.artikelNummer}, ${p.bezeichnung}, ${p.beschreibung ?? null},
               ${p.menge}, ${p.einheit}, ${p.einzelBruttoCent}, ${p.ust},
-              ${p.rabattProzent ?? null}, ${sortierung++})
+              ${p.rabattProzent ?? null}, ${sortierung++}, ${p.optional ?? false})
       returning id
     `) as Array<{ id: string }>;
     idZuordnung.set(p.id, zeile[0].id);
@@ -169,6 +170,27 @@ export async function angebotVersendet(angebotId: string, vorgangId: string): Pr
   `;
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");
+}
+
+/**
+ * Eine Position optional machen oder wieder zur Pflicht.
+ *
+ * "bei den einzelnen Angebotspunkten sollte auch optional von uns
+ * angeklickt werden" (Florian, 14.10.2026). Optionale Positionen stehen
+ * im Angebot mit dem Preis in Klammern und zaehlen nicht zur Summe.
+ *
+ * Geht auch noch, nachdem das Angebot verschickt ist: Der Kunde sieht
+ * seinen Link live, und am Telefon wird oft nachverhandelt. Das PDF, das
+ * schon im Postfach liegt, aendert sich dadurch nicht.
+ */
+export async function positionOptional(
+  positionId: string,
+  vorgangId: string,
+  optional: boolean,
+): Promise<void> {
+  await verlangeTeam();
+  await db()`update position set optional = ${optional} where id = ${positionId}`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
 /** Löscht ein Angebot, etwa nach einem Fehler beim Erstellen. */

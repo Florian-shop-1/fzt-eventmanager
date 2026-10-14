@@ -43,6 +43,7 @@ function zuPosition(z: Record<string, unknown>): Position {
     ust: Number(z.ust),
     rabattProzent: z.rabatt_prozent === null ? undefined : Number(z.rabatt_prozent),
     istAlternativeZu: (z.ist_alternative_zu as string) ?? undefined,
+    optional: Boolean(z.optional),
   };
 }
 
@@ -53,7 +54,7 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
 
   const positionen = (await db()`
     select id, artikel_nummer, bezeichnung, beschreibung, menge, einheit,
-           einzel_brutto_cent, ust, rabatt_prozent, ist_alternative_zu
+           einzel_brutto_cent, ust, rabatt_prozent, ist_alternative_zu, optional
       from position where angebot_id = ${id} order by sortierung
   `) as Record<string, unknown>[];
 

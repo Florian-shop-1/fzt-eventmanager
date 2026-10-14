@@ -401,8 +401,17 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
   tabellenkopf();
 
-  const haupt = d.positionen.filter((p) => !p.istAlternativeZu);
+  /*
+    Drei Sorten Position.
+
+    Pflicht ist, was weder Alternative noch Option ist. Alternativen
+    haengen unter ihrer Hauptposition, eigenstaendige Optionen stehen
+    danach (Florian, 14.10.2026). Beide stehen mit O und dem Preis in
+    Klammern und zaehlen nicht zur Summe.
+  */
+  const haupt = d.positionen.filter((p) => !p.istAlternativeZu && !p.optional);
   const optionale = (id: string) => d.positionen.filter((a) => a.istAlternativeZu === id);
+  const eigenstaendigeOptionen = d.positionen.filter((p) => p.optional && !p.istAlternativeZu);
 
   /** Eine Zeile samt Beschreibung setzen. Optionale stehen in Klammern. */
   const positionSetzen = (p: Position, marke: string, optional: boolean) => {
@@ -471,6 +480,9 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
       positionSetzen(a, `O${optionNummer++}`, true);
     }
   }
+  for (const p of eigenstaendigeOptionen) {
+    positionSetzen(p, `O${optionNummer++}`, true);
+  }
 
   void zwischensummeGezeigt;
 
@@ -498,7 +510,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
     y -= 11;
   }
 
-  if (d.positionen.some((p) => p.istAlternativeZu)) {
+  if (d.positionen.some((p) => p.istAlternativeZu || p.optional)) {
     y -= 6;
     schreib(
       "Positionen mit O sind optional und im Gesamtbetrag nicht enthalten. Sagt uns einfach Bescheid, was ihr dazunehmen möchtet.",

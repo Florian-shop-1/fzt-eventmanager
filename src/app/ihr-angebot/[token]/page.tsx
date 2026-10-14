@@ -277,12 +277,15 @@ export default async function KundenAngebot({
                 </thead>
                 <tbody>
                   {angebot.positionen.map((p) => {
-                    const alternative = Boolean(p.istAlternativeZu);
+                    /* Alternativen und Optionen stehen beide grau und in
+                       Klammern: Beides kostet erst, wenn der Kunde es
+                       dazunimmt (Florian, 14.10.2026). */
+                    const alternative = Boolean(p.istAlternativeZu) || Boolean(p.optional);
                     return (
                       <tr key={p.id} className="border-b border-linie align-top last:border-0">
                         <td className="py-2.5">
                           <div className={alternative ? "text-leise" : "font-medium"}>
-                            {alternative && "Wahlweise: "}
+                            {p.istAlternativeZu ? "Wahlweise: " : p.optional ? "Optional: " : ""}
                             {p.bezeichnung}
                           </div>
                           {p.beschreibung && (

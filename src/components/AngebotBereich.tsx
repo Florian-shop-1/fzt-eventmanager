@@ -12,7 +12,7 @@
 
 import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { angebotErzeugen, angebotLoeschen, angebotVersendet } from "@/lib/angebot/speichern";
+import { angebotErzeugen, angebotLoeschen, angebotVersendet, positionOptional } from "@/lib/angebot/speichern";
 import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
@@ -200,7 +200,8 @@ function AngebotKarte({
 
       <details className="mb-3">
         <summary className="cursor-pointer text-xs text-leise">
-          {angebot.positionen.filter((p) => !p.istAlternativeZu).length} Positionen ansehen
+          {angebot.positionen.filter((p) => !p.istAlternativeZu).length} Positionen ansehen und
+          optional setzen
         </summary>
         <table className="mt-2 w-full text-xs">
           <tbody>
@@ -208,13 +209,34 @@ function AngebotKarte({
               .filter((p) => !p.istAlternativeZu)
               .map((p) => (
                 <tr key={p.id} className="border-b border-linie last:border-0">
-                  <td className="py-1">{p.bezeichnung}</td>
+                  <td className="py-1">
+                    {p.optional && <span className="text-leise">Optional: </span>}
+                    <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
+                  </td>
                   <td className="py-1 text-right tabular-nums">{p.menge}x</td>
-                  <td className="py-1 text-right tabular-nums">{eur(positionsSumme(p))}</td>
+                  <td className={`py-1 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
+                    {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                  </td>
+                  {/*
+                    Der Schalter je Zeile. Optional heisst: steht im
+                    Angebot mit Preis in Klammern und zaehlt nicht zur
+                    Summe (Florian, 14.10.2026).
+                  */}
+                  <td className="py-1 pl-2 text-right">
+                    <form action={positionOptional.bind(null, p.id, vorgangId, !p.optional)}>
+                      <button type="submit" className="whitespace-nowrap underline text-leise">
+                        {p.optional ? "zur Pflicht" : "optional"}
+                      </button>
+                    </form>
+                  </td>
                 </tr>
               ))}
           </tbody>
         </table>
+        <p className="mt-2 text-xs text-leise">
+          Optionale Positionen stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag
+          nicht enthalten. Ein schon verschicktes PDF ändert sich dadurch nicht.
+        </p>
       </details>
 
       <div className="mb-3 rounded bg-hintergrund p-2">

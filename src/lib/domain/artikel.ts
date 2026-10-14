@@ -314,6 +314,97 @@ export const ARTIKEL: Artikel[] = [
     gruppe: "technik",
   },
 
+  /*
+    Technik und Mobiliar, die wir bisher verliehen haben, ohne sie zu
+    berechnen (Florian, 14.10.2026).
+
+    Die Mikrofonpreise sind an dem orientiert, was Häuser mit eigener
+    Technik nehmen: Hochschulen rechnen 15 bis 25 Euro je Gerät und Tag
+    (Ruhr-Universität Bochum 25 Euro, FU Berlin 20 Euro). Bei uns kommt
+    die Einweisung, die Batterie und der Techniker dazu, deshalb 30
+    Euro. Alles hier ist ein Vorschlag und in einer Zeile zu ändern.
+  */
+  {
+    nummer: "MIKROHAND",
+    bezeichnung: "Funkmikrofon, Handsender",
+    beschreibung: "Je Gerät für den Abend, inklusive Einweisung, Batterie und Einpegeln.",
+    einheit: "Stück",
+    bruttoCent: 3000,
+    ust: 0.19,
+    gruppe: "technik",
+  },
+  {
+    nummer: "MIKROHEADSET",
+    bezeichnung: "Funkmikrofon, Headset",
+    beschreibung: "Je Gerät für den Abend, inklusive Anpassen, Batterie und Einpegeln.",
+    einheit: "Stück",
+    bruttoCent: 3000,
+    ust: 0.19,
+    gruppe: "technik",
+  },
+  {
+    nummer: "STEHPULT",
+    bezeichnung: "Stehpult mit Mikrofon und Licht",
+    beschreibung: "Für Ansprachen und Ehrungen, aufgebaut und eingeleuchtet.",
+    einheit: "Stück",
+    bruttoCent: 4500,
+    ust: 0.19,
+    gruppe: "technik",
+  },
+  {
+    nummer: "BANKETTTISCH",
+    bezeichnung: "Bankett-Tisch",
+    beschreibung: "Je Tisch, aufgebaut und wieder abgebaut.",
+    einheit: "Stück",
+    bruttoCent: 1000,
+    ust: 0.19,
+    gruppe: "technik",
+  },
+
+  /*
+    Zusatzeffekte im Showroom.
+
+    Der Konfetti-Shooter steht als Paar in der Liste: Es feuern immer
+    zwei gleichzeitig, und ein einzelner wäre kein Effekt, sondern eine
+    halbe Sache (Florian, 14.10.2026).
+  */
+  {
+    nummer: "SPARKLER",
+    bezeichnung: "Sparkler-Effekt",
+    beschreibung: "Kalte Funken von der Decke und aus dem Boden, zum Beispiel zum Auftritt.",
+    einheit: "Stück",
+    bruttoCent: 15000,
+    ust: 0.19,
+    gruppe: "highlight",
+  },
+  {
+    nummer: "KONFETTI",
+    bezeichnung: "Konfetti-Shooter, zwei Stück gleichzeitig",
+    beschreibung: "Zwei Shooter, die zusammen feuern. Je Shooter 15 Euro.",
+    einheit: "Stück",
+    bruttoCent: 3000,
+    ust: 0.19,
+    gruppe: "highlight",
+  },
+  {
+    nummer: "SLOWFALL",
+    bezeichnung: "Slow-Fall-Konfetti",
+    beschreibung: "Konfetti, das langsam durch den ganzen Saal rieselt.",
+    einheit: "Stück",
+    bruttoCent: 10000,
+    ust: 0.19,
+    gruppe: "highlight",
+  },
+  {
+    nummer: "ENDREINIGUNG",
+    bezeichnung: "Endreinigung Showroom",
+    beschreibung: "Nach Veranstaltungen mit Konfetti, Buffet oder eigenem Aufbau.",
+    einheit: "Stück",
+    bruttoCent: 9000,
+    ust: 0.19,
+    gruppe: "technik",
+  },
+
   // Exklusivbuchungen
   {
     nummer: "EXKLTHEATER",
