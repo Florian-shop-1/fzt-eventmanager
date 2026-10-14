@@ -24,6 +24,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { widersprochene } from "@/lib/db/werbewiderspruch";
 import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, heuteAngeschrieben, type Abbrecher } from "./db";
 import { geschenkVersprechen, istGutscheinkorb, passendesGeschenk, type GeschenkArt } from "./geschenk";
+import { klingtNachGebucht } from "./schon-gebucht";
 import { abmeldenLink, angebotMail, frageMail, gutscheinFrageMail } from "./mails";
 
 /** Wie viele Getränkepakete in einer Woche vergeben werden. */
@@ -160,7 +161,17 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
   */
   const ERLEDIGT = new Set(["gewonnen", "verloren", "unqualifiziert", "anderweitig"]);
   const offen = alle.filter(
-    (a) => !a.spaeterGekauft && !ERLEDIGT.has(a.status) && !abgemeldet.has(a.email.toLowerCase()),
+    (a) =>
+      !a.spaeterGekauft
+      && !ERLEDIGT.has(a.status)
+      && !abgemeldet.has(a.email.toLowerCase())
+      /*
+        Wer geschrieben hat, dass er die Karten schon hat, bekommt
+        nichts mehr. Zweite Sicherung neben der Stufe: Die kann jemand
+        von Hand zurueckgesetzt haben, der Satz des Gastes bleibt
+        (Florian, 14.10.2026).
+      */
+      && !klingtNachGebucht(a.abbruchText),
   );
   ergebnis.uebersprungen = alle.length - offen.length;
 

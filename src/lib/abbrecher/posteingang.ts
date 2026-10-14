@@ -14,6 +14,7 @@
  */
 
 import { grundText, type Abbrecher } from "./db";
+import { KEIN_GESCHENK_HINWEIS } from "./schon-gebucht";
 import { webanfrageSpeichern } from "@/lib/db/whatsapp";
 import { nachEingang } from "@/lib/whatsapp/nachlauf";
 import { mailVerschicken } from "@/lib/mail/versand";
@@ -50,8 +51,10 @@ export async function abbrecherMeldung(o: {
   grund: string;
   text?: string;
   dringend?: boolean;
+  /** Der Gast schreibt, dass er die Karten schon hat. */
+  schonGebucht?: boolean;
 }): Promise<void> {
-  const { buchung: a, grund, text, dringend } = o;
+  const { buchung: a, grund, text, dringend, schonGebucht } = o;
   const abend = abendVon(a);
 
   const zeilen = [
@@ -64,6 +67,11 @@ export async function abbrecherMeldung(o: {
     dringend
       ? "\nBITTE ANRUFEN. Der Gast wollte kaufen und konnte nicht. Wir haben ihm auf der Antwortseite zugesagt, dass wir uns melden."
       : "",
+    /*
+      Damit im Buero niemand raetselt, warum nichts mehr hinausgeht
+      (Florian, 14.10.2026).
+    */
+    schonGebucht ? `\n${KEIN_GESCHENK_HINWEIS}` : "",
   ].filter(Boolean);
 
   /*
