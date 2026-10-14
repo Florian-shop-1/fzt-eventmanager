@@ -67,10 +67,20 @@ export function offenFuer(
   p: Person,
   tage = 14,
   abwesend: Abwesenheit[] = [],
+  /*
+    Abgesagte Vorstellungen fallen heraus.
+
+    "wenn ne Show ausfaellt, wie die Samstag-Mittags-Show, dann musst
+    nicht mehr nerven, dass die Schicht nicht besetzt ist, das ist ja
+    dann wurscht fuer die Show" (Florian, 14.10.2026). Die taegliche
+    Mail hat das schon beachtet, der Kasten im Dienstplan nicht.
+  */
+  abgesagt: Set<string> = new Set(),
 ): Array<{ termin: Vorstellungstermin; position: Position }> {
   const liste: Array<{ termin: Vorstellungstermin; position: Position }> = [];
   for (const s of schichten) {
     if (tageBis(s.termin.datum) > tage) continue;
+    if (abgesagt.has(s.termin.ditixEventId)) continue;
     // Wer an dem Tag im Urlaub ist, wird gar nicht erst gefragt.
     if (istAbwesend(abwesend, p.id, s.termin.datum)) continue;
     for (const slot of s.slots) {

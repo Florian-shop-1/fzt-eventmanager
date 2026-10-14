@@ -37,7 +37,10 @@ export async function dienstplanErinnerungen(b: AngemeldeterBenutzer): Promise<E
   const ich = personen.find((p) => p.id === b.id);
 
   if (ich && ich.kann.size > 0) {
-    const offen = offenFuer(schichten, ich, 14);
+    // Abgesagte Shows brauchen niemanden mehr (Florian, 14.10.2026).
+    const { abgesagteEventIds } = await import("@/lib/absage/db");
+    const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
+    const offen = offenFuer(schichten, ich, 14, [], abgesagt);
     if (offen.length > 0) {
       const erste = offen[0];
       const wann = tageBis(erste.termin.datum);

@@ -87,7 +87,7 @@ export default async function DienstplanSeite({
   const nurMeine = nur === "meine" || (nur !== "alle" && hatPosition && !planer);
 
   const meine = ich ? schichten.filter((s) => s.slots.some((x) => x.person?.id === ich.id)) : [];
-  const gesucht = ich ? offenFuer(schichten, ich, 70, abwesend) : [];
+  const gesucht = ich ? offenFuer(schichten, ich, 70, abwesend, abgesagt) : [];
   const meineAbwesenheiten = ich ? abwesend.filter((a) => a.benutzerId === ich.id) : [];
   const offenGesamt = schichten.reduce((n, s) => n + s.slots.filter((x) => x.offen).length, 0);
   // Alle Kommentare der angezeigten Shows in einer Abfrage.
