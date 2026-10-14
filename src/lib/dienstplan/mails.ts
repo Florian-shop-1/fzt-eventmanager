@@ -351,7 +351,9 @@ export async function zuschauerGesuchtMail(o: {
   return schicken(o.an, `Wer macht den Zuschauer am ${datumMitWochentag(o.termin.datum)}?`, () => ({
     absaetze: [
       "für diese Show fehlt uns noch der eingeweihte Zuschauer im Publikum.",
-      "Das kann jeder von euch: Wir zeigen es dir 30 Minuten vor Einlass, es ist wirklich einfach, und du bist nur in der ersten Hälfte dran.",
+      "Das kann jeder von euch: Wir zeigen es dir 30 Minuten vor Einlass, es ist wirklich einfach. "
+        + "Du bist über die ganze Show da, beide Hälften, und wir rechnen dafür pauschal zwei "
+        + "Arbeitsstunden ab. Die Pause zählt nicht mit.",
       ZUSCHAUER_KLEIDUNG,
       ...(o.notiz ? [`${o.wer} schreibt dazu: ${o.notiz}`] : []),
       "Trag dich einfach im Dienstplan ein. Fragen dazu kannst du gern als Kommentar unter die Show schreiben, dann sehen es alle.",

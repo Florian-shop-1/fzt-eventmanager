@@ -11,7 +11,7 @@ import {
   type StempelArt,
 } from "@/lib/stempel/db";
 import { ausserDienstMelden, gelaendeVerlassen, unplausibelMelden } from "@/lib/stempel/wache";
-import { eingeteiltAm } from "@/lib/stempel/dienst";
+import { alsZuschauerEingeteilt, eingeteiltAm } from "@/lib/stempel/dienst";
 import { mahnungMerken, offeneSchilderAbends, schonGemahnt } from "@/lib/shop/parkplatz-wache";
 import { istSonntag, letzterImFoyer, schonAbgeschlossen } from "@/lib/stempel/abschluss";
 import { darfUeberallStempeln } from "@/lib/auth/sitzung";
@@ -323,6 +323,16 @@ export async function POST(request: Request) {
   const service: Servicegruss | null =
     art === "kommen" && b.rolle === "foyer" ? servicegruss() : null;
 
+  /*
+    Der eingeweihte Zuschauer.
+
+    Er sitzt die ganze Show im Publikum, und abgerechnet werden dafuer
+    pauschal zwei Stunden; die Pause zaehlt nicht mit. Gesagt wird es
+    beim Einstempeln, weil dort die Frage aufkommt, ob die Zeit auf der
+    Uhr stimmt (Florian, 14.10.2026).
+  */
+  const zuschauer = art === "kommen" ? await alsZuschauerEingeteilt(b.id, tagHier).catch(() => false) : false;
+
   let abschluss = false;
   if (art === "gehen" && b.rolle === "foyer" && istSonntag()) {
     abschluss = (await letzterImFoyer(b.id)) && !(await schonAbgeschlossen(tagHier));
@@ -331,6 +341,7 @@ export async function POST(request: Request) {
   const neu = await standVon(b.id);
   return NextResponse.json({
     ok: true,
+    zuschauer,
     service,
     parkplatz,
     bestellung,

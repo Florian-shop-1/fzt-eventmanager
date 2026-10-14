@@ -80,6 +80,36 @@ export async function eingeteiltAm(benutzerId: string, datum: string): Promise<b
 }
 
 /**
+ * Ist diese Person heute als eingeweihter Zuschauer eingeteilt?
+ *
+ * Gebraucht beim Einstempeln: "dann kannst du den Hinweis machen bei
+ * den Zuschauern, wenn sie einstempeln, dass der Einfachheit halber
+ * immer zwei Arbeitsstunden abgerechnet werden, wenn sie beide Hälften
+ * bleiben, ansonsten eben nur eine" (Florian, 14.10.2026).
+ *
+ * Geprüft werden beide Quellen des Dienstplans, der Eintrag für den
+ * Abend und die festen Tage.
+ */
+export async function alsZuschauerEingeteilt(benutzerId: string, datum: string): Promise<boolean> {
+  const z = (await db()`
+    select 1
+      from dienst_einsatz
+     where benutzer_id = ${benutzerId}::uuid and datum = ${datum}::date and position = 'ZUSCHAUER'
+     union all
+    select 1
+      from dienst_fest f
+     where f.benutzer_id = ${benutzerId}::uuid and f.position = 'ZUSCHAUER'
+       and (f.wochentag is null or f.wochentag = extract(dow from ${datum}::date))
+       and not exists (
+         select 1 from dienst_einsatz e
+          where e.datum = ${datum}::date and e.position = 'ZUSCHAUER'
+       )
+     limit 1
+  `.catch(() => [])) as unknown[];
+  return z.length > 0;
+}
+
+/**
  * Der Grund, warum jemand außer der Reihe gestempelt hat.
  *
  * Er landet an dem Kommen-Stempel, zu dem er gehört, damit er im Büro

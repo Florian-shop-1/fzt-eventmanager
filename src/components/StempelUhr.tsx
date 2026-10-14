@@ -82,6 +82,8 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
   } | null>(null);
   // Sonntag, letzter aus dem Foyer: Ist alles abgeschaltet?
   const [abschlussTag, setAbschlussTag] = useState<string | null>(null);
+  // Als eingeweihter Zuschauer eingeteilt: Hinweis zur Pauschale.
+  const [zuschauer, setZuschauer] = useState(false);
   // Der Servicegedanke zu Schichtbeginn, nur fuers Foyer.
   const [service, setService] = useState<{ kern: string; beispiel: string } | null>(null);
   // Die Parkplatzschilder fuer den naechsten Showtag haengen noch nicht.
@@ -269,6 +271,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
         sperre?: "kein_ort" | "zu_weit";
         zustand?: Zustand;
         entfernung?: number;
+        zuschauer?: boolean;
         service?: { kern: string; beispiel: string } | null;
         parkplatz?: { datum: string; offen: number; gesamt: number } | null;
         bestellung?: { anzahl: number; inhalt: string } | null;
@@ -293,6 +296,7 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       setNochmalFrage(null);
       if (e.grundNoetig && e.stempelId) setGrundFuer(e.stempelId);
       if (e.personenNoetig && e.stempelId) setPersonenFuer(e.stempelId);
+      if (e.zuschauer) setZuschauer(true);
       if (e.service) setService(e.service);
       if (e.parkplatz) setParkplatz(e.parkplatz);
       if (e.bestellung) setBestellung(e.bestellung);
@@ -590,6 +594,29 @@ export function StempelUhr({ start, pauseFaellig }: { start: Zustand; pauseFaell
       )}
 
       {nachPause && <NachPauseFrage stand={nachPause} onSenden={nachPauseAntwort} />}
+
+      {zuschauer && (
+        <div
+          className="space-y-2 rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <p>
+            <strong>Du bist heute der eingeweihte Zuschauer.</strong> Bitte bleib über die ganze Show da,
+            beide Hälften.
+          </p>
+          <p className="text-xs">
+            Abgerechnet werden dafür der Einfachheit halber pauschal zwei Arbeitsstunden. Die Pause zählt
+            nicht mit. Wenn du nur die erste Hälfte dabei bist, ist es eine Stunde.
+          </p>
+          <button
+            type="button"
+            onClick={() => setZuschauer(false)}
+            className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white"
+          >
+            Alles klar
+          </button>
+        </div>
+      )}
 
       {service && <ServiceGruss stand={service} onWeg={() => setService(null)} />}
 

@@ -44,7 +44,7 @@ export const BEZEICHNUNG: Record<Position, string> = {
   FOH: "FOH",
   T2: "T2",
   T1: "T1",
-  ZUSCHAUER: "Zuschauer (nur erste Hälfte)",
+  ZUSCHAUER: "Zuschauer (beide Hälften)",
   TECHNIK: "Technik",
   SHADOW: "Shadow",
   ZUSATZ1: "Zusätzlich",
@@ -72,9 +72,15 @@ export const ERKLAERUNG: Record<Position, string> = {
   // (Florian, 21.09.2026). Genau so stehen die Werte auch in der Datenbank.
   T2: "Techniker 2",
   T1: "Techniker 1",
-  // Der Eingeweihte im Publikum, Reihe 4, Platz 3. Gespielt von Roman,
-  // Anita, Olena oder Sarah (Florian, 22.09.2026).
-  ZUSCHAUER: "eingeweihter Zuschauer im Saal, Reihe 4, Platz 3, nur erste Hälfte der Show",
+  /*
+    Der Eingeweihte im Publikum, Reihe 4, Platz 3. Gespielt von Roman,
+    Anita, Olena oder Sarah (Florian, 22.09.2026).
+
+    Seit dem 14.10.2026 bleibt er die ganze Show über da, nicht mehr nur
+    in der ersten Hälfte: "bitte in beiden Hälften anwesend sein, wir
+    honorieren es mit insgesamt zwei Arbeitsstunden" (Florian).
+  */
+  ZUSCHAUER: "eingeweihter Zuschauer im Saal, Reihe 4, Platz 3, beide Hälften der Show",
   // Abende ohne Show: Licht, Ton, Mikrofon für die Ansprache. Kann jeder
   // aus dem Showteam (Florian, 30.09.2026).
   TECHNIK: "Licht und Ton an einem Abend ohne Show",
