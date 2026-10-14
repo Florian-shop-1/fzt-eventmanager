@@ -460,6 +460,17 @@ function Person({
                   {t.arbeit ? (
                     <span className={t.arbeit.gewertet ? "" : "text-leise line-through"}>
                       {alsStunden(t.arbeit.arbeitMinuten)}
+                      {/*
+                        Am Zuschauertag zaehlen volle Stunden, hoechstens
+                        zwei. Was die Uhr wirklich zaehlte, steht daneben,
+                        damit niemand einen Rechenfehler vermutet
+                        (Florian, 14.10.2026).
+                      */}
+                      {t.arbeit.zuschauer && (
+                        <span className="ml-1 text-xs text-leise">
+                          Zuschauer, gestempelt {alsStunden(t.arbeit.gestempelteMinuten ?? 0)}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     "-"

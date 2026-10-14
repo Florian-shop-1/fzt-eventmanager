@@ -24,6 +24,10 @@ export interface Tagesprotokoll {
   /** Die Stempel des Tages, in der Reihenfolge des Drückens. */
   stempel: Array<{ art: string; uhrzeit: string; quelle: string; imHaus: boolean }>;
   arbeitMinuten: number;
+  /** Nur am Zuschauertag: was die Uhr wirklich gezaehlt hat. */
+  gestempelteMinuten?: number;
+  /** War dieser Tag ein Dienst als eingeweihter Zuschauer? */
+  zuschauer?: boolean;
   pauseMinuten: number;
   /** Offen heißt: gekommen, aber nie gegangen. Dann fehlt die Zeit. */
   offen: boolean;
@@ -124,6 +128,38 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
      where a.von <= ${z.bis}::date and a.bis >= ${z.von}::date
      order by a.von
   `) as Array<Record<string, unknown>>;
+
+  /*
+    Die Zuschauer-Dienste im Zeitraum.
+
+    "buch beim Zuschauer immer nur die volle Stunde, max. zwei"
+    (Florian, 14.10.2026). Der Eingeweihte sitzt im Publikum und sieht
+    die Show; abgerechnet werden deshalb volle Stunden, abgerundet, und
+    nie mehr als zwei. Die Uhr zeichnet weiter die echten Zeiten auf,
+    im Protokoll bleibt beides nebeneinander lesbar.
+  */
+  const zuschauertage = new Set(
+    ((await db()`
+      select benutzer_id, datum::text as datum
+        from dienst_einsatz
+       where position = 'ZUSCHAUER' and datum between ${z.von}::date and ${z.bis}::date
+       union all
+      select f.benutzer_id, d::text as datum
+        from dienst_fest f
+        cross join generate_series(${z.von}::date, ${z.bis}::date, interval '1 day') as d
+       where f.position = 'ZUSCHAUER'
+         and (f.wochentag is null or f.wochentag = extract(dow from d))
+         and not exists (
+           select 1 from dienst_einsatz e
+            where e.datum = d::date and e.position = 'ZUSCHAUER'
+         )
+    `.catch(() => [])) as Array<{ benutzer_id: string; datum: string }>).map(
+      (r) => `${r.benutzer_id}|${r.datum}`,
+    ),
+  );
+
+  /** Volle Stunden, abgerundet, höchstens zwei. */
+  const alsZuschauerstunden = (minuten: number): number => Math.min(120, Math.floor(minuten / 60) * 60);
 
   const imZeitraum = (tag: string) => tag >= z.von && tag <= z.bis;
   const leute = new Map<string, Mitarbeiterzeiten>();
@@ -235,6 +271,16 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       if (!imZeitraum(g.datum)) continue;
 
       const r = tagRechnen(g.datum, g.stempel);
+
+      /*
+        Am Zuschauertag zaehlen nur volle Stunden, hoechstens zwei.
+
+        Gekuerzt wird einmal und an dieser Stelle, damit Protokoll,
+        Summe und Meldung ans Lohnbuero dieselbe Zahl zeigen.
+      */
+      const istZuschauertag = zuschauertage.has(`${id}|${g.datum}`);
+      const arbeitMinuten = istZuschauertag ? alsZuschauerstunden(r.arbeitMinuten) : r.arbeitMinuten;
+
       const tagProt: Tagesprotokoll = {
         datum: g.datum,
         stempel: g.stempel.map((x) => ({
@@ -243,7 +289,9 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
           quelle: x.quelle,
           imHaus: x.imHaus,
         })),
-        arbeitMinuten: r.arbeitMinuten,
+        arbeitMinuten,
+        zuschauer: istZuschauertag,
+        gestempelteMinuten: r.arbeitMinuten,
         pauseMinuten: r.pauseMinuten,
         offen: r.offen,
         fehlstempel: r.fehlstempel,
@@ -261,12 +309,12 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
           nicht in die Meldung ans Lohnbuero (Florian, 05.10.2026).
         */
         if (istSchnuppertag(id, g.datum)) {
-          person.schnupperMinuten += r.arbeitMinuten;
-          if (r.arbeitMinuten > 0) person.schnupperTage.push(g.datum);
+          person.schnupperMinuten += arbeitMinuten;
+          if (arbeitMinuten > 0) person.schnupperTage.push(g.datum);
         } else {
-          person.arbeitMinuten += r.arbeitMinuten;
+          person.arbeitMinuten += arbeitMinuten;
           person.pauseMinuten += r.pauseMinuten;
-          if (r.arbeitMinuten > 0) person.arbeitstage += 1;
+          if (arbeitMinuten > 0) person.arbeitstage += 1;
         }
       }
       if (r.offen) person.offeneTage.push(g.datum);
