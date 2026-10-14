@@ -39,6 +39,16 @@ export async function bogenAnfordern(benutzerId: string): Promise<{ name: string
       + "die Sozialversicherungsnummer und deine IBAN.",
     "Die Sozialversicherungsnummer hast du vielleicht noch nicht, wenn du zum ersten Mal arbeitest. "
       + "Dann kreuz das im Bogen an und schick ihn trotzdem ab, wir haken später nach.",
+    /*
+      Der Weg hinein gehoert dazu.
+
+      Noel hat sich seit dem Anlegen seines Zugangs nie angemeldet und
+      wusste nicht, was der Personalbogen ueberhaupt ist (Florian,
+      14.10.2026). Ein Link allein hilft dann nicht.
+    */
+    `Du meldest dich im Eventmanager mit dieser Mailadresse an (${email}). Wenn du dein Passwort `
+      + "nicht mehr weißt oder noch nie drin warst, antworte einfach kurz auf diese Mail, dann "
+      + "richten wir dir den Zugang neu ein.",
   ];
 
   await mailVerschicken({
