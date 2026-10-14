@@ -24,6 +24,7 @@ import {
   verbindungPruefen,
   vorlageAnlegen,
   WhatsAppFehler,
+  zugriffProbe,
 } from "@/lib/whatsapp/senden";
 import { VORLAGEN } from "@/lib/whatsapp/vorlagen";
 import { meldungSchicken } from "@/lib/whatsapp/nachlauf";
@@ -353,6 +354,19 @@ export async function verbindungTesten(): Promise<void> {
  * Die Prüfung dauert üblicherweise ein bis zwei Tage; der Stand steht
  * danach auf dieser Seite.
  */
+/** Nachsehen, was der hinterlegte Schluessel bei Meta darf. */
+export async function zugriffPruefen(): Promise<void> {
+  await verlangeInhaber();
+  let text: string;
+  try {
+    const p = await zugriffProbe();
+    text = [p.konto, p.lesen, p.schreiben].join(" · ");
+  } catch (e) {
+    text = e instanceof Error ? e.message : "Die Pruefung ist fehlgeschlagen.";
+  }
+  redirect(`/einstellungen/whatsapp?verbunden=${encodeURIComponent(text.slice(0, 600))}`);
+}
+
 export async function vorlageEinreichen(formData: FormData): Promise<void> {
   await verlangeInhaber();
   const name = String(formData.get("name") ?? "");

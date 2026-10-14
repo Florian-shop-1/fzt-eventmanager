@@ -180,6 +180,54 @@ export interface Vorlagenstand {
   kategorie: string;
 }
 
+/**
+ * Was der Schlüssel bei Meta darf, im Klartext.
+ *
+ * Gebraucht, weil "API access blocked" nicht sagt, woran es liegt, und
+ * weil sich von aussen nicht pruefen laesst, welcher Schluessel bei
+ * Vercel wirklich steht (Florian, 14.10.2026). Hier fragt das Programm
+ * Meta selbst und schreibt die Antwort hin, wie sie kommt.
+ */
+export async function zugriffProbe(): Promise<{ konto: string; lesen: string; schreiben: string }> {
+  const id = process.env.WHATSAPP_KONTO_ID ?? "";
+  const ergebnis = { konto: `WHATSAPP_KONTO_ID: ${id || "fehlt"}`, lesen: "", schreiben: "" };
+
+  try {
+    const daten = await graph("GET", `/${kontoId()}?fields=id,name`);
+    ergebnis.konto = `Konto erreichbar: ${String(daten.name ?? "ohne Namen")} (${String(daten.id ?? id)})`;
+  } catch (f) {
+    ergebnis.konto = `Konto nicht lesbar: ${f instanceof Error ? f.message : f}`;
+  }
+
+  try {
+    const daten = await graph("GET", `/${kontoId()}/message_templates?fields=name,status&limit=5`);
+    const liste = (daten.data as Array<Record<string, unknown>> | undefined) ?? [];
+    ergebnis.lesen =
+      `Vorlagen lesen geht. ${liste.length} gefunden`
+      + (liste.length > 0 ? `: ${liste.map((v) => `${v.name} (${v.status})`).join(", ")}` : ".");
+  } catch (f) {
+    ergebnis.lesen = `Vorlagen lesen geht nicht: ${f instanceof Error ? f.message : f}`;
+  }
+
+  /*
+    Schreiben wird mit einer absichtlich unvollstaendigen Anfrage
+    geprueft: Fehlt die Berechtigung, antwortet Meta mit 200. Fehlt nur
+    der Inhalt, antwortet es mit einer Meldung ueber das Format, und
+    genau das heisst: Schreiben waere erlaubt.
+  */
+  try {
+    await graph("POST", `/${kontoId()}/message_templates`, {});
+    ergebnis.schreiben = "Schreiben geht (Meta hat die leere Anfrage angenommen, unerwartet).";
+  } catch (f) {
+    const text = f instanceof Error ? f.message : String(f);
+    ergebnis.schreiben = /Berechtigung|blocked|200/i.test(text)
+      ? `Schreiben ist gesperrt: ${text}`
+      : `Schreiben waere erlaubt, Meta bemaengelt nur den Inhalt: ${text}`;
+  }
+
+  return ergebnis;
+}
+
 /** Welche Vorlagen bei Meta liegen und wie weit die Prüfung ist. */
 export async function vorlagenLesen(): Promise<Vorlagenstand[]> {
   const daten = await graph(

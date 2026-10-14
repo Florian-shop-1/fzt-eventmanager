@@ -396,7 +396,8 @@ export function startseiteFuer(rolle: Rolle, geteilt = false): string {
  * Dienstleister kann dieselbe Rolle tragen. Deshalb entscheidet hier die
  * Person, dieselben drei wie bei den Arbeitszeiten und den Vertraegen.
  */
-const GELD_SEITEN = ["/rechnungen", "/zahlungseingaenge", "/buchhaltung", "/bewirtung", "/lohn", "/reinigung"];
+// "/mitarbeiter" steht hier, weil in der Akte der Stundenlohn steht.
+const GELD_SEITEN = ["/rechnungen", "/zahlungseingaenge", "/buchhaltung", "/bewirtung", "/lohn", "/reinigung", "/mitarbeiter"];
 
 export function darfGeld(b: { rolle: Rolle; email: string } | null | undefined): boolean {
   return darfZeitenAendern(b);

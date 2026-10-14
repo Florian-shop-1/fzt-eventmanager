@@ -462,7 +462,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           nennt das Gehalt, das geht sonst niemanden im Haus etwas an.
         */
         if (g.titel === "Mitarbeiter" && darfVertraege(benutzer)) {
-          punkte.unshift({ href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
+          /*
+            Die Personalakte steht ganz oben.
+
+            "ich moechte bitte auf Mitarbeiter klicken koennen,
+            Mitarbeiter auswaehlen und wie so eine Personalakte auf
+            einen Blick haben" (Florian, 14.10.2026).
+          */
+          punkte.unshift({ href: "/mitarbeiter", label: "Personalakten", rollen: [] });
+          punkte.splice(1, 0, { href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
           /*
             Die Unterlagen von früher: Papierverträge und Papierbögen, so
             wie sie hereinkamen, dazu die abgelegten Angaben aus dem

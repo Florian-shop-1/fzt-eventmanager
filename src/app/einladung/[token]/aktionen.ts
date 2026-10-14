@@ -140,5 +140,26 @@ export async function selbstEintragen(_v: EinladungsErgebnis, f: FormData): Prom
   }
 
   await sitzungStarten(id);
-  redirect(`/dienstplan?meldung=${encodeURIComponent(`Willkommen im Showteam, ${vorname}! Du bist eingetragen. Hier siehst du ab jetzt, wann du arbeitest.`)}`);
+  /*
+    Nach dem Eintragen zuerst der Personalbogen.
+
+    Noel hat die Anmeldung ausgefuellt, landete danach im Dienstplan und
+    hielt das fuer den Personalbogen: "Ich auf den Link und hab alles
+    ausgefuellt, da steht nichts mit Personal" (14.10.2026). Der Bogen
+    ist der naechste noetige Schritt, also fuehrt der Weg auch dorthin.
+    Wer ihn schon auf Papier abgegeben hat, geht weiter zum Dienstplan.
+  */
+  const willkommen = `Willkommen im Showteam, ${vorname}!`;
+  if (!einladung.personalbogenErledigt) {
+    redirect(
+      `/personalbogen?meldung=${encodeURIComponent(
+        `${willkommen} Ein Schritt fehlt noch: dein Personalbogen fuers Lohnbuero. Danach siehst du im Dienstplan, wann du arbeitest.`,
+      )}`,
+    );
+  }
+  redirect(
+    `/dienstplan?meldung=${encodeURIComponent(
+      `${willkommen} Du bist eingetragen. Hier siehst du ab jetzt, wann du arbeitest.`,
+    )}`,
+  );
 }

@@ -5,6 +5,7 @@ import {
   autoantwortSpeichern,
   kontoAnschliessenAktion,
   vorlageEinreichen,
+  zugriffPruefen,
   meldungTesten,
   verbindungTesten,
 } from "@/lib/whatsapp/aktionen";
@@ -118,6 +119,15 @@ export default async function WhatsAppEinrichten({
           <form action={meldungTesten}>
             <Absendeknopf text="Testmeldung per Mail schicken" laeuftText="Wird verschickt..." />
           </form>
+          {/* Sagt, was der hinterlegte Schluessel bei Meta wirklich darf. */}
+          <form action={zugriffPruefen}>
+            <Absendeknopf
+              text="Was darf der Schlüssel?"
+              laeuftText="Wird geprüft..."
+              deaktiviert={!stand.zugangstoken}
+            />
+          </form>
+
           <form action={kontoAnschliessenAktion}>
             <Absendeknopf
               text="WhatsApp-Konto an den Eventmanager anschliessen"
