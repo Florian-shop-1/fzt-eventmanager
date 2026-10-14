@@ -92,6 +92,23 @@ function fehlerErklaeren(daten: Record<string, unknown>): string {
   switch (code) {
     case 190:
       return "Meta lehnt den Zugangsschlüssel ab. Ist WHATSAPP_ZUGANGSTOKEN abgelaufen oder falsch eingetragen?";
+    /*
+      Code 200 heisst bei Meta: Berechtigung fehlt.
+
+      Trat beim ersten Einreichen einer Vorlage auf, waehrend Senden und
+      Empfangen laufen (Florian, 14.10.2026). Genau so sieht es aus,
+      wenn der Schluessel nur whatsapp_business_messaging hat, aber
+      nicht whatsapp_business_management: Letzteres braucht es nur fuer
+      Vorlagen.
+    */
+    case 200:
+      return (
+        "Meta lässt diesen Zugangsschlüssel keine Vorlagen anlegen. Zum Senden reicht er, zum "
+        + "Verwalten von Vorlagen fehlt die Berechtigung whatsapp_business_management. Im Meta "
+        + "Business Manager beim Systembenutzer einen neuen Schlüssel erzeugen, dabei beide Haken "
+        + "setzen (whatsapp_business_messaging und whatsapp_business_management), und der "
+        + "Systembenutzer braucht eine Rolle auf dem WhatsApp-Konto selbst."
+      );
     case 131047:
       return (
         "Die letzte Nachricht des Kunden ist älter als 24 Stunden. Danach erlaubt WhatsApp " +
