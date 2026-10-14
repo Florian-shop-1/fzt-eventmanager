@@ -323,6 +323,59 @@ export async function statusSetzen(vorgangId: string, status: VorgangStatus): Pr
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
+/**
+ * Die Kontaktdaten des Kunden ändern.
+ *
+ * "wichtig, dass man bei den Angeboten, die man an Firmen sendet, die
+ * E-Mail-Adresse im Eventmanager editieren kann" (Kevin über Florian,
+ * 14.10.2026). Eine falsche Adresse fiel bisher erst auf, wenn das
+ * Angebot nicht ankam, und ändern ging nur in der Datenbank.
+ *
+ * Wird die Adresse geändert, geht der Kontakt auch neu zu Brevo: Sonst
+ * steht dort weiter die alte, und der nächste Newsletter läuft ins
+ * Leere. Scheitert Brevo, ändert das an der Adresse hier nichts.
+ */
+export async function kontaktAendern(vorgangId: string, formData: FormData): Promise<void> {
+  await verlangeTeam();
+  const kundeId = text(formData, "kundeId");
+  if (!kundeId) return;
+
+  const email = text(formData, "email").toLowerCase();
+  const ansprechpartner = text(formData, "ansprechpartner");
+  const telefon = text(formData, "telefon");
+
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Das sieht nicht nach einer Mailadresse aus.")}`);
+  }
+
+  const vorher = (await db()`
+    select name, email from kunde where id = ${kundeId}
+  `) as Array<{ name: string; email: string }>;
+
+  await db()`
+    update kunde
+       set email = ${email}, ansprechpartner = ${ansprechpartner}, telefon = ${telefon},
+           geaendert_am = now()
+     where id = ${kundeId}
+  `;
+
+  let hinweis = "Kontakt gespeichert.";
+  if (email && email !== (vorher[0]?.email ?? "").toLowerCase()) {
+    const { kundeNachBrevo } = await import("@/lib/marketing/brevo-kontakte");
+    const ergebnis = await kundeNachBrevo({
+      name: vorher[0]?.name ?? "",
+      email,
+      ansprechpartner,
+      telefon,
+    }).catch(() => "Brevo nicht erreicht");
+    hinweis = `Kontakt gespeichert. Brevo: ${ergebnis}.`;
+  }
+
+  revalidatePath("/vorgaenge");
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+  redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent(hinweis)}`);
+}
+
 export async function notizHinzufuegen(vorgangId: string, formData: FormData): Promise<void> {
   await verlangeTeam();
   const inhalt = text(formData, "text");

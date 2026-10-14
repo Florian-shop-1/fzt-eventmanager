@@ -6,6 +6,7 @@ import { AngebotBereich } from "@/components/AngebotBereich";
 import {
   aufgabeHinzufuegen,
   aufgabeUmschalten,
+  kontaktAendern,
   ausnahmeSetzen,
   gruppeEntfernen,
   gruppeHinzufuegen,
@@ -93,6 +94,16 @@ export default async function VorgangSeite({
           <strong>Das Angebot ist raus.</strong> Verschickt an {an ?? "den Kunden"}, von
           kevin.steele@florianzimmer.com. Es steht dort unter Gesendete Elemente, Antworten des
           Kunden landen bei Kevin, und hier ist es als versendet vermerkt.
+        </div>
+      )}
+
+      {/* Rueckmeldung nach dem Aendern der Kontaktdaten. */}
+      {meldung && mail !== "fehler" && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
         </div>
       )}
 
@@ -266,6 +277,48 @@ export default async function VorgangSeite({
               <Zeile bezeichnung="E-Mail" wert={vorgang.kunde.email} />
               <Zeile bezeichnung="Telefon" wert={vorgang.kunde.telefon} />
             </dl>
+
+            {/*
+              Adresse aendern, ohne in die Datenbank zu muessen.
+
+              Dieselbe Adresse bekommt das Angebot. Ein Tippfehler darin
+              fiel bisher erst auf, wenn nichts zurueckkam
+              (Kevin, 14.10.2026). Wird sie geaendert, geht der Kontakt
+              auch neu zu Brevo.
+            */}
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-leise">Kontakt ändern</summary>
+              <form action={kontaktAendern.bind(null, vorgang.id)} className="mt-2 space-y-2">
+                <input type="hidden" name="kundeId" value={vorgang.kunde.id} />
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">E-Mail</span>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={vorgang.kunde.email}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Ansprechpartner</span>
+                  <input
+                    name="ansprechpartner"
+                    defaultValue={vorgang.kunde.ansprechpartner ?? ""}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Telefon</span>
+                  <input name="telefon" defaultValue={vorgang.kunde.telefon ?? ""} className="w-full text-sm" />
+                </label>
+                <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
+                  Speichern
+                </button>
+                <p className="text-xs text-leise">
+                  Eine geänderte Adresse geht auch an Brevo, damit dort nicht die alte stehen bleibt.
+                </p>
+              </form>
+            </details>
           </Karte>
 
           <Karte titel="Aufgaben">

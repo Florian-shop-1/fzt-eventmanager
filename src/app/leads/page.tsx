@@ -2,6 +2,7 @@ import Link from "next/link";
 import { holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
 import { leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
 import { vorZeit } from "@/components/Status";
+import { leitfadenFuer } from "@/lib/shop/anfrage-leitfaden";
 
 export const metadata = { title: "Anfragen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -144,6 +145,45 @@ export default async function LeadsSeite({
   );
 }
 
+function Leitfaden({ lead }: { lead: Lead }) {
+  const l = leitfadenFuer(lead);
+
+  return (
+    <details className="mt-4 rounded-lg border px-4 py-3" open style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+      <summary className="cursor-pointer text-sm font-semibold">Vor dem Anruf</summary>
+
+      <div className="mt-3 grid gap-4 md:grid-cols-2">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-leise">Das steht schon da</h3>
+          <ul className="mt-1 space-y-1 text-sm">
+            {l.bekannt.map((t) => (
+              <li key={t}>· {t}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-leise">
+            Spiegle es im Gespräch zurück, statt es noch einmal abzufragen.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-leise">Das fehlt fürs Angebot</h3>
+          <ul className="mt-1 space-y-1 text-sm">
+            {l.fragen.map((t) => (
+              <li key={t}>· {t}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <ul className="mt-3 space-y-1 border-t border-linie pt-2 text-xs text-leise">
+        {l.merken.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function Kachel({
   zahl,
   was,
@@ -252,6 +292,16 @@ function Karte({ lead, stand }: { lead: Lead; stand: LeadStand | undefined }) {
           )}
         </div>
       </div>
+
+      {/*
+        Der Leitfaden fürs erste Telefonat.
+
+        "sobald eine Anfrage da ist, zuerst mal den Kunden anrufen"
+        (Florian, 14.10.2026). Links steht, was er schon gesagt hat,
+        rechts, was fürs Angebot noch fehlt. Offen aufgeklappt, denn
+        gebraucht wird er genau einmal: vor dem Anruf.
+      */}
+      <Leitfaden lead={lead} />
 
       <details className="mt-4">
         <summary className="cursor-pointer text-sm text-leise">
