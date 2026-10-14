@@ -45,6 +45,15 @@ export interface Personalbogen {
   iban: string;
   bic: string;
   kontoinhaber: string;
+  /**
+   * Wie der Kontoinhaber zur Person steht, etwa "Mutter".
+   *
+   * Bei Anita laeuft das Konto auf Olena: "das ist auch eine wichtige
+   * Info fuers Lohnbuero, weil bei Anita zur Olena ueberwiesen wird"
+   * (Florian, 14.10.2026). Ohne das Verhaeltnis sieht es dort aus wie
+   * eine falsche IBAN.
+   */
+  kontoinhaberBezug: string;
   eintrittsdatum: string;
   berufsbezeichnung: string;
   beschaeftigung: string;
@@ -62,7 +71,8 @@ export interface Personalbogen {
 export const LEER: Personalbogen = {
   nachname: "", geburtsname: "", vorname: "", strasse: "", plz: "", ort: "", geburtsdatum: "",
   geburtsort: "", familienstand: "", staatsangehoerigkeit: "deutsch", schwerbehindert: "nein", email: "",
-  telefon: "", svNummer: "", iban: "", bic: "", kontoinhaber: "", eintrittsdatum: "", berufsbezeichnung: "",
+  telefon: "", svNummer: "", iban: "", bic: "", kontoinhaber: "", kontoinhaberBezug: "",
+  eintrittsdatum: "", berufsbezeichnung: "",
   beschaeftigung: "", schulabschluss: "", ausbildung: "", statusMinijob: "", rentenbefreiung: "",
   steuerId: "", steuerklasse: "", konfession: "", krankenversicherung: "gesetzlich", krankenkasse: "",
 };
@@ -137,6 +147,14 @@ export function svHinweis(b: Personalbogen): string | null {
  * ersten Meldung. Ihn deshalb gar nicht erst anfangen zu lassen, hilft
  * niemandem; die Nummer wird nachgetragen (Florian, 01.10.2026).
  */
+/** Ist die Person am Tag des Ausfuellens noch keine 18? */
+export function minderjaehrig(b: Personalbogen, heute = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.geburtsdatum)) return false;
+  const achtzehn = new Date(b.geburtsdatum);
+  achtzehn.setFullYear(achtzehn.getFullYear() + 18);
+  return heute < achtzehn;
+}
+
 export function pruefen(
   b: Personalbogen,
   optionen: { ohneSvNummer?: boolean } = {},
@@ -147,12 +165,32 @@ export function pruefen(
     "staatsangehoerigkeit", "email", "iban", "beschaeftigung", "schulabschluss",
     "ausbildung", "steuerId", "steuerklasse", "konfession", "krankenversicherung", "krankenkasse",
   ];
-  for (const k of pflicht) if (!String(b[k] ?? "").trim()) f[k] = "Bitte ausfüllen";
+
+  /*
+    Bei Minderjaehrigen nur das Noetigste.
+
+    "bitte bei Anita nur das Noetigste abfragen, einige Dinge konnte sie
+    im Personalbogen nicht ausfuellen, da minderjaehrig" (Florian,
+    14.10.2026). Schulabschluss, Ausbildung, Familienstand und
+    Steuerklasse stehen bei einer Sechzehnjaehrigen noch nicht fest;
+    das Lohnbuero traegt sie ohnehin selbst ein.
+  */
+  const jung = minderjaehrig(b);
+  const nurNoetig = new Set(["schulabschluss", "ausbildung", "familienstand", "steuerklasse", "geburtsort"]);
+  for (const k of pflicht) {
+    if (jung && nurNoetig.has(k)) continue;
+    if (!String(b[k] ?? "").trim()) f[k] = "Bitte ausfüllen";
+  }
   // Die Versicherungsnummer ist Pflicht, außer sie wurde ausdrücklich erlassen.
   if (!optionen.ohneSvNummer && !b.svNummer.trim()) f.svNummer = "Bitte ausfüllen";
-  if (istMinijob(b)) {
+  if (istMinijob(b) && !jung) {
     if (!b.statusMinijob) f.statusMinijob = "Bitte auswählen";
     if (!b.rentenbefreiung) f.rentenbefreiung = "Bitte auswählen";
+  }
+
+  // Ein fremdes Konto ohne Namen hilft dem Lohnbuero nicht weiter.
+  if (b.kontoinhaberBezug.trim() && !b.kontoinhaber.trim()) {
+    f.kontoinhaber = "Bitte den Namen des Kontoinhabers eintragen";
   }
   if (b.plz && !/^\d{5}$/.test(b.plz.trim()) && b.staatsangehoerigkeit.toLowerCase().startsWith("deutsch")) {
     f.plz = "Fünf Ziffern, zum Beispiel 89231";
@@ -201,7 +239,12 @@ export function zeilen(b: Personalbogen): Array<{ gruppe: string; felder: Array<
         ["Versicherungsnummer", b.svNummer.toUpperCase().replace(/\s/g, "")],
         ["IBAN", ibanLesbar(b.iban)],
         ["BIC", b.bic.toUpperCase()],
-        ["Kontoinhaber", b.kontoinhaber || `${b.vorname} ${b.nachname}`],
+        [
+          "Kontoinhaber",
+          b.kontoinhaber
+            ? `${b.kontoinhaber}${b.kontoinhaberBezug ? ` (${b.kontoinhaberBezug})` : ""}`
+            : `${b.vorname} ${b.nachname}`,
+        ],
       ],
     },
     {

@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AUSBILDUNG, BESCHAEFTIGUNG, FAMILIENSTAND, KONFESSION, LEER, SCHULABSCHLUSS, STATUS_MINIJOB,
-  STEUERKLASSE, istMinijob, pruefen, svHinweis, zeilen, type Personalbogen,
+  STEUERKLASSE, istMinijob, minderjaehrig, pruefen, svHinweis, zeilen, type Personalbogen,
 } from "@/lib/personal/personalbogen";
 import { personalbogenAbsenden } from "@/app/personalbogen/aktionen";
 import { ScanHase } from "@/components/ScanHase";
@@ -22,7 +22,7 @@ const SCHRITTE: Array<{ titel: string; felder: Feld[] }> = [
   { titel: "Du", felder: ["vorname", "nachname", "geburtsname", "geburtsdatum", "geburtsort", "familienstand", "staatsangehoerigkeit", "schwerbehindert"] },
   { titel: "Kontakt", felder: ["strasse", "plz", "ort", "email", "telefon"] },
   { titel: "Arbeit", felder: ["beschaeftigung", "eintrittsdatum", "berufsbezeichnung", "schulabschluss", "ausbildung", "statusMinijob", "rentenbefreiung"] },
-  { titel: "Geld", felder: ["svNummer", "steuerId", "steuerklasse", "konfession", "krankenversicherung", "krankenkasse", "iban", "bic", "kontoinhaber"] },
+  { titel: "Geld", felder: ["svNummer", "steuerId", "steuerklasse", "konfession", "krankenversicherung", "krankenkasse", "iban", "bic", "kontoinhaber", "kontoinhaberBezug"] },
   { titel: "Prüfen", felder: [] },
 ];
 
@@ -48,6 +48,8 @@ export function PersonalbogenFormular({
   const [meldung, setMeldung] = useState<string | null>(null);
   const [sendet, setSendet] = useState(false);
   const [bestaetigt, setBestaetigt] = useState(false);
+  // Laeuft das Konto auf jemand anderen? Siehe unten bei der Bankverbindung.
+  const [fremdesKonto, setFremdesKonto] = useState(false);
   const [fertig, setFertig] = useState(false);
 
   const setze = (k: Feld, v: string) => {
@@ -213,6 +215,19 @@ export function PersonalbogenFormular({
 
         {schritt === 3 && (
           <>
+            {/*
+              Wer noch keine 18 ist, kann manches gar nicht wissen.
+
+              "einige Dinge konnte sie im Personalbogen nicht ausfuellen,
+              da minderjaehrig" (Florian, 14.10.2026). Statt sie raten zu
+              lassen, sagen wir, dass Luecken in Ordnung sind.
+            */}
+            {minderjaehrig(b) && (
+              <p className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+                Du bist noch keine 18. Was du nicht weißt, zum Beispiel Steuerklasse oder Ausbildung,
+                lass einfach frei. Das Lohnbüro ergänzt es.
+              </p>
+            )}
             {text(
               "svNummer",
               "Sozialversicherungsnummer",
@@ -248,10 +263,42 @@ export function PersonalbogenFormular({
               {fehler.krankenkasse && <span className="mt-1 block text-xs" style={{ color: "var(--blocker)" }}>{fehler.krankenkasse}</span>}
             </label>
             {text("iban", "IBAN", { autoCapitalize: "characters", placeholder: "DE.. .... .... .... .... ..", inputMode: "text" }, "Für deinen Lohn. Steht auf deiner Bankkarte oder im Online-Banking.")}
-            <div className="grid gap-4 sm:grid-cols-2">
-              {text("bic", "BIC (freiwillig)", { autoCapitalize: "characters" })}
-              {text("kontoinhaber", "Kontoinhaber", {}, "Nur wenn es nicht dein eigenes Konto ist.")}
-            </div>
+            {text("bic", "BIC (freiwillig)", { autoCapitalize: "characters" })}
+
+            {/*
+              Das Konto laeuft nicht immer auf die Person selbst.
+
+              Bei Minderjaehrigen gehoert es oft den Eltern. Das Lohnbuero
+              muss es wissen, sonst sieht die Ueberweisung nach einem
+              Fehler aus (Florian, 14.10.2026).
+            */}
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={fremdesKonto}
+                onChange={(e) => {
+                  setFremdesKonto(e.target.checked);
+                  if (!e.target.checked) {
+                    setze("kontoinhaber", "");
+                    setze("kontoinhaberBezug", "");
+                  }
+                }}
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                Das Konto läuft auf jemand anderen
+                <span className="block text-xs text-leise">
+                  Zum Beispiel auf ein Elternteil. Dann geht dein Lohn dorthin.
+                </span>
+              </span>
+            </label>
+
+            {fremdesKonto && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {text("kontoinhaber", "Kontoinhaber", {}, "Vor- und Nachname, so wie bei der Bank.")}
+                {text("kontoinhaberBezug", "Verhältnis zu dir", { placeholder: "Mutter" }, "Für das Lohnbüro.")}
+              </div>
+            )}
           </>
         )}
 
