@@ -11,7 +11,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBenutzerVerwalten } from "@/lib/auth/sitzung";
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { LEER, pruefen, svFormOk, zeilen, type Personalbogen } from "@/lib/personal/personalbogen";
@@ -25,6 +25,50 @@ function h(s: string): string {
 }
 
 export type Absendeergebnis = { ok: true } | { ok: false; fehler: string; felder?: Record<string, string> };
+
+/**
+ * Den Personalbogen fuer jemand anderen eintragen.
+ *
+ * "Personalbogen wurde wohl nicht aufbewahrt, bitte speicher diese
+ * online im Eventmanager beim Mitarbeiter in der Akte" (Florian,
+ * 15.10.2026). Wer vor dem 01.10.2026 ausgefuellt hat, dessen Angaben
+ * gingen nur als Mail ans Lohnbuero. Das Buero hat die Mail und tippt
+ * sie hier ab, statt den Mitarbeiter noch einmal zu fragen.
+ *
+ * Anders als beim Mitarbeiter selbst geht dabei keine Mail hinaus: Das
+ * Lohnbuero hat die Angaben ja schon.
+ */
+export async function bogenEintragen(
+  benutzerId: string,
+  roh: Personalbogen,
+): Promise<Absendeergebnis> {
+  const ich = await angemeldeterBenutzer();
+  if (!ich || !darfBenutzerVerwalten(ich.rolle)) {
+    return { ok: false, fehler: "Dafür fehlt die Berechtigung." };
+  }
+
+  const b = { ...LEER, ...roh };
+  const felder = pruefen(b, { ohneSvNummer: !b.svNummer.trim() });
+  if (Object.keys(felder).length > 0) {
+    return { ok: false, fehler: "Es fehlen noch Angaben.", felder };
+  }
+
+  await bogenSpeichern({
+    benutzerId,
+    daten: b,
+    quelle: "vom Büro eingetragen",
+    von: ich.name,
+  });
+
+  // Der Haken, falls er fehlte: Jetzt liegt der Bogen vor.
+  await db()`
+    update benutzer set personalbogen_am = coalesce(personalbogen_am, now()) where id = ${benutzerId}
+  `;
+
+  revalidatePath(`/mitarbeiter/${benutzerId}`);
+  revalidatePath("/unterlagen");
+  return { ok: true };
+}
 
 export async function personalbogenAbsenden(
   roh: Personalbogen,

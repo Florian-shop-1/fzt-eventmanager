@@ -13,7 +13,7 @@ import {
   AUSBILDUNG, BESCHAEFTIGUNG, FAMILIENSTAND, KONFESSION, LEER, SCHULABSCHLUSS, STATUS_MINIJOB,
   STEUERKLASSE, istMinijob, minderjaehrig, pruefen, svHinweis, zeilen, type Personalbogen,
 } from "@/lib/personal/personalbogen";
-import { personalbogenAbsenden } from "@/app/personalbogen/aktionen";
+import { bogenEintragen, personalbogenAbsenden } from "@/app/personalbogen/aktionen";
 import { ScanHase } from "@/components/ScanHase";
 
 type Feld = keyof Personalbogen;
@@ -34,12 +34,19 @@ export function PersonalbogenFormular({
   nachname,
   email,
   ohneSvNummer = false,
+  fuerBenutzerId,
 }: {
   vorname: string;
   nachname: string;
   email: string;
   /** Für den, der noch keine Sozialversicherungsnummer hat (Florian, 01.10.2026). */
   ohneSvNummer?: boolean;
+  /**
+   * Gesetzt, wenn das Büro den Bogen für jemand anderen abtippt, etwa aus
+   * der alten Mail ans Lohnbüro (Florian, 15.10.2026). Dann geht nichts
+   * an das Lohnbüro hinaus, die Angaben werden nur abgelegt.
+   */
+  fuerBenutzerId?: string;
 }) {
   const router = useRouter();
   const [b, setB] = useState<Personalbogen>({ ...LEER, vorname, nachname, email });
@@ -73,7 +80,9 @@ export function PersonalbogenFormular({
   async function absenden() {
     setSendet(true);
     setMeldung(null);
-    const e = await personalbogenAbsenden(b, ohneSv);
+    const e = fuerBenutzerId
+      ? await bogenEintragen(fuerBenutzerId, b)
+      : await personalbogenAbsenden(b, ohneSv);
     setSendet(false);
     if (e.ok) {
       setFertig(true);
@@ -85,6 +94,25 @@ export function PersonalbogenFormular({
       const erster = SCHRITTE.findIndex((s) => s.felder.some((f) => e.felder?.[f]));
       if (erster >= 0) setSchritt(erster);
     }
+  }
+
+  if (fertig && fuerBenutzerId) {
+    return (
+      <div className="rounded-lg border px-5 py-8 text-center" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
+        <h2 className="text-xl font-semibold">Eingetragen</h2>
+        <p className="mt-2 text-sm">
+          Die Angaben von {b.vorname} {b.nachname} liegen jetzt in der Personalakte. An das Lohnbüro
+          ist dabei nichts hinausgegangen.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push(`/mitarbeiter/${fuerBenutzerId}`)}
+          className="mt-5 rounded-md border border-gold bg-gold px-5 py-2.5 font-medium text-white"
+        >
+          Zur Personalakte
+        </button>
+      </div>
+    );
   }
 
   if (fertig) {

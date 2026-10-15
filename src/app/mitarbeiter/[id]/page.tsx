@@ -116,6 +116,19 @@ export default async function AktenSeite({
           Geht an {a.email || "keine Adresse hinterlegt"}. Der Haken wird dabei zurückgesetzt, damit die
           Aufgabe im Programm wieder erscheint.
         </p>
+
+        {/*
+          Der zweite Weg: Das Büro hat die Angaben schon, etwa in der
+          alten Mail ans Lohnbüro, und tippt sie ab. Dann muss niemand
+          den Mitarbeiter ein zweites Mal fragen (Florian, 15.10.2026).
+        */}
+        {!bogen && (
+          <p className="mt-2 text-xs">
+            <Link href={`/mitarbeiter/${a.id}/bogen`} className="underline">
+              Angaben stattdessen selbst eintragen
+            </Link>
+          </p>
+        )}
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
