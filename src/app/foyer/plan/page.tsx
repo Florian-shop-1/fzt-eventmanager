@@ -205,6 +205,11 @@ export default async function FoyerPlanSeite({
                       Sonderveranstaltung
                     </span>
                   )}
+                  {t.abgesagt ? (
+                    <span className="ml-auto text-xs" style={{ color: "var(--blocker)" }}>
+                      abgesagt
+                    </span>
+                  ) : (
                   <form action={technikEinteilen} className="ml-auto flex items-center gap-1 print:hidden">
                     <input type="hidden" name="vorstellung" value={tech.ditixEventId} />
                     <input type="hidden" name="position" value={tech.position} />
@@ -220,6 +225,7 @@ export default async function FoyerPlanSeite({
                       {tech.name ? "ändern" : "eintragen"}
                     </button>
                   </form>
+                  )}
                 </div>
               ))}
 
@@ -229,6 +235,29 @@ export default async function FoyerPlanSeite({
                 naechsten. Ist der besetzt und gespeichert, steht darunter
                 wieder ein Pluszeichen (Florian, 04.10.2026).
               */}
+              {/*
+                An einem abgesagten Tag wird niemand mehr eingeteilt.
+
+                Die schon Eingeteilten bleiben sichtbar, damit man weiss,
+                wem man absagen muss, aber die Auswahl ist weg: Sonst
+                traegt jemand aus Gewohnheit weiter Leute ein
+                (Florian, 15.10.2026).
+              */}
+              {t.abgesagt ? (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {t.dienste
+                    .filter((d) => d.benutzerId)
+                    .map((d, i) => (
+                      <li key={d.nummer} className="line-through text-leise">
+                        {i + 1}. Person: {leute.find((p) => p.id === d.benutzerId)?.name ?? "unbekannt"}
+                        {" "}· {d.von} bis {d.bis} Uhr
+                      </li>
+                    ))}
+                  {t.dienste.every((d) => !d.benutzerId) && (
+                    <li className="text-leise">Hier war noch niemand eingeteilt.</li>
+                  )}
+                </ul>
+              ) : (
               <form action={tagEintragen}>
                 <input type="hidden" name="datum" value={t.datum} />
                 <ul className="mt-2 space-y-2">
@@ -268,7 +297,9 @@ export default async function FoyerPlanSeite({
                   <Absendeknopf text="Tag speichern" laeuftText="..." />
                 </div>
               </form>
+              )}
 
+              {!t.abgesagt && (
               <details className="mt-2 text-sm">
                 <summary className="cursor-pointer text-leise underline">Zeiten oder Notiz ändern</summary>
                 {t.dienste.filter((d, i) => i < 2 || d.benutzerId).map((d) => (
@@ -294,8 +325,9 @@ export default async function FoyerPlanSeite({
                   </form>
                 ))}
               </details>
+              )}
 
-              {ichArbeiteImFoyer && (
+              {!t.abgesagt && ichArbeiteImFoyer && (
                 <VertretungAnbieten
                   dienste={t.dienste.filter((d) => d.benutzerId && d.benutzerId !== b.id)}
                   leute={leute}

@@ -107,10 +107,30 @@ export async function technikEinteilen(f: FormData): Promise<void> {
  * bemerkte: die Person "fiel raus" (Sarah, 25.09.2026). Ein Formular für
  * den ganzen Tag mit einem Knopf macht das unmöglich.
  */
+/**
+ * Faellt an diesem Tag alles aus?
+ *
+ * Dann wird niemand mehr eingeteilt. Der Knopf ist in der Oberflaeche
+ * schon weg, aber eine Serverfunktion ist auch direkt erreichbar
+ * (Florian, 15.10.2026).
+ */
+async function tagFaelltAus(datum: string): Promise<boolean> {
+  const { showtageAbHeute } = await import("@/lib/ditix/spielplan");
+  const [termine, abgesagt] = await Promise.all([
+    showtageAbHeute(400),
+    abgesagteEventIds().catch(() => new Set<string>()),
+  ]);
+  const amTag = termine.filter((t) => t.datum === datum);
+  return amTag.length > 0 && amTag.every((t) => abgesagt.has(t.ditixEventId));
+}
+
 export async function tagEintragen(f: FormData): Promise<void> {
   const b = await darfPlanen();
   const datum = text(f, "datum", 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) zurueck("Dieser Tag geht nicht.");
+  if (await tagFaelltAus(datum)) {
+    zurueck("An diesem Tag ist die Vorstellung abgesagt. Hier wird niemand mehr eingeteilt.");
+  }
 
   const leute = await foyerLeute();
   const bestehend = (await db()`
@@ -330,6 +350,9 @@ export async function foyerUebernahmeEntscheiden(f: FormData): Promise<void> {
 export async function zeiten(f: FormData): Promise<void> {
   const b = await darfPlanen();
   const datum = text(f, "datum", 10);
+  if (await tagFaelltAus(datum)) {
+    zurueck("An diesem Tag ist die Vorstellung abgesagt.");
+  }
   const nummer = Math.max(1, Math.min(3, Number(text(f, "nummer", 2)) || 1));
   await zeitenSetzen({
     datum,
