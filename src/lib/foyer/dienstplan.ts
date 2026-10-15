@@ -75,7 +75,16 @@ export interface FoyerTechnik {
 export interface FoyerTag {
   datum: string;
   /** Anfangszeiten der Shows an diesem Tag, für die Anzeige. */
-  shows: Array<{ uhrzeit: string; name: string }>;
+  shows: Array<{ uhrzeit: string; name: string; abgesagt: boolean }>;
+  /**
+   * Alle Vorstellungen dieses Tages sind abgesagt.
+   *
+   * "wenn eine Show ausfällt, dann muss das bitte auch in den
+   * Dienstplänen der Gastro berücksichtigt werden" (Florian,
+   * 15.10.2026). Bisher verschwand der Tag einfach, samt den Leuten,
+   * die schon eingeteilt waren. Jetzt bleibt er stehen und ist rot.
+   */
+  abgesagt: boolean;
   /** Verantwortliche Technik je Vorstellung an diesem Tag. */
   technik: FoyerTechnik[];
   dienste: FoyerDienst[];
@@ -273,17 +282,21 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
   }
 
   /*
-    Stornierte Vorstellungen zaehlen nicht mehr.
+    Stornierte Vorstellungen bleiben sichtbar.
 
-    Faellt die einzige Show des Tages aus, steht im Foyer niemand, und
-    dann wird dort auch niemand eingeteilt (Florian, 05.10.2026). Faellt
-    nur eine von zwei Shows aus, bleibt der Tag und die Zeiten richten
-    sich nach der Show, die stattfindet.
+    Frueher fiel eine abgesagte Show hier heraus, und mit der letzten
+    Show des Tages verschwand der ganze Tag aus dem Plan, samt den
+    Leuten, die schon eingeteilt waren. Niemand sah mehr, dass da jemand
+    umsonst kommen wuerde (Florian, 15.10.2026).
+
+    Jetzt bleibt der Tag stehen und wird rot gezeigt, wie beim Showteam.
+    Die Zeiten richten sich weiter nach den Shows, die stattfinden;
+    faellt alles aus, stehen die Zeiten der abgesagten Show da, damit
+    man sieht, worum es ging.
   */
   const nachTag = new Map<string, Vorstellungstermin[]>();
   for (const t of termine) {
     if (t.beginn.getTime() > bis) continue;
-    if (abgesagt.has(t.ditixEventId)) continue;
     nachTag.set(t.datum, [...(nachTag.get(t.datum) ?? []), t]);
   }
 
@@ -291,11 +304,19 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([datum, shows]) => {
       const sortiert = [...shows].sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit));
-      const { vorschlag, pause } = foyerZeiten(sortiert);
+      const laufen = sortiert.filter((s) => !abgesagt.has(s.ditixEventId));
+      const allesAbgesagt = laufen.length === 0;
+      // Die Zeiten richten sich nach dem, was stattfindet.
+      const { vorschlag, pause } = foyerZeiten(allesAbgesagt ? sortiert : laufen);
       const amTag = dienste.filter((d) => d.datum === datum);
       return {
         datum,
-        shows: sortiert.map((s) => ({ uhrzeit: s.uhrzeit, name: s.name })),
+        abgesagt: allesAbgesagt,
+        shows: sortiert.map((s) => ({
+          uhrzeit: s.uhrzeit,
+          name: s.name,
+          abgesagt: abgesagt.has(s.ditixEventId),
+        })),
         technik: sortiert
           .filter((s) => technikJeEvent.has(s.ditixEventId))
           .map((s) => {

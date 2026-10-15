@@ -131,14 +131,55 @@ export default async function FoyerPlanSeite({
       ) : (
         <ul className="space-y-3">
           {tage.map((t) => (
-            <li key={t.datum} id={`t-${t.datum}`} className="rounded-lg border border-linie bg-flaeche p-4">
+            <li
+              key={t.datum}
+              id={`t-${t.datum}`}
+              className="rounded-lg border p-4"
+              style={
+                t.abgesagt
+                  ? { borderColor: "var(--blocker)", background: "var(--blocker-hell)" }
+                  : { borderColor: "var(--linie)", background: "var(--flaeche)" }
+              }
+            >
               <div className="flex flex-wrap items-baseline gap-x-3">
-                <strong>{datumMitWochentag(t.datum)}</strong>
-                <span className="text-sm text-leise">
+                <strong className={t.abgesagt ? "line-through" : ""}>
+                  {datumMitWochentag(t.datum)}
+                </strong>
+                <span className={`text-sm text-leise${t.abgesagt ? " line-through" : ""}`}>
                   {t.shows.map((s) => `${s.uhrzeit} Uhr`).join(" und ")} · {t.shows[0]?.name}
                 </span>
+                {/*
+                  Eine abgesagte Show steht rot da, genau wie im
+                  Showdienstplan: "wenn eine Show ausfällt, dann muss das
+                  bitte auch in den Dienstplänen der Gastro berücksichtigt
+                  werden" (Florian, 15.10.2026).
+                */}
+                {t.abgesagt && (
+                  <span
+                    className="rounded px-2 py-0.5 text-xs font-semibold"
+                    style={{ background: "var(--blocker)", color: "#fff" }}
+                  >
+                    Vorstellung abgesagt
+                  </span>
+                )}
+                {!t.abgesagt && t.shows.some((s) => s.abgesagt) && (
+                  <span
+                    className="rounded px-2 py-0.5 text-xs font-semibold"
+                    style={{ background: "var(--blocker)", color: "#fff" }}
+                  >
+                    {t.shows.filter((s) => s.abgesagt).map((s) => `${s.uhrzeit} Uhr`).join(", ")}{" "}
+                    abgesagt
+                  </span>
+                )}
                 {t.pause && <span className="text-sm text-leise">Pause {t.pause}</span>}
               </div>
+
+              {t.abgesagt && (
+                <p className="mt-2 text-sm" style={{ color: "var(--blocker)" }}>
+                  An diesem Tag findet nichts statt. Wer hier noch eingeteilt ist, braucht nicht zu
+                  kommen: Bitte sag den Leuten Bescheid und trage sie aus.
+                </p>
+              )}
 
               {/*
                 Wer an der Technik verantwortlich ist.
