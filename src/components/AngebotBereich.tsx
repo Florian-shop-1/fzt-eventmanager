@@ -12,7 +12,13 @@
 
 import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { angebotErzeugen, angebotLoeschen, angebotVersendet, positionOptional } from "@/lib/angebot/speichern";
+import {
+  angebotErzeugen,
+  angebotLoeschen,
+  angebotVersendet,
+  positionOptional,
+  positionPreisSetzen,
+} from "@/lib/angebot/speichern";
 import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
@@ -50,8 +56,17 @@ export function AngebotBereich({
   */
   const [mengen, setMengen] = useState<Record<string, number>>({ TK2: personen });
   const [rabatt, setRabatt] = useState(0);
+  /*
+    Einheitspreis je Sitzplatz, als Text, damit das Feld leer bleiben
+    kann. Leer heisst: Kategoriepreise aus dem Ticketshop
+    (Florian, 15.10.2026).
+  */
+  const [ticketpreis, setTicketpreis] = useState("");
   const [getraenke, setGetraenke] = useState<string[]>([]);
   const [mitEmpfang, setMitEmpfang] = useState(false);
+
+  // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
+  const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-5">
@@ -87,16 +102,47 @@ export function AngebotBereich({
             <Kategorienwahl mengen={mengen} setzen={setMengen} personen={personen} />
           </div>
 
-          <label className="block sm:w-1/2">
-            <span className="mb-1 block text-xs text-leise">Rabatt auf Tickets in Prozent</span>
-            <input
-              type="number"
-              min={0}
-              max={50}
-              value={rabatt}
-              onChange={(e) => setRabatt(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/*
+              Der Einheitspreis. Steht neben dem Rabatt, weil beides
+              dasselbe Ziel hat und man eines von beidem nimmt.
+            */}
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">
+                Eigener Preis je Ticket in Euro
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="z.B. 99"
+                value={ticketpreis}
+                onChange={(e) => setTicketpreis(e.target.value)}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Rabatt auf Tickets in Prozent</span>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={rabatt}
+                onChange={(e) => setRabatt(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </label>
+          </div>
+
+          <p className="text-xs text-leise">
+            {preisCent > 0 ? (
+              <>
+                Jeder Sitzplatz kostet {eur(preisCent)}, egal welche Kategorie. Die
+                Kategoriebezeichnung bleibt im Angebot stehen.
+                {rabatt > 0 && " Der Rabatt kommt zusätzlich darauf, das ist selten gewollt."}
+              </>
+            ) : (
+              <>Ohne eigenen Preis gelten die Kategoriepreise dieser Vorstellung.</>
+            )}
+          </p>
 
           <label className="block">
             <span className="mb-1 block text-xs text-leise">Getränkepauschale</span>
@@ -124,6 +170,7 @@ export function AngebotBereich({
                     menge: mengen[t.nummer] ?? 0,
                   })).filter((k) => k.menge > 0),
                   ticketRabatt: rabatt,
+                  ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
                   mitEmpfang,
                   mitUnterbelegung: true,
@@ -210,8 +257,8 @@ function AngebotKarte({
 
       <details className="mb-3">
         <summary className="cursor-pointer text-xs text-leise">
-          {angebot.positionen.filter((p) => !p.istAlternativeZu).length} Positionen ansehen und
-          optional setzen
+          {angebot.positionen.filter((p) => !p.istAlternativeZu).length} Positionen ansehen,
+          Preise ändern, optional setzen
         </summary>
         <table className="mt-2 w-full text-xs">
           <tbody>
@@ -224,7 +271,31 @@ function AngebotKarte({
                     <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
                   </td>
                   <td className="py-1 text-right tabular-nums">{p.menge}x</td>
-                  <td className={`py-1 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
+
+                  {/*
+                    Der Einzelpreis zum Ueberschreiben. Enter genuegt,
+                    der Knopf daneben ist fuer die Maus
+                    (Florian, 15.10.2026).
+                  */}
+                  <td className="py-1 pl-2 text-right">
+                    <form
+                      action={positionPreisSetzen.bind(null, p.id, vorgangId)}
+                      className="flex items-center justify-end gap-1"
+                    >
+                      <input
+                        type="text"
+                        name="preis"
+                        inputMode="decimal"
+                        defaultValue={(p.einzelBruttoCent / 100).toFixed(2).replace(".", ",")}
+                        className="w-20 rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
+                      />
+                      <button type="submit" className="underline text-leise">
+                        €
+                      </button>
+                    </form>
+                  </td>
+
+                  <td className={`py-1 pl-2 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
                     {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
                   </td>
                   {/*
@@ -244,8 +315,10 @@ function AngebotKarte({
           </tbody>
         </table>
         <p className="mt-2 text-xs text-leise">
-          Optionale Positionen stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag
-          nicht enthalten. Ein schon verschicktes PDF ändert sich dadurch nicht.
+          Im Feld steht der Einzelpreis, rechts daneben die Zeilensumme. Optionale Positionen
+          stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag nicht enthalten.
+          Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
+          schon.
         </p>
       </details>
 

@@ -53,6 +53,16 @@ export interface AngebotsOptionen {
   /** Rabatt auf die Tickets in Prozent, wie die 15 Prozent in AG-0826-1168. */
   ticketRabatt: number;
   /**
+   * Eigener Ticketpreis in Bruttocent, der fuer jede Kategorie gilt.
+   *
+   * "wir machen manchmal gerne 99 EUR auf jedem Sitzplatz" (Florian,
+   * 15.10.2026). Bei Firmenabenden ist der Einheitspreis der leichtere
+   * Weg als ein Rabatt in Prozent, der auf jeder Kategorie eine andere
+   * krumme Zahl ergibt. Ohne Angabe gelten die Kategoriepreise aus dem
+   * Ticketshop.
+   */
+  ticketPreisCent?: number;
+  /**
    * Artikelnummern der Getränkepauschalen. Mehrere sind erlaubt und
    * üblich: Softdrink-Flat zusammen mit Bier- und Wein-Flat ist die
    * beliebteste Kombination. Jede wird zu einer eigenen Position.
@@ -211,18 +221,24 @@ export function erzeugePositionen(
   // laesst den Kunden gerne selbst entscheiden.
   const gewaehlt = (optionen.kategorien ?? []).filter((k) => k.menge > 0);
 
+  // Der Einheitspreis, wenn einer gesetzt ist: Er ersetzt den
+  // Kategoriepreis, die Bezeichnung der Kategorie bleibt stehen.
+  const ticketpreis = optionen.ticketPreisCent;
+
   if (gewaehlt.length > 1) {
     for (const k of gewaehlt) {
-      positionen.push(zuPosition(preise, k.nummer, k.menge, optionen.ticketRabatt));
+      positionen.push(
+        zuPosition(preise, k.nummer, k.menge, optionen.ticketRabatt, ticketpreis),
+      );
     }
   } else {
     const nummer = gewaehlt[0]?.nummer ?? optionen.ticket;
     const menge = gewaehlt[0]?.menge ?? gesamt;
-    const haupt = zuPosition(preise, nummer, menge, optionen.ticketRabatt);
+    const haupt = zuPosition(preise, nummer, menge, optionen.ticketRabatt, ticketpreis);
     positionen.push(haupt);
     for (const alternative of TICKET_ALTERNATIVEN.filter((n) => n !== nummer)) {
       positionen.push({
-        ...zuPosition(preise, alternative, menge, optionen.ticketRabatt),
+        ...zuPosition(preise, alternative, menge, optionen.ticketRabatt, ticketpreis),
         istAlternativeZu: haupt.id,
       });
     }
@@ -284,6 +300,8 @@ function zuPosition(
   artikelNummer: string,
   menge: number,
   rabattProzent = 0,
+  /** Eigener Bruttopreis, der Ditix und Artikelstamm ueberstimmt. */
+  preisCent?: number,
 ): Position {
   const a = artikel(artikelNummer);
   return {
@@ -294,7 +312,8 @@ function zuPosition(
     menge,
     einheit: a.einheit,
     // Preis aus Ditix, Bezeichnung und Steuersatz aus dem Artikelstamm.
-    einzelBruttoCent: preisVon(preise, artikelNummer),
+    // Ein von Hand gesetzter Preis geht beiden vor.
+    einzelBruttoCent: preisCent && preisCent > 0 ? preisCent : preisVon(preise, artikelNummer),
     ust: a.ust,
     rabattProzent: rabattProzent || undefined,
   };

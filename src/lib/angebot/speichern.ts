@@ -193,6 +193,36 @@ export async function positionOptional(
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
+/**
+ * Den Einzelpreis einer Position aendern.
+ *
+ * "kann man den Ticketpreis frei veraendern?" (Florian, 15.10.2026).
+ * Beim Erstellen geht das ueber den Einheitspreis, hier geht es
+ * nachtraeglich und je Zeile: Auch das Menue oder der Empfang ist
+ * manchmal Verhandlungssache.
+ *
+ * Wie beim Optional-Schalter gilt: Ein schon verschicktes PDF aendert
+ * sich dadurch nicht, der Kundenlink schon.
+ */
+export async function positionPreisSetzen(
+  positionId: string,
+  vorgangId: string,
+  formData: FormData,
+): Promise<void> {
+  await verlangeTeam();
+
+  // Der Mitarbeiter tippt Euro, gespeichert wird in Cent. Komma und
+  // Punkt sind beides erlaubt, weil beides getippt wird.
+  const roh = String(formData.get("preis") ?? "").trim().replace(",", ".");
+  const euro = Number(roh);
+  if (!roh || !Number.isFinite(euro) || euro < 0) return;
+
+  await db()`
+    update position set einzel_brutto_cent = ${Math.round(euro * 100)} where id = ${positionId}
+  `;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
 /** Löscht ein Angebot, etwa nach einem Fehler beim Erstellen. */
 export async function angebotLoeschen(angebotId: string, vorgangId: string): Promise<void> {
   await verlangeTeam();
