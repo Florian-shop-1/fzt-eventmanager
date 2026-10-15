@@ -62,9 +62,22 @@ export function istSilvester(tag: string): boolean {
   return tag.endsWith("-12-31") || tag.endsWith("-01-01");
 }
 
+/**
+ * Minuten seit Mitternacht, in hiesiger Zeit.
+ *
+ * Wichtig, dass hier Europe/Berlin steht und nicht die Zeit des
+ * Servers: Auf Vercel laeuft alles in UTC. Eine Schicht, die um 00:07
+ * endet, war dort 22:07 am Vortag; sie wurde deshalb nicht mehr an die
+ * Schicht angehaengt und galt als "Ausstempeln fehlt". "er hat doch
+ * richtig gestempelt, das sollte nicht von mir bestaetigt werden
+ * muessen" (Florian, 15.10.2026).
+ */
 function minutenAmTag(ms: number): number {
-  const d = new Date(ms);
-  return d.getHours() * 60 + d.getMinutes();
+  const [stunde, minute] = new Date(ms)
+    .toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hour12: false })
+    .split(":")
+    .map(Number);
+  return (stunde % 24) * 60 + minute;
 }
 
 /**
@@ -197,8 +210,7 @@ export function nachtschichtenAnhaengen<T extends { art: string; ms: number }>(
     const umziehen: T[] = [];
     for (const s of jetzt.stempel) {
       if (s.art === "kommen") break;
-      const d = new Date(s.ms);
-      if (d.getHours() * 60 + d.getMinutes() > NACHT_BIS) break;
+      if (minutenAmTag(s.ms) > NACHT_BIS) break;
       umziehen.push(s);
       if (s.art === "gehen") break;
     }
