@@ -269,6 +269,36 @@ export async function artSetzen(benutzerId: string, art: "intern" | "extern"): P
   revalidatePath("/einstellungen/benutzer");
 }
 
+/**
+ * Bezahlte Anfahrtszeit je Arbeitstag festlegen.
+ *
+ * "bei Julian Scherer wird pro Tag wo er hier ist eine extra Stunde
+ * gestempelt, es ist die Zeit fuer die Anfahrt nach Ulm. Das gibt es nur
+ * bei Julian Scherer" (Florian, 15.10.2026).
+ *
+ * Die Zeit haengt an der Person und wird in der Lohnauswertung an jedem
+ * gewerteten Arbeitstag dazugerechnet, getrennt ausgewiesen. Null heisst:
+ * keine Anfahrt, so ist es bei allen anderen.
+ */
+export async function anfahrtSetzen(benutzerId: string, formData: FormData): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
+
+  const roh = String(formData.get("minuten") ?? "").trim();
+  const minuten = Math.min(480, Math.max(0, Math.round(Number(roh) || 0)));
+  await db()`update benutzer set anfahrt_minuten = ${minuten} where id = ${benutzerId}`;
+
+  revalidatePath(`/mitarbeiter/${benutzerId}`);
+  revalidatePath("/lohn");
+  redirect(
+    `/mitarbeiter/${benutzerId}?meldung=${encodeURIComponent(
+      minuten > 0
+        ? `Anfahrt gespeichert: ${Math.floor(minuten / 60)}:${String(minuten % 60).padStart(2, "0")} je Arbeitstag.`
+        : "Anfahrt entfernt.",
+    )}`,
+  );
+}
+
 /** Fordert den Personalbogen erneut an, etwa nach Umzug oder neuer Bankverbindung. */
 export async function personalbogenAnfordern(benutzerId: string): Promise<void> {
   const ich = await angemeldeterBenutzer();

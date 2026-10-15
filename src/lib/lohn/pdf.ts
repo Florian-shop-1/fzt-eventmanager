@@ -230,7 +230,10 @@ export async function lohnPdf(d: LohnPdfDaten): Promise<Buffer> {
       zeilen.push({
         datum: t.datum,
         text: t.stempel.map((x) => `${kuerzel(x.art)} ${x.uhrzeit}`).join("   "),
-        wert: `${alsStunden(t.arbeitMinuten)}${t.pauseMinuten ? ` (Pause ${alsStunden(t.pauseMinuten)})` : ""}`,
+        wert:
+          `${alsStunden(t.arbeitMinuten)}`
+          + (t.anfahrtMinuten ? ` (davon ${alsStunden(t.anfahrtMinuten)} Anfahrt)` : "")
+          + (t.pauseMinuten ? ` (Pause ${alsStunden(t.pauseMinuten)})` : ""),
         hinweis: t.offen ? "Ausstempeln fehlt" : "",
       });
     }

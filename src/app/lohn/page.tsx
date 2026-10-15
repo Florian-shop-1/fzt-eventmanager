@@ -471,6 +471,16 @@ function Person({
                           Zuschauer, gestempelt {alsStunden(t.arbeit.gestempelteMinuten ?? 0)}
                         </span>
                       )}
+                      {/*
+                        Die bezahlte Anfahrt steht sichtbar daneben:
+                        "diese soll auch markiert sein als solche"
+                        (Florian, 15.10.2026).
+                      */}
+                      {Boolean(t.arbeit.anfahrtMinuten) && (
+                        <span className="ml-1 text-xs text-leise">
+                          inkl. {alsStunden(t.arbeit.anfahrtMinuten ?? 0)} Anfahrt
+                        </span>
+                      )}
                     </span>
                   ) : (
                     "-"

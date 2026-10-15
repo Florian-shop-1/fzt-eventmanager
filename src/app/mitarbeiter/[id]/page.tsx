@@ -7,7 +7,7 @@ import { zeilen } from "@/lib/personal/personalbogen";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
-import { personalbogenAnfordern } from "@/lib/auth/aktionen";
+import { anfahrtSetzen, personalbogenAnfordern } from "@/lib/auth/aktionen";
 
 export const metadata = { title: "Personalakte | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -184,6 +184,48 @@ export default async function AktenSeite({
             wert={a.letzterStempel ? vorZeit(a.letzterStempel) : "noch nie"}
           />
           <Zeile was="Kommende Dienste" wert={String(a.diensteKommend)} />
+          {/*
+            Bezahlte Anfahrt je Arbeitstag.
+
+            Steht hier und nicht in den Zugängen, weil es zur Bezahlung
+            gehört: Bei Julian Scherer ist es die Fahrt von Geislingen
+            nach Ulm (Florian, 15.10.2026). Bei allen anderen steht hier
+            eine Null, und dann passiert nichts.
+          */}
+          <form action={anfahrtSetzen.bind(null, a.id)} className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="text-xs">
+              <span className="mb-1 block text-leise">Bezahlte Anfahrt je Arbeitstag</span>
+              <span className="flex items-center gap-1">
+                <input
+                  type="number"
+                  name="minuten"
+                  min={0}
+                  max={480}
+                  step={15}
+                  defaultValue={a.anfahrtMinuten}
+                  className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                />
+                <span className="text-sm text-leise">Minuten</span>
+              </span>
+            </label>
+            <button
+              type="submit"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
+            >
+              Speichern
+            </button>
+          </form>
+          <p className="mt-1 text-xs text-leise">
+            {a.anfahrtMinuten > 0 ? (
+              <>
+                An jedem Tag mit gestempelter Arbeit kommt diese Zeit dazu. In der Lohnliste steht
+                sie als Anfahrt daneben.
+              </>
+            ) : (
+              <>Keine Anfahrt. Die Lohnliste zeigt dann nur, was die Uhr gezählt hat.</>
+            )}
+          </p>
+
           <p className="mt-2 text-xs text-leise">
             Zeiten ändern unter{" "}
             <Link href={`/stempeluhr?wer=${a.id}`} className="underline">

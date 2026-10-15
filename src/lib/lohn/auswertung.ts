@@ -26,6 +26,13 @@ export interface Tagesprotokoll {
   arbeitMinuten: number;
   /** Nur am Zuschauertag: was die Uhr wirklich gezaehlt hat. */
   gestempelteMinuten?: number;
+  /**
+   * Bezahlte Anfahrt dieses Tages, in arbeitMinuten enthalten.
+   *
+   * Nur bei Leuten, bei denen eine Anfahrtszeit hinterlegt ist, und nur
+   * an Tagen, an denen wirklich gestempelt wurde (Florian, 15.10.2026).
+   */
+  anfahrtMinuten?: number;
   /** War dieser Tag ein Dienst als eingeweihter Zuschauer? */
   zuschauer?: boolean;
   pauseMinuten: number;
@@ -113,7 +120,8 @@ function tageZwischen(von: string, bis: string): string[] {
 export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]> {
   const stempel = (await db()`
     select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email,
-           b.schnuppert, b.schnuppert_seit::text as schnuppert_seit, b.schnuppert_bis::text as schnuppert_bis
+           b.schnuppert, b.schnuppert_seit::text as schnuppert_seit, b.schnuppert_bis::text as schnuppert_bis,
+           coalesce(b.anfahrt_minuten, 0) as anfahrt_minuten
       from stempel s
       left join benutzer b on b.id = s.benutzer_id
      where s.zeitpunkt >= (${z.von}::date - 1)::timestamptz
@@ -172,6 +180,20 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
 
   const imZeitraum = (tag: string) => tag >= z.von && tag <= z.bis;
   const leute = new Map<string, Mitarbeiterzeiten>();
+
+  /*
+    Die bezahlte Anfahrt je Person und Arbeitstag.
+
+    "bei Julian Scherer wird pro Tag wo er hier ist eine extra Stunde
+    gestempelt, es ist die Zeit fuer die Anfahrt nach Ulm" (Florian,
+    15.10.2026). Sie kommt nicht aus der Uhr, sondern aus der Person,
+    deshalb wird sie hier addiert und im Protokoll getrennt ausgewiesen.
+  */
+  const anfahrt = new Map<string, number>();
+  for (const s of stempel) {
+    const minuten = Number(s.anfahrt_minuten ?? 0);
+    if (minuten > 0) anfahrt.set(String(s.benutzer_id), minuten);
+  }
 
   /*
     Wer wann geschnuppert hat.
@@ -274,6 +296,21 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       [...tage].map(([datum, liste]) => ({ datum, stempel: liste })),
     );
 
+    /*
+      An welchen Tagen war die Person ueberhaupt da?
+
+      Gebraucht fuer die Anfahrt: Wer an zwei Tagen hintereinander
+      arbeitet, hat im Theater geschlafen und ist nur einmal gefahren
+      (Florian, 15.10.2026). Hier stehen auch Tage knapp ausserhalb des
+      Zeitraums, damit ein Monatswechsel die Kette nicht zerreisst.
+    */
+    const stempeltage = new Set(gruppen.map((g) => g.datum));
+    const vortagVon = (datum: string): string => {
+      const d = new Date(`${datum}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - 1);
+      return d.toISOString().slice(0, 10);
+    };
+
     for (const g of gruppen) {
       // Erst nach dem Zusammenfuehren entscheidet sich, zu welchem Tag
       // eine Nachtschicht gehoert. Deshalb wird hier gefiltert, nicht vorher.
@@ -288,7 +325,25 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
         Summe und Meldung ans Lohnbuero dieselbe Zahl zeigen.
       */
       const istZuschauertag = zuschauertage.has(`${id}|${g.datum}`);
-      const arbeitMinuten = istZuschauertag ? alsZuschauerstunden(r.arbeitMinuten) : r.arbeitMinuten;
+      const gerechnet = istZuschauertag ? alsZuschauerstunden(r.arbeitMinuten) : r.arbeitMinuten;
+
+      /*
+        Die Anfahrt kommt obendrauf, aber nur einmal je Aufenthalt.
+
+        Zwei Tage hintereinander heissen: Er hat hier geschlafen und ist
+        nur einmal gefahren, also nur eine Stunde. "sollte er Samstag und
+        Sonntag arbeiten, oder Freitag und Samstag, dann heisst es, dass
+        er im Theater geschlafen hat, fuer so einen Fall darf nur eine
+        Stunde gebucht werden" (Florian, 15.10.2026). Die Stunde haengt
+        am ersten Tag der Kette.
+
+        Ein offener oder unplausibler Tag bekommt sie nicht: Dort steht
+        ohnehin nichts, was gemeldet wird.
+      */
+      const ersterTagDerKette = !stempeltage.has(vortagVon(g.datum));
+      const anfahrtMinuten =
+        r.gewertet && gerechnet > 0 && ersterTagDerKette ? (anfahrt.get(id) ?? 0) : 0;
+      const arbeitMinuten = gerechnet + anfahrtMinuten;
 
       const tagProt: Tagesprotokoll = {
         datum: g.datum,
@@ -301,6 +356,7 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
         arbeitMinuten,
         zuschauer: istZuschauertag,
         gestempelteMinuten: r.arbeitMinuten,
+        anfahrtMinuten: anfahrtMinuten || undefined,
         pauseMinuten: r.pauseMinuten,
         offen: r.offen,
         fehlstempel: r.fehlstempel,
