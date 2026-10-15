@@ -32,6 +32,8 @@ export interface Aktenkopf {
   erstelltAm: string;
   letzterLogin: string | null;
   personalbogenAm: string | null;
+  /** Wann zuletzt eine Aufforderung dafür hinausging. */
+  bogenAngefordertAm: string | null;
   ausgeschiedenAm: string | null;
   ausscheidenGrund: string;
   abgemeldetAm: string | null;
@@ -47,6 +49,9 @@ export interface Aktenstand extends Aktenkopf {
     festgehaltCent: number | null;
     freigegebenAm: string | null;
     unterschriebenAm: string | null;
+    /** Wann Bogen und Vertrag ans Lohnbüro gingen. */
+    lohnbueroAm: string | null;
+    aufPapier: boolean;
   } | null;
   /** Hat er die Geheimhaltung unterschrieben? */
   geheimhaltungAm: string | null;
@@ -74,7 +79,7 @@ export async function akten(): Promise<Aktenkopf[]> {
   const z = (await db()`
     select id, name, email, rolle, aktiv, geteilt, art, fest, schnuppert, handy, geburtstag::text,
            erstellt_am, letzter_login, personalbogen_am, ausgeschieden_am, ausscheiden_grund,
-           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten
+           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am
       from benutzer
      where not geteilt and rolle not in ('kiosk', 'agentur', 'reinigung')
        and coalesce(art, 'intern') <> 'extern'
@@ -99,6 +104,9 @@ function baueKopf(r: Record<string, unknown>): Aktenkopf {
     erstelltAm: new Date(r.erstellt_am as string).toISOString(),
     letzterLogin: r.letzter_login ? new Date(r.letzter_login as string).toISOString() : null,
     personalbogenAm: r.personalbogen_am ? new Date(r.personalbogen_am as string).toISOString() : null,
+    bogenAngefordertAm: r.bogen_angefordert_am
+      ? new Date(r.bogen_angefordert_am as string).toISOString()
+      : null,
     ausgeschiedenAm: r.ausgeschieden_am ? new Date(r.ausgeschieden_am as string).toISOString() : null,
     ausscheidenGrund: String(r.ausscheiden_grund ?? ""),
     abgemeldetAm: r.abgemeldet_am ? new Date(r.abgemeldet_am as string).toISOString() : null,
@@ -110,7 +118,7 @@ export async function akte(benutzerId: string): Promise<Aktenstand | null> {
   const kopf = (await db()`
     select id, name, email, rolle, aktiv, geteilt, art, fest, schnuppert, handy, geburtstag::text,
            erstellt_am, letzter_login, personalbogen_am, ausgeschieden_am, ausscheiden_grund,
-           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten
+           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am
       from benutzer where id = ${benutzerId}::uuid
   `.catch(() => [])) as Array<Record<string, unknown>>;
   if (!kopf[0]) return null;
@@ -118,7 +126,7 @@ export async function akte(benutzerId: string): Promise<Aktenstand | null> {
   const [vertrag, geheim, stunden, dienste, dateien] = await Promise.all([
     db()`
       select id, art, beginn::text as beginn, stundenlohn_cent, festgehalt_cent,
-             freigegeben_am, unterschrieben_am
+             freigegeben_am, unterschrieben_am, lohnbuero_am, auf_papier
         from arbeitsvertrag
        where benutzer_id = ${benutzerId}::uuid and zurueckgezogen_am is null and abgeloest_am is null
        order by unterschrieben_am desc nulls first, angelegt_am desc limit 1
@@ -159,6 +167,8 @@ export async function akte(benutzerId: string): Promise<Aktenstand | null> {
           unterschriebenAm: v.unterschrieben_am
             ? new Date(v.unterschrieben_am as string).toISOString()
             : null,
+          lohnbueroAm: v.lohnbuero_am ? new Date(v.lohnbuero_am as string).toISOString() : null,
+          aufPapier: v.auf_papier === true,
         }
       : null,
     geheimhaltungAm: (geheim as Array<{ unterschrieben_am: string | null }>)[0]?.unterschrieben_am

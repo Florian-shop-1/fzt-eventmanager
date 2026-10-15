@@ -8,6 +8,7 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 import { anfahrtSetzen, personalbogenAnfordern } from "@/lib/auth/aktionen";
+import { paketSchicken } from "./aktionen";
 
 export const metadata = { title: "Personalakte | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -115,6 +116,12 @@ export default async function AktenSeite({
         <p className="mt-2 text-xs text-leise">
           Geht an {a.email || "keine Adresse hinterlegt"}. Der Haken wird dabei zurückgesetzt, damit die
           Aufgabe im Programm wieder erscheint.
+          {a.bogenAngefordertAm && (
+            <>
+              {" "}
+              Zuletzt angefordert am {datum(a.bogenAngefordertAm)}.
+            </>
+          )}
         </p>
 
         {/*
@@ -170,10 +177,50 @@ export default async function AktenSeite({
               {a.vertrag.festgehaltCent !== null && (
                 <Zeile was="Festgehalt" wert={`${eur(a.vertrag.festgehaltCent)} €`} />
               )}
+              {/*
+                Was mit dem Vertrag passiert ist, in der Reihenfolge, in
+                der es passiert: "man sieht gar nicht, dass der schon
+                versendet wurde" (Florian, 15.10.2026).
+              */}
+              <Zeile
+                was="An den Mitarbeiter"
+                wert={
+                  a.vertrag.freigegebenAm
+                    ? `verschickt am ${datum(a.vertrag.freigegebenAm)}`
+                    : a.vertrag.aufPapier
+                      ? "auf Papier geschlossen"
+                      : "noch nicht freigegeben"
+                }
+              />
               <Zeile
                 was="Unterschrieben"
                 wert={a.vertrag.unterschriebenAm ? datum(a.vertrag.unterschriebenAm) : "noch nicht"}
               />
+              <Zeile
+                was="Ans Lohnbüro"
+                wert={
+                  a.vertrag.lohnbueroAm
+                    ? `verschickt am ${datum(a.vertrag.lohnbueroAm)}`
+                    : a.vertrag.unterschriebenAm
+                      ? bogen || a.personalbogenAm
+                        ? "steht aus"
+                        : "wartet auf den Personalbogen"
+                      : "wartet auf die Unterschrift"
+                }
+              />
+
+              {/*
+                Von Hand anstossen. Normalerweise geht das Paket von
+                selbst hinaus, sobald Bogen und Vertrag da sind.
+              */}
+              {a.vertrag.unterschriebenAm && !a.vertrag.lohnbueroAm && (
+                <form action={paketSchicken.bind(null, a.id)} className="pt-2">
+                  <Absendeknopf
+                    text="Jetzt ans Lohnbüro schicken"
+                    laeuftText="Wird verschickt..."
+                  />
+                </form>
+              )}
               <p className="mt-2 text-xs">
                 <Link href={`/vertraege/${a.vertrag.id}`} className="underline">
                   Vertrag öffnen

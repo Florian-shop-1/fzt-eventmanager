@@ -303,7 +303,10 @@ export async function anfahrtSetzen(benutzerId: string, formData: FormData): Pro
 export async function personalbogenAnfordern(benutzerId: string): Promise<void> {
   const ich = await angemeldeterBenutzer();
   if (!ich || !darfBenutzerVerwalten(ich.rolle)) return;
-  await db()`update benutzer set personalbogen_am = null where id = ${benutzerId}`;
+  await db()`
+    update benutzer set personalbogen_am = null, bogen_angefordert_am = now()
+     where id = ${benutzerId}
+  `;
 
   /*
     Zusaetzlich eine Mail.

@@ -59,6 +59,17 @@ export async function vertragSignieren(f: FormData): Promise<void> {
     geraet: (kopf.get("user-agent") ?? "unbekannt").slice(0, 300),
   });
 
+  /*
+    Jetzt ist der Vertrag da. Liegt auch der Personalbogen vor, geht
+    beides zusammen an Werner und ans Lohnbuero (Florian, 15.10.2026).
+    Fehlt der Bogen noch, passiert hier nichts und die Mail geht
+    spaeter, sobald er abgegeben ist.
+  */
+  if (ok) {
+    const { lohnbueroPaketStill } = await import("@/lib/personal/lohnbuero-paket");
+    await lohnbueroPaketStill(b.id);
+  }
+
   zurueck(
     ok
       ? "Danke, dein Arbeitsvertrag ist unterschrieben. Du kannst ihn jederzeit hier nachlesen und ausdrucken."
