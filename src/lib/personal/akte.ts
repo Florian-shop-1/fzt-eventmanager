@@ -86,6 +86,12 @@ export async function akten(): Promise<Aktenkopf[]> {
       from benutzer
      where not geteilt and rolle not in ('kiosk', 'agentur', 'reinigung')
        and coalesce(art, 'intern') <> 'extern'
+       /*
+         Florian und Kevin fuehren ihre eigenen Papiere nicht hier:
+         "ich, Florian, brauche auch keine Personalakte"
+         (Florian, 15.10.2026).
+       */
+       and not coalesce(ohne_personalakte, false)
   `.catch(() => [])) as Array<Record<string, unknown>>;
   return z.map(baueKopf).sort(nachFamilienname);
 }
