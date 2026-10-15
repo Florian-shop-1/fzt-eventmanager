@@ -296,6 +296,21 @@ export default async function LohnSeite({
                 </>
               )}
             </span>
+            {/*
+              Ohne Freigabe gab es hier gar nichts, und niemand konnte
+              wissen, woran es liegt: "ich konnte das vorher nicht
+              klicken" (Florian, 15.10.2026).
+            */}
+            {!freigegeben && (
+              <span className="ml-auto text-xs text-leise">
+                Erst oben freigeben, dann lässt sich verschicken.
+              </span>
+            )}
+            {freigegeben && !e.steuerbuero && (
+              <span className="ml-auto text-xs" style={{ color: "var(--warnung)" }}>
+                Es fehlt die Mailadresse des Steuerbüros, unten einzutragen.
+              </span>
+            )}
             {freigegeben && e.steuerbuero && (
               <form action={anSteuerbueroSchicken} className="ml-auto">
                 <input type="hidden" name="zeitraum" value={z.schluessel} />

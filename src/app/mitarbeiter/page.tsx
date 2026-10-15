@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { akten } from "@/lib/personal/akte";
+import { offeneAnwaltspost } from "@/lib/personal/anwaltspost";
+import { Absendeknopf } from "@/components/Absendeknopf";
+import { anwaltspostJetztHolen } from "./aktionen";
 
 export const metadata = { title: "Mitarbeiter | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -24,11 +27,17 @@ const ROLLE: Record<string, string> = {
  * auswählen und wie so eine Personalakte auf einen Blick haben"
  * (Florian, 14.10.2026).
  */
-export default async function MitarbeiterSeite() {
+export default async function MitarbeiterSeite({
+  searchParams,
+}: {
+  searchParams: Promise<{ meldung?: string }>;
+}) {
+  const { meldung } = await searchParams;
   const b = await angemeldeterBenutzer();
   if (!darfVertraege(b)) redirect("/");
 
   const liste = await akten();
+  const offenePost = await offeneAnwaltspost().catch(() => []);
   const aktive = liste.filter((p) => p.aktiv);
   const gesperrt = liste.filter((p) => !p.aktiv);
 
@@ -44,8 +53,57 @@ export default async function MitarbeiterSeite() {
         </p>
       </header>
 
+      {meldung && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
+        </p>
+      )}
+
+      {/*
+        Post von der Arbeitsrechtlerin landet von selbst in der Akte der
+        Person, um die es geht. Was sich nicht zuordnen liess, steht hier
+        (Florian, 15.10.2026).
+      */}
+      {offenePost.length > 0 && (
+        <section
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong className="font-medium">
+            {offenePost.length} Schreiben der Kanzlei ohne Zuordnung
+          </strong>
+          <ul className="mt-1 space-y-1 text-xs">
+            {offenePost.map((p) => (
+              <li key={p.nachrichtId}>
+                {p.betreff}
+                {p.empfangenAm && ` · ${new Date(p.empfangenAm).toLocaleDateString("de-DE")}`}
+                {p.notiz && ` · ${p.notiz}`}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-leise">
+            Diese Mails liegen weiter im Postfach. Lade das PDF bei der richtigen Person als
+            Schriftverkehr hoch, dann ist es in der Akte.
+          </p>
+        </section>
+      )}
+
+      <form action={anwaltspostJetztHolen}>
+        <Absendeknopf text="Post der Kanzlei jetzt holen" laeuftText="Wird geholt..." />
+      </form>
+
       <Tafel titel={`Aktiv (${aktive.length})`} leute={aktive} />
-      {gesperrt.length > 0 && <Tafel titel={`Gesperrt (${gesperrt.length})`} leute={gesperrt} />}
+      {/*
+        Ausgeschieden heisst: kein Zugang mehr, aber die Akte bleibt.
+        Fuer frühere Mitarbeiter, zu denen noch Post kommt, etwa von der
+        Arbeitsrechtlerin (Florian, 15.10.2026).
+      */}
+      {gesperrt.length > 0 && (
+        <Tafel titel={`Ausgeschiedene Mitarbeiter (${gesperrt.length})`} leute={gesperrt} />
+      )}
     </div>
   );
 }

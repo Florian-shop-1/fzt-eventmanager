@@ -17,6 +17,7 @@ import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
 import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
 import { anfragenMelden } from "@/lib/shop/lead-meldung";
+import { anwaltspostHolen } from "@/lib/personal/anwaltspost";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -117,6 +118,11 @@ const MORGEN: Teil[] = [
   // Nachhaken, wo die Sozialversicherungsnummer noch fehlt.
   { name: "sv_nummer", tun: () => svErinnerungen() },
   /*
+    Post von der Arbeitsrechtlerin. Sie landet von selbst in der Akte
+    der Person, um die es geht (Florian, 15.10.2026).
+  */
+  { name: "anwaltspost", tun: () => anwaltspostHolen() },
+  /*
     Die Amazon-Rechnungen.
 
     Laeuft morgens mit, nach den Belegen aus dem Postfach. Was Amazon noch
@@ -171,8 +177,19 @@ export async function GET(request: Request) {
         : gewuenscht === "pause"
           ? "pause"
           : "morgen";
-  const teile =
-    welcher === "nacht"
+  /*
+    Ein einzelner Teil, beim Namen genannt.
+
+    Zum Ausprobieren und fuer den Fall, dass genau eine Sache nachlaufen
+    soll, ohne alles andere noch einmal anzustossen.
+  */
+  const einzeln = [...NACHT, ...MORGEN, ...PAUSE, ...PARKPLAETZE].find(
+    (t) => t.name === gewuenscht,
+  );
+
+  const teile = einzeln
+    ? [einzeln]
+    : welcher === "nacht"
       ? NACHT
       : welcher === "parkplaetze"
         ? PARKPLAETZE
