@@ -65,9 +65,14 @@ export interface FoyerTechnik {
   ditixEventId: string;
   showName: string;
   uhrzeit: string;
-  /** "TECHNIK" bei einem Abend ohne Show, sonst "T1". */
-  position: "TECHNIK" | "T1";
-  name: string | null;
+  /**
+   * Die ganze Besetzung hinter der Bühne, in der Reihenfolge FOH, T1, T2.
+   *
+   * "mach es konkret, FOH, T1, T2, kannst du da hintereinander
+   * schreiben" (Florian, 15.10.2026). Das Foyer ruft nicht irgendeine
+   * Technik, es ruft den, der für Licht und Ton zuständig ist.
+   */
+  besetzung: Array<{ position: string; name: string }>;
   /** Ein eigener Termin ohne Show: Firmenabend, Uni, Tagung. */
   sonderveranstaltung: boolean;
 }
@@ -270,14 +275,20 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
     Die verantwortliche Technik je Vorstellung, aus dem Showdienstplan.
     An einem Abend ohne Show ist das die Stelle "Technik", sonst T1.
   */
-  const technikJeEvent = new Map<string, { position: "TECHNIK" | "T1"; name: string | null }>();
+  const REIHENFOLGE = ["TECHNIK", "FOH", "T1", "T2"];
+  const technikJeEvent = new Map<
+    string,
+    { besetzung: Array<{ position: string; name: string }>; sonder: boolean }
+  >();
   for (const s of plan.schichten as Array<{ termin: Vorstellungstermin; slots: Array<{ position: string; person: { name: string } | null }> }>) {
-    const slot =
-      s.slots.find((x) => x.position === "TECHNIK") ?? s.slots.find((x) => x.position === "T1");
-    if (!slot) continue;
+    const besetzt = s.slots
+      .filter((x) => REIHENFOLGE.includes(x.position) && x.person)
+      .sort((a, b) => REIHENFOLGE.indexOf(a.position) - REIHENFOLGE.indexOf(b.position))
+      .map((x) => ({ position: x.position === "TECHNIK" ? "Technik" : x.position, name: x.person!.name }));
+    if (besetzt.length === 0) continue;
     technikJeEvent.set(s.termin.ditixEventId, {
-      position: slot.position as "TECHNIK" | "T1",
-      name: slot.person?.name ?? null,
+      besetzung: besetzt,
+      sonder: s.slots.some((x) => x.position === "TECHNIK"),
     });
   }
 
@@ -325,9 +336,8 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
               ditixEventId: s.ditixEventId,
               showName: s.name,
               uhrzeit: s.uhrzeit,
-              position: t.position,
-              name: t.name,
-              sonderveranstaltung: t.position === "TECHNIK",
+              besetzung: t.besetzung,
+              sonderveranstaltung: t.sonder,
             };
           }),
         dienste: plaetzeBauen(datum, amTag, vorschlag),

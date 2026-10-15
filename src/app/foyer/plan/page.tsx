@@ -7,9 +7,7 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { ShowKommentare } from "@/components/ShowKommentare";
 import { FoyerZusatzPlaetze } from "@/components/FoyerZusatzPlaetze";
 import { kommentareFuer } from "@/lib/dienstplan/kommentar";
-import { festMarkieren, foyerUebernahmeEntscheiden, foyerUebernehmenAnbieten, tagEintragen, technikEinteilen, zeiten } from "./aktionen";
-import { werKann } from "@/lib/dienstplan/plan";
-import { planLaden } from "@/lib/dienstplan/laden";
+import { festMarkieren, foyerUebernahmeEntscheiden, foyerUebernehmenAnbieten, tagEintragen, zeiten } from "./aktionen";
 
 export const metadata = { title: "Foyer-Dienstplan | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -33,11 +31,7 @@ export default async function FoyerPlanSeite({
   if (!["chef", "team", "foyer"].includes(b.rolle)) redirect("/");
   const { meldung } = await searchParams;
 
-  const [tage, leute, plan] = await Promise.all([
-    foyerPlan(),
-    foyerLeute(),
-    planLaden().catch(() => ({ personen: [] as never[] })),
-  ]);
+  const [tage, leute] = await Promise.all([foyerPlan(), foyerLeute()]);
   const buero = darfKaufmaennisches(b.rolle);
   const darfFreigeben = b.rolle === "chef" || darfEinladen(b);
   /*
@@ -182,49 +176,39 @@ export default async function FoyerPlanSeite({
               )}
 
               {/*
-                Wer an der Technik verantwortlich ist.
+                Wer heute hinter der Bühne steht.
 
                 Das Foyer muss wissen, an wen es sich wendet, wenn im Saal
-                etwas nicht läuft, besonders bei Sonderveranstaltungen: Dort
-                steht oft nur eine einzige Person an Licht und Ton
-                (Florian, 05.10.2026). Eintragen geht von hier aus genauso
-                wie im Showdienstplan, es ist derselbe Dienst.
+                etwas nicht läuft. Deshalb stehen die Stellen beim Namen
+                da: "mach es konkret, FOH, T1, T2, kannst du da
+                hintereinander schreiben. Die Mitarbeiter können nichts
+                ändern vom Foyer" (Florian, 15.10.2026). Geändert wird im
+                Showdienstplan, hier wird nur gelesen.
               */}
               {t.technik.map((tech) => (
                 <div
                   key={tech.ditixEventId}
-                  className="mt-2 flex flex-wrap items-center gap-2 rounded border border-linie px-3 py-2 text-sm"
-                  style={{ background: tech.name ? "var(--flaeche)" : "var(--warnung-hell)" }}
+                  className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded border border-linie px-3 py-2 text-sm"
+                  style={{
+                    background: tech.besetzung.length > 0 ? "var(--flaeche)" : "var(--warnung-hell)",
+                  }}
                 >
                   <span className="font-semibold">
-                    Technik{t.technik.length > 1 ? ` ${tech.uhrzeit} Uhr` : ""}:
+                    Hinter der Bühne{t.technik.length > 1 ? ` ${tech.uhrzeit} Uhr` : ""}:
                   </span>
-                  <span>{tech.name ?? "noch niemand eingeteilt"}</span>
+                  {tech.besetzung.length === 0 ? (
+                    <span>noch niemand eingeteilt</span>
+                  ) : (
+                    tech.besetzung.map((x) => (
+                      <span key={x.position}>
+                        <span className="text-leise">{x.position}</span> {x.name}
+                      </span>
+                    ))
+                  )}
                   {tech.sonderveranstaltung && (
                     <span className="rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--info-hell)", color: "var(--info)" }}>
                       Sonderveranstaltung
                     </span>
-                  )}
-                  {t.abgesagt ? (
-                    <span className="ml-auto text-xs" style={{ color: "var(--blocker)" }}>
-                      abgesagt
-                    </span>
-                  ) : (
-                  <form action={technikEinteilen} className="ml-auto flex items-center gap-1 print:hidden">
-                    <input type="hidden" name="vorstellung" value={tech.ditixEventId} />
-                    <input type="hidden" name="position" value={tech.position} />
-                    <select name="wert" defaultValue="" className="text-sm">
-                      <option value="">niemand</option>
-                      {werKann(plan.personen, tech.position).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs">
-                      {tech.name ? "ändern" : "eintragen"}
-                    </button>
-                  </form>
                   )}
                 </div>
               ))}
