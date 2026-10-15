@@ -376,7 +376,7 @@ export default async function BelegSeite({
             <form action={belegVerwerfen}>
               <input type="hidden" name="id" value={b.id} />
               <button type="submit" className="text-xs text-leise underline">
-                Entwurf verwerfen (falsches Foto)
+                Entwurf verwerfen (kein Beleg, etwa ein Angebot)
               </button>
             </form>
           </div>

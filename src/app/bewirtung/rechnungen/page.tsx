@@ -11,7 +11,7 @@ import {
 } from "@/lib/bewirtung/eingangsrechnung";
 import { RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { erstattungAbhaken, postHolen } from "../aktionen";
+import { belegVerwerfen, erstattungAbhaken, postHolen } from "../aktionen";
 
 export const metadata = { title: "Eingangsrechnungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -211,6 +211,9 @@ export default async function EingangsrechnungenSeite({
       )}
 
       <p className="text-xs text-leise">
+        Was aus dem Postfach kommt, ist zunächst ein Entwurf: Der Eventmanager nimmt jedes PDF
+        aus einer Mail an das Rechnungspostfach, auch ein Angebot oder eine Auftragsbestätigung.
+        Was kein Beleg ist, wirfst du rechts mit „wegwerfen" hinaus.
         Bar bezahlte Belege brauchen keine Abbuchung. Wer etwas privat ausgelegt hat, bekommt es
         zurück: Diese Belege stehen unter „Privat ausgelegt", bis jemand die Erstattung abhakt.
         Eine Rechnung gilt als bezahlt, sobald ihr im Abgleich eine Abbuchung zugeordnet ist. Kommt die
@@ -288,7 +291,22 @@ function Zeile({ r }: { r: Eingangsrechnung }) {
           </Link>
         )}
       </td>
-      <td className="px-4 py-3 text-xs text-leise">{gesellschaftKurz(r.gesellschaft)}</td>
+      <td className="px-4 py-3 text-xs text-leise">
+        {gesellschaftKurz(r.gesellschaft)}
+        {/*
+          Aus dem Postfach kommt alles, was als PDF anhaengt, auch ein
+          Angebot. Was kein Beleg ist, fliegt hier raus
+          (Florian, 15.10.2026).
+        */}
+        {r.status === "entwurf" && (
+          <form action={belegVerwerfen} className="mt-1">
+            <input type="hidden" name="id" value={r.id} />
+            <button type="submit" className="underline hover:text-blocker">
+              wegwerfen
+            </button>
+          </form>
+        )}
+      </td>
     </tr>
   );
 }
