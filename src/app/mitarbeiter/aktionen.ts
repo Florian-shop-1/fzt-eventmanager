@@ -37,3 +37,33 @@ export async function anwaltspostJetztHolen(): Promise<void> {
   revalidatePath("/mitarbeiter");
   redirect(`/mitarbeiter?meldung=${encodeURIComponent(meldung)}`);
 }
+
+/**
+ * Die alten Personalbögen aus dem Postfach zurückholen.
+ *
+ * "der Eventmanager ist doch connected, warum kannst du es dir nicht
+ * darüber holen?" (Florian, 15.10.2026). Genau so: Das Programm liest
+ * die alten Mails ans Lohnbüro und legt die Angaben ab, wo sie fehlen.
+ */
+export async function boegenJetztHolen(): Promise<void> {
+  if (!darfVertraege(await angemeldeterBenutzer())) redirect("/");
+
+  let meldung: string;
+  try {
+    const { boegenAusPostfach } = await import("@/lib/personal/bogen-post");
+    const lauf = await boegenAusPostfach();
+    meldung =
+      lauf.gesehen === 0
+        ? "Im Postfach stand keine Bogenmail."
+        : `${lauf.gesehen} Mails angesehen, ${lauf.uebernommen} Bögen übernommen`
+          + (lauf.schonDa > 0 ? `, ${lauf.schonDa} lagen schon vor` : "")
+          + (lauf.ohneZuordnung > 0 ? `, ${lauf.ohneZuordnung} ohne Zuordnung` : "")
+          + ".";
+    if (lauf.meldungen.length > 0) meldung += ` ${lauf.meldungen.slice(0, 8).join(" ")}`;
+  } catch (e) {
+    meldung = `Das ging schief: ${e instanceof Error ? e.message : "unbekannter Fehler"}`;
+  }
+
+  revalidatePath("/mitarbeiter");
+  redirect(`/mitarbeiter?meldung=${encodeURIComponent(meldung)}`);
+}

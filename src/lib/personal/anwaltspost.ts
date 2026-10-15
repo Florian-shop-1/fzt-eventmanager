@@ -274,7 +274,10 @@ export async function anwaltspostHolen(): Promise<Postlauf> {
           });
 
           if (!treffer.id) {
-            letzteNotiz = treffer.begruendung || "Niemand im Haus erkannt.";
+            // Kein Mitarbeiter gemeint, etwa ein Rechtsstreit mit einer
+            // Firma. Wird nur vermerkt, damit die Mail nicht jede Nacht
+            // neu gelesen wird (Florian, 15.10.2026).
+            letzteNotiz = treffer.begruendung || "Geht um keinen Mitarbeiter.";
             continue;
           }
 
@@ -328,12 +331,20 @@ export interface OffenePost {
   notiz: string;
 }
 
-/** Was nicht zugeordnet werden konnte. Steht oben auf der Mitarbeiterseite. */
+/**
+ * Was schiefgegangen ist. Steht oben auf der Mitarbeiterseite.
+ *
+ * Ausdruecklich nicht dabei: Schreiben, die gar keinen Mitarbeiter
+ * betreffen. "wenn es NICHT um einen Mitarbeiter geht, wie im Falle von
+ * Carl Stahl, dann brauchst du das auch nicht an den Eventmanager
+ * senden" (Florian, 15.10.2026). Sie werden vermerkt, damit sie nicht
+ * jede Nacht neu gelesen werden, und sonst nirgends angezeigt.
+ */
 export async function offeneAnwaltspost(): Promise<OffenePost[]> {
   const z = (await db()`
     select nachricht_id, betreff, empfangen_am, stand, notiz
       from anwaltspost
-     where stand in ('niemand_erkannt', 'fehler')
+     where stand = 'fehler'
      order by empfangen_am desc nulls last limit 20
   `.catch(() => [])) as Array<Record<string, unknown>>;
 

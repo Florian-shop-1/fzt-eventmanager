@@ -4,7 +4,7 @@ import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { akten } from "@/lib/personal/akte";
 import { offeneAnwaltspost } from "@/lib/personal/anwaltspost";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { anwaltspostJetztHolen } from "./aktionen";
+import { anwaltspostJetztHolen, boegenJetztHolen } from "./aktionen";
 
 export const metadata = { title: "Mitarbeiter | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -73,7 +73,7 @@ export default async function MitarbeiterSeite({
           style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
         >
           <strong className="font-medium">
-            {offenePost.length} Schreiben der Kanzlei ohne Zuordnung
+            {offenePost.length} Schreiben der Kanzlei, die nicht abgelegt werden konnten
           </strong>
           <ul className="mt-1 space-y-1 text-xs">
             {offenePost.map((p) => (
@@ -85,15 +85,25 @@ export default async function MitarbeiterSeite({
             ))}
           </ul>
           <p className="mt-2 text-xs text-leise">
-            Diese Mails liegen weiter im Postfach. Lade das PDF bei der richtigen Person als
-            Schriftverkehr hoch, dann ist es in der Akte.
+            Hier ging technisch etwas schief. Die Mails liegen weiter im Postfach; lade das PDF
+            bei der richtigen Person als Schriftverkehr hoch. Schreiben, die keinen Mitarbeiter
+            betreffen, erscheinen hier gar nicht.
           </p>
         </section>
       )}
 
-      <form action={anwaltspostJetztHolen}>
-        <Absendeknopf text="Post der Kanzlei jetzt holen" laeuftText="Wird geholt..." />
-      </form>
+      <div className="flex flex-wrap gap-3">
+        <form action={anwaltspostJetztHolen}>
+          <Absendeknopf text="Post der Kanzlei jetzt holen" laeuftText="Wird geholt..." />
+        </form>
+        {/*
+          Die alten Bogenmails aus der Zeit, als der Bogen nur ans
+          Lohnbuero ging (Florian, 15.10.2026).
+        */}
+        <form action={boegenJetztHolen}>
+          <Absendeknopf text="Alte Personalbögen aus dem Postfach holen" laeuftText="Wird gesucht..." />
+        </form>
+      </div>
 
       <Tafel titel={`Aktiv (${aktive.length})`} leute={aktive} />
       {/*
