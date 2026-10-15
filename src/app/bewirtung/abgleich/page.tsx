@@ -327,7 +327,12 @@ function Zeile({
         <span className="w-20 tabular-nums text-sm">{datumDe(a.buchungstag)}</span>
         <span className="min-w-0 flex-1">
           <strong>{a.gegenname || "ohne Empfänger"}</strong>
-          <span className="block truncate text-xs text-leise">{a.verwendungszweck}</span>
+          {/*
+            Der Verwendungszweck stand abgeschnitten da, und damit fehlte
+            genau das, woran man die Buchung erkennt: "LOHNST SEP.26
+            280,42EUR". Zwei Zeilen reichen dafuer (Florian, 15.10.2026).
+          */}
+          <span className="block text-xs text-leise [overflow-wrap:anywhere]">{a.verwendungszweck}</span>
         </span>
         <span className="tabular-nums font-semibold">{euro(a.betragCent)}</span>
         {kontoName && <span className="text-xs text-leise">{kontoName}</span>}
