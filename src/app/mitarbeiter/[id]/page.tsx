@@ -71,17 +71,33 @@ export default async function AktenSeite({
       <section
         className="rounded-lg border px-5 py-4"
         style={
-          a.personalbogenAm
+          a.personalbogenAm && bogen
             ? { borderColor: "var(--linie)", background: "var(--flaeche)" }
             : { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
         }
       >
         <h2 className="font-semibold">Personalbogen</h2>
-        {a.personalbogenAm ? (
+        {a.personalbogenAm && !bogen ? (
+          /*
+            Abgegeben, aber nicht aufbewahrt.
+
+            Bis zum 01.10.2026 ging der Bogen nur als Mail ans Lohnbuero
+            und wurde im Haus nicht gespeichert (siehe Migration 121).
+            Wer vorher ausgefuellt hat, hat hier nur den Haken, und man
+            sucht sich die Angaben tot: "ich finde den Personalbogen von
+            Veronica nicht" (Florian, 15.10.2026).
+          */
           <p className="mt-1 text-sm">
-            Abgegeben am {datum(a.personalbogenAm)}.{" "}
+            Abgegeben am {datum(a.personalbogenAm)}, die Angaben liegen hier aber nicht. Das war
+            vor dem 1. Oktober 2026, damals ging der Bogen nur als Mail an das Lohnbüro und wurde
+            im Eventmanager nicht aufbewahrt. Entweder du suchst die Mail von damals, oder du
+            forderst den Bogen hier neu an: Dann steht er danach unter den Angaben weiter unten.
+          </p>
+        ) : a.personalbogenAm ? (
+          <p className="mt-1 text-sm">
+            Abgegeben am {datum(a.personalbogenAm)}. Die Angaben stehen unten auf dieser Seite.{" "}
             <Link href="/unterlagen" className="underline">
-              In den Unterlagen ansehen
+              Auch in den Unterlagen
             </Link>
           </p>
         ) : (
