@@ -58,7 +58,16 @@ export interface Aktenstand extends Aktenkopf {
   dateien: number;
 }
 
-/** Alle, für die eine Akte sinnvoll ist: eigene Leute, keine Sammelzugänge. */
+/**
+ * Alle, für die eine Akte sinnvoll ist: eigene Leute, keine
+ * Sammelzugänge und niemand von außen.
+ *
+ * "bitte Osman, Giusi und Lenny aus den Personalakten rausnehmen, die
+ * haben ja keinen Vertrag mit uns" (Florian, 15.10.2026). Externe haben
+ * weiter einen Zugang, aber keine Akte: Es gibt bei ihnen keinen
+ * Personalbogen, keinen Arbeitsvertrag und keine Lohnabrechnung, und ein
+ * fehlender Bogen wäre eine Aufgabe, die niemand erledigen kann.
+ */
 export async function akten(): Promise<Aktenkopf[]> {
   const z = (await db()`
     select id, name, email, rolle, aktiv, geteilt, art, fest, schnuppert, handy, geburtstag::text,
@@ -66,6 +75,7 @@ export async function akten(): Promise<Aktenkopf[]> {
            abgemeldet_am
       from benutzer
      where not geteilt and rolle not in ('kiosk', 'agentur', 'reinigung')
+       and coalesce(art, 'intern') <> 'extern'
   `.catch(() => [])) as Array<Record<string, unknown>>;
   return z.map(baueKopf).sort(nachFamilienname);
 }

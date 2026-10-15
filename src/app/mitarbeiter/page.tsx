@@ -38,7 +38,9 @@ export default async function MitarbeiterSeite() {
         <h1 className="text-2xl font-semibold tracking-tight">Mitarbeiter</h1>
         <p className="mt-1 max-w-prose text-sm text-leise">
           Eine Akte je Person: Zugang, Personalbogen, Vertrag, Geheimhaltung, Stunden. Von dort lässt
-          sich auch der Personalbogen noch einmal anfordern. Sichtbar nur für Werner, Kevin und Florian.
+          sich auch der Personalbogen noch einmal anfordern. Wer bei uns keinen Arbeitsvertrag hat,
+          sondern von außen kommt, steht hier nicht, sondern nur unter Zugänge. Sichtbar nur für
+          Werner, Kevin und Florian.
         </p>
       </header>
 
