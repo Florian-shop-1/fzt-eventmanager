@@ -23,11 +23,19 @@ import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
-import { artikelDerGruppe } from "@/lib/domain/artikel";
+import { artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
 import type { AngebotDetail } from "@/lib/angebot/lesen";
 
 const TICKETS = artikelDerGruppe("ticket");
 const GETRAENKE = artikelDerGruppe("getraenke");
+const EXKLUSIV = artikelDerGruppe("exklusiv");
+
+/** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
+const ARTEN = [
+  { wert: "einzelplaetze", text: "Einzelplätze mit Ticketkategorien", nummer: null, plaetze: 0 },
+  { wert: "theater", text: "Exklusivevent: ganzes Theater", nummer: "EXKLTHEATER", plaetze: THEATER_SITZPLAETZE.gesamt },
+  { wert: "parkett", text: "Exklusivevent: komplettes Parkett", nummer: "EXKLPARKETT", plaetze: THEATER_SITZPLAETZE.parkett },
+] as const;
 
 export function AngebotBereich({
   vorgangId,
@@ -62,6 +70,13 @@ export function AngebotBereich({
     (Florian, 15.10.2026).
   */
   const [ticketpreis, setTicketpreis] = useState("");
+  /*
+    Einzelplaetze oder das Haus fuer sich allein.
+
+    "gib die Moeglichkeit auch fuer Exklusivevent, da ist dann kein
+    Ticket oder Sitzplatzwahl erforderlich" (Florian, 15.10.2026).
+  */
+  const [art, setArt] = useState<"einzelplaetze" | "theater" | "parkett">("einzelplaetze");
   const [getraenke, setGetraenke] = useState<string[]>([]);
   const [mitEmpfang, setMitEmpfang] = useState(false);
 
@@ -95,12 +110,27 @@ export function AngebotBereich({
         </summary>
 
         <div className="mt-3 space-y-3">
-          <div>
-            <span className="mb-1 block text-xs text-leise">
-              Ticketkategorien und Stückzahl
-            </span>
-            <Kategorienwahl mengen={mengen} setzen={setMengen} personen={personen} />
-          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Art des Events</span>
+            <select value={art} onChange={(e) => setArt(e.target.value as typeof art)}>
+              {ARTEN.map((a) => (
+                <option key={a.wert} value={a.wert}>
+                  {a.text}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {art === "einzelplaetze" ? (
+            <div>
+              <span className="mb-1 block text-xs text-leise">
+                Ticketkategorien und Stückzahl
+              </span>
+              <Kategorienwahl mengen={mengen} setzen={setMengen} personen={personen} />
+            </div>
+          ) : (
+            <Exklusivhinweis art={art} preisCent={preisCent} personen={personen} />
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             {/*
@@ -109,7 +139,9 @@ export function AngebotBereich({
             */}
             <label className="block">
               <span className="mb-1 block text-xs text-leise">
-                Eigener Preis je Ticket in Euro
+                {art === "einzelplaetze"
+                  ? "Eigener Preis je Ticket in Euro"
+                  : "Eigener Preis für die Exklusivbuchung in Euro"}
               </span>
               <input
                 type="text"
@@ -133,7 +165,9 @@ export function AngebotBereich({
           </div>
 
           <p className="text-xs text-leise">
-            {preisCent > 0 ? (
+            {art !== "einzelplaetze" ? (
+              <>Der Rabatt gilt nur für Tickets und bleibt bei einer Exklusivbuchung ohne Wirkung.</>
+            ) : preisCent > 0 ? (
               <>
                 Jeder Sitzplatz kostet {eur(preisCent)}, egal welche Kategorie. Die
                 Kategoriebezeichnung bleibt im Angebot stehen.
@@ -164,16 +198,22 @@ export function AngebotBereich({
             onClick={() =>
               starte(() =>
                 void angebotErzeugen(vorgangId, {
+                  art,
                   ticket: "TK2",
-                  kategorien: TICKETS.map((t) => ({
-                    nummer: t.nummer,
-                    menge: mengen[t.nummer] ?? 0,
-                  })).filter((k) => k.menge > 0),
+                  kategorien:
+                    art === "einzelplaetze"
+                      ? TICKETS.map((t) => ({
+                          nummer: t.nummer,
+                          menge: mengen[t.nummer] ?? 0,
+                        })).filter((k) => k.menge > 0)
+                      : [],
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
                   mitEmpfang,
-                  mitUnterbelegung: true,
+                  // Bei einer Exklusivbuchung ist der ganze Saal bezahlt,
+                  // leere Logenplaetze werden nicht noch einmal berechnet.
+                  mitUnterbelegung: art === "einzelplaetze",
                 }),
               )
             }
@@ -185,7 +225,8 @@ export function AngebotBereich({
           <p className="text-xs text-leise">
             Menüs und blockierte Logenplätze übernimmt das Programm aus den Gruppen des Vorgangs
             und dem Sitzplan. Die Zahl der Teilnehmer steht oben bei den Gruppen, von dort kommen
-            die {personen} Gäste in dieser Vorbelegung.
+            die {personen} Gäste in dieser Vorbelegung. Menüs, Empfang und Getränke rechnen auch
+            beim Exklusivevent je Gast.
           </p>
         </div>
       </details>
@@ -559,6 +600,46 @@ function Getraenkewahl({
       {gewaehlt.length === 0 && (
         <p className="text-xs text-leise">Keine Pauschale, Getränke werden einzeln abgerechnet.</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Was eine Exklusivbuchung im Angebot bedeutet.
+ *
+ * Hier gibt es nichts auszuwählen: eine Zeile für das ganze Haus, keine
+ * Kategorien, keine Sitzplatzwahl (Florian, 15.10.2026). Der Kasten
+ * sagt, was im Angebot landen wird und was der Preis je Sitzplatz
+ * ergibt, denn danach wird gerechnet.
+ */
+function Exklusivhinweis({
+  art,
+  preisCent,
+  personen,
+}: {
+  art: "theater" | "parkett";
+  preisCent: number;
+  personen: number;
+}) {
+  const eintrag = ARTEN.find((a) => a.wert === art);
+  const artikel = EXKLUSIV.find((a) => a.nummer === eintrag?.nummer);
+  if (!eintrag || !artikel) return null;
+
+  const gilt = preisCent > 0 ? preisCent : artikel.bruttoCent;
+  const plaetze = eintrag.plaetze;
+
+  return (
+    <div className="rounded-md border border-linie bg-hintergrund p-3 text-xs">
+      <p className="font-medium">{artikel.bezeichnung}</p>
+      <p className="mt-1 text-leise">
+        Keine Ticketkategorien und keine Sitzplatzwahl: Der Saal gehört an diesem Abend nur euch.
+        Im Angebot steht eine Zeile über {eur(gilt)}
+        {preisCent > 0 && <> statt der üblichen {eur(artikel.bruttoCent)}</>}.
+      </p>
+      <p className="mt-1 text-leise">
+        Das sind {eur(Math.round(gilt / plaetze))} je Sitzplatz bei {plaetze} Plätzen
+        {personen > 0 && <> und {eur(Math.round(gilt / personen))} je angemeldetem Gast</>}.
+      </p>
     </div>
   );
 }

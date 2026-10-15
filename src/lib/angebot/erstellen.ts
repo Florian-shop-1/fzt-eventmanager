@@ -27,7 +27,29 @@ import { datumLang } from "@/lib/zeit";
  */
 export type Verpflegung = "finedining" | "fingerfood";
 
+/**
+ * Einzelplaetze oder das Haus fuer sich allein.
+ *
+ * "gib die Moeglichkeit auch fuer Exklusivevent, da ist dann kein
+ * Ticket oder Sitzplatzwahl erforderlich" (Florian, 15.10.2026). Bei
+ * einer Exklusivbuchung gibt es keine Kategorien, keine
+ * Wahlmoeglichkeiten und auch keine Unterbelegung: Es ist ohnehin alles
+ * bezahlt.
+ */
+export type Angebotsart = "einzelplaetze" | "theater" | "parkett";
+
+/** Welcher Artikel hinter einer Exklusivbuchung steht. */
+const EXKLUSIVARTIKEL: Record<"theater" | "parkett", string> = {
+  theater: "EXKLTHEATER",
+  parkett: "EXKLPARKETT",
+};
+
 export interface AngebotsOptionen {
+  /**
+   * Einzelplaetze (Normalfall) oder Exklusivbuchung des Theaters bzw.
+   * des Parketts.
+   */
+  art?: Angebotsart;
   /**
    * Fine Dining oder Fingerfood. Ohne Angabe Fine Dining, das ist der
    * Normalfall und war es auch, bevor es die Wahl gab.
@@ -84,6 +106,7 @@ export interface AngebotsOptionen {
 }
 
 export const STANDARD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
+  art: "einzelplaetze",
   ticket: STANDARD_TICKET,
   ticketRabatt: 0,
   getraenkepauschalen: [],
@@ -224,8 +247,15 @@ export function erzeugePositionen(
   // Der Einheitspreis, wenn einer gesetzt ist: Er ersetzt den
   // Kategoriepreis, die Bezeichnung der Kategorie bleibt stehen.
   const ticketpreis = optionen.ticketPreisCent;
+  const exklusiv = optionen.art === "theater" || optionen.art === "parkett";
 
-  if (gewaehlt.length > 1) {
+  if (exklusiv) {
+    // Eine Zeile fuer das ganze Haus. Keine Kategorien, keine
+    // Wahlmoeglichkeiten, nichts zum Aussuchen.
+    positionen.push(
+      zuPosition(preise, EXKLUSIVARTIKEL[optionen.art as "theater" | "parkett"], 1, 0, ticketpreis),
+    );
+  } else if (gewaehlt.length > 1) {
     for (const k of gewaehlt) {
       positionen.push(
         zuPosition(preise, k.nummer, k.menge, optionen.ticketRabatt, ticketpreis),
@@ -255,7 +285,8 @@ export function erzeugePositionen(
   }
 
   // 5. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
-  if (optionen.mitUnterbelegung && plan) {
+  //    Bei einer Exklusivbuchung nie: Der Saal ist komplett bezahlt.
+  if (optionen.mitUnterbelegung && !exklusiv && plan) {
     const blockiert = plan.logen
       .filter((z) => gruppenIds.has(z.gruppeId))
       .filter((z) => {
@@ -333,6 +364,15 @@ const MENUENUMMERN = ["4GANG", "4GANGLOGE", "FINGERFOOD"];
  */
 export function personenAusPositionen(positionen: Position[]): number {
   const echte = positionen.filter((p) => !p.istAlternativeZu && !p.optional);
+  /*
+    Bei einer Exklusivbuchung steht in der Ticketzeile die Eins fuer den
+    ganzen Saal. Die Gaestezahl steckt dann in den Menues.
+  */
+  if (echte.some((p) => p.artikelNummer.startsWith("EXKLTHEATER") || p.artikelNummer.startsWith("EXKLPARKETT"))) {
+    return echte
+      .filter((p) => MENUENUMMERN.includes(p.artikelNummer))
+      .reduce((s, p) => s + p.menge, 0);
+  }
   const tickets = echte
     .filter((p) => TICKETNUMMERN.has(p.artikelNummer))
     .reduce((s, p) => s + p.menge, 0);

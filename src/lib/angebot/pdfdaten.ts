@@ -99,6 +99,8 @@ export function ablaufAusText(einleitung: string): { einleitung: string; ablauf:
 export function angebotsTitel(artikelnummern: string[]): string {
   const hat = (n: string) => artikelnummern.some((a) => a.toUpperCase().includes(n));
   const teile = [hat("FINGERFOOD") ? "Fingerfood" : "Fine Dining", "Show"];
+  // Eine Exklusivbuchung gehoert in die Zeile ueber der Angebotsnummer.
+  if (hat("EXKLTHEATER") || hat("EXKLPARKETT")) teile.unshift("Exklusivevent");
   if (hat("AFTERSHOW") || hat("PARTY") || hat("DJ")) teile.push("Party");
   return teile.join(" + ");
 }
