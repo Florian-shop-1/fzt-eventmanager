@@ -143,7 +143,19 @@ export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   const letzte = shows[shows.length - 1].uhrzeit;
   const ende = plus(letzte, 180);
   const vorlauf = erste < "14:00" ? 90 : 120;
-  const zweitePerson = { von: minus(erste, vorlauf - 45), bis: ende };
+
+  /*
+    Die Aushilfe geht nach der Pause.
+
+    "die Foyer-Aushilfe geht circa nach der Pause der Show, diese müsste
+    so ca. 21:30 Uhr sein" (Florian, 15.10.2026). Nach der Pause wird
+    nichts mehr verkauft, dafür bleibt eine Person allein (siehe
+    lib/foyer/pause-mail.ts). Die Pause liegt etwa eineinviertel Stunden
+    nach Showbeginn, nach anderthalb Stunden ist sie vorbei: Bei einer
+    Show um 20 Uhr ist das halb zehn.
+  */
+  const nachDerPause = plus(letzte, 90);
+  const zweitePerson = { von: minus(erste, vorlauf - 45), bis: nachDerPause };
   const vorschlag = [{ von: minus(erste, vorlauf), bis: ende }, zweitePerson, zweitePerson];
   // Zwei Shows an einem Tag: dazwischen ist Pause, meist eine Dreiviertelstunde.
   const pause =
