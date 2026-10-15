@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { lohnbueroPaket } from "@/lib/personal/lohnbuero-paket";
-import { unterlageAblegen, unterlageLoeschen } from "@/lib/db/unterlagen";
+import { unterlageAblegen, unterlageLoeschen, type Unterlagenart } from "@/lib/db/unterlagen";
 import { db } from "@/lib/db/client";
 
 /**
@@ -68,7 +68,12 @@ export async function unterlageHochladen(benutzerId: string, f: FormData): Promi
   const ich = await angemeldeterBenutzer();
   if (!darfVertraege(ich)) redirect("/");
 
-  const art = String(f.get("art") ?? "vertrag") === "bogen" ? "bogen" : "vertrag";
+  const gewaehlt = String(f.get("art") ?? "vertrag");
+  const art = (
+    ["vertrag", "bogen", "schriftverkehr", "brief", "anwalt", "zeugnis", "sonstiges"].includes(gewaehlt)
+      ? gewaehlt
+      : "sonstiges"
+  ) as Unterlagenart;
   const titel = String(f.get("titel") ?? "").trim().slice(0, 120);
   const notiz = String(f.get("notiz") ?? "").trim().slice(0, 300);
   const datei = f.get("datei");

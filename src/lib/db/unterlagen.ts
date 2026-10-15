@@ -13,7 +13,38 @@
 import { db } from "./client";
 import { nachFamilienname } from "@/lib/domain/namen";
 
-export type Unterlagenart = "vertrag" | "bogen";
+/**
+ * Was in der Akte liegen kann.
+ *
+ * "wir würden gerne Briefe usw., alles was wir vom Mitarbeiter bekommen
+ * und wichtig sein kann, selbstständig hochladen können" (Florian,
+ * 15.10.2026). Vorher gab es nur Vertrag und Bogen, alles andere hatte
+ * keinen Platz.
+ */
+export type Unterlagenart =
+  | "vertrag"
+  | "bogen"
+  | "schriftverkehr"
+  | "brief"
+  | "anwalt"
+  | "zeugnis"
+  | "sonstiges";
+
+export const ARTNAMEN: Record<Unterlagenart, string> = {
+  vertrag: "Arbeitsvertrag",
+  bogen: "Personalbogen",
+  /*
+    Schriftverkehr steht nicht bei den Dateien, sondern oben im
+    Schriftverkehr zwischen den Mails: "beim Hochladen auch
+    Schriftverkehr auswählen können und das dann beim Schriftverkehr
+    einsetzen" (Florian, 15.10.2026).
+  */
+  schriftverkehr: "Schriftverkehr",
+  brief: "Brief oder Schreiben",
+  anwalt: "Von der Arbeitsrechtlerin",
+  zeugnis: "Zeugnis oder Nachweis",
+  sonstiges: "Sonstiges",
+};
 
 export interface Unterlage {
   id: string;

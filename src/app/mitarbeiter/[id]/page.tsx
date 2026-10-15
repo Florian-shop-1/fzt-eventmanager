@@ -16,7 +16,7 @@ import {
   unterlageWeg,
 } from "./aktionen";
 import { nachrichten } from "@/lib/personal/schriftverkehr";
-import { unterlagenVon } from "@/lib/db/unterlagen";
+import { ARTNAMEN, unterlagenVon } from "@/lib/db/unterlagen";
 import { vertraegeVon } from "@/lib/db/arbeitsvertrag";
 import { VertragAnlegen } from "@/components/VertragAnlegen";
 import { ARTNAME } from "@/lib/personal/arbeitsvertrag";
@@ -51,7 +51,10 @@ export default async function AktenSeite({
   if (!a) notFound();
 
   const bogen = await bogenVon(id).catch(() => null);
-  const dateien = await unterlagenVon(id).catch(() => []);
+  const alleDateien = await unterlagenVon(id).catch(() => []);
+  // Schriftverkehr steht oben zwischen den Mails, der Rest unten bei den Dateien.
+  const briefe = alleDateien.filter((d) => d.art === "schriftverkehr");
+  const dateien = alleDateien.filter((d) => d.art !== "schriftverkehr");
   const alleVertraege = await vertraegeVon(id).catch(() => []);
   const post = await nachrichten(id).catch(() => []);
   const frueher = alleVertraege.filter(
@@ -381,12 +384,41 @@ export default async function AktenSeite({
       <section className="rounded-lg border border-linie bg-flaeche p-5">
         <h2 className="font-semibold">Schriftverkehr</h2>
 
-        {post.length === 0 ? (
+        {post.length === 0 && briefe.length === 0 ? (
           <p className="mt-1 text-sm text-leise">
-            Noch nichts geschrieben. Was du hier schickst, bleibt in der Akte stehen.
+            Noch nichts geschrieben. Was du hier schickst, bleibt in der Akte stehen. Briefe und
+            Schreiben kannst du unten bei den Dateien hochladen und als Schriftverkehr einordnen.
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
+            {/*
+              Hochgeladene Briefe stehen zwischen den Mails, nach Datum.
+              Sie gehören zum selben Gespräch (Florian, 15.10.2026).
+            */}
+            {briefe.map((d) => (
+              <li key={d.id} className="rounded-md border border-linie px-3 py-2 text-sm">
+                <a
+                  href={`/unterlagen/datei/${d.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium underline"
+                >
+                  {d.titel || d.dateiname}
+                </a>
+                <span className="text-leise">
+                  {" "}
+                  · hochgeladen von {d.hochgeladenVon} am{" "}
+                  {new Date(d.hochgeladenAm).toLocaleDateString("de-DE")}
+                  {d.notiz ? ` · ${d.notiz}` : ""}
+                </span>
+                <form action={unterlageWeg.bind(null, a.id)} className="mt-1">
+                  <input type="hidden" name="id" value={d.id} />
+                  <button type="submit" className="text-xs underline text-leise">
+                    entfernen
+                  </button>
+                </form>
+              </li>
+            ))}
             {post.map((n) => (
               <li key={n.id} className="rounded-md border border-linie px-3 py-2">
                 <details>
@@ -473,7 +505,7 @@ export default async function AktenSeite({
                     {d.titel || d.dateiname}
                   </a>
                   <span className="text-xs text-leise">
-                    {d.art === "bogen" ? "Personalbogen" : "Arbeitsvertrag"} ·{" "}
+                    {ARTNAMEN[d.art] ?? "Unterlage"} ·{" "}
                     {kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`} · abgelegt von{" "}
                     {d.hochgeladenVon} am {new Date(d.hochgeladenAm).toLocaleDateString("de-DE")}
                     {d.notiz ? ` · ${d.notiz}` : ""}
@@ -494,9 +526,14 @@ export default async function AktenSeite({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Was ist das</span>
-              <select name="art" defaultValue="vertrag">
+              <select name="art" defaultValue="schriftverkehr">
+                <option value="schriftverkehr">Schriftverkehr (steht oben bei den Mails)</option>
+                <option value="brief">Brief oder Schreiben</option>
+                <option value="anwalt">Von der Arbeitsrechtlerin</option>
                 <option value="vertrag">Arbeitsvertrag</option>
                 <option value="bogen">Personalbogen</option>
+                <option value="zeugnis">Zeugnis oder Nachweis</option>
+                <option value="sonstiges">Sonstiges</option>
               </select>
             </label>
             <label className="block">
@@ -511,8 +548,9 @@ export default async function AktenSeite({
           <input type="file" name="datei" required accept=".pdf,.jpg,.jpeg,.png,.heic,.docx,.xlsx" />
           <Absendeknopf text="Ablegen" laeuftText="Wird abgelegt..." />
           <p className="text-xs text-leise">
-            PDF, Foto oder Word-Datei, bis 20 MB. Ein hier abgelegter Personalbogen zählt für die
-            Mail ans Lohnbüro genauso wie einer aus dem Programm.
+            PDF, Foto oder Word-Datei, bis 20 MB. Hierher gehört alles, was zur Person wichtig
+            ist: Briefe, Krankmeldungen, Schreiben der Arbeitsrechtlerin. Ein hier abgelegter
+            Personalbogen zählt für die Mail ans Lohnbüro genauso wie einer aus dem Programm.
           </p>
         </form>
       </section>
