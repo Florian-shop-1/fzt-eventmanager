@@ -8,7 +8,8 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 import { anfahrtSetzen, personalbogenAnfordern } from "@/lib/auth/aktionen";
-import { paketSchicken } from "./aktionen";
+import { paketSchicken, unterlageHochladen, unterlageWeg } from "./aktionen";
+import { unterlagenVon } from "@/lib/db/unterlagen";
 
 export const metadata = { title: "Personalakte | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function AktenSeite({
   if (!a) notFound();
 
   const bogen = await bogenVon(id).catch(() => null);
+  const dateien = await unterlagenVon(id).catch(() => []);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -96,10 +98,7 @@ export default async function AktenSeite({
           </p>
         ) : a.personalbogenAm ? (
           <p className="mt-1 text-sm">
-            Abgegeben am {datum(a.personalbogenAm)}. Die Angaben stehen unten auf dieser Seite.{" "}
-            <Link href="/unterlagen" className="underline">
-              Auch in den Unterlagen
-            </Link>
+            Abgegeben am {datum(a.personalbogenAm)}. Die Angaben stehen unten auf dieser Seite.
           </p>
         ) : (
           <p className="mt-1 text-sm">
@@ -301,15 +300,82 @@ export default async function AktenSeite({
             wert={a.geheimhaltungAm ? `unterschrieben am ${datum(a.geheimhaltungAm)}` : "offen"}
           />
           <Zeile was="Dateien im Ordner" wert={String(a.dateien)} />
-          <p className="mt-2 text-xs text-leise">
-            Alte Verträge und Papierbögen stehen unter{" "}
-            <Link href="/unterlagen" className="underline">
-              Personalunterlagen
-            </Link>
-            .
-          </p>
         </Karte>
       </div>
+
+      {/* ---------------------------------------------------------------
+          Die Ablage: alte Verträge, Papierbögen, Scans.
+
+          "füge Personalakte und Personalunterlagen zusammen, alles in
+          der Personalakte reicht" (Florian, 15.10.2026). Früher lag das
+          auf einer eigenen Seite mit allen Leuten untereinander.
+          --------------------------------------------------------------- */}
+      <section className="rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="font-semibold">Dateien zu {a.name.split(" ")[0]}</h2>
+
+        {dateien.length === 0 ? (
+          <p className="mt-1 text-sm text-leise">
+            Noch nichts abgelegt. Hierher gehören alte Verträge auf Papier, eingescannte
+            Personalbögen und was sonst zur Person aufzubewahren ist.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {dateien.map((d) => {
+              const kb = Math.round(d.groesse / 1024);
+              return (
+                <li key={d.id} className="flex flex-wrap items-center gap-3">
+                  <a
+                    href={`/unterlagen/datei/${d.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {d.titel || d.dateiname}
+                  </a>
+                  <span className="text-xs text-leise">
+                    {d.art === "bogen" ? "Personalbogen" : "Arbeitsvertrag"} ·{" "}
+                    {kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`} · abgelegt von{" "}
+                    {d.hochgeladenVon} am {new Date(d.hochgeladenAm).toLocaleDateString("de-DE")}
+                    {d.notiz ? ` · ${d.notiz}` : ""}
+                  </span>
+                  <form action={unterlageWeg.bind(null, a.id)}>
+                    <input type="hidden" name="id" value={d.id} />
+                    <button type="submit" className="text-xs underline text-leise">
+                      entfernen
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <form action={unterlageHochladen.bind(null, a.id)} className="mt-4 space-y-3 border-t border-linie pt-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Was ist das</span>
+              <select name="art" defaultValue="vertrag">
+                <option value="vertrag">Arbeitsvertrag</option>
+                <option value="bogen">Personalbogen</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Titel (freiwillig)</span>
+              <input name="titel" maxLength={120} placeholder="Vertrag 2026" />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Notiz (freiwillig)</span>
+            <input name="notiz" maxLength={300} />
+          </label>
+          <input type="file" name="datei" required accept=".pdf,.jpg,.jpeg,.png,.heic,.docx,.xlsx" />
+          <Absendeknopf text="Ablegen" laeuftText="Wird abgelegt..." />
+          <p className="text-xs text-leise">
+            PDF, Foto oder Word-Datei, bis 20 MB. Ein hier abgelegter Personalbogen zählt für die
+            Mail ans Lohnbüro genauso wie einer aus dem Programm.
+          </p>
+        </form>
+      </section>
 
       {/* Die Angaben aus dem Bogen, wenn er da ist. */}
       {bogen && (

@@ -472,11 +472,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           punkte.unshift({ href: "/mitarbeiter", label: "Personalakten", rollen: [] });
           punkte.splice(1, 0, { href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
           /*
-            Die Unterlagen von früher: Papierverträge und Papierbögen, so
-            wie sie hereinkamen, dazu die abgelegten Angaben aus dem
-            Personalbogen (Florian, 01.10.2026).
+            Die alten Papierverträge und Papierbögen stehen seit dem
+            15.10.2026 in der Personalakte der jeweiligen Person: "füge
+            Personalakte und Personalunterlagen zusammen, alles in der
+            Personalakte reicht" (Florian, 15.10.2026).
           */
-          punkte.splice(1, 0, { href: "/unterlagen", label: "Personalunterlagen", rollen: [] });
         }
         if (g.titel === "Sonstiges" && darfEinladen(benutzer) && benutzer.rolle !== "chef") {
           punkte.push({ href: "/einstellungen/einladungen", label: "Einladungen", rollen: [] });

@@ -126,6 +126,15 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       left join benutzer b on b.id = s.benutzer_id
      where s.zeitpunkt >= (${z.von}::date - 1)::timestamptz
        and s.zeitpunkt < (${z.bis}::date + 2)::timestamptz
+       /*
+         Die Geschaeftsfuehrung stempelt nur zum Ausprobieren.
+
+         "mich, Kevin und Werner bitte rausnehmen aus der Stundenliste,
+         wenn wir stempeln ist das nur zum Testen, von uns dreien werden
+         nie Stunden gemeldet" (Florian, 15.10.2026). Die Stempel bleiben
+         stehen, ausgewertet werden sie nicht mehr.
+       */
+       and coalesce(b.ohne_lohnmeldung, false) = false
      order by s.benutzer_id, s.zeitpunkt
   `) as Array<Record<string, unknown>>;
 
@@ -134,6 +143,7 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       from dienst_abwesend a
       join benutzer b on b.id = a.benutzer_id
      where a.von <= ${z.bis}::date and a.bis >= ${z.von}::date
+       and coalesce(b.ohne_lohnmeldung, false) = false
      order by a.von
   `) as Array<Record<string, unknown>>;
 
