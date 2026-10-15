@@ -33,6 +33,20 @@ export interface Eingangsrechnung {
   bezahltCent: number | null;
   /** Tage über der Fälligkeit, negativ wenn noch Zeit ist. */
   tageUeberfaellig: number | null;
+  /**
+   * Bar bezahlt? Dann kommt nie eine Abbuchung, die man zuordnen könnte.
+   */
+  bar: boolean;
+  /**
+   * Jemand hat das aus der eigenen Tasche bezahlt.
+   *
+   * "in bar privat ausgelegt wäre noch richtiger, es muss ja irgendwann
+   * ausbezahlt werden" (Florian, 15.10.2026). Offen ist dann nicht die
+   * Rechnung, sondern die Erstattung an den Mitarbeiter.
+   */
+  privatAusgelegt: boolean;
+  /** Wann das Geld zurückgegeben wurde, sonst null. */
+  erstattetAm: string | null;
 }
 
 function tageBis(datum: string | null): number | null {
@@ -47,13 +61,16 @@ function tageBis(datum: string | null): number | null {
  * Die Verknüpfung läuft über bank_umsatz.beleg_id, also über den
  * Belegabgleich. Was dort zugeordnet wurde, gilt hier als bezahlt.
  */
-export async function eingangsrechnungen(o: { nur?: "offen" | "bezahlt"; tage?: number } = {}): Promise<
+export async function eingangsrechnungen(
+  o: { nur?: "offen" | "bezahlt" | "ausgelegt"; tage?: number } = {},
+): Promise<
   Eingangsrechnung[]
 > {
   const zeilen = (await db()`
     select b.id, b.nummer, b.restaurant, b.lieferant_nummer, b.datum::text as datum,
            b.faellig_am::text as faellig_am, b.brutto_cent, b.trinkgeld_cent, b.gesellschaft,
-           b.status, b.herkunft, b.mail_von,
+           b.status, b.herkunft, b.mail_von, b.zahlweg, b.privat_ausgelegt,
+           b.erstattet_am::text as erstattet_am,
            u.buchungstag::text as bezahlt_am, u.konto as bezahlt_konto, u.betrag_cent as bezahlt_cent
       from bewirtung b
       left join bank_umsatz u on u.beleg_id = b.id
@@ -82,10 +99,21 @@ export async function eingangsrechnungen(o: { nur?: "offen" | "bezahlt"; tage?: 
       bezahltCent: r.bezahlt_cent === null || r.bezahlt_cent === undefined ? null : Math.abs(Number(r.bezahlt_cent)),
       // Überfällig zählt nur, solange nichts bezahlt ist.
       tageUeberfaellig: bezahltAm ? null : tageBis(faellig),
+      bar: String(r.zahlweg ?? "") === "bar",
+      privatAusgelegt: r.privat_ausgelegt === true,
+      erstattetAm: r.erstattet_am ? String(r.erstattet_am).slice(0, 10) : null,
     };
   });
 
-  if (o.nur === "offen") return alle.filter((r) => !r.bezahltAm);
+  /*
+    Offen heisst: Wir warten auf eine Abbuchung vom Konto.
+
+    Ein Barbeleg wartet auf nichts, der ist bezahlt. Ein privat
+    ausgelegter wartet auf die Erstattung und hat eine eigene Rubrik
+    (Florian, 15.10.2026).
+  */
+  if (o.nur === "offen") return alle.filter((r) => !r.bezahltAm && !r.bar && !r.privatAusgelegt);
+  if (o.nur === "ausgelegt") return alle.filter((r) => r.privatAusgelegt && !r.erstattetAm);
   if (o.nur === "bezahlt") return alle.filter((r) => r.bezahltAm);
   return alle;
 }
@@ -97,15 +125,21 @@ export interface Rechnungsstand {
   ueberfaelligCent: number;
   bezahlt: number;
   bezahltCent: number;
+  /** Privat ausgelegt und noch nicht zurückgezahlt. */
+  ausgelegt: number;
+  ausgelegtCent: number;
   /** Bezahlt, aber der Betrag weicht vom Beleg ab. */
   abweichungen: number;
 }
 
 export function rechnungsstand(liste: Eingangsrechnung[]): Rechnungsstand {
-  const offen = liste.filter((r) => !r.bezahltAm);
+  const offen = liste.filter((r) => !r.bezahltAm && !r.bar && !r.privatAusgelegt);
   const ueber = offen.filter((r) => (r.tageUeberfaellig ?? -1) > 0);
   const bezahlt = liste.filter((r) => r.bezahltAm);
+  const ausgelegt = liste.filter((r) => r.privatAusgelegt && !r.erstattetAm);
   return {
+    ausgelegt: ausgelegt.length,
+    ausgelegtCent: ausgelegt.reduce((n, r) => n + r.betragCent, 0),
     offen: offen.length,
     offenCent: offen.reduce((n, r) => n + r.betragCent, 0),
     ueberfaellig: ueber.length,

@@ -399,3 +399,31 @@ export async function postHolen(f?: FormData): Promise<void> {
     redirect(`/bewirtung?meldung=${encodeURIComponent(meldung)}`);
   }
 }
+
+/**
+ * Einen privat ausgelegten Beleg als erstattet abhaken.
+ *
+ * "in bar privat ausgelegt waere noch richtiger, es muss ja irgendwann
+ * ausbezahlt werden" (Florian, 15.10.2026). Bis das passiert ist, steht
+ * der Beleg in der Rubrik "privat ausgelegt" und zaehlt als Schuld des
+ * Hauses an den Mitarbeiter.
+ */
+export async function erstattungAbhaken(id: string, f?: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!darfBuchhaltung(b)) redirect("/");
+
+  const zurueck = String(f?.get("zurueck") ?? "") === "ja";
+  await db()`
+    update bewirtung
+       set erstattet_am = ${zurueck ? null : new Date().toISOString()}::timestamptz,
+           erstattet_von = ${zurueck ? "" : (b?.name ?? "")}
+     where id = ${id}::uuid
+  `;
+
+  revalidatePath("/bewirtung/rechnungen");
+  redirect(
+    `/bewirtung/rechnungen?nur=ausgelegt&meldung=${encodeURIComponent(
+      zurueck ? "Wieder als offen vermerkt." : "Als erstattet vermerkt.",
+    )}`,
+  );
+}

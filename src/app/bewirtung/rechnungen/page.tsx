@@ -11,7 +11,7 @@ import {
 } from "@/lib/bewirtung/eingangsrechnung";
 import { RECHNUNGSPOSTFACH } from "@/lib/bewirtung/posteingang";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { postHolen } from "../aktionen";
+import { erstattungAbhaken, postHolen } from "../aktionen";
 
 export const metadata = { title: "Eingangsrechnungen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -41,16 +41,24 @@ export default async function EingangsrechnungenSeite({
 }) {
   if (!darfBuchhaltung(await angemeldeterBenutzer())) redirect("/");
   const { nur, meldung } = await searchParams;
-  const auswahl = nur === "bezahlt" || nur === "alle" ? nur : "offen";
+  const auswahl =
+    nur === "bezahlt" || nur === "alle" || nur === "ausgelegt" ? nur : "offen";
 
   const [alle, post] = await Promise.all([eingangsrechnungen(), postlaufStand()]);
   const stand = rechnungsstand(alle);
+  /*
+    Offen heisst: wartet auf eine Abbuchung. Bar bezahlte Belege warten
+    auf nichts, privat ausgelegte auf die Erstattung
+    (Florian, 15.10.2026).
+  */
   const liste =
     auswahl === "offen"
-      ? alle.filter((r) => !r.bezahltAm)
+      ? alle.filter((r) => !r.bezahltAm && !r.bar && !r.privatAusgelegt)
       : auswahl === "bezahlt"
         ? alle.filter((r) => r.bezahltAm)
-        : alle;
+        : auswahl === "ausgelegt"
+          ? alle.filter((r) => r.privatAusgelegt && !r.erstattetAm)
+          : alle;
 
   // Wie alt ist der letzte Postfachlauf? Ab anderthalb Tagen wird es auffällig.
   const stundenHer = post.zuletztAm
@@ -138,6 +146,12 @@ export default async function EingangsrechnungenSeite({
           hinweis={stand.ueberfaellig > 0 ? euro(stand.ueberfaelligCent) : "nichts überfällig"}
           farbe={stand.ueberfaellig > 0 ? "var(--blocker)" : undefined}
         />
+        <Kachel
+          zahl={String(stand.ausgelegt)}
+          was="privat ausgelegt"
+          hinweis={stand.ausgelegt > 0 ? `${euro(stand.ausgelegtCent)} zurückzuzahlen` : "nichts offen"}
+          farbe={stand.ausgelegt > 0 ? "var(--gold-dunkel)" : undefined}
+        />
         <Kachel zahl={String(stand.bezahlt)} was="bezahlt" hinweis={euro(stand.bezahltCent)} />
         <Kachel
           zahl={String(stand.abweichungen)}
@@ -150,6 +164,7 @@ export default async function EingangsrechnungenSeite({
       <nav className="flex flex-wrap gap-1 text-sm">
         {[
           ["offen", `Offen (${stand.offen})`],
+          ["ausgelegt", `Privat ausgelegt (${stand.ausgelegt})`],
           ["bezahlt", `Bezahlt (${stand.bezahlt})`],
           ["alle", `Alle (${alle.length})`],
         ].map(([wert, titel]) => (
@@ -169,7 +184,9 @@ export default async function EingangsrechnungenSeite({
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
           {auswahl === "offen"
             ? "Nichts offen. Zu jedem Beleg gibt es eine Abbuchung."
-            : "Hier steht noch nichts."}
+            : auswahl === "ausgelegt"
+              ? "Niemand hat etwas ausgelegt, das noch zurückzuzahlen wäre."
+              : "Hier steht noch nichts."}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
@@ -194,6 +211,8 @@ export default async function EingangsrechnungenSeite({
       )}
 
       <p className="text-xs text-leise">
+        Bar bezahlte Belege brauchen keine Abbuchung. Wer etwas privat ausgelegt hat, bekommt es
+        zurück: Diese Belege stehen unter „Privat ausgelegt", bis jemand die Erstattung abhakt.
         Eine Rechnung gilt als bezahlt, sobald ihr im Abgleich eine Abbuchung zugeordnet ist. Kommt die
         Zahlung über die Kreditkarte, lade die Abrechnung unter Zahlungseingängen hoch und wähle dabei das
         Kartenkonto aus; danach findet der Abgleich die Posten von selbst.
@@ -244,6 +263,25 @@ function Zeile({ r }: { r: Eingangsrechnung }) {
               </div>
             )}
           </>
+        ) : r.privatAusgelegt ? (
+          /*
+            Hier wartet niemand auf eine Abbuchung, sondern der
+            Mitarbeiter auf sein Geld (Florian, 15.10.2026).
+          */
+          <>
+            <span style={{ color: "var(--gold-dunkel)" }}>in bar privat ausgelegt</span>
+            {r.erstattetAm ? (
+              <div className="text-xs text-leise">erstattet am {datumDe(r.erstattetAm)}</div>
+            ) : (
+              <form action={erstattungAbhaken.bind(null, r.id)} className="mt-0.5">
+                <button type="submit" className="text-xs underline text-leise">
+                  erstattet, abhaken
+                </button>
+              </form>
+            )}
+          </>
+        ) : r.bar ? (
+          <span className="text-leise">bar bezahlt</span>
         ) : (
           <Link href="/bewirtung/abgleich" className="text-xs underline text-leise">
             noch offen
