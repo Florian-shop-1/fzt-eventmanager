@@ -473,6 +473,23 @@ export async function gruppeHinzufuegen(vorgangId: string, formData: FormData): 
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
+/**
+ * Die Teilnehmerzahl einer Gruppe aus dem Formular im Vorgang.
+ *
+ * "wo wird die Anzahl der Teilnehmer hingeschrieben?" (Florian,
+ * 15.10.2026). Sie steht bei den Gruppen, war aber nur beim Anlegen
+ * eintragbar: Wurden aus 20 Gaesten 25, musste man die Gruppe loeschen
+ * und neu anlegen. Von hier geht die Zahl in Angebot, Sitzplan und
+ * Kuechenblatt.
+ */
+export async function gruppePersonenSetzen(
+  vorgangId: string,
+  gruppeId: string,
+  formData: FormData,
+): Promise<void> {
+  await gruppeAendern(vorgangId, gruppeId, { personen: zahl(formData, "personen", 1) });
+}
+
 export async function gruppeAendern(
   vorgangId: string,
   gruppeId: string,

@@ -29,15 +29,26 @@ export function AngebotBereich({
   appUrl,
   kundeEmail,
   ansprechpartner,
+  personen,
 }: {
   vorgangId: string;
   angebote: AngebotDetail[];
   appUrl: string;
   kundeEmail: string;
   ansprechpartner: string | null;
+  /** Gaeste laut Gruppen des Vorgangs. Vorbelegung der Stueckzahlen. */
+  personen: number;
 }) {
   const [laeuft, starte] = useTransition();
-  const [ticket, setTicket] = useState("TK2");
+  /*
+    Stueckzahl je Ticketkategorie.
+
+    Vorbelegt ist Kat. 2 mit allen Gaesten, das ist der haeufigste Fall.
+    Wer aufteilen will, traegt zwei Zahlen ein, etwa 20 Karten Kat. 1
+    fuer die Geschaeftsleitung und 15 Karten Kat. 2 fuer den Rest
+    (Florian, 15.10.2026).
+  */
+  const [mengen, setMengen] = useState<Record<string, number>>({ TK2: personen });
   const [rabatt, setRabatt] = useState(0);
   const [getraenke, setGetraenke] = useState<string[]>([]);
   const [mitEmpfang, setMitEmpfang] = useState(false);
@@ -69,29 +80,23 @@ export function AngebotBereich({
         </summary>
 
         <div className="mt-3 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Ticketkategorie</span>
-              <select value={ticket} onChange={(e) => setTicket(e.target.value)}>
-                {TICKETS.map((t) => (
-                  <option key={t.nummer} value={t.nummer}>
-                    {t.bezeichnung} ({eur(t.bruttoCent)})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Rabatt auf Tickets in Prozent</span>
-              <input
-                type="number"
-                min={0}
-                max={50}
-                value={rabatt}
-                onChange={(e) => setRabatt(Math.max(0, Number(e.target.value) || 0))}
-              />
-            </label>
+          <div>
+            <span className="mb-1 block text-xs text-leise">
+              Ticketkategorien und Stückzahl
+            </span>
+            <Kategorienwahl mengen={mengen} setzen={setMengen} personen={personen} />
           </div>
+
+          <label className="block sm:w-1/2">
+            <span className="mb-1 block text-xs text-leise">Rabatt auf Tickets in Prozent</span>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              value={rabatt}
+              onChange={(e) => setRabatt(Math.max(0, Number(e.target.value) || 0))}
+            />
+          </label>
 
           <label className="block">
             <span className="mb-1 block text-xs text-leise">Getränkepauschale</span>
@@ -113,7 +118,11 @@ export function AngebotBereich({
             onClick={() =>
               starte(() =>
                 void angebotErzeugen(vorgangId, {
-                  ticket,
+                  ticket: "TK2",
+                  kategorien: TICKETS.map((t) => ({
+                    nummer: t.nummer,
+                    menge: mengen[t.nummer] ?? 0,
+                  })).filter((k) => k.menge > 0),
                   ticketRabatt: rabatt,
                   getraenkepauschalen: getraenke,
                   mitEmpfang,
@@ -127,8 +136,9 @@ export function AngebotBereich({
           </button>
 
           <p className="text-xs text-leise">
-            Menüs, Personenzahl und blockierte Logenplätze übernimmt das Programm aus dem Vorgang
-            und dem Sitzplan.
+            Menüs und blockierte Logenplätze übernimmt das Programm aus den Gruppen des Vorgangs
+            und dem Sitzplan. Die Zahl der Teilnehmer steht oben bei den Gruppen, von dort kommen
+            die {personen} Gäste in dieser Vorbelegung.
           </p>
         </div>
       </details>
@@ -476,6 +486,75 @@ function Getraenkewahl({
       {gewaehlt.length === 0 && (
         <p className="text-xs text-leise">Keine Pauschale, Getränke werden einzeln abgerechnet.</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Stückzahl je Ticketkategorie.
+ *
+ * Mehrere Kategorien in einem Angebot waren der Wunsch: Bei Firmen sitzt
+ * die Geschäftsleitung vorne, der Rest weiter hinten (Florian,
+ * 15.10.2026). Jede Kategorie mit einer Zahl wird eine eigene Zeile im
+ * Angebot und zählt zur Summe.
+ *
+ * Steht nur eine Kategorie da, erscheinen die anderen im Angebot wie
+ * bisher als Wahlmöglichkeit ohne Preis in der Summe.
+ */
+function Kategorienwahl({
+  mengen,
+  setzen,
+  personen,
+}: {
+  mengen: Record<string, number>;
+  setzen: (m: Record<string, number>) => void;
+  personen: number;
+}) {
+  const verteilt = TICKETS.reduce((s, t) => s + (mengen[t.nummer] ?? 0), 0);
+  const benutzte = TICKETS.filter((t) => (mengen[t.nummer] ?? 0) > 0).length;
+
+  return (
+    <div className="space-y-1.5">
+      {TICKETS.map((t) => (
+        <div key={t.nummer} className="flex items-center gap-2 text-sm">
+          <input
+            type="number"
+            min={0}
+            value={mengen[t.nummer] ?? 0}
+            onChange={(e) =>
+              setzen({ ...mengen, [t.nummer]: Math.max(0, Number(e.target.value) || 0) })
+            }
+            className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+          />
+          <span>
+            {t.bezeichnung}
+            <span className="text-leise"> ({eur(t.bruttoCent)})</span>
+          </span>
+        </div>
+      ))}
+
+      {/*
+        Die Kontrollzeile. Dass die Stückzahlen zur Gästezahl passen,
+        merkt man sonst erst im fertigen PDF.
+      */}
+      <p className="pt-1 text-xs text-leise">
+        {verteilt === 0 ? (
+          <>Keine Stückzahl eingetragen: Dann bekommen alle {personen} Gäste Kat. 2.</>
+        ) : (
+          <>
+            {verteilt} von {personen} Gästen verteilt
+            {verteilt !== personen && (
+              <span style={{ color: "var(--warnung)" }}>
+                {" "}
+                · stimmt nicht mit den Gruppen überein
+              </span>
+            )}
+            {benutzte > 1 && " · mehrere Kategorien, alle zählen zur Summe"}
+            {benutzte === 1 &&
+              " · die anderen Kategorien stehen als Wahlmöglichkeit darunter"}
+          </>
+        )}
+      </p>
     </div>
   );
 }

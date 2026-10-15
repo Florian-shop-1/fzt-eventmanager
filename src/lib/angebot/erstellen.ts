@@ -6,7 +6,7 @@
  * Alternativpositionen, damit der Kunde die Kategorie selbst wählen kann.
  */
 
-import { artikel } from "@/lib/domain/artikel";
+import { artikel, artikelDerGruppe } from "@/lib/domain/artikel";
 import {
   ANGEBOT_GUELTIG_TAGE,
   STANDARD_TICKET,
@@ -35,6 +35,21 @@ export interface AngebotsOptionen {
   verpflegung?: Verpflegung;
   /** Ticketkategorie als Hauptposition. Standard ist Kat. 2. */
   ticket: string;
+  /**
+   * Mehrere Ticketkategorien mit eigener Stueckzahl, etwa 20 Karten
+   * Kat. 1 und 15 Karten Kat. 2.
+   *
+   * "es muss moeglich sein jeweils mehrere Kategorien in einem Angebot
+   * darzustellen" (Florian, 15.10.2026). Bei Firmen sitzt die
+   * Geschaeftsleitung vorne und der Rest weiter hinten, das war bisher
+   * nicht abbildbar: Es gab eine Hauptkategorie, die anderen standen nur
+   * als Wahlmoeglichkeit darunter.
+   *
+   * Stehen hier zwei oder mehr Kategorien, zaehlt jede mit eigener
+   * Stueckzahl zur Summe. Bei einer einzigen bleibt es beim bisherigen
+   * Verhalten mit Wahlmoeglichkeiten.
+   */
+  kategorien?: Array<{ nummer: string; menge: number }>;
   /** Rabatt auf die Tickets in Prozent, wie die 15 Prozent in AG-0826-1168. */
   ticketRabatt: number;
   /**
@@ -188,14 +203,29 @@ export function erzeugePositionen(
     }
   }
 
-  // 2. Showticket als Hauptposition, darunter die Alternativen
-  const haupt = zuPosition(preise, optionen.ticket, gesamt, optionen.ticketRabatt);
-  positionen.push(haupt);
-  for (const nummer of TICKET_ALTERNATIVEN.filter((n) => n !== optionen.ticket)) {
-    positionen.push({
-      ...zuPosition(preise, nummer, gesamt, optionen.ticketRabatt),
-      istAlternativeZu: haupt.id,
-    });
+  // 2. Showtickets
+  //
+  // Mehrere Kategorien stehen jede als eigene Zeile und zaehlen alle
+  // zur Summe. Eine einzelne Kategorie bekommt wie bisher die anderen
+  // als Wahlmoeglichkeit darunter: Wer nur eine Kategorie anbietet,
+  // laesst den Kunden gerne selbst entscheiden.
+  const gewaehlt = (optionen.kategorien ?? []).filter((k) => k.menge > 0);
+
+  if (gewaehlt.length > 1) {
+    for (const k of gewaehlt) {
+      positionen.push(zuPosition(preise, k.nummer, k.menge, optionen.ticketRabatt));
+    }
+  } else {
+    const nummer = gewaehlt[0]?.nummer ?? optionen.ticket;
+    const menge = gewaehlt[0]?.menge ?? gesamt;
+    const haupt = zuPosition(preise, nummer, menge, optionen.ticketRabatt);
+    positionen.push(haupt);
+    for (const alternative of TICKET_ALTERNATIVEN.filter((n) => n !== nummer)) {
+      positionen.push({
+        ...zuPosition(preise, alternative, menge, optionen.ticketRabatt),
+        istAlternativeZu: haupt.id,
+      });
+    }
   }
 
   // 3. Empfang
@@ -268,6 +298,29 @@ function zuPosition(
     ust: a.ust,
     rabattProzent: rabattProzent || undefined,
   };
+}
+
+const TICKETNUMMERN = new Set(artikelDerGruppe("ticket", true).map((a) => a.nummer));
+const MENUENUMMERN = ["4GANG", "4GANGLOGE", "FINGERFOOD"];
+
+/**
+ * Wie viele Gaeste stehen in diesem Angebot?
+ *
+ * "wo wird die Anzahl der Teilnehmer hingeschrieben?" (Florian,
+ * 15.10.2026). Eingetippt wird sie nirgends, sie steckt in den
+ * Positionen: Jeder Gast hat ein Showticket, und seit es mehrere
+ * Kategorien je Angebot gibt, ist es die Summe ueber alle Kategorien.
+ * Gibt es keine Tickets, zaehlen die Menues.
+ */
+export function personenAusPositionen(positionen: Position[]): number {
+  const echte = positionen.filter((p) => !p.istAlternativeZu && !p.optional);
+  const tickets = echte
+    .filter((p) => TICKETNUMMERN.has(p.artikelNummer))
+    .reduce((s, p) => s + p.menge, 0);
+  if (tickets > 0) return tickets;
+  return echte
+    .filter((p) => MENUENUMMERN.includes(p.artikelNummer))
+    .reduce((s, p) => s + p.menge, 0);
 }
 
 /** Bruttobetrag einer Position nach Rabatt. */

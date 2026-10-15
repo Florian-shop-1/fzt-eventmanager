@@ -11,6 +11,7 @@ import {
   ausnahmeSetzen,
   gruppeEntfernen,
   gruppeHinzufuegen,
+  gruppePersonenSetzen,
   notizHinzufuegen,
   menueSetzen,
   statusSetzen,
@@ -120,20 +121,42 @@ export default async function VorgangSeite({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <Karte titel="Gruppen">
+          <Karte titel="Gruppen und Teilnehmerzahl">
             <p className="mb-3 text-xs text-leise">
               Wer zusammen sitzen will, ist eine Gruppe. Bei einer Firma mit mehreren Abteilungen,
-              die getrennt sitzen möchten, lohnt sich eine Aufteilung.
+              die getrennt sitzen möchten, lohnt sich eine Aufteilung. Hier steht auch die Zahl der
+              Teilnehmer: Die Summe aller Gruppen geht ins Angebot, in den Sitzplan und auf das
+              Küchenblatt.
             </p>
             <div className="space-y-3">
               {vorgang.gruppen.map((g) => (
                 <div key={g.id} className="rounded-md border border-linie p-3">
                   <div className="flex items-baseline justify-between gap-3">
-                    <div>
+                    <div className="flex flex-wrap items-baseline gap-2">
                       <span className="font-medium">{g.name}</span>
-                      <span className="ml-2 text-sm text-leise">
-                        {g.personen} {g.personen === 1 ? "Person" : "Personen"}
-                      </span>
+                      {/*
+                        Die Zahl ist ein Feld, kein Text: Teilnehmerzahlen
+                        aendern sich bis zuletzt (Florian, 15.10.2026).
+                      */}
+                      <form
+                        action={gruppePersonenSetzen.bind(null, vorgang.id, g.id)}
+                        className="flex items-center gap-1 text-sm"
+                      >
+                        <input
+                          type="number"
+                          name="personen"
+                          min={1}
+                          defaultValue={g.personen}
+                          className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                        />
+                        <span className="text-leise">Teilnehmer</span>
+                        <button
+                          type="submit"
+                          className="rounded px-2 py-0.5 text-xs underline text-leise hover:text-text"
+                        >
+                          ändern
+                        </button>
+                      </form>
                     </div>
                     {vorgang.gruppen.length > 1 && (
                       <form action={gruppeEntfernen.bind(null, vorgang.id, g.id)}>
@@ -181,6 +204,7 @@ export default async function VorgangSeite({
             appUrl={appUrl}
             kundeEmail={vorgang.kunde.email}
             ansprechpartner={vorgang.kunde.ansprechpartner}
+            personen={personen}
           />
 
           <Karte titel="Notizen">

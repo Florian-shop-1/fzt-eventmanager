@@ -17,6 +17,7 @@ import type { AngebotDetail } from "./lesen";
 import {
   angebotssumme,
   erzeugePositionen,
+  personenAusPositionen,
   FINGERFOOD_ANGEBOTSOPTIONEN,
   SCHLUSSTEXT,
   type Verpflegung,
@@ -124,6 +125,10 @@ export async function pdfDatenAusAngebot(a: AngebotDetail): Promise<AngebotsPdfD
     kunde: a.kunde,
     vorstellung: a.vorstellung,
     link: `${basis}/ihr-angebot/${a.trackingToken}`,
+    // Oben rechts neben Angebotsnummer und Frist. Stand bisher nur in
+    // den Mustervorlagen und fehlte im echten Angebot (Florian,
+    // 15.10.2026).
+    personen: personenAusPositionen(a.positionen) || undefined,
     // Ohne Menü keine Menübilder.
     mitMenuebildern: !a.positionen.some((p) => p.artikelNummer === "FINGERFOOD"),
     absender: await angebotsAbsender(),
