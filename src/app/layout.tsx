@@ -470,7 +470,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             einen Blick haben" (Florian, 14.10.2026).
           */
           punkte.unshift({ href: "/mitarbeiter", label: "Personalakten", rollen: [] });
-          punkte.splice(1, 0, { href: "/vertraege", label: "Arbeitsverträge", rollen: [] });
+          // Die Arbeitsverträge stehen seit dem 15.10.2026 in der Personalakte.
           /*
             Die alten Papierverträge und Papierbögen stehen seit dem
             15.10.2026 in der Personalakte der jeweiligen Person: "füge

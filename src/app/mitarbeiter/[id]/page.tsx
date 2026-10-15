@@ -8,8 +8,18 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 import { anfahrtSetzen, personalbogenAnfordern } from "@/lib/auth/aktionen";
-import { paketSchicken, unterlageHochladen, unterlageWeg } from "./aktionen";
+import {
+  aufRechnungSetzen,
+  nachrichtAnMitarbeiter,
+  paketSchicken,
+  unterlageHochladen,
+  unterlageWeg,
+} from "./aktionen";
+import { nachrichten } from "@/lib/personal/schriftverkehr";
 import { unterlagenVon } from "@/lib/db/unterlagen";
+import { vertraegeVon } from "@/lib/db/arbeitsvertrag";
+import { VertragAnlegen } from "@/components/VertragAnlegen";
+import { ARTNAME } from "@/lib/personal/arbeitsvertrag";
 
 export const metadata = { title: "Personalakte | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -42,6 +52,11 @@ export default async function AktenSeite({
 
   const bogen = await bogenVon(id).catch(() => null);
   const dateien = await unterlagenVon(id).catch(() => []);
+  const alleVertraege = await vertraegeVon(id).catch(() => []);
+  const post = await nachrichten(id).catch(() => []);
+  const frueher = alleVertraege.filter(
+    (x) => x.id !== a.vertrag?.id && (x.abgeloestAm || x.zurueckgezogenAm),
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -165,7 +180,7 @@ export default async function AktenSeite({
           </p>
         </Karte>
 
-        <Karte titel="Arbeitsvertrag">
+        <Karte titel="Arbeitsvertrag" weit>
           {a.vertrag ? (
             <>
               <Zeile was="Art" wert={a.vertrag.art} />
@@ -222,18 +237,53 @@ export default async function AktenSeite({
               )}
               <p className="mt-2 text-xs">
                 <Link href={`/vertraege/${a.vertrag.id}`} className="underline">
-                  Vertrag öffnen
+                  Vertrag öffnen, freigeben oder zurückziehen
                 </Link>
               </p>
             </>
           ) : (
             <p className="text-sm text-leise">
-              Kein Vertrag hinterlegt.{" "}
-              <Link href="/vertraege" className="underline">
-                Hier anlegen
-              </Link>
+              Kein Vertrag hinterlegt. Unten kannst du einen anlegen.
             </p>
           )}
+
+          {/*
+            Frühere Verträge bleiben nachschlagbar. Wer wissen will, was
+            jemand vorher verdient hat, findet es hier.
+          */}
+          {frueher.length > 0 && (
+            <details className="mt-3 border-t border-linie pt-3 text-sm">
+              <summary className="cursor-pointer text-leise">
+                Frühere Verträge ({frueher.length})
+              </summary>
+              <ul className="mt-2 space-y-1 text-xs text-leise">
+                {frueher.map((x) => (
+                  <li key={x.id}>
+                    <Link href={`/vertraege/${x.id}`} className="underline">
+                      {ARTNAME[x.art] ?? x.art} ab {x.beginn.split("-").reverse().join(".")}
+                    </Link>
+                    {x.abgeloestAm
+                      ? ` · abgelöst am ${datum(x.abgeloestAm)}`
+                      : ` · zurückgezogen am ${datum(x.zurueckgezogenAm)}`}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {/*
+            Anlegen steht hier, seit es die eigene Seite nicht mehr gibt:
+            "bitte die Arbeitsverträge der einzelnen Mitarbeiter in deren
+            Personalakte packen" (Florian, 15.10.2026).
+          */}
+          <details className="mt-3 border-t border-linie pt-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              {a.vertrag ? "Neuen Vertrag anlegen (ersetzt den jetzigen)" : "Vertrag anlegen"}
+            </summary>
+            <div className="mt-3">
+              <VertragAnlegen benutzerId={a.id} name={a.name} />
+            </div>
+          </details>
         </Karte>
 
         <Karte titel="Arbeit">
@@ -285,6 +335,23 @@ export default async function AktenSeite({
             )}
           </p>
 
+          {/*
+            Freelancer stellen eine Rechnung statt Lohn zu bekommen.
+            Ihre Stunden stehen in der Stundenliste abgesetzt und gehen
+            nicht ans Lohnbüro (Florian, 15.10.2026).
+          */}
+          <form action={aufRechnungSetzen.bind(null, a.id)} className="mt-3 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="aufRechnung" value={a.aufRechnung ? "nein" : "ja"} />
+            <span className="text-sm">
+              {a.aufRechnung
+                ? "Arbeitet auf Rechnung, Stunden gehen nicht ans Lohnbüro."
+                : "Bekommt Lohn, Stunden gehen ans Lohnbüro."}
+            </span>
+            <button type="submit" className="rounded px-2 py-0.5 text-xs underline text-leise hover:text-text">
+              {a.aufRechnung ? "doch Lohn" : "auf Rechnung umstellen"}
+            </button>
+          </form>
+
           <p className="mt-2 text-xs text-leise">
             Zeiten ändern unter{" "}
             <Link href={`/stempeluhr?wer=${a.id}`} className="underline">
@@ -302,6 +369,79 @@ export default async function AktenSeite({
           <Zeile was="Dateien im Ordner" wert={String(a.dateien)} />
         </Karte>
       </div>
+
+      {/* ---------------------------------------------------------------
+          Schriftverkehr.
+
+          "wir möchten auch Schriftverkehr mit dem Mitarbeiter dort
+          ablegen können, der Absender soll von unserer E-Mail-Adresse
+          kommen" (Florian, 15.10.2026). Die Mail geht aus dem eigenen
+          Postfach, Antworten kommen also dort an.
+          --------------------------------------------------------------- */}
+      <section className="rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="font-semibold">Schriftverkehr</h2>
+
+        {post.length === 0 ? (
+          <p className="mt-1 text-sm text-leise">
+            Noch nichts geschrieben. Was du hier schickst, bleibt in der Akte stehen.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {post.map((n) => (
+              <li key={n.id} className="rounded-md border border-linie px-3 py-2">
+                <details>
+                  <summary className="cursor-pointer text-sm">
+                    <strong className="font-medium">{n.betreff}</strong>
+                    <span className="text-leise">
+                      {" "}
+                      · {new Date(n.gesendetAm).toLocaleString("de-DE", {
+                        timeZone: "Europe/Berlin",
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}{" "}
+                      von {n.vonEmail}
+                    </span>
+                    {n.fehler && (
+                      <span style={{ color: "var(--warnung)" }}> · nicht zugestellt</span>
+                    )}
+                  </summary>
+                  <p className="mt-2 whitespace-pre-wrap text-sm">{n.text}</p>
+                  {n.fehler && (
+                    <p className="mt-2 text-xs" style={{ color: "var(--warnung)" }}>
+                      {n.fehler}
+                    </p>
+                  )}
+                </details>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <details className="mt-4 border-t border-linie pt-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Mail an {a.name.split(" ")[0]} schreiben
+          </summary>
+          <form action={nachrichtAnMitarbeiter.bind(null, a.id)} className="mt-3 space-y-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">An</span>
+              <input type="email" name="an" defaultValue={a.email} required />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Betreff</span>
+              <input name="betreff" maxLength={200} required />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Text</span>
+              <textarea name="text" rows={8} required />
+            </label>
+            <Absendeknopf text="Verschicken" laeuftText="Wird verschickt..." />
+            <p className="text-xs text-leise">
+              Geht aus deinem eigenen Postfach hinaus, die Antwort kommt also zu dir. Der Text
+              bleibt hier in der Akte stehen.
+            </p>
+          </form>
+        </details>
+      </section>
 
       {/* ---------------------------------------------------------------
           Die Ablage: alte Verträge, Papierbögen, Scans.
@@ -404,9 +544,18 @@ export default async function AktenSeite({
   );
 }
 
-function Karte({ titel, children }: { titel: string; children: React.ReactNode }) {
+function Karte({
+  titel,
+  children,
+  weit,
+}: {
+  titel: string;
+  children: React.ReactNode;
+  /** Über beide Spalten, für alles mit einem Formular darin. */
+  weit?: boolean;
+}) {
   return (
-    <section className="rounded-lg border border-linie bg-flaeche p-5">
+    <section className={`rounded-lg border border-linie bg-flaeche p-5${weit ? " md:col-span-2" : ""}`}>
       <h2 className="mb-2 font-semibold">{titel}</h2>
       <dl className="space-y-1 text-sm">{children}</dl>
     </section>

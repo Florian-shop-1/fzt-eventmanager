@@ -1,0 +1,11 @@
+-- Freelancer-Stunden auf Rechnung (Florian, 15.10.2026).
+--
+-- "schaffe bei den Stunden eine eigene Rubrik Freelancer-Stunden auf
+-- Rechnung. Diese müssen abgesetzt dargestellt werden und bedürfen
+-- keiner Meldung ans Lohnbüro."
+--
+-- Wer so arbeitet, stempelt wie alle anderen, damit wir wissen, wer im
+-- Haus ist und wie viele Stunden die Rechnung haben wird. In die
+-- Lohnmeldung gehört er aber nicht: Er bekommt kein Gehalt, sondern
+-- stellt eine Rechnung.
+alter table benutzer add column if not exists auf_rechnung boolean not null default false;

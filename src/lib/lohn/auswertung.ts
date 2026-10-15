@@ -81,6 +81,15 @@ export interface Mitarbeiterzeiten {
   schnupperTage: string[];
   /** Schnuppert diese Person gerade? Für die Anzeige. */
   schnuppert: boolean;
+  /**
+   * Arbeitet auf Rechnung, also als Freelancer.
+   *
+   * "schaffe bei den Stunden eine eigene Rubrik Freelancer-Stunden auf
+   * Rechnung, diese müssen abgesetzt dargestellt werden und bedürfen
+   * keiner Meldung ans Lohnbüro" (Florian, 15.10.2026). Die Stunden
+   * werden gerechnet und angezeigt, gehen aber nicht in die Meldung.
+   */
+  aufRechnung: boolean;
 }
 
 const ZEITZONE = "Europe/Berlin";
@@ -121,7 +130,8 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
   const stempel = (await db()`
     select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email,
            b.schnuppert, b.schnuppert_seit::text as schnuppert_seit, b.schnuppert_bis::text as schnuppert_bis,
-           coalesce(b.anfahrt_minuten, 0) as anfahrt_minuten
+           coalesce(b.anfahrt_minuten, 0) as anfahrt_minuten,
+           coalesce(b.auf_rechnung, false) as auf_rechnung
       from stempel s
       left join benutzer b on b.id = s.benutzer_id
      where s.zeitpunkt >= (${z.von}::date - 1)::timestamptz
@@ -200,9 +210,11 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
     deshalb wird sie hier addiert und im Protokoll getrennt ausgewiesen.
   */
   const anfahrt = new Map<string, number>();
+  const aufRechnung = new Set<string>();
   for (const s of stempel) {
     const minuten = Number(s.anfahrt_minuten ?? 0);
     if (minuten > 0) anfahrt.set(String(s.benutzer_id), minuten);
+    if (s.auf_rechnung === true) aufRechnung.add(String(s.benutzer_id));
   }
 
   /*
@@ -248,6 +260,7 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       schnupperMinuten: 0,
       schnupperTage: [],
       schnuppert: schnupperzeit.get(id)?.laeuft ?? false,
+      aufRechnung: aufRechnung.has(id),
     };
     leute.set(id, neu);
     return neu;

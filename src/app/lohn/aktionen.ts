@@ -109,7 +109,11 @@ export async function anSteuerbueroSchicken(f: FormData): Promise<void> {
     Schnupperstunden aus arbeitMinuten heraus.
   */
   const alle = await zeitenImZeitraum(z);
-  const leute = alle.filter((p) => p.arbeitMinuten > 0 || p.urlaubstage > 0 || p.kranktage > 0);
+  const leute = alle
+    // Freelancer stellen eine Rechnung, sie gehoeren nicht in die
+    // Lohnmeldung (Florian, 15.10.2026).
+    .filter((p) => !p.aufRechnung)
+    .filter((p) => p.arbeitMinuten > 0 || p.urlaubstage > 0 || p.kranktage > 0);
   if (leute.length === 0) {
     zurueck(z.schluessel, "Für diesen Zeitraum gibt es keine Stunden. Es wurde nichts verschickt.");
   }

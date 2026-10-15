@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfVertraege } from "@/lib/auth/sitzung";
 import { lohnbueroPaket } from "@/lib/personal/lohnbuero-paket";
 import { unterlageAblegen, unterlageLoeschen } from "@/lib/db/unterlagen";
+import { db } from "@/lib/db/client";
 
 /**
  * Personalbogen und Arbeitsvertrag jetzt ans Lohnbüro schicken.
@@ -109,4 +110,52 @@ export async function unterlageWeg(benutzerId: string, f: FormData): Promise<voi
   if (!darfVertraege(ich)) redirect("/");
   await unterlageLoeschen(String(f.get("id") ?? ""));
   zurueck(benutzerId, "Die Unterlage ist entfernt.");
+}
+
+/**
+ * Eine Mail an den Mitarbeiter, aus dem eigenen Postfach.
+ *
+ * "also direkt aus der Personalakte ein Button, Mail an Mitarbeiter"
+ * (Florian, 15.10.2026). Absender ist die Adresse dessen, der gerade
+ * angemeldet ist, damit die Antwort bei ihm ankommt und nicht im
+ * Personalpostfach.
+ */
+export async function nachrichtAnMitarbeiter(benutzerId: string, f: FormData): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!darfVertraege(ich)) redirect("/");
+
+  const { nachrichtSchicken } = await import("@/lib/personal/schriftverkehr");
+  const stand = await nachrichtSchicken({
+    benutzerId,
+    anEmail: String(f.get("an") ?? "").trim(),
+    betreff: String(f.get("betreff") ?? ""),
+    text: String(f.get("text") ?? ""),
+    vonName: ich!.name,
+    vonEmail: ich!.email,
+  });
+
+  zurueck(benutzerId, stand.meldung);
+}
+
+/**
+ * Arbeitet diese Person auf Rechnung?
+ *
+ * "schaffe bei den Stunden eine eigene Rubrik Freelancer-Stunden auf
+ * Rechnung, diese bedürfen keiner Meldung ans Lohnbüro" (Florian,
+ * 15.10.2026). Der Haken steuert, in welcher Rubrik die Stunden
+ * erscheinen und ob sie gemeldet werden.
+ */
+export async function aufRechnungSetzen(benutzerId: string, f: FormData): Promise<void> {
+  const ich = await angemeldeterBenutzer();
+  if (!darfVertraege(ich)) redirect("/");
+
+  const an = String(f.get("aufRechnung") ?? "") === "ja";
+  await db()`update benutzer set auf_rechnung = ${an} where id = ${benutzerId}`;
+  revalidatePath("/lohn");
+  zurueck(
+    benutzerId,
+    an
+      ? "Gespeichert: Die Stunden stehen jetzt unter den Freelancer-Stunden und gehen nicht ans Lohnbüro."
+      : "Gespeichert: Die Stunden gehen wieder in die Lohnmeldung.",
+  );
 }

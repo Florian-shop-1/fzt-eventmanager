@@ -28,6 +28,8 @@ export interface Aktenkopf {
   handy: string;
   /** Bezahlte Anfahrt je Arbeitstag in Minuten, 0 wenn keine. */
   anfahrtMinuten: number;
+  /** Arbeitet auf Rechnung, also als Freelancer. Keine Lohnmeldung. */
+  aufRechnung: boolean;
   geburtstag: string | null;
   erstelltAm: string;
   letzterLogin: string | null;
@@ -79,7 +81,8 @@ export async function akten(): Promise<Aktenkopf[]> {
   const z = (await db()`
     select id, name, email, rolle, aktiv, geteilt, art, fest, schnuppert, handy, geburtstag::text,
            erstellt_am, letzter_login, personalbogen_am, ausgeschieden_am, ausscheiden_grund,
-           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am
+           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am,
+           auf_rechnung
       from benutzer
      where not geteilt and rolle not in ('kiosk', 'agentur', 'reinigung')
        and coalesce(art, 'intern') <> 'extern'
@@ -100,6 +103,7 @@ function baueKopf(r: Record<string, unknown>): Aktenkopf {
     schnuppert: Boolean(r.schnuppert),
     handy: String(r.handy ?? ""),
     anfahrtMinuten: Number(r.anfahrt_minuten ?? 0),
+    aufRechnung: r.auf_rechnung === true,
     geburtstag: (r.geburtstag as string) ?? null,
     erstelltAm: new Date(r.erstellt_am as string).toISOString(),
     letzterLogin: r.letzter_login ? new Date(r.letzter_login as string).toISOString() : null,
@@ -118,7 +122,8 @@ export async function akte(benutzerId: string): Promise<Aktenstand | null> {
   const kopf = (await db()`
     select id, name, email, rolle, aktiv, geteilt, art, fest, schnuppert, handy, geburtstag::text,
            erstellt_am, letzter_login, personalbogen_am, ausgeschieden_am, ausscheiden_grund,
-           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am
+           abgemeldet_am, coalesce(anfahrt_minuten, 0) as anfahrt_minuten, bogen_angefordert_am,
+           auf_rechnung
       from benutzer where id = ${benutzerId}::uuid
   `.catch(() => [])) as Array<Record<string, unknown>>;
   if (!kopf[0]) return null;

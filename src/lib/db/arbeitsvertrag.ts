@@ -157,6 +157,33 @@ export async function vertragLesen(id: string): Promise<Arbeitsvertrag | null> {
   return z[0] ? baue(z[0]) : null;
 }
 
+/**
+ * Alle Verträge einer Person, neueste zuerst.
+ *
+ * Für die Personalakte: "bitte die Arbeitsverträge der einzelnen
+ * Mitarbeiter in deren Personalakte packen, es braucht dann den extra
+ * Punkt nicht mehr" (Florian, 15.10.2026). Hier steht alles, was es je
+ * gab, auch Abgelöstes und Zurückgezogenes; die Akte zeigt beides
+ * getrennt.
+ */
+export async function vertraegeVon(benutzerId: string): Promise<Arbeitsvertrag[]> {
+  const z = (await db()`
+    select v.id, v.benutzer_id, v.art, v.taetigkeit, v.aufgaben, v.position,
+           v.beginn::text as beginn, v.ende::text as ende, v.stundenlohn_cent, v.monatsstunden,
+           v.wochenstunden, v.festgehalt_cent, v.probezeit_monate, v.personalien, v.angelegt_von,
+           v.angelegt_am, v.vertragstext, v.textstand, v.unterschrift, v.unterschrieben_am,
+           v.arbeitgeber_unterschrift,
+           v.freigegeben_am, v.freigegeben_von, v.erhoehung, v.hase_text,
+           v.zurueckgezogen_am, v.zurueckgezogen_von, v.abgeloest_am, v.abgeloest_durch,
+           v.auf_papier, v.quelle,
+           b.name, b.email
+      from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
+     where v.benutzer_id = ${benutzerId}::uuid
+     order by coalesce(v.unterschrieben_am, v.angelegt_am) desc
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map(baue);
+}
+
 /** Alle gültigen Verträge, neueste zuerst. */
 export async function vertraege(): Promise<Arbeitsvertrag[]> {
   const z = (await db()`

@@ -66,9 +66,20 @@ export default async function LohnSeite({
     loehne().catch(() => new Map()),
   ]);
 
-  const summe = leute.reduce((s, p) => s + p.arbeitMinuten, 0);
-  const offene = leute.filter((p) => p.offeneTage.length > 0);
-  const zuBestaetigen = leute.filter((p) => p.unplausibleTage.length > 0);
+  /*
+    Freelancer stehen für sich.
+
+    "schaffe bei den Stunden eine eigene Rubrik Freelancer-Stunden auf
+    Rechnung, diese müssen abgesetzt dargestellt werden und bedürfen
+    keiner Meldung ans Lohnbüro" (Florian, 15.10.2026).
+  */
+  const angestellte = leute.filter((p) => !p.aufRechnung);
+  const freelancer = leute.filter((p) => p.aufRechnung);
+
+  const summe = angestellte.reduce((s, p) => s + p.arbeitMinuten, 0);
+  const summeFreelancer = freelancer.reduce((s, p) => s + p.arbeitMinuten, 0);
+  const offene = angestellte.filter((p) => p.offeneTage.length > 0);
+  const zuBestaetigen = angestellte.filter((p) => p.unplausibleTage.length > 0);
   const verschickt = Boolean(stand.versendetAm);
   const freigegeben = Boolean(stand.bestaetigtAm);
 
@@ -121,7 +132,7 @@ export default async function LohnSeite({
           <div className="text-right">
             <div className="text-2xl font-semibold tabular-nums">{alsStunden(summe)}</div>
             <div className="text-xs text-leise">
-              Stunden für {leute.length} {leute.length === 1 ? "Mitarbeiter" : "Mitarbeiter"}
+              Stunden für {angestellte.length} {angestellte.length === 1 ? "Mitarbeiter" : "Mitarbeiter"}
             </div>
           </div>
         </div>
@@ -193,13 +204,13 @@ export default async function LohnSeite({
       {/* ---------------------------------------------------------------
           Die Sammelliste. Ein Klick auf den Namen klappt das Protokoll auf.
           --------------------------------------------------------------- */}
-      {leute.length === 0 ? (
+      {angestellte.length === 0 ? (
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
           In diesem Zeitraum wurde nicht gestempelt.
         </p>
       ) : (
         <div className="space-y-2">
-          {leute.map((p) => (
+          {angestellte.map((p) => (
             <Person
               key={p.benutzerId}
               p={p}
@@ -209,6 +220,36 @@ export default async function LohnSeite({
             />
           ))}
         </div>
+      )}
+
+      {/* ---------------------------------------------------------------
+          Freelancer: dieselbe Rechnung, andere Rubrik. Sie stellen eine
+          Rechnung und werden nicht gemeldet.
+          --------------------------------------------------------------- */}
+      {freelancer.length > 0 && (
+        <section className="space-y-2 rounded-lg border border-dashed border-linie p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
+              Freelancer-Stunden auf Rechnung ({freelancer.length})
+            </h2>
+            <span className="text-sm tabular-nums">{alsStunden(summeFreelancer)} Stunden</span>
+          </div>
+          <p className="text-xs text-leise">
+            Geht nicht ans Lohnbüro. Diese Stunden stehen hier, damit ihr die Rechnung prüfen könnt,
+            die dafür kommt.
+          </p>
+          <div className="space-y-2">
+            {freelancer.map((p) => (
+              <Person
+                key={p.benutzerId}
+                p={p}
+                offen={wer === p.benutzerId}
+                zeitraum={z.schluessel}
+                lohn={loehneKarte.get(p.benutzerId)}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ---------------------------------------------------------------
