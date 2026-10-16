@@ -94,11 +94,35 @@ export async function angebotErzeugen(
     geaendertAm: vorgang.erstelltAm,
   };
 
-  // Die Preise dieser Vorstellung aus dem Ticketshop. Ohne Termin oder
-  // bei nicht erreichbarem Shop bleibt es beim Artikelstamm, dann steht
-  // der Hinweis darauf im Vorgang.
+  /*
+    Die Preise dieser Vorstellung aus dem Ticketshop.
+
+    Steht noch kein Termin fest, wird fuer einen Wochentag angeboten.
+    Dann gelten die Preise der naechsten Vorstellung an genau diesem
+    Wochentag: "so dass der Kunde sieht, dass es Donnerstag guenstiger
+    waere als Freitag oder Samstag" (Florian, 15.10.2026). Ohne alles
+    bleibt es beim Artikelstamm.
+  */
   let preise: Map<string, number> | undefined;
-  if (vorgang.vorstellung?.ditixEventId) {
+  let preisHerkunft: { datum: string; show: string } | null = null;
+
+  if (typeof optionen.wochentag === "number") {
+    try {
+      const { showtageAbHeute } = await import("@/lib/ditix/spielplan");
+      const passend = (await showtageAbHeute(400)).find((t) => {
+        const wochentag = new Date(`${t.datum}T12:00:00Z`).getUTCDay();
+        if (wochentag !== optionen.wochentag) return false;
+        // Nachmittag heisst: Vorstellung vor 17 Uhr.
+        return optionen.tageszeit === "nachmittag" ? t.uhrzeit < "17:00" : t.uhrzeit >= "17:00";
+      });
+      if (passend) {
+        preise = (await abendpreise(passend.ditixEventId)).cent;
+        preisHerkunft = { datum: passend.datum, show: passend.name };
+      }
+    } catch {
+      preise = undefined;
+    }
+  } else if (vorgang.vorstellung?.ditixEventId) {
     try {
       preise = (await abendpreise(vorgang.vorstellung.ditixEventId)).cent;
     } catch {
@@ -120,7 +144,13 @@ export async function angebotErzeugen(
               wochentag: optionen.wochentag,
               zeitraum: optionen.zeitraum,
               terminSteht: Boolean(vorgang.vorstellung?.datum) && optionen.wochentag == null,
-            })}, ${SCHLUSSTEXT},
+            })}, ${
+              preisHerkunft
+                ? `${SCHLUSSTEXT}${String.fromCharCode(10)}${String.fromCharCode(10)}Die Preise entsprechen einer Vorstellung am ${
+                    preisHerkunft.datum.split("-").reverse().join(".")
+                  }. An anderen Wochentagen koennen sie abweichen; wir halten sie fuer euch fest, sobald der Termin steht.`
+                : SCHLUSSTEXT
+            },
             ${randomBytes(24).toString("base64url")})
     returning id
   `) as Array<{ id: string }>;

@@ -418,6 +418,17 @@ export async function kontaktAendern(vorgangId: string, formData: FormData): Pro
   const email = text(formData, "email").toLowerCase();
   const ansprechpartner = text(formData, "ansprechpartner");
   const telefon = text(formData, "telefon");
+  /*
+    Die Anschrift gehoert auf das Angebot.
+
+    "die korrekte Anschrift des Kunden muss aufgenommen werden koennen"
+    (Florian, 15.10.2026). Ohne sie steht im PDF nur der Firmenname, und
+    beim Kunden landet ein Angebot ohne Adressfeld.
+  */
+  const firma = text(formData, "firma");
+  const strasse = text(formData, "strasse");
+  const plz = text(formData, "plz");
+  const ort = text(formData, "ort");
 
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Das sieht nicht nach einer Mailadresse aus.")}`);
@@ -430,15 +441,22 @@ export async function kontaktAendern(vorgangId: string, formData: FormData): Pro
   await db()`
     update kunde
        set email = ${email}, ansprechpartner = ${ansprechpartner}, telefon = ${telefon},
+           name = coalesce(nullif(${firma}, ''), name),
+           strasse = ${strasse}, plz = ${plz}, ort = ${ort},
            geaendert_am = now()
      where id = ${kundeId}
   `;
 
+  /*
+    Nach Brevo geht es bei jeder Aenderung, nicht nur bei neuer Adresse:
+    "Uebertragung automatisch im Brevo" (Florian, 15.10.2026). Sonst
+    stuende dort weiter der alte Ansprechpartner.
+  */
   let hinweis = "Kontakt gespeichert.";
-  if (email && email !== (vorher[0]?.email ?? "").toLowerCase()) {
+  if (email) {
     const { kundeNachBrevo } = await import("@/lib/marketing/brevo-kontakte");
     const ergebnis = await kundeNachBrevo({
-      name: vorher[0]?.name ?? "",
+      name: firma || vorher[0]?.name || "",
       email,
       ansprechpartner,
       telefon,

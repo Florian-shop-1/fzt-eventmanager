@@ -370,10 +370,48 @@ export default async function VorgangSeite({
               (Kevin, 14.10.2026). Wird sie geaendert, geht der Kontakt
               auch neu zu Brevo.
             */}
-            <details className="mt-3">
-              <summary className="cursor-pointer text-xs text-leise">Kontakt ändern</summary>
+            <details className="mt-3" open={!vorgang.kunde.ort}>
+              <summary className="cursor-pointer text-xs text-leise">
+                Kontakt und Anschrift ändern
+              </summary>
               <form action={kontaktAendern.bind(null, vorgang.id)} className="mt-2 space-y-2">
                 <input type="hidden" name="kundeId" value={vorgang.kunde.id} />
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Firma</span>
+                  <input name="firma" defaultValue={vorgang.kunde.name} className="w-full text-sm" />
+                </label>
+                {/*
+                  Die Anschrift steht im Adressfeld des Angebots. Fehlt
+                  sie, klappt dieser Bereich von selbst auf, damit sie
+                  nicht vergessen wird (Florian, 15.10.2026).
+                */}
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Straße und Hausnummer</span>
+                  <input
+                    name="strasse"
+                    defaultValue={vorgang.kunde.strasse ?? ""}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <div className="grid gap-2 sm:grid-cols-[6rem_1fr]">
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">PLZ</span>
+                    <input
+                      name="plz"
+                      defaultValue={vorgang.kunde.plz ?? ""}
+                      maxLength={10}
+                      className="w-full text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Ort</span>
+                    <input
+                      name="ort"
+                      defaultValue={vorgang.kunde.ort ?? ""}
+                      className="w-full text-sm"
+                    />
+                  </label>
+                </div>
                 <label className="block">
                   <span className="mb-1 block text-xs text-leise">E-Mail</span>
                   <input
@@ -399,7 +437,8 @@ export default async function VorgangSeite({
                   Speichern
                 </button>
                 <p className="text-xs text-leise">
-                  Eine geänderte Adresse geht auch an Brevo, damit dort nicht die alte stehen bleibt.
+                  Firma, Anschrift und Ansprechpartner stehen damit im Adressfeld des Angebots. Der
+                  Kontakt geht bei jedem Speichern auch an Brevo.
                 </p>
               </form>
             </details>

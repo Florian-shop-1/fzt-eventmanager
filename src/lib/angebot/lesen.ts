@@ -27,7 +27,15 @@ export interface AngebotDetail {
   ablehnungsgrund: string | null;
   positionen: Position[];
   oeffnungen: Array<{ zeitpunkt: string; geraet: string | null }>;
-  kunde: { name: string; ansprechpartner: string | null; email: string };
+  kunde: {
+    name: string;
+    ansprechpartner: string | null;
+    email: string;
+    /* Die Anschrift fuer das Adressfeld im PDF (Florian, 15.10.2026). */
+    strasse: string | null;
+    plz: string | null;
+    ort: string | null;
+  };
   vorstellung: { datum: string; show: string } | null;
 }
 
@@ -85,6 +93,9 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
       name: String(a.kunde_name),
       ansprechpartner: (a.ansprechpartner as string) ?? null,
       email: String(a.email),
+      strasse: (a.strasse as string) || null,
+      plz: (a.plz as string) || null,
+      ort: (a.ort as string) || null,
     },
     vorstellung: a.datum ? { datum: String(a.datum), show: String(a.show) } : null,
   };
@@ -96,6 +107,7 @@ const KOPF_ABFRAGE = `
          a.einleitung, a.schlusstext, a.tracking_token, a.versendet_am,
          a.angenommen_am, a.angenommen_von, a.abgelehnt_am, a.ablehnungsgrund,
          k.name as kunde_name, k.ansprechpartner, k.email,
+         k.strasse, k.plz, k.ort,
          to_char(s.datum, 'YYYY-MM-DD') as datum, s.show
     from angebot a
     join vorgang v      on v.id = a.vorgang_id
