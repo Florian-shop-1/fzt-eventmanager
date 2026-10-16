@@ -380,6 +380,23 @@ export const ARTIKEL: Artikel[] = [
     gruppe: "highlight",
   },
   {
+    /*
+      Stehtische fuer das Fingerfood im Foyer.
+
+      "es gibt auch die Moeglichkeit Stehtische zu buchen, diese wollen
+      wir individuell machen koennen" (Florian, 15.10.2026). Der Preis
+      steht hier als Anhalt, im Angebot laesst er sich je Zeile
+      ueberschreiben.
+    */
+    nummer: "STEHTISCH",
+    bezeichnung: "Stehtisch im Foyer, eingedeckt",
+    beschreibung: "Stehtisch mit Husse, fuer das Fingerfood oder den Empfang",
+    einheit: "Stück",
+    bruttoCent: 1500,
+    ust: 0.19,
+    gruppe: "foyer",
+  },
+  {
     nummer: "KONFETTI",
     bezeichnung: "Konfetti-Shooter, zwei Stück gleichzeitig",
     beschreibung: "Zwei Shooter, die zusammen feuern. Je Shooter 15 Euro.",

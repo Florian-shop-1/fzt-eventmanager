@@ -18,6 +18,9 @@ import {
   angebotVersendet,
   positionOptional,
   positionPreisSetzen,
+  positionEntfernen,
+  positionHinzufuegen,
+  positionText,
 } from "@/lib/angebot/speichern";
 import { VARIANTEN, wochentagName, type Variante } from "@/lib/angebot/ablaufplan";
 import { angebotPerMail } from "@/lib/angebot/mailversand";
@@ -31,6 +34,25 @@ const TICKETS = artikelDerGruppe("ticket");
 const GETRAENKE = artikelDerGruppe("getraenke");
 const EXKLUSIV = artikelDerGruppe("exklusiv");
 const WOCHENTAGE = [0, 1, 2, 3, 4, 5, 6].map(wochentagName);
+
+/*
+  Was zusaetzlich in ein Angebot kann: Technik, Effekte, Foyer,
+  Highlights. Menues und Tickets stehen nicht dabei, die kommen aus der
+  Fassung.
+*/
+const ZUSATZARTIKEL = [
+  ...artikelDerGruppe("highlight"),
+  ...artikelDerGruppe("technik"),
+  ...artikelDerGruppe("foyer"),
+  ...artikelDerGruppe("loge"),
+  ...artikelDerGruppe("sonstiges"),
+];
+
+/** Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt. */
+const LED_TEXT =
+  "Die LED-Fassade buchen Sie als eigenstaendige Werbeleistung mit eigenem Gegenwert. "
+  + "Da wir Sie an diesem Abend ohnehin als Werbepartner begruessen, kalkulieren wir das "
+  + "Eventpaket mit unserem Partnerpreis, sodass Sie bei 110 Euro brutto je Person bleiben.";
 
 /** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
 const ARTEN = [
@@ -474,6 +496,19 @@ function AngebotKarte({
                   <td className="py-1">
                     {p.optional && <span className="text-leise">Optional: </span>}
                     <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
+                    {/*
+                      Der Text, der im Angebot unter der Position steht.
+                      Enter speichert (Florian, 15.10.2026).
+                    */}
+                    <form action={positionText.bind(null, p.id, vorgangId)} className="mt-0.5">
+                      <input
+                        name="text"
+                        defaultValue={p.beschreibung ?? ""}
+                        maxLength={600}
+                        placeholder="Text unter der Position"
+                        className="w-full rounded border border-linie px-1.5 py-0.5 text-xs"
+                      />
+                    </form>
                   </td>
                   <td className="py-1 text-right tabular-nums">{p.menge}x</td>
 
@@ -514,6 +549,11 @@ function AngebotKarte({
                         {p.optional ? "zur Pflicht" : "optional"}
                       </button>
                     </form>
+                    <form action={positionEntfernen.bind(null, p.id, vorgangId)}>
+                      <button type="submit" className="whitespace-nowrap underline text-leise">
+                        entfernen
+                      </button>
+                    </form>
                   </td>
                 </tr>
               ))}
@@ -525,6 +565,77 @@ function AngebotKarte({
           Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
           schon.
         </p>
+
+        {/* ------------------------------------------------------------
+            Eine Position dazunehmen, wie bei lexoffice: Artikel wählen
+            oder frei eintippen, Menge, Preis, Haken für optional, dazu
+            ein eigener Text (Florian, 15.10.2026).
+            ------------------------------------------------------------ */}
+        <form
+          action={positionHinzufuegen.bind(null, angebot.id, vorgangId)}
+          className="mt-3 space-y-2 border-t border-linie pt-3"
+        >
+          <div className="grid gap-2 sm:grid-cols-[1fr_5rem_6rem]">
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Position</span>
+              <select name="artikel" defaultValue="" className="text-sm">
+                <option value="">frei eintippen</option>
+                {ZUSATZARTIKEL.map((x) => (
+                  <option key={x.nummer} value={x.nummer}>
+                    {x.bezeichnung} ({eur(x.bruttoCent)})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Menge</span>
+              <input name="menge" defaultValue="1" inputMode="decimal" className="text-sm" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Preis €</span>
+              <input name="preis" inputMode="decimal" placeholder="wie Liste" className="text-sm" />
+            </label>
+          </div>
+
+          <input
+            name="bezeichnung"
+            maxLength={200}
+            placeholder="Eigene Bezeichnung, wenn oben frei eintippen gewählt ist"
+            className="w-full text-sm"
+          />
+
+          <textarea
+            name="text"
+            rows={2}
+            maxLength={600}
+            placeholder="Text unter der Position, zum Beispiel der Hinweis zur LED-Fassade"
+            className="w-full text-sm"
+          />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="optional" value="ja" defaultChecked className="h-4 w-4" />
+              optional, Preis in Klammern und nicht im Gesamtbetrag
+            </label>
+            <button
+              type="submit"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
+            >
+              Position hinzufügen
+            </button>
+          </div>
+
+          {/*
+            Der Satz zur LED-Fassade steht zum Kopieren da. Werbeleistung
+            und Eventpaket bleiben darin getrennt, der Nachlass hängt an
+            der Partnerschaft und nicht am Ticketpreis (Florian,
+            15.10.2026).
+          */}
+          <details className="text-xs text-leise">
+            <summary className="cursor-pointer">Textbaustein LED-Fassade</summary>
+            <p className="mt-1 rounded border border-linie p-2 text-text">{LED_TEXT}</p>
+          </details>
+        </form>
       </details>
 
       <div className="mb-3 rounded bg-hintergrund p-2">

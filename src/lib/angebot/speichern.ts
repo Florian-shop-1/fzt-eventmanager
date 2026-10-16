@@ -18,6 +18,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
+import { artikel } from "@/lib/domain/artikel";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { holeVorgang } from "@/lib/db/vorgaenge";
 import { planeAbend } from "@/lib/seating/abend";
@@ -248,6 +249,77 @@ export async function positionPreisSetzen(
   await db()`
     update position set einzel_brutto_cent = ${Math.round(euro * 100)} where id = ${positionId}
   `;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/**
+ * Eine Position zu einem bestehenden Angebot hinzufügen.
+ *
+ * "die Option, wie man Punkte aufnehmen kann in einem Angebot, machen
+ * wir eins zu eins wie bei lexoffice" (Florian, 15.10.2026): Artikel
+ * wählen oder frei eintippen, Menge, Preis, Haken für optional, dazu
+ * ein eigener Text.
+ */
+export async function positionHinzufuegen(
+  angebotId: string,
+  vorgangId: string,
+  f: FormData,
+): Promise<void> {
+  await verlangeTeam();
+
+  const nummer = String(f.get("artikel") ?? "").trim();
+  const eigeneBezeichnung = String(f.get("bezeichnung") ?? "").trim().slice(0, 200);
+  // Unbekannte Nummer heisst: frei eingetippt, kein Artikel dahinter.
+  let stamm: ReturnType<typeof artikel> | null = null;
+  if (nummer) {
+    try {
+      stamm = artikel(nummer);
+    } catch {
+      stamm = null;
+    }
+  }
+
+  const bezeichnung = eigeneBezeichnung || stamm?.bezeichnung;
+  if (!bezeichnung) return;
+
+  const menge = Math.max(0, Number(String(f.get("menge") ?? "1").replace(",", ".")) || 0);
+  const preisRoh = String(f.get("preis") ?? "").trim().replace(",", ".");
+  const preisCent = preisRoh
+    ? Math.round(Number(preisRoh) * 100)
+    : (stamm?.bruttoCent ?? 0);
+
+  const zeilen = (await db()`
+    select coalesce(max(sortierung), 0) + 1 as naechste from position where angebot_id = ${angebotId}::uuid
+  `) as Array<{ naechste: number }>;
+
+  await db()`
+    insert into position (angebot_id, artikel_nummer, bezeichnung, beschreibung, menge, einheit,
+                          einzel_brutto_cent, ust, sortierung, optional)
+    values (${angebotId}::uuid, ${stamm?.nummer ?? "FREI"}, ${bezeichnung},
+            ${String(f.get("text") ?? "").trim().slice(0, 600) || stamm?.beschreibung || null},
+            ${menge}, ${stamm?.einheit ?? "Stück"}, ${preisCent}, ${stamm?.ust ?? 0.19},
+            ${zeilen[0]?.naechste ?? 1}, ${String(f.get("optional") ?? "") === "ja"})
+  `;
+
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/** Den Text unter einer Position ändern. */
+export async function positionText(
+  positionId: string,
+  vorgangId: string,
+  f: FormData,
+): Promise<void> {
+  await verlangeTeam();
+  const text = String(f.get("text") ?? "").trim().slice(0, 600);
+  await db()`update position set beschreibung = ${text || null} where id = ${positionId}`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/** Eine Position wieder entfernen. */
+export async function positionEntfernen(positionId: string, vorgangId: string): Promise<void> {
+  await verlangeTeam();
+  await db()`delete from position where id = ${positionId}`;
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
