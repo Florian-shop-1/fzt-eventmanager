@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { holeVorgang } from "@/lib/db/vorgaenge";
 import { angeboteZumVorgang } from "@/lib/angebot/lesen";
 import { AngebotBereich } from "@/components/AngebotBereich";
+import { Absendeknopf } from "@/components/Absendeknopf";
 import {
   aufgabeHinzufuegen,
   aufgabeUmschalten,
+  adresseVorschlagen,
   kontaktAendern,
   terminSetzen,
   ausnahmeSetzen,
@@ -41,10 +43,30 @@ export default async function VorgangSeite({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mail?: string; an?: string; meldung?: string }>;
+  searchParams: Promise<{ mail?: string; an?: string; meldung?: string; vorschlag?: string }>;
 }) {
   const { id } = await params;
-  const { mail, an, meldung } = await searchParams;
+  const { mail, an, meldung, vorschlag } = await searchParams;
+
+  /*
+    Ein Adressvorschlag aus dem Netz, noch nicht gespeichert.
+
+    Er kommt als Text in der Adresszeile zurueck und fuellt das Formular
+    vor. Erst wer auf Speichern drueckt, uebernimmt ihn
+    (Florian, 15.10.2026).
+  */
+  let adressvorschlag: {
+    firma: string;
+    strasse: string;
+    plz: string;
+    ort: string;
+    quelle: string;
+  } | null = null;
+  try {
+    adressvorschlag = vorschlag ? JSON.parse(vorschlag) : null;
+  } catch {
+    adressvorschlag = null;
+  }
   const vorgang = await holeVorgang(id);
   if (!vorgang) notFound();
 
@@ -370,15 +392,31 @@ export default async function VorgangSeite({
               (Kevin, 14.10.2026). Wird sie geaendert, geht der Kontakt
               auch neu zu Brevo.
             */}
-            <details className="mt-3" open={!vorgang.kunde.ort}>
+            <details className="mt-3" open={!vorgang.kunde.ort || Boolean(adressvorschlag)}>
               <summary className="cursor-pointer text-xs text-leise">
                 Kontakt und Anschrift ändern
               </summary>
               <form action={kontaktAendern.bind(null, vorgang.id)} className="mt-2 space-y-2">
                 <input type="hidden" name="kundeId" value={vorgang.kunde.id} />
+                {adressvorschlag && (
+                  <p
+                    className="rounded border px-2 py-1 text-xs"
+                    style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+                  >
+                    Vorschlag aus dem Netz, bitte prüfen: {adressvorschlag.strasse},{" "}
+                    {adressvorschlag.plz} {adressvorschlag.ort}
+                    {adressvorschlag.quelle && (
+                      <span className="block text-leise">Quelle: {adressvorschlag.quelle}</span>
+                    )}
+                  </p>
+                )}
                 <label className="block">
                   <span className="mb-1 block text-xs text-leise">Firma</span>
-                  <input name="firma" defaultValue={vorgang.kunde.name} className="w-full text-sm" />
+                  <input
+                    name="firma"
+                    defaultValue={adressvorschlag?.firma ?? vorgang.kunde.name}
+                    className="w-full text-sm"
+                  />
                 </label>
                 {/*
                   Die Anschrift steht im Adressfeld des Angebots. Fehlt
@@ -389,7 +427,7 @@ export default async function VorgangSeite({
                   <span className="mb-1 block text-xs text-leise">Straße und Hausnummer</span>
                   <input
                     name="strasse"
-                    defaultValue={vorgang.kunde.strasse ?? ""}
+                    defaultValue={adressvorschlag?.strasse ?? vorgang.kunde.strasse ?? ""}
                     className="w-full text-sm"
                   />
                 </label>
@@ -398,7 +436,7 @@ export default async function VorgangSeite({
                     <span className="mb-1 block text-xs text-leise">PLZ</span>
                     <input
                       name="plz"
-                      defaultValue={vorgang.kunde.plz ?? ""}
+                      defaultValue={adressvorschlag?.plz ?? vorgang.kunde.plz ?? ""}
                       maxLength={10}
                       className="w-full text-sm"
                     />
@@ -407,7 +445,7 @@ export default async function VorgangSeite({
                     <span className="mb-1 block text-xs text-leise">Ort</span>
                     <input
                       name="ort"
-                      defaultValue={vorgang.kunde.ort ?? ""}
+                      defaultValue={adressvorschlag?.ort ?? vorgang.kunde.ort ?? ""}
                       className="w-full text-sm"
                     />
                   </label>
@@ -440,6 +478,21 @@ export default async function VorgangSeite({
                   Firma, Anschrift und Ansprechpartner stehen damit im Adressfeld des Angebots. Der
                   Kontakt geht bei jedem Speichern auch an Brevo.
                 </p>
+              </form>
+
+              {/*
+                Die Anschrift im Netz suchen. Gespeichert wird nichts,
+                der Vorschlag fuellt nur das Formular oben
+                (Florian, 15.10.2026).
+              */}
+              <form action={adresseVorschlagen.bind(null, vorgang.id)} className="mt-2">
+                <input type="hidden" name="firma" value={vorgang.kunde.name} />
+                <input
+                  type="hidden"
+                  name="hinweis"
+                  value={[vorgang.kunde.email, vorgang.kunde.ort ?? ""].filter(Boolean).join(", ")}
+                />
+                <Absendeknopf text="Anschrift online suchen" laeuftText="Wird gesucht..." />
               </form>
             </details>
           </Karte>

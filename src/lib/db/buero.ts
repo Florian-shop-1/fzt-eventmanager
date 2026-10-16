@@ -293,6 +293,19 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
   const personen = text(formData, "personen");
   const wunsch = text(formData, "wunschdatum");
   const anfragetyp = text(formData, "anfragetyp");
+  const kommentar = text(formData, "kommentar");
+
+  /*
+    Die Personenzahl aus der Anfrage.
+
+    In den Formularen von Meta steht oft eine Spanne wie "11-50". Für
+    den Vorgang braucht es eine Zahl, sonst stehen im Angebot null
+    Gäste (Florian, 15.10.2026). Genommen wird die kleinere: lieber
+    nachlegen als dem Kunden zu viel berechnen. Der Originaltext bleibt
+    als "ungefähr" daneben stehen.
+  */
+  const zahlen = personen.match(/\d+/g) ?? [];
+  const gaeste = zahlen.length > 0 ? Math.min(98, Math.max(1, Number(zahlen[0]))) : 0;
 
   // Kunde suchen oder anlegen, damit derselbe Kunde nicht doppelt entsteht.
   let kundeId: string | null = null;
@@ -304,7 +317,8 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
   }
   if (!kundeId) {
     const neu = (await db()`
-      insert into kunde (name, email, telefon) values (${kundenname}, ${email}, ${telefon})
+      insert into kunde (name, email, telefon, ansprechpartner)
+      values (${kundenname}, ${email}, ${telefon}, ${kundenname})
       returning id
     `) as Array<{ id: string }>;
     kundeId = neu[0].id;
@@ -358,10 +372,29 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
     returning id
   `) as Array<{ id: string }>;
 
+  /*
+    Die Gruppe, damit die Gaestezahl im Vorgang steht und das Angebot
+    nicht mit null Personen rechnet.
+  */
+  if (gaeste > 0) {
+    await db()`
+      insert into gruppe (vorgang_id, name, personen, herkunft)
+      values (${vorgang[0].id}, ${kundenname}, ${gaeste}, 'firma')
+    `.catch(() => undefined);
+  }
+
   await db()`
     insert into notiz (vorgang_id, benutzer, text)
     values (${vorgang[0].id}, ${name},
-            ${"Aus der Anfragenliste übernommen." + (telefon ? ` Telefon: ${telefon}` : "")})
+            ${[
+              "Aus der Anfragenliste übernommen.",
+              telefon ? `Telefon: ${telefon}` : "",
+              personen ? `Angabe zur Personenzahl: ${personen}` : "",
+              wunsch ? `Wunschtermin: ${wunsch}` : "",
+              kommentar ? `Anmerkung des Kunden: ${kommentar}` : "",
+            ]
+              .filter(Boolean)
+              .join(" ")})
   `;
 
   await db()`

@@ -282,6 +282,8 @@ function Karte({ lead, stand }: { lead: Lead; stand: LeadStand | undefined }) {
               <input type="hidden" name="personen" value={lead.teilnehmer} />
               <input type="hidden" name="wunschdatum" value={lead.wunschdatum} />
               <input type="hidden" name="anfragetyp" value={lead.anfragetyp} />
+              {/* Die Anmerkung des Kunden landet als Notiz im Vorgang. */}
+              <input type="hidden" name="kommentar" value={lead.kommentar} />
               <button
                 type="submit"
                 className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"

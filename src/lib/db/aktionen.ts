@@ -410,6 +410,39 @@ export async function statusSetzen(vorgangId: string, status: VorgangStatus): Pr
  * steht dort weiter die alte, und der nächste Newsletter läuft ins
  * Leere. Scheitert Brevo, ändert das an der Adresse hier nichts.
  */
+/**
+ * Die Anschrift der Firma im Netz suchen und als Vorschlag anzeigen.
+ *
+ * Gespeichert wird nichts: Der Vorschlag landet im Formular, daneben
+ * steht die Quelle, und ein Mensch drückt auf Speichern (Florian,
+ * 15.10.2026).
+ */
+export async function adresseVorschlagen(vorgangId: string, formData: FormData): Promise<void> {
+  await verlangeTeam();
+  const firma = text(formData, "firma");
+  const hinweis = text(formData, "hinweis");
+
+  let ziel = `/vorgaenge/${vorgangId}`;
+  try {
+    const { adresseSuchen, sucheMoeglich } = await import("@/lib/shop/firmenadresse");
+    if (!sucheMoeglich()) {
+      ziel += `?meldung=${encodeURIComponent("Für die Suche fehlt der Schlüssel zum Nachschlagen.")}`;
+    } else {
+      const v = await adresseSuchen({ firma, hinweis });
+      ziel += v
+        ? `?vorschlag=${encodeURIComponent(JSON.stringify(v))}`
+        : `?meldung=${encodeURIComponent(`Zu „${firma}“ war online keine eindeutige Anschrift zu finden.`)}`;
+    }
+  } catch (e) {
+    ziel += `?meldung=${encodeURIComponent(
+      `Die Suche ging schief: ${e instanceof Error ? e.message : "unbekannter Fehler"}`,
+    )}`;
+  }
+
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+  redirect(ziel);
+}
+
 export async function kontaktAendern(vorgangId: string, formData: FormData): Promise<void> {
   await verlangeTeam();
   const kundeId = text(formData, "kundeId");
