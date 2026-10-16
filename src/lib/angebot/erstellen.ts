@@ -16,6 +16,7 @@ import {
 } from "@/lib/domain/pricing";
 import type { Position, Vorgang } from "@/lib/domain/vorgang";
 import type { Plan } from "@/lib/seating/types";
+import { ablaufFuer, ablaufUeberschrift, mitEssen, mitShow, type Tageszeit, type Variante } from "./ablaufplan";
 import { datumLang } from "@/lib/zeit";
 
 /**
@@ -45,6 +46,30 @@ const EXKLUSIVARTIKEL: Record<"theater" | "parkett", string> = {
 };
 
 export interface AngebotsOptionen {
+  /**
+   * Welche Fassung: Show mit Menü, mit Fingerfood, nur Show oder
+   * Exklusivevent mit und ohne Show (Florian, 15.10.2026).
+   *
+   * Sie bestimmt beides, den Ablauf oben im Angebot und die Positionen
+   * darunter. Ohne Angabe bleibt es bei Show mit Menü.
+   */
+  variante?: Variante;
+  /** Nachmittagsshow oder Abendshow. Dreht bei 15 Uhr den Ablauf um. */
+  tageszeit?: Tageszeit;
+  /** Uhrzeit der Vorstellung, wenn ein Termin feststeht. */
+  showzeit?: string;
+  /**
+   * Für welchen Wochentag angeboten wird, wenn noch kein Termin
+   * feststeht: 0 ist Sonntag, 4 Donnerstag.
+   *
+   * "wichtig ist, dass man auch auswählen kann Termin steht noch nicht
+   * fest, dass man für einen bestimmten Wochentag anbieten kann, so dass
+   * der Kunde sieht, dass es Donnerstag günstiger wäre als Freitag oder
+   * Samstag" (Florian, 15.10.2026).
+   */
+  wochentag?: number | null;
+  /** Freier Zeitraum dazu, etwa "im November oder Dezember 2026". */
+  zeitraum?: string;
   /**
    * Einzelplaetze (Normalfall) oder Exklusivbuchung des Theaters bzw.
    * des Parketts.
@@ -127,49 +152,50 @@ export const FINGERFOOD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
   verpflegung: "fingerfood",
 };
 
-/** Der Ablaufplan, der in beiden Musterangeboten als Einleitung steht. */
+/**
+ * Die Einleitung des Angebots: Überschrift und Ablauf des Tages.
+ *
+ * Der Ablauf kommt aus ablaufplan.ts und richtet sich nach Fassung und
+ * Tageszeit: "Ablauf passt sich an, was wann passiert, dass rauskommt:
+ * so sieht Ihr Abend aus" (Florian, 15.10.2026). Das PDF liest die
+ * Uhrzeiten später wieder aus diesem Text heraus, deshalb bleibt der
+ * Aufbau: Zeile mit Uhrzeit, darunter der Text.
+ */
 export function einleitungstext(
   vorgang: Vorgang,
-  verpflegung: Verpflegung = "finedining",
+  optionen: {
+    variante?: Variante;
+    tageszeit?: Tageszeit;
+    showzeit?: string;
+    wochentag?: number | null;
+    zeitraum?: string;
+    /** Steht ein Termin fest? Dann nennt die Überschrift das Datum. */
+    terminSteht?: boolean;
+  } = {},
 ): string {
-  if (verpflegung === "fingerfood") {
-    return [
-      `Euer Event am ${datumLang(vorgang.vorstellung.datum)} im Florian Zimmer Theater, ` +
-        "ein Erlebnis für alle Sinne",
-      "",
-      "17:20 UHR",
-      "Empfang auf unserer Eventgalerie mit einem Glas Magicuvée",
-      "",
-      "17:50 UHR",
-      "Fingerfood by Osman Kavak auf unserer Eventgalerie. Herzhafte und süße Kleinigkeiten " +
-        "auf Etageren zum Teilen, in Ruhe und im Stehen, so wie ihr mögt.",
-      "",
-      "20:00 UHR",
-      `Das Highlight des Abends, die Magieshow "${vorgang.vorstellung.show}", live, hautnah und ` +
-        "mit bestem Blick zur Bühne.",
-      "",
-      "22:30 UHR",
-      "Ausklang an der Foyerbar",
-    ].join("\n");
-  }
+  const variante = optionen.variante ?? "menue";
+  const tageszeit = optionen.tageszeit ?? "abend";
+
+  const stationen = ablaufFuer({
+    variante,
+    tageszeit,
+    showname: vorgang.vorstellung.show,
+    showzeit: optionen.showzeit,
+  });
+
+  const kopf = ablaufUeberschrift({
+    datum: optionen.terminSteht === false ? null : vorgang.vorstellung.datum,
+    wochentag: optionen.wochentag,
+    zeitraum: optionen.zeitraum,
+  });
 
   return [
-    `Euer Event am ${datumLang(vorgang.vorstellung.datum)} im Florian Zimmer Theater, ein Erlebnis für alle Sinne`,
+    `${kopf}, ein Erlebnis für alle Sinne`,
     "",
-    "17:20 UHR",
-    "Magicuvée-Empfang auf unserer Eventgalerie",
-    "",
-    "17:50 UHR",
-    "4-Gang-Menü (Classic, Vegan oder Sea, gerne angepasst an besondere Wünsche) auf unserer " +
-      "Eventgalerie, oder soweit verfügbar geselliges Beisammensein in eurer stilvollen Loge im Showroom.",
-    "",
-    "20:00 UHR",
-    `Das Highlight des Abends, die Magieshow "${vorgang.vorstellung.show}", live, hautnah und mit ` +
-      "bestem Blick zur Bühne auf den VIP-Plätzen der Empore.",
-    "",
-    "22:30 UHR",
-    "Ausklang an der Foyerbar",
-  ].join("\n");
+    ...stationen.flatMap((st) => [`${st.zeit} UHR`, `${st.titel}. ${st.text}`, ""]),
+  ]
+    .join(String.fromCharCode(10))
+    .trimEnd();
 }
 
 /** Die Bedingungen, die in beiden Musterangeboten unten stehen. */
@@ -210,6 +236,22 @@ export function erzeugePositionen(
 ): Position[] {
   const preise = optionen.preise;
   const positionen: Position[] = [];
+
+  /*
+    Die Fassung bestimmt, was überhaupt im Angebot steht.
+
+    Nur Show heißt: keine Verpflegung, kein Empfang. Exklusiv ohne Show
+    heißt: das Haus und das Essen, aber keine Tickets (Florian,
+    15.10.2026). Die älteren Felder art und verpflegung bleiben gültig,
+    damit vorhandene Aufrufe weiterlaufen.
+  */
+  const variante = optionen.variante;
+  const exklusivVariante = variante === "exklusiv_show" || variante === "exklusiv_ohne_show";
+  const art = exklusivVariante ? (optionen.art === "parkett" ? "parkett" : "theater") : optionen.art;
+  const verpflegung =
+    variante === "fingerfood" ? "fingerfood" : variante ? "finedining" : optionen.verpflegung;
+  const essen = variante ? mitEssen(variante) : true;
+  const tickets = variante ? mitShow(variante) && !exklusivVariante : true;
   const gruppenIds = new Set(vorgang.gruppen.map((g) => g.id));
 
   // Wie viele der Gäste sitzen in einer Loge? Nur die bekommen das
@@ -223,7 +265,9 @@ export function erzeugePositionen(
   const inGalerie = gesamt - inLoge;
 
   // 1. Was auf den Tisch kommt
-  if (optionen.verpflegung === "fingerfood") {
+  if (!essen) {
+    // Nur die Show: kein Menü, kein Fingerfood, kein Empfang.
+  } else if (verpflegung === "fingerfood") {
     // Fingerfood steht auf Etageren zum Teilen, deshalb keine
     // Unterscheidung zwischen Loge und Galerie.
     if (gesamt > 0) positionen.push(zuPosition(preise, "FINGERFOOD", gesamt));
@@ -247,13 +291,15 @@ export function erzeugePositionen(
   // Der Einheitspreis, wenn einer gesetzt ist: Er ersetzt den
   // Kategoriepreis, die Bezeichnung der Kategorie bleibt stehen.
   const ticketpreis = optionen.ticketPreisCent;
-  const exklusiv = optionen.art === "theater" || optionen.art === "parkett";
+  const exklusiv = art === "theater" || art === "parkett";
 
-  if (exklusiv) {
+  if (!tickets && !exklusiv) {
+    // Exklusiv ohne Show: weder Tickets noch Saalpauschale für die Show.
+  } else if (exklusiv) {
     // Eine Zeile fuer das ganze Haus. Keine Kategorien, keine
     // Wahlmoeglichkeiten, nichts zum Aussuchen.
     positionen.push(
-      zuPosition(preise, EXKLUSIVARTIKEL[optionen.art as "theater" | "parkett"], 1, 0, ticketpreis),
+      zuPosition(preise, EXKLUSIVARTIKEL[art as "theater" | "parkett"], 1, 0, ticketpreis),
     );
   } else if (gewaehlt.length > 1) {
     for (const k of gewaehlt) {
@@ -275,7 +321,7 @@ export function erzeugePositionen(
   }
 
   // 3. Empfang
-  if (optionen.mitEmpfang) {
+  if (optionen.mitEmpfang && essen) {
     positionen.push(zuPosition(preise, "EMPFANG", gesamt));
   }
 

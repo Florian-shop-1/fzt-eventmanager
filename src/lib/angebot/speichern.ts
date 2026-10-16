@@ -30,6 +30,7 @@ import {
   gueltigBis,
   type AngebotsOptionen,
 } from "./erstellen";
+import type { Variante } from "./ablaufplan";
 import type { Vorgang } from "@/lib/domain/vorgang";
 
 async function verlangeTeam(): Promise<string> {
@@ -111,7 +112,14 @@ export async function angebotErzeugen(
   const angelegt = (await db()`
     insert into angebot (vorgang_id, nummer, gueltig_bis, einleitung, schlusstext, tracking_token)
     values (${vorgangId}, ${nummer}, ${gueltigBis(jetzt)},
-            ${einleitungstext(fuerRechnung, optionen.verpflegung)}, ${SCHLUSSTEXT},
+            ${einleitungstext(fuerRechnung, {
+              variante: optionen.variante ?? (optionen.verpflegung === "fingerfood" ? "fingerfood" : "menue"),
+              tageszeit: optionen.tageszeit,
+              showzeit: optionen.showzeit,
+              wochentag: optionen.wochentag,
+              zeitraum: optionen.zeitraum,
+              terminSteht: Boolean(vorgang.vorstellung?.datum) && optionen.wochentag == null,
+            })}, ${SCHLUSSTEXT},
             ${randomBytes(24).toString("base64url")})
     returning id
   `) as Array<{ id: string }>;
@@ -156,6 +164,26 @@ export async function angebotErzeugen(
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");
   return { angebotId };
+}
+
+/**
+ * Mehrere Fassungen auf einmal anlegen.
+ *
+ * "es muss so sein, dass der Gast z.B. auch drei verschiedene Angebote
+ * bekommen kann, z.B. Show mit Menü, Show mit Fingerfood" (Florian,
+ * 15.10.2026). Jede Fassung wird ein eigenes Angebot mit eigener Nummer
+ * und eigenem Link, nebeneinander im Vorgang.
+ */
+export async function angeboteErzeugen(
+  vorgangId: string,
+  basis: AngebotsOptionen,
+  varianten: Variante[],
+): Promise<{ anzahl: number }> {
+  const liste = varianten.length > 0 ? varianten : [basis.variante ?? "menue"];
+  for (const variante of liste) {
+    await angebotErzeugen(vorgangId, { ...basis, variante });
+  }
+  return { anzahl: liste.length };
 }
 
 /** Markiert ein Angebot als verschickt. */

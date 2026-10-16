@@ -205,6 +205,7 @@ export default async function VorgangSeite({
             kundeEmail={vorgang.kunde.email}
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
+            terminDatum={vorgang.vorstellung?.datum ?? null}
           />
 
           <Karte titel="Notizen">

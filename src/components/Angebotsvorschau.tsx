@@ -324,7 +324,7 @@ export function Angebotsvorschau({
         </h1>
 
         <pre className="mb-6 whitespace-pre-wrap font-sans text-xs leading-relaxed text-leise">
-          {einleitungstext(vorgang, verpflegung)}
+          {einleitungstext(vorgang, { variante: verpflegung === "fingerfood" ? "fingerfood" : "menue" })}
         </pre>
 
         <table className="mb-4 w-full text-xs">

@@ -13,12 +13,13 @@
 import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
-  angebotErzeugen,
+  angeboteErzeugen,
   angebotLoeschen,
   angebotVersendet,
   positionOptional,
   positionPreisSetzen,
 } from "@/lib/angebot/speichern";
+import { VARIANTEN, wochentagName, type Variante } from "@/lib/angebot/ablaufplan";
 import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
@@ -29,6 +30,7 @@ import type { AngebotDetail } from "@/lib/angebot/lesen";
 const TICKETS = artikelDerGruppe("ticket");
 const GETRAENKE = artikelDerGruppe("getraenke");
 const EXKLUSIV = artikelDerGruppe("exklusiv");
+const WOCHENTAGE = [0, 1, 2, 3, 4, 5, 6].map(wochentagName);
 
 /** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
 const ARTEN = [
@@ -44,6 +46,8 @@ export function AngebotBereich({
   kundeEmail,
   ansprechpartner,
   personen,
+  terminDatum,
+  terminZeit,
 }: {
   vorgangId: string;
   angebote: AngebotDetail[];
@@ -52,6 +56,9 @@ export function AngebotBereich({
   ansprechpartner: string | null;
   /** Gaeste laut Gruppen des Vorgangs. Vorbelegung der Stueckzahlen. */
   personen: number;
+  /** Termin des Vorgangs, falls einer feststeht. */
+  terminDatum?: string | null;
+  terminZeit?: string | null;
 }) {
   const [laeuft, starte] = useTransition();
   /*
@@ -77,6 +84,21 @@ export function AngebotBereich({
     Ticket oder Sitzplatzwahl erforderlich" (Florian, 15.10.2026).
   */
   const [art, setArt] = useState<"einzelplaetze" | "theater" | "parkett">("einzelplaetze");
+  /*
+    Welche Fassungen der Kunde bekommen soll.
+
+    "es muss so sein, dass der Gast z.B. auch drei verschiedene Angebote
+    bekommen kann" (Florian, 15.10.2026). Jede angekreuzte Kachel wird
+    ein eigenes Angebot mit eigenem Link.
+  */
+  const [fassungen, setFassungen] = useState<Variante[]>(["menue"]);
+  // Steht der Termin noch nicht fest, wird für einen Wochentag angeboten.
+  const [terminOffen, setTerminOffen] = useState(!terminDatum);
+  const [wochentag, setWochentag] = useState(5);
+  const [zeitraum, setZeitraum] = useState("");
+  const [tageszeit, setTageszeit] = useState<"nachmittag" | "abend">(
+    terminZeit && terminZeit < "17:00" ? "nachmittag" : "abend",
+  );
   const [getraenke, setGetraenke] = useState<string[]>([]);
   const [mitEmpfang, setMitEmpfang] = useState(false);
 
@@ -109,9 +131,139 @@ export function AngebotBereich({
           {angebote.length === 0 ? "Angebot erstellen" : "Weiteres Angebot erstellen"}
         </summary>
 
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 space-y-4">
+          {/* ------------------------------------------------------------
+              Schritt 1: Wann?
+              ------------------------------------------------------------ */}
+          <div className="rounded-md border border-linie p-3">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-leise">
+              1. Wann
+            </span>
+
+            {terminDatum && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  checked={!terminOffen}
+                  onChange={() => setTerminOffen(false)}
+                  className="h-4 w-4"
+                />
+                Fester Termin: {terminDatum.split("-").reverse().join(".")}
+                {terminZeit ? `, ${terminZeit} Uhr` : ""}
+              </label>
+            )}
+
+            <label className="mt-1 flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                checked={terminOffen}
+                onChange={() => setTerminOffen(true)}
+                className="h-4 w-4"
+              />
+              Termin steht noch nicht fest
+            </label>
+
+            {/*
+              Für einen Wochentag anbieten: "so dass der Kunde sieht,
+              dass es Donnerstag günstiger wäre als Freitag oder Samstag,
+              Sonntag übrigens auch" (Florian, 15.10.2026).
+            */}
+            {terminOffen && (
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Für welchen Wochentag</span>
+                  <select value={wochentag} onChange={(e) => setWochentag(Number(e.target.value))}>
+                    {[4, 5, 6, 0].map((n) => (
+                      <option key={n} value={n}>
+                        {WOCHENTAGE[n]}
+                        {(n === 4 || n === 0) && " (günstiger)"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Zeitraum (freiwillig)</span>
+                  <input
+                    value={zeitraum}
+                    onChange={(e) => setZeitraum(e.target.value)}
+                    placeholder="im November oder Dezember 2026"
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="mt-2 flex flex-wrap gap-4 text-sm">
+              {([
+                ["abend", "Abendshow, 20 Uhr"],
+                ["nachmittag", "Nachmittagsshow, 15 Uhr"],
+              ] as const).map(([wert, text]) => (
+                <label key={wert} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={tageszeit === wert}
+                    onChange={() => setTageszeit(wert)}
+                    className="h-4 w-4"
+                  />
+                  {text}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-leise">
+              Danach richtet sich der Ablauf im Angebot. Bei der Nachmittagsshow kommen Empfang und
+              Menü nach der Show.
+            </p>
+          </div>
+
+          {/* ------------------------------------------------------------
+              Schritt 2: Welche Fassungen?
+              ------------------------------------------------------------ */}
+          <div className="rounded-md border border-linie p-3">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-leise">
+              2. Was soll angeboten werden
+            </span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {VARIANTEN.map((v) => {
+                const an = fassungen.includes(v.wert);
+                return (
+                  <label
+                    key={v.wert}
+                    className="flex cursor-pointer items-start gap-2 rounded-md border p-2 text-sm"
+                    style={{
+                      borderColor: an ? "var(--gold)" : "var(--linie)",
+                      background: an ? "var(--gold-hell)" : "transparent",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={an}
+                      onChange={() =>
+                        setFassungen(
+                          an
+                            ? fassungen.filter((x) => x !== v.wert)
+                            : [...fassungen, v.wert],
+                        )
+                      }
+                      className="mt-0.5 h-4 w-4"
+                    />
+                    <span>
+                      <span className="font-medium">{v.titel}</span>
+                      <span className="block text-xs text-leise">{v.enthaelt}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-leise">
+              {fassungen.length > 1
+                ? `Es entstehen ${fassungen.length} Angebote nebeneinander, jedes mit eigener Nummer und eigenem Link.`
+                : "Mehrere ankreuzen heißt: Der Kunde bekommt mehrere Angebote zur Auswahl."}
+            </p>
+          </div>
+
           <label className="block">
-            <span className="mb-1 block text-xs text-leise">Art des Events</span>
+            <span className="mb-1 block text-xs text-leise">
+              Exklusivbuchung: welcher Teil des Hauses
+            </span>
             <select value={art} onChange={(e) => setArt(e.target.value as typeof art)}>
               {ARTEN.map((a) => (
                 <option key={a.wert} value={a.wert}>
@@ -197,8 +349,14 @@ export function AngebotBereich({
             disabled={laeuft}
             onClick={() =>
               starte(() =>
-                void angebotErzeugen(vorgangId, {
+                void angeboteErzeugen(
+                  vorgangId,
+                  {
                   art,
+                  tageszeit,
+                  wochentag: terminOffen ? wochentag : null,
+                  zeitraum: terminOffen ? zeitraum : "",
+                  showzeit: !terminOffen && terminZeit ? terminZeit : undefined,
                   ticket: "TK2",
                   kategorien:
                     art === "einzelplaetze"
@@ -214,12 +372,18 @@ export function AngebotBereich({
                   // Bei einer Exklusivbuchung ist der ganze Saal bezahlt,
                   // leere Logenplaetze werden nicht noch einmal berechnet.
                   mitUnterbelegung: art === "einzelplaetze",
-                }),
+                  },
+                  fassungen,
+                ),
               )
             }
             className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-dunkel disabled:opacity-50"
           >
-            {laeuft ? "wird erstellt..." : "Angebot erstellen"}
+            {laeuft
+              ? "wird erstellt..."
+              : fassungen.length > 1
+                ? `${fassungen.length} Angebote erstellen`
+                : "Angebot erstellen"}
           </button>
 
           <p className="text-xs text-leise">
