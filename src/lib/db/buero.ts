@@ -324,6 +324,45 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
     kundeId = neu[0].id;
   }
 
+  /*
+    Die Firma aus der Mailadresse schliessen.
+
+    "du kannst ueber die E-Mail ja auch schnell schlussfolgern, welche
+    Firma es genau ist" (Florian, 16.10.2026). Schreibt jemand von einer
+    eigenen Domain, steht im Impressum dieser Website die Anschrift. Sie
+    wird gleich eingetragen, damit der Mitarbeiter es nicht tun muss;
+    woher sie stammt, steht in der Notiz, und aendern kann sie jeder.
+
+    Freie Postfaecher wie web.de fuehren zu nichts, dort wird nicht
+    gesucht.
+  */
+  let adressnotiz = "";
+  try {
+    const { adresseSuchen, firmendomain } = await import("@/lib/shop/firmenadresse");
+    if (email && firmendomain(email)) {
+      const gefunden = await adresseSuchen({ firma: kundenname, email });
+      if (gefunden) {
+        /*
+          Der Name aus dem Impressum gilt nur, wenn er nach Firma
+          aussieht: Im Leadformular steht meist der Mensch, nicht das
+          Unternehmen.
+        */
+        const nachFirma = /\b(gmbh|mbh|ag|kg|ohg|ug|gbr|se)\b|\be\. ?[kv]\./i;
+        const firmenname = nachFirma.test(gefunden.firma) ? gefunden.firma : kundenname;
+
+        await db()`
+          update kunde
+             set name = ${firmenname}, strasse = ${gefunden.strasse}, plz = ${gefunden.plz},
+                 ort = ${gefunden.ort}, geaendert_am = now()
+           where id = ${kundeId}
+        `;
+        adressnotiz = `Anschrift automatisch gefunden: ${gefunden.strasse}, ${gefunden.plz} ${gefunden.ort}. Quelle: ${gefunden.quelle || "Impressum"}. Bitte pruefen.`;
+      }
+    }
+  } catch {
+    // Die Suche ist Beiwerk. Faellt sie aus, entsteht der Vorgang trotzdem.
+  }
+
   const jetzt = new Date();
   const praefix = `V-${String(jetzt.getMonth() + 1).padStart(2, "0")}${String(jetzt.getFullYear()).slice(-2)}-`;
   const letzte = (await db()`
@@ -392,6 +431,7 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
               personen ? `Angabe zur Personenzahl: ${personen}` : "",
               wunsch ? `Wunschtermin: ${wunsch}` : "",
               kommentar ? `Anmerkung des Kunden: ${kommentar}` : "",
+              adressnotiz,
             ]
               .filter(Boolean)
               .join(" ")})

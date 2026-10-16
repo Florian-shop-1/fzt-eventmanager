@@ -30,6 +30,28 @@ export function sucheMoeglich(): boolean {
 }
 
 /**
+ * Postfächer, hinter denen keine Firma steht.
+ *
+ * Bei allen anderen Endungen gehört die Domain der Firma selbst, und
+ * dort steht im Impressum die Anschrift: "du kannst über die E-Mail ja
+ * auch schnell schlussfolgern, welche Firma es genau ist" (Florian,
+ * 16.10.2026).
+ */
+const FREIE_POSTFAECHER = new Set([
+  "gmail.com", "googlemail.com", "web.de", "gmx.de", "gmx.net", "gmx.at", "t-online.de",
+  "outlook.de", "outlook.com", "hotmail.de", "hotmail.com", "live.de", "yahoo.de", "yahoo.com",
+  "icloud.com", "me.com", "aol.com", "freenet.de", "posteo.de", "mail.de", "arcor.de",
+  "protonmail.com", "proton.me",
+]);
+
+/** Die Firmendomain aus einer Mailadresse, sonst null. */
+export function firmendomain(email: string): string | null {
+  const domain = email.trim().toLowerCase().split("@")[1];
+  if (!domain || !domain.includes(".")) return null;
+  return FREIE_POSTFAECHER.has(domain) ? null : domain;
+}
+
+/**
  * Sucht die Geschäftsanschrift.
  *
  * Gefunden wird nur, was eindeutig ist. Gibt es mehrere Firmen gleichen
@@ -37,10 +59,15 @@ export function sucheMoeglich(): boolean {
  */
 export async function adresseSuchen(o: {
   firma: string;
-  /** Was sonst noch bekannt ist, etwa die Mailadresse oder der Ort. */
+  /** Die Mailadresse des Kunden. Ihre Domain führt meist direkt zur Firma. */
+  email?: string;
+  /** Was sonst noch bekannt ist, etwa der Ort. */
   hinweis?: string;
 }): Promise<Adressvorschlag | null> {
-  if (!sucheMoeglich() || o.firma.trim().length < 3) return null;
+  const domain = o.email ? firmendomain(o.email) : null;
+  if (!sucheMoeglich()) return null;
+  // Ohne Firmennamen und ohne eigene Domain gibt es nichts zu suchen.
+  if (o.firma.trim().length < 3 && !domain) return null;
 
   const antwort = await new Anthropic().messages.create({
     model: MODELL,
@@ -54,11 +81,22 @@ export async function adresseSuchen(o: {
       + "Nimm nur eine Anschrift, die eindeutig zu dieser Firma gehört, am besten aus dem "
       + "Impressum der eigenen Website. Rate nicht. Gibt es mehrere Firmen dieses Namens oder "
       + "passt der Hinweis nicht zum Fund, antworte mit gefunden false. "
-      + "In quelle gehört die Webadresse, auf der die Anschrift stand.",
+      + "In quelle gehört die Webadresse, auf der die Anschrift stand. "
+      + "Steht eine Domain dabei, fang dort an: Die Mailadresse des Kunden gehört zu seiner "
+      + "Firma, und auf dieser Website steht das Impressum. Weicht der Firmenname dort leicht ab "
+      + "(Rechtsform, Schreibweise), ist das in Ordnung; nimm dann die Schreibweise aus dem "
+      + "Impressum.",
     messages: [
       {
         role: "user",
-        content: `Firma: ${o.firma}${o.hinweis ? `\nWeitere Angaben: ${o.hinweis}` : ""}`,
+        content: [
+          o.firma ? `Firma: ${o.firma}` : "Firmenname unbekannt",
+          domain ? `Eigene Domain aus der Mailadresse: ${domain}` : "",
+          o.email && !domain ? `Mailadresse (freies Postfach): ${o.email}` : "",
+          o.hinweis ? `Weitere Angaben: ${o.hinweis}` : "",
+        ]
+          .filter(Boolean)
+          .join(String.fromCharCode(10)),
       },
     ],
   });

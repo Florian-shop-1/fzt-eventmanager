@@ -421,6 +421,7 @@ export async function adresseVorschlagen(vorgangId: string, formData: FormData):
   await verlangeTeam();
   const firma = text(formData, "firma");
   const hinweis = text(formData, "hinweis");
+  const email = text(formData, "email");
 
   let ziel = `/vorgaenge/${vorgangId}`;
   try {
@@ -428,7 +429,7 @@ export async function adresseVorschlagen(vorgangId: string, formData: FormData):
     if (!sucheMoeglich()) {
       ziel += `?meldung=${encodeURIComponent("Für die Suche fehlt der Schlüssel zum Nachschlagen.")}`;
     } else {
-      const v = await adresseSuchen({ firma, hinweis });
+      const v = await adresseSuchen({ firma, email, hinweis });
       ziel += v
         ? `?vorschlag=${encodeURIComponent(JSON.stringify(v))}`
         : `?meldung=${encodeURIComponent(`Zu „${firma}“ war online keine eindeutige Anschrift zu finden.`)}`;

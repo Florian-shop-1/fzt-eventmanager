@@ -487,11 +487,8 @@ export default async function VorgangSeite({
               */}
               <form action={adresseVorschlagen.bind(null, vorgang.id)} className="mt-2">
                 <input type="hidden" name="firma" value={vorgang.kunde.name} />
-                <input
-                  type="hidden"
-                  name="hinweis"
-                  value={[vorgang.kunde.email, vorgang.kunde.ort ?? ""].filter(Boolean).join(", ")}
-                />
+                <input type="hidden" name="email" value={vorgang.kunde.email} />
+                <input type="hidden" name="hinweis" value={vorgang.kunde.ort ?? ""} />
                 <Absendeknopf text="Anschrift online suchen" laeuftText="Wird gesucht..." />
               </form>
             </details>
