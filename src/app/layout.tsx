@@ -149,7 +149,12 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
   {
     titel: "Foyer",
     punkte: [
-      { href: "/foyer", label: "Foyer", rollen: ["chef", "team", "foyer"] },
+      /*
+        Das Blatt heisst nach dem, was darauf steht: Stehtische,
+        Baendchen, wer wohin gehoert. Zwei Punkte "Foyer" untereinander
+        sagten niemandem, welcher welcher ist (Florian, 16.10.2026).
+      */
+      { href: "/foyer", label: "Stehtische", rollen: ["chef", "team", "foyer"] },
       /*
         Die To-do-Liste des Foyers, nach demselben Muster wie der
         Show-Check. Sie stand zuerst unter "Show", und dort sucht sie
