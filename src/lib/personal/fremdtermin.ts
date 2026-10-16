@@ -143,3 +143,67 @@ export async function freieTage(o: {
 
   return ergebnis;
 }
+
+/**
+ * Nachts prüfen, ob eine neue Vorstellung mit Ulm kollidiert.
+ *
+ * "bitte melden, sobald ein neuer Donnerstagstermin bei uns eingestellt
+ * wird" (Florian, 16.10.2026). Gemeldet wird jede Kollision genau
+ * einmal: Sonst kaeme die Mail jede Nacht neu.
+ */
+export async function auswaertsWache(): Promise<{ neu: number; gemeldet: string[] }> {
+  const treffer = await kollisionen();
+  if (treffer.length === 0) return { neu: 0, gemeldet: [] };
+
+  const schluessel = treffer.map((k) => `${k.datum}|${k.showzeit}|${k.termin.von}`);
+  const bekannt = new Set(
+    ((await db()`
+      select schluessel from auswaerts_gemeldet where schluessel = any(${schluessel}::text[])
+    `.catch(() => [])) as Array<{ schluessel: string }>).map((r) => r.schluessel),
+  );
+
+  const neue = treffer.filter((_, i) => !bekannt.has(schluessel[i]));
+  if (neue.length === 0) return { neu: 0, gemeldet: [] };
+
+  const de = (iso: string) => iso.split("-").reverse().join(".");
+  const zeilen = neue.map(
+    (k) =>
+      `${de(k.datum)}: eigene Vorstellung ${k.showzeit} Uhr "${k.showname}", `
+      + `in Ulm ${k.termin.von} bis ${k.termin.bis} (${k.termin.art}). `
+      + `Spaetester Aufbruch in Ulm: ${k.aufbruch} Uhr.`,
+  );
+
+  const { mailVerschicken } = await import("@/lib/mail/versand");
+  const { postfachPersonal, antwortPersonal } = await import("@/lib/mail/postfaecher");
+
+  await mailVerschicken({
+    an: ["info@florianzimmer.com", "kevin.steele@florianzimmer.com"],
+    absender: postfachPersonal(),
+    antwortAn: antwortPersonal(),
+    betreff:
+      neue.length === 1
+        ? "Neue Terminkollision mit dem Theater Ulm"
+        : `${neue.length} neue Terminkollisionen mit dem Theater Ulm`,
+    text: [
+      "Hallo,",
+      "",
+      "im Spielplan steht etwas Neues, das sich mit Florians Terminen im Theater Ulm beisst:",
+      "",
+      ...zeilen,
+      "",
+      "Gerechnet wird mit 30 Minuten Vorlauf im eigenen Haus und 15 Minuten Fahrt.",
+      "An Tagen mit eigener Vorstellung um 20 Uhr kann in Ulm bis 19:00 Uhr geprobt werden.",
+      "",
+      "Alle Auswaertstermine stehen im Eventmanager unter Auswaerts.",
+    ].join(String.fromCharCode(10)),
+  });
+
+  for (const s of schluessel.filter((_, i) => !bekannt.has(schluessel[i]))) {
+    await db()`
+      insert into auswaerts_gemeldet (schluessel) values (${s})
+      on conflict (schluessel) do nothing
+    `.catch(() => undefined);
+  }
+
+  return { neu: neue.length, gemeldet: zeilen };
+}

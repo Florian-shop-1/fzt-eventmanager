@@ -18,6 +18,7 @@ import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
 import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
 import { anfragenMelden } from "@/lib/shop/lead-meldung";
 import { anwaltspostHolen } from "@/lib/personal/anwaltspost";
+import { auswaertsWache } from "@/lib/personal/fremdtermin";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -122,6 +123,12 @@ const MORGEN: Teil[] = [
     der Person, um die es geht (Florian, 15.10.2026).
   */
   { name: "anwaltspost", tun: () => anwaltspostHolen() },
+  /*
+    Kollisionen mit dem Theater Ulm. Kommt eine neue Vorstellung in den
+    Spielplan, die Florian nicht schafft, geht eine Mail an ihn und
+    Kevin (Florian, 16.10.2026).
+  */
+  { name: "auswaerts", tun: () => auswaertsWache() },
   /*
     Die Amazon-Rechnungen.
 
