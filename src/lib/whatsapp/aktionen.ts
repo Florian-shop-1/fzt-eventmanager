@@ -234,14 +234,26 @@ async function koerbeSchliessen(waId: string, wer: string): Promise<void> {
   const telefon = (u.telefon ?? "").replace(/\D/g, "").slice(-9);
   if (!email && !telefon) return;
 
+  /*
+    Jeder offene Korb dieser Person wird geschlossen.
+
+    "wenn hier anderweitig geklaert geklickt wurde, dann duerfen keine
+    Abbrecher-Mails mehr an den Kunden gehen. Er hatte ein technisches
+    Problem, wurde geklaert, und er waere nur irritiert" (Florian,
+    16.10.2026).
+
+    Deshalb zaehlt hier jeder Stand ausser gewonnen und verloren, und der
+    Zeitraum reicht weiter zurueck: Ein Korb von vor fuenf Wochen kann
+    noch auf das Souvenirglas warten.
+  */
   await db()`
     update shop_buchung
        set vertrieb_status = 'gewonnen',
            vertrieb_am = now(),
            vertrieb_notiz = ${`Im Posteingang von ${wer} als anderweitig geklärt abgehakt`}
      where not bestaetigt
-       and vertrieb_status in ('neu', 'anrufen', 'nicht_erreicht', 'im_gespraech')
-       and eingegangen_am > now() - interval '30 days'
+       and vertrieb_status not in ('gewonnen', 'verloren')
+       and eingegangen_am > now() - interval '90 days'
        and (
          (${email} <> '' and lower(email) = ${email})
          or (${telefon} <> '' and right(regexp_replace(coalesce(telefon, ''), '\D', '', 'g'), 9) = ${telefon})

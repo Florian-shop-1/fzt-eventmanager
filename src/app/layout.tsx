@@ -470,6 +470,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             einen Blick haben" (Florian, 14.10.2026).
           */
           punkte.unshift({ href: "/mitarbeiter", label: "Personalakten", rollen: [] });
+
+          /*
+            Die Auswaertstermine sehen nur Florian und Kevin: "es soll
+            nur fuer Kevin und mich sichtbar sein" (Florian, 16.10.2026).
+          */
+          if (["info@florianzimmer.com", "kevin.steele@florianzimmer.com"].includes(
+            benutzer.email.toLowerCase(),
+          )) {
+            punkte.push({ href: "/auswaerts", label: "Auswärts (Theater Ulm)", rollen: [] });
+          }
           // Die Arbeitsverträge stehen seit dem 15.10.2026 in der Personalakte.
           /*
             Die alten Papierverträge und Papierbögen stehen seit dem
