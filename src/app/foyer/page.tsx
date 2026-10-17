@@ -326,20 +326,36 @@ export default async function FoyerSeite({
           Gebraucht wird die Liste am Einlass, wenn ein Gast fragt, wo er
           hin soll.
         */}
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-leise">
-            Diese Gäste essen vor oder nach der Show bei uns in der 1. Etage auf der Eventgalerie
-          </h2>
-          {blatt.gesamtMenues === 0 ? (
-            <p className="text-sm text-leise">
-              Niemand isst heute bei uns. Alle Gäste gehen direkt in den Saal.
-            </p>
-          ) : plan ? (
-            <WerWohin plan={plan} mehrereShows={mehrereShows} />
-          ) : (
-            <p className="text-sm text-leise">Für diesen Abend liegt noch keine Verteilung vor.</p>
-          )}
-        </section>
+        {/*
+          Zugeklappt, weil sie beim Aufbauen nicht gebraucht wird: "die
+          bereiten nur die Stehtische vor" (Florian, 17.10.2026). Beim
+          Einlass fragt ein Gast dann doch, wo er hin soll, dafuer ein
+          Klick. Beim Drucken steht sie offen da.
+        */}
+        <details className="print:open" open={false}>
+          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-leise">
+            Wer wo sitzt
+            {blatt.gesamtMenues > 0 && (
+              <span className="ml-2 normal-case tracking-normal">
+                ({blatt.gesamtMenues} {blatt.gesamtMenues === 1 ? "Gast" : "Gäste"})
+              </span>
+            )}
+          </summary>
+          <p className="mt-2 text-sm text-leise">
+            Diese Gäste essen vor oder nach der Show bei uns in der 1. Etage auf der Eventgalerie.
+          </p>
+          <div className="mt-3">
+            {blatt.gesamtMenues === 0 ? (
+              <p className="text-sm text-leise">
+                Niemand isst heute bei uns. Alle Gäste gehen direkt in den Saal.
+              </p>
+            ) : plan ? (
+              <WerWohin plan={plan} mehrereShows={mehrereShows} />
+            ) : (
+              <p className="text-sm text-leise">Für diesen Abend liegt noch keine Verteilung vor.</p>
+            )}
+          </div>
+        </details>
 
         {/* 4. Der Ablauf */}
         {mehrereShows && (
