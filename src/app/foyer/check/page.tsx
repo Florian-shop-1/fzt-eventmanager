@@ -339,6 +339,7 @@ function Abschnitt({
           videoTitel: p.videoTitel,
           linkUrl: p.linkUrl,
           linkTitel: p.linkTitel,
+          hervorgehoben: p.hervorgehoben,
         }))}
       />
 

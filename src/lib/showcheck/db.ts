@@ -87,6 +87,13 @@ export interface Punkt {
   /** Eine Anleitung in mehreren Schritten, siehe migrations/167. */
   linkUrl: string | null;
   linkTitel: string | null;
+  /**
+   * Farbig hervorgehoben, weil er leicht überlesen wird.
+   *
+   * Für Fragen statt Handgriffen, etwa ob alles da ist, um zu öffnen
+   * (Florian, 17.10.2026).
+   */
+  hervorgehoben: boolean;
   /** Gesetzt, wenn er für diese Vorstellung schon abgehakt ist. */
   erledigtVon: string | null;
   erledigtAm: string | null;
@@ -96,7 +103,7 @@ export interface Punkt {
 export async function checkliste(ditixEventId: string, liste: Liste = "show"): Promise<Punkt[]> {
   const z = (await db()`
     select p.id, p.bereich, p.text, p.reihenfolge, h.erledigt_von, h.erledigt_am,
-           p.link_url, p.link_titel, t.video_url, t.titel as video_titel
+           p.link_url, p.link_titel, p.hervorgehoben, t.video_url, t.titel as video_titel
       from showcheck_punkt p
       left join showcheck_haken h
         on h.punkt_id = p.id and h.ditix_event_id = ${ditixEventId}
@@ -114,6 +121,7 @@ export async function checkliste(ditixEventId: string, liste: Liste = "show"): P
     videoTitel: r.video_titel ? String(r.video_titel) : null,
     linkUrl: r.link_url ? String(r.link_url) : null,
     linkTitel: r.link_titel ? String(r.link_titel) : null,
+    hervorgehoben: r.hervorgehoben === true,
     erledigtVon: r.erledigt_von ? String(r.erledigt_von) : null,
     erledigtAm: r.erledigt_am ? new Date(r.erledigt_am as string).toISOString() : null,
   }));

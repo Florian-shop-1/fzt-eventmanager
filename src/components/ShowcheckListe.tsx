@@ -25,6 +25,8 @@ export interface CheckPunkt {
   videoTitel?: string | null;
   /** Eine Anleitung in mehreren Schritten aus Tipps und Tricks. */
   linkUrl?: string | null;
+  /** Farbig hervorgehoben, damit er nicht überlesen wird. */
+  hervorgehoben?: boolean;
   linkTitel?: string | null;
 }
 
@@ -273,7 +275,27 @@ export function ShowcheckListe({
 
       <ul className="divide-y divide-linie">
         {stand.map((p) => (
-          <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+          <li
+            key={p.id}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+            /*
+              Ein hervorgehobener Punkt bekommt Farbe und etwas Luft:
+              "Mitte farbig hervorheben" (Florian, 17.10.2026). Abgehakt
+              verliert er sie wieder, sonst leuchtet die Liste bis zum
+              Schluss.
+            */
+            style={
+              p.hervorgehoben && !p.erledigtAm
+                ? {
+                    background: "var(--gold-hell)",
+                    borderLeft: "4px solid var(--gold-dunkel)",
+                    paddingLeft: "0.5rem",
+                    paddingRight: "0.5rem",
+                    borderRadius: "0.375rem",
+                  }
+                : undefined
+            }
+          >
             <button
               type="button"
               onClick={() => void umschalten(p)}
@@ -295,7 +317,9 @@ export function ShowcheckListe({
               <button
                 type="button"
                 onClick={() => void umschalten(p)}
-                className={`text-left text-sm ${p.erledigtAm ? "text-leise line-through" : ""}`}
+                className={`text-left text-sm ${p.erledigtAm ? "text-leise line-through" : ""}${
+                  p.hervorgehoben && !p.erledigtAm ? " font-semibold" : ""
+                }`}
               >
                 {p.text}
               </button>
