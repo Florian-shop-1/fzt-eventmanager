@@ -29,7 +29,16 @@ export interface PlanbarerAbend {
   uhrzeiten: string[];
   name: string;
   /** Alle Vorstellungen des Tages mit Kennung und Namen. */
-  shows: Array<{ ditixEventId: string; uhrzeit: string; name: string }>;
+  shows: Array<{ ditixEventId: string; uhrzeit: string; name: string; abgesagt: boolean }>;
+  /**
+   * Alle Vorstellungen dieses Tages sind abgesagt.
+   *
+   * "wenn eine Show abgesagt wurde, dann muss diese auch bei den
+   * Showupgrades und an jeder anderen Stelle als storniert erscheinen"
+   * (Florian, 17.10.2026). Vorher stand ein abgesagter Abend überall
+   * so da wie jeder andere.
+   */
+  abgesagt: boolean;
   /** Gäste mit Menü aus dem Webshop. */
   ausShop: number;
   /** Gäste aus Firmenvorgängen. */
@@ -75,6 +84,10 @@ export async function planbareAbende(
 
 async function abendeAufbauen(maxAnzahl: number): Promise<PlanbarerAbend[]> {
   const termine = await showtageAbHeute(maxAnzahl);
+
+  // Welche Vorstellungen sind abgesagt? Siehe lib/absage.
+  const { abgesagteEventIds } = await import("@/lib/absage/db");
+  const abgesagt = await abgesagteEventIds().catch(() => new Set<string>());
 
   // Menügäste aus dem Shop, einmal geholt und nach Vorstellung gezählt.
   const shopJeEvent = new Map<string, number>();
@@ -156,7 +169,9 @@ async function abendeAufbauen(maxAnzahl: number): Promise<PlanbarerAbend[]> {
         ditixEventId: t.ditixEventId,
         uhrzeit: t.uhrzeit,
         name: t.name,
+        abgesagt: abgesagt.has(t.ditixEventId),
       })),
+      abgesagt: sortiert.every((t) => abgesagt.has(t.ditixEventId)),
       ausShop,
       ausVorgaengen,
       gaeste: ausShop + ausVorgaengen,

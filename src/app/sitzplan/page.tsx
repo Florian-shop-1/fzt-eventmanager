@@ -12,6 +12,7 @@ import {
 import { AbendSitzplan } from "@/components/AbendSitzplan";
 import { datumKurz, vorZeit } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { planOhnePreise } from "@/lib/seating/ohnePreise";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -86,6 +87,7 @@ export default async function SitzplanSeite({
         heute={heute}
             abende={termine.map((t) => ({
               ditixEventId: t.ditixEventId,
+              abgesagt: t.abgesagt,
               datum: t.datum,
               uhrzeit: t.uhrzeit,
               uhrzeiten: t.uhrzeiten,
@@ -96,6 +98,13 @@ export default async function SitzplanSeite({
                 (t.planFestgelegt ? " · festgelegt" : ""),
             }))}
           />
+          <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
+        />
 
           {gewaehlt && (
             <AbendAnsicht ditixEventId={gewaehlt} kaufmaennisch={kaufmaennisch} />

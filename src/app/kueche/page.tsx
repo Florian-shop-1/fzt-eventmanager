@@ -7,6 +7,7 @@ import { waehleAbend } from "@/lib/seating/abendwahl";
 import { artikel } from "@/lib/domain/artikel";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
@@ -86,6 +87,7 @@ export default async function KuecheSeite({
         heute={heute}
             abende={termine.map((t) => ({
               ditixEventId: t.ditixEventId,
+              abgesagt: t.abgesagt,
               datum: t.datum,
               uhrzeit: t.uhrzeit,
               uhrzeiten: t.uhrzeiten,
@@ -94,6 +96,13 @@ export default async function KuecheSeite({
               hinweis: t.gaeste > 0 ? `${t.gaeste} mit Menü` : "keine Menüs",
             }))}
           />
+          <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
+        />
 
           {blatt && (
             <Blatt

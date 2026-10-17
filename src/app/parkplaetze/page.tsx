@@ -4,6 +4,7 @@ import { parkplaetzeDesTages, type Parkplatzbuchung } from "@/lib/shop/parkplaet
 import { findeTermin } from "@/lib/ditix/spielplan";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import Link from "next/link";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { SofortDrucken } from "@/components/SofortDrucken";
@@ -256,12 +257,20 @@ export default async function ParkplaetzeSeite({
         heute={heute}
           abende={termine.map((t) => ({
             ditixEventId: t.ditixEventId,
+            abgesagt: t.abgesagt,
             datum: t.datum,
             uhrzeit: t.uhrzeit,
             uhrzeiten: t.uhrzeiten,
             name: t.name,
             hinweis: t.gaeste > 0 ? `${t.gaeste} am Tisch` : "keine Gäste am Tisch",
           }))}
+        />
+        <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
         />
       </div>
 

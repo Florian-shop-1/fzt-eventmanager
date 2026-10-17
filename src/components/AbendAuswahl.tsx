@@ -24,6 +24,8 @@ export interface AbendKachel {
   hinweis: string;
   /** Hebt den Abend hervor, etwa weil dort eine Firma sitzt. */
   betont?: boolean;
+  /** Der Abend ist abgesagt. Dann steht er durchgestrichen und rot da. */
+  abgesagt?: boolean;
 }
 
 /** Monatsschlüssel JJJJ-MM aus einem ISO-Datum. */
@@ -124,11 +126,17 @@ export function AbendAuswahl({
                 : "border-linie bg-flaeche hover:border-gold"
             }`}
             style={
-              // Heute bekommt einen kräftigen Rahmen, auch wenn gerade ein
-              // anderer Tag geöffnet ist. Man soll sofort sehen, wo man ist.
-              a.datum === heute
-                ? { borderColor: "var(--gold-dunkel)", borderWidth: 2 }
-                : undefined
+              /*
+                Abgesagt schlaegt alles: Der Abend steht rot da, damit
+                niemand ihn aus Versehen bearbeitet (Florian,
+                17.10.2026). Sonst bekommt heute einen kraeftigen Rahmen,
+                auch wenn gerade ein anderer Tag geoeffnet ist.
+              */
+              a.abgesagt
+                ? { borderColor: "var(--blocker)", background: "var(--blocker-hell)" }
+                : a.datum === heute
+                  ? { borderColor: "var(--gold-dunkel)", borderWidth: 2 }
+                  : undefined
             }
           >
             <div className="font-medium">
@@ -140,14 +148,22 @@ export function AbendAuswahl({
                   Heute
                 </span>
               )}
-              {datumKurz(a.datum)}
+              <span className={a.abgesagt ? "line-through" : ""}>{datumKurz(a.datum)}</span>
+              {a.abgesagt && (
+                <span
+                  className="ml-1.5 rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide"
+                  style={{ background: "var(--blocker)", color: "#fff" }}
+                >
+                  abgesagt
+                </span>
+              )}
               {a.betont && (
                 <span className="ml-1.5 text-xs" style={{ color: "var(--gold-dunkel)" }}>
                   ●
                 </span>
               )}
             </div>
-            <div className="text-xs text-leise">
+            <div className={`text-xs text-leise${a.abgesagt ? " line-through" : ""}`}>
               {(a.uhrzeiten ?? [a.uhrzeit]).join(" und ")} Uhr · {a.hinweis}
             </div>
           </Link>

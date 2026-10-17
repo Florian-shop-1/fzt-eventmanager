@@ -150,6 +150,7 @@ export default async function FoyerCheckSeite({
         heute={heute}
         abende={termine.map((t) => ({
           ditixEventId: t.ditixEventId,
+          abgesagt: t.abgesagt,
           datum: t.datum,
           uhrzeit: t.uhrzeit,
           uhrzeiten: t.uhrzeiten,

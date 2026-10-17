@@ -6,6 +6,7 @@ import { artikel } from "@/lib/domain/artikel";
 import { LOGEN } from "@/lib/domain/venue";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { ShowSchild } from "@/components/Tagesablauf";
 import { nameOrdentlich } from "@/lib/domain/namen";
 import { DruckKnopf } from "@/components/DruckKnopf";
@@ -111,6 +112,7 @@ export default async function EinlasslisteSeite({
         heute={heute}
         abende={termine.map((t) => ({
           ditixEventId: t.ditixEventId,
+          abgesagt: t.abgesagt,
           datum: t.datum,
           uhrzeit: t.uhrzeit,
           uhrzeiten: t.uhrzeiten,
@@ -119,6 +121,13 @@ export default async function EinlasslisteSeite({
           hinweis: t.gaeste > 0 ? `${t.gaeste} am Tisch` : "keine Gäste am Tisch",
         }))}
       />
+      <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
+        />
 
       <article className="rounded-lg border border-linie bg-flaeche p-8 print:border-0 print:p-0">
         <header className="mb-5 border-b-2 border-text pb-3">

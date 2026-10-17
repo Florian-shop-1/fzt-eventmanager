@@ -10,6 +10,7 @@ import { vorOrtKassiert } from "@/lib/db/aktionen";
 import { kapazitaet, LOGEN, EVENTGALERIE_TISCHE } from "@/lib/domain/venue";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { Logo } from "@/components/Logo";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
@@ -136,6 +137,7 @@ export default async function FunktionsheetSeite({
         heute={heute}
         abende={termine.map((t) => ({
           ditixEventId: t.ditixEventId,
+          abgesagt: t.abgesagt,
           datum: t.datum,
           uhrzeit: t.uhrzeit,
           uhrzeiten: t.uhrzeiten,
@@ -149,6 +151,13 @@ export default async function FunktionsheetSeite({
                 : "noch nichts gebucht",
         }))}
       />
+      <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
+        />
 
       {!menueImShop && (
         <div

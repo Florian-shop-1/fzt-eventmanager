@@ -6,6 +6,7 @@ import { holeKuechenblatt } from "@/lib/kueche/blatt";
 import { artikel } from "@/lib/domain/artikel";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
@@ -107,6 +108,7 @@ export default async function FoyerSeite({
         heute={heute}
         abende={termine.map((t) => ({
           ditixEventId: t.ditixEventId,
+          abgesagt: t.abgesagt,
           datum: t.datum,
           uhrzeit: t.uhrzeit,
           uhrzeiten: t.uhrzeiten,
@@ -115,6 +117,13 @@ export default async function FoyerSeite({
           hinweis: t.gaeste > 0 ? `${t.gaeste} am Tisch` : "keine Gäste am Tisch",
         }))}
       />
+      <AbgesagtHinweis
+          abgesagt={termine.find((t) => t.ditixEventId === gewaehlt)?.abgesagt}
+          teilweise={termine
+            .find((t) => t.ditixEventId === gewaehlt)
+            ?.shows.filter((x) => x.abgesagt)
+            .map((x) => x.uhrzeit)}
+        />
 
       <article className="space-y-6 rounded-lg border border-linie bg-flaeche p-8 print:border-0 print:p-0">
         <header className="border-b-2 border-text pb-3 print:hidden">
@@ -308,10 +317,18 @@ export default async function FoyerSeite({
           </section>
         )}
 
-        {/* 3. Wen schicke ich wohin */}
+        {/*
+          3. Wen schicke ich wohin.
+
+          Die Überschrift nennt jetzt den Grund, warum diese Namen hier
+          stehen: "bei Stehtisch ist es verwirrend mit den Leuten, die im
+          Restaurant auf der Eventgalerie sitzen" (Florian, 17.10.2026).
+          Gebraucht wird die Liste am Einlass, wenn ein Gast fragt, wo er
+          hin soll.
+        */}
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-leise">
-            3. Wer gehört wohin
+            Diese Gäste essen vor oder nach der Show bei uns in der 1. Etage auf der Eventgalerie
           </h2>
           {blatt.gesamtMenues === 0 ? (
             <p className="text-sm text-leise">
