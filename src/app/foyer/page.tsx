@@ -332,7 +332,7 @@ export default async function FoyerSeite({
           Einlass fragt ein Gast dann doch, wo er hin soll, dafuer ein
           Klick. Beim Drucken steht sie offen da.
         */}
-        <details className="print:open" open={false}>
+        <details>
           <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-leise">
             Wer wo sitzt
             {blatt.gesamtMenues > 0 && (

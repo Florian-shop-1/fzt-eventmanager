@@ -149,6 +149,18 @@ textarea:focus {
   }
 
   /*
+    Zugeklapptes auf Papier aufklappen.
+
+    Am Bildschirm sind Listen zugeklappt, die man selten braucht,
+    etwa "Wer wo sitzt" im Foyer (Florian, 17.10.2026). Auf dem
+    Ausdruck waere ein leeres Dreieck sinnlos: Wer das Blatt
+    mitnimmt, kann nicht mehr klicken.
+  */
+  details > *:not(summary) {
+    display: block !important;
+  }
+
+  /*
     Der Hauptbereich gibt seinen Innenabstand ab.
 
     Das "!important" ist kein Uebermut, sondern noetig. Der Abstand kommt
