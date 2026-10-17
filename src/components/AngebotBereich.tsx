@@ -50,8 +50,8 @@ const ZUSATZARTIKEL = [
 
 /** Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt. */
 const LED_TEXT =
-  "Die LED-Fassade buchen Sie als eigenstaendige Werbeleistung mit eigenem Gegenwert. "
-  + "Da wir Sie an diesem Abend ohnehin als Werbepartner begruessen, kalkulieren wir das "
+  "Die LED-Fassade buchen Sie als eigenständige Werbeleistung mit eigenem Gegenwert. "
+  + "Da wir Sie an diesem Abend ohnehin als Werbepartner begrüßen, kalkulieren wir das "
   + "Eventpaket mit unserem Partnerpreis, sodass Sie bei 110 Euro brutto je Person bleiben.";
 
 /** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
