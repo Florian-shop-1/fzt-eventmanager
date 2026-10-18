@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { HemdenMelden } from "@/components/Waschtag";
+import { HEMDGROESSEN } from "@/lib/foyer/waschtag";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { ShowcheckListe } from "@/components/ShowcheckListe";
@@ -13,7 +15,7 @@ import {
   type Bereich,
   type Punkt,
 } from "@/lib/showcheck/db";
-import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "./aktionen";
+import { hemdenMelden, punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "./aktionen";
 import { CheckVorschlag } from "@/components/CheckVorschlag";
 import { namenImDienst } from "@/lib/showcheck/namen";
 
@@ -33,13 +35,13 @@ export const dynamic = "force-dynamic";
 export default async function ShowcheckSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ abend?: string; monat?: string; show?: string; liste?: string }>;
+  searchParams: Promise<{ abend?: string; monat?: string; show?: string; liste?: string; meldung?: string }>;
 }) {
   const b = await angemeldeterBenutzer();
   if (!b) redirect("/anmelden");
   if (!["chef", "team", "showteam"].includes(b.rolle)) redirect("/");
 
-  const { abend, monat, show, liste: listeRoh } = await searchParams;
+  const { abend, monat, show, liste: listeRoh, meldung } = await searchParams;
 
   /*
     Zwei Listen fuer denselben Abend: hinter der Buehne und am Pult.
@@ -175,6 +177,22 @@ export default async function ShowcheckSeite({
           hinweis: t.shows.length > 1 ? `${t.shows.length} Vorstellungen` : "",
         }))}
       />
+
+      {meldung && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          {meldung}
+        </p>
+      )}
+
+      {/*
+        Der Knopf fuers Showteam, wenn eine Hemdgroesse leer ist. Er
+        steht hier und nicht in der Liste: Es ist keine Aufgabe des
+        Abends, sondern eine Meldung (Florian, 18.10.2026).
+      */}
+      <HemdenMelden groessen={HEMDGROESSEN} melden={hemdenMelden} />
 
       {!gewaehlt || !tag ? (
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">

@@ -115,3 +115,47 @@ export async function punktEntfernen(f: FormData): Promise<void> {
   await punktWeg(text(f, "punkt", 40));
   zurueck(text(f, "abend", 60), listeAus(f));
 }
+
+/**
+ * Das Showteam meldet leere Hemden, das Foyer hakt den Waschtag ab.
+ *
+ * "bitte beim Showteam einen Button rein: gibt keine Hemden mehr in
+ * Größe (?). Bitte dann ans Foyer, mal wieder zu waschen" (Florian,
+ * 18.10.2026).
+ */
+export async function hemdenMelden(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!b) redirect("/anmelden");
+
+  const { hemdMelden, HEMDGROESSEN } = await import("@/lib/foyer/waschtag");
+  const groesse = String(f.get("groesse") ?? "L");
+  if (!HEMDGROESSEN.includes(groesse)) redirect("/showcheck");
+
+  let meldung: string;
+  try {
+    await hemdMelden({
+      groesse,
+      wer: b.name,
+      nichtVorhanden: String(f.get("nichtVorhanden") ?? "") === "ja",
+    });
+    meldung = `Gemeldet: Größe ${groesse}. Sarah und Florian wissen Bescheid.`;
+  } catch (e) {
+    meldung = `Die Meldung ging nicht hinaus: ${e instanceof Error ? e.message : "unbekannter Fehler"}`;
+  }
+
+  revalidatePath("/showcheck");
+  revalidatePath("/foyer/check");
+  redirect(`/showcheck?meldung=${encodeURIComponent(meldung)}`);
+}
+
+/** Das Foyer vermerkt, dass gewaschen wurde. */
+export async function waschtagAbhaken(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!b) redirect("/anmelden");
+
+  const { waschenVermerken } = await import("@/lib/foyer/waschtag");
+  await waschenVermerken(b.geteilt ? "Foyer" : b.name, String(f.get("notiz") ?? "").slice(0, 200));
+
+  revalidatePath("/foyer/check");
+  redirect(`/foyer/check?meldung=${encodeURIComponent("Waschtag vermerkt, danke!")}`);
+}

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
+import { WaschtagKasten } from "@/components/Waschtag";
+import { offeneHemdmeldungen, waschstand } from "@/lib/foyer/waschtag";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { ShowcheckListe } from "@/components/ShowcheckListe";
@@ -16,7 +18,7 @@ import {
 import { namenImDienst } from "@/lib/showcheck/namen";
 import Link from "next/link";
 import { geschenkeAmTag, type Geschenkstand } from "@/lib/abbrecher/geschenk-erinnerung";
-import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen } from "@/app/showcheck/aktionen";
+import { punktDazu, punktEntfernen, punktUmbenennen, vorschlagAbhaken, vorschlagEinreichen, waschtagAbhaken } from "@/app/showcheck/aktionen";
 
 export const metadata = { title: "Foyer-Check | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -42,6 +44,15 @@ export default async function FoyerCheckSeite({
   if (!["chef", "team", "foyer"].includes(b.rolle)) redirect("/");
 
   const { abend, monat, meldung } = await searchParams;
+
+  /*
+    Der Waschtag gehoert aufs Foyerblatt: Dort steht jemand, der die
+    Maschine anwerfen kann (Florian, 18.10.2026).
+  */
+  const [wasch, hemdmeldungen] = await Promise.all([
+    waschstand().catch(() => null),
+    offeneHemdmeldungen().catch(() => []),
+  ]);
   const termine = await alleShowtage();
 
   // Ein Link kann auf eine einzelne Vorstellung zeigen. Gemeint ist dann
@@ -158,6 +169,10 @@ export default async function FoyerCheckSeite({
           hinweis: t.shows.length > 1 ? `${t.shows.length} Vorstellungen` : "",
         }))}
       />
+
+      {wasch && (
+        <WaschtagKasten stand={wasch} meldungen={hemdmeldungen} abhaken={waschtagAbhaken} />
+      )}
 
       {!gewaehlt || !tag ? (
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
