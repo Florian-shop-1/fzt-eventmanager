@@ -37,6 +37,7 @@ import { HasenPost } from "@/components/HasenPost";
 import { naechstePost } from "@/lib/personal/hasenpost";
 import { VersandMelder } from "@/components/VersandMelder";
 import { WhatsAppMelder } from "@/components/WhatsAppMelder";
+import { waschstand } from "@/lib/foyer/waschtag";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -400,6 +401,37 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       }
     }
   }
+
+  /*
+    Der Waschtag, als Hase ans Foyer.
+
+    "bitte der Hase einfach dem Foyer sagen dann - es ist schnell gemacht
+    wenn man dran denkt" (Florian, 18.10.2026). Deshalb steht das hier
+    und nicht bei den persoenlichen Aufgaben: Im Foyer steht das Tablet
+    mit dem geteilten Zugang, und genau dort steht jemand, der die
+    Maschine anwerfen kann.
+  */
+  if (benutzer && !offen && benutzer.rolle === "foyer") {
+    const wasch = await waschstand().catch(() => null);
+    if (wasch?.ueberfaellig) {
+      aufgaben.push({
+        href: "/foyer/check",
+        leiste:
+          "Der Waschtag ist vorbei und die Hemden sind noch nicht gewaschen."
+          + (wasch.tageHer !== null ? ` Zuletzt gewaschen vor ${wasch.tageHer} Tagen.` : ""),
+        knopf: "Zur Checkliste",
+        hase: "Die Hemden sind dran, seit dem Waschtag wurde nicht gewaschen. Es ist schnell gemacht, wenn man dran denkt: Maschine an, Ärmel runter, und bis zum Abend ist alles trocken.",
+      });
+    } else if (wasch?.heuteDran) {
+      aufgaben.push({
+        href: "/foyer/check",
+        leiste: "Heute ist Waschtag, erster Sonntag im Monat.",
+        knopf: "Zur Checkliste",
+        hase: "Heute ist Waschtag. Es ist schnell gemacht, wenn man dran denkt, und danach hat das Showteam wieder saubere Hemden.",
+      });
+    }
+  }
+
   // Die Stempeluhr sitzt als eigener Knopf in der Leiste, nicht in der
   // Navigation: Sie ist der Punkt, den die Mitarbeiter zuerst brauchen
   // (Florian, 21.09.2026). Der Punkt daneben zeigt, ob die Zeit läuft.

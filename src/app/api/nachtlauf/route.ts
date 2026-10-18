@@ -19,6 +19,7 @@ import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
 import { anfragenMelden } from "@/lib/shop/lead-meldung";
 import { anwaltspostHolen } from "@/lib/personal/anwaltspost";
 import { auswaertsWache } from "@/lib/personal/fremdtermin";
+import { waschErinnerung } from "@/lib/foyer/waschtag";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -129,6 +130,12 @@ const MORGEN: Teil[] = [
     Kevin (Florian, 16.10.2026).
   */
   { name: "auswaerts", tun: () => auswaertsWache() },
+  /*
+    Der Waschtag. Ist der erste Sonntag im Monat vorbei und niemand hat
+    gewaschen, bekommt Olena eine Mail: "bitte an Olena mailen, wenn
+    nicht gewaschen wurde" (Florian, 18.10.2026). Je Termin nur einmal.
+  */
+  { name: "waschtag", tun: () => waschErinnerung() },
   /*
     Die Amazon-Rechnungen.
 

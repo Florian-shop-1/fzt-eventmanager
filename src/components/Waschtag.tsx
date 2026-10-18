@@ -118,8 +118,8 @@ export function HemdenMelden({
       </form>
 
       <p className="mt-2 text-xs text-leise">
-        Geht an Sarah und Florian. Ist die Größe nur gerade in der Wäsche, wird gewaschen; gibt es
-        sie bei uns gar nicht, kauft Florian sie nach.
+        Geht ans Foyer und an Florian. Ist die Größe nur gerade in der Wäsche, wird gewaschen; gibt
+        es sie bei uns gar nicht, kauft Florian sie nach.
       </p>
     </details>
   );

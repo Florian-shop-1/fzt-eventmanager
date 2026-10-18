@@ -13,10 +13,18 @@
 
 import { db } from "@/lib/db/client";
 
+/**
+ * Wer im Foyer für die Wäsche zuständig ist.
+ *
+ * "Sarah ist nur noch Aushilfe. Olena ist unsere feste Kraft, die immer
+ * im Foyer ist" (Florian, 18.10.2026).
+ */
+const FOYER_MAIL = process.env.WASCH_MAIL ?? "elenadanylovych77@gmail.com";
+
 /** Die Größen, die es bei uns gibt. */
 export const HEMDGROESSEN = ["XS", "S", "M", "L", "XL", "XXL"];
 
-/** Sarahs zwei Bitten, die jedes Mal Zeit sparen. */
+/** Die zwei Bitten aus dem Foyer, die jedes Mal Zeit sparen. */
 export const WASCHREGELN = [
   "Alle Hemden in die Körbe, nicht daneben. Nur so kommen sie wirklich alle in die Maschine.",
   "Ärmel runterkrempeln. Sonst werden sie weder richtig sauber noch trocken, und wer wäscht, macht es sonst von Hand.",
@@ -139,7 +147,7 @@ export async function hemdMelden(o: {
   `;
 
   const stand = await waschstand();
-  const an = ["sarah.herold@florianzimmer.com", "info@florianzimmer.com"];
+  const an = [FOYER_MAIL, "info@florianzimmer.com"];
 
   const { mailVerschicken } = await import("@/lib/mail/versand");
   const { postfachPersonal, antwortPersonal } = await import("@/lib/mail/postfaecher");
@@ -160,7 +168,7 @@ export async function hemdMelden(o: {
       ? "Florian: Bitte diese Größe nachkaufen."
       : "Foyer: Bitte bei Gelegenheit die Maschine anwerfen.",
     "",
-    "Zur Erinnerung, Sarahs zwei Bitten:",
+    "Zur Erinnerung die zwei Bitten aus dem Foyer:",
     ...WASCHREGELN.map((r) => `- ${r}`),
   ];
 
@@ -175,4 +183,66 @@ export async function hemdMelden(o: {
   });
 
   return { an };
+}
+
+/**
+ * Nachts erinnern, wenn der Waschtag vorbei ist und niemand gewaschen hat.
+ *
+ * Geht an Olena, nicht an Sarah: Olena ist die feste Kraft im Foyer
+ * (Florian, 18.10.2026). Je Termin höchstens eine Mail.
+ */
+export async function waschErinnerung(): Promise<{ geschickt: boolean; grund: string }> {
+  const stand = await waschstand();
+  if (!stand.ueberfaellig) return { geschickt: false, grund: "nichts überfällig" };
+
+  /*
+    Solange noch kein einziger Waschtag vermerkt ist, geht keine Mail
+    raus. Gewaschen wurde ja bisher auch, nur hat es niemand
+    aufgeschrieben, und eine Mail "es wurde nicht gewaschen" wäre dann
+    einfach falsch. Der Hase auf der Foyercheckliste fragt stattdessen
+    danach; sobald dort einmal abgehakt wurde, zählt es.
+  */
+  if (!stand.letzteAm) return { geschickt: false, grund: "noch kein Waschtag vermerkt" };
+
+  const heute = new Date(`${new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })}T12:00:00Z`);
+  const termin = alsDatum(waschtage(heute).dieser);
+
+  const schon = (await db()`
+    select termin from wasch_erinnert where termin = ${termin}::date
+  `.catch(() => [])) as Array<{ termin: string }>;
+  if (schon.length > 0) return { geschickt: false, grund: "schon erinnert" };
+
+  const offen = await offeneHemdmeldungen();
+  const { mailVerschicken } = await import("@/lib/mail/versand");
+  const { postfachPersonal, antwortPersonal } = await import("@/lib/mail/postfaecher");
+
+  await mailVerschicken({
+    an: FOYER_MAIL,
+    absender: postfachPersonal(),
+    antwortAn: antwortPersonal(),
+    betreff: "Waschtag: die Hemden warten",
+    text: [
+      "Hallo Olena,",
+      "",
+      `der Waschtag war am ${termin.split("-").reverse().join(".")}, dem ersten Sonntag im Monat, und gewaschen wurde seitdem nicht.`,
+      stand.letzteAm
+        ? `Zuletzt gewaschen: ${stand.letzteAm.split("-").reverse().join(".")}${stand.letzteVon ? ` von ${stand.letzteVon}` : ""}.`
+        : "Ein Waschtag ist bisher nicht vermerkt.",
+      offen.length > 0 ? `Das Showteam meldet leere Größen: ${offen.map((m) => m.groesse).join(", ")}.` : "",
+      "",
+      "Es ist schnell gemacht, wenn man dran denkt: Maschine an, und bis zum Abend ist alles trocken.",
+      "",
+      ...WASCHREGELN.map((r) => `- ${r}`),
+      "",
+      "Danach im Eventmanager auf dem Foyerblatt kurz auf \"Heute gewaschen\" drücken, dann weiß es jeder.",
+    ]
+      .filter((z) => z !== "")
+      .join(String.fromCharCode(10)),
+  });
+
+  await db()`
+    insert into wasch_erinnert (termin) values (${termin}::date) on conflict do nothing
+  `.catch(() => undefined);
+
+  return { geschickt: true, grund: "erinnert" };
 }
