@@ -23,6 +23,8 @@ import {
   flotixQuelle,
   flotixZuordnung,
   istTestkauf,
+  kennungFuerPlan,
+  planKennungen,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 import { istTicket, menueVarianteAus } from "./artikel";
@@ -103,7 +105,7 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
     Fällt eine der beiden Quellen aus, bleibt die andere stehen: Ein
     Abend ohne halbe Gästeliste ist besser als ein Abend ohne Liste.
   */
-  const [neu, alt, zuordnung] = await Promise.all([
+  const [neu, alt, zuordnung, plan] = await Promise.all([
     flotixBestellungen().catch((f: Error) => {
       console.error("[rohdaten] FloTix nicht erreichbar:", f.message);
       return [];
@@ -113,6 +115,7 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
       return [] as ShopGruppe[];
     }),
     flotixZuordnung().catch(() => new Map<string, string>()),
+    planKennungen().catch(() => new Set<string>()),
   ]);
 
   /*
@@ -120,14 +123,20 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
     vergeben eigene. Falls doch einmal eine doppelt auftaucht, gilt
     FloTix: Das ist jetzt die Wahrheit.
   */
-  const ausFlotixGruppen = ausFlotix(neu);
+  const ausFlotixGruppen = ausFlotix(neu, plan);
   const bekannt = new Set(ausFlotixGruppen.map((g) => `${g.orderId}|${g.ditixEventId}`));
 
   const umgeschrieben = alt
     .map((g) => ({
       ...g,
-      // Auf die Vorstellung in FloTix umlegen, wenn es sie dort gibt.
-      ditixEventId: zuordnung.get(g.ditixEventId) ?? g.ditixEventId,
+      /*
+        Auf die Kennung legen, die der Spielplan kennt: Vor dem Umschalten
+        ist das die eigene aus Ditix, danach die aus FloTix.
+      */
+      ditixEventId: kennungFuerPlan(plan, [
+        g.ditixEventId,
+        zuordnung.get(g.ditixEventId) ?? null,
+      ]),
     }))
     .filter((g) => !bekannt.has(`${g.orderId}|${g.ditixEventId}`));
 
@@ -253,7 +262,11 @@ async function ausTabelle(): Promise<ShopGruppe[]> {
  * Quellen parallel laufen, soll ein Unterschied in den Zahlen aus den
  * Daten kommen und nicht daraus, dass zweimal verschieden erkannt wird.
  */
-export function ausFlotix(bestellungen: FlotixBestellung[]): ShopGruppe[] {
+export function ausFlotix(
+  bestellungen: FlotixBestellung[],
+  /** Was der Spielplan gerade kennt, siehe flotix/tuer.ts. */
+  plan: Set<string> = new Set(),
+): ShopGruppe[] {
   const gruppen: ShopGruppe[] = [];
 
   for (const b of bestellungen) {
@@ -275,7 +288,7 @@ export function ausFlotix(bestellungen: FlotixBestellung[]): ShopGruppe[] {
       name: name || "Ohne Namen",
       firma: b.firma ? nameOrdentlich(b.firma) : null,
       email: (b.email ?? "").toLowerCase(),
-      ditixEventId: b.vorstellungId,
+      ditixEventId: kennungFuerPlan(plan, [b.vorstellungId, b.ditixEventId]),
       menues: {},
       menuesGesamt: 0,
       tickets: 0,

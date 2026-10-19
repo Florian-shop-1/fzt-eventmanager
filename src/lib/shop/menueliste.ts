@@ -21,6 +21,8 @@ import {
   flotixQuelle,
   flotixZuordnung,
   istTestkauf,
+  kennungFuerPlan,
+  planKennungen,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 import { nameOrdentlich } from "@/lib/domain/namen";
@@ -190,7 +192,7 @@ export function pruefeTabelle(text: string, was: string): void {
  * Tabelle. In der Tabelle war jeder Artikel eine Spalte, in FloTix ist er
  * eine Position; unterschieden wird dasselbe.
  */
-function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
+function ausFlotix(bestellungen: FlotixBestellung[], plan: Set<string> = new Set()): ShopBestellung[] {
   const liste: ShopBestellung[] = [];
 
   for (const b of bestellungen) {
@@ -246,7 +248,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
       show: `${b.showTitel}, ${wann}`,
       kunde: nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim()) || "Ohne Namen",
       orderId: b.bestellnummer || b.id,
-      ditixEventId: b.vorstellungId,
+      ditixEventId: kennungFuerPlan(plan, [b.vorstellungId, b.ditixEventId]),
       menues,
       getraenkeArmbaender,
       vipArmbandGold,
@@ -264,17 +266,21 @@ export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
 
   // Beide Quellen, die alten Buchungen auf die Vorstellung in FloTix
   // umgelegt. Der Grund steht in shop/rohdaten.ts.
-  const [neu, alt, zuordnung] = await Promise.all([
+  const [neu, alt, zuordnung, plan] = await Promise.all([
     flotixBestellungen().catch(() => []),
     ausTabelle().catch(() => [] as ShopBestellung[]),
     flotixZuordnung().catch(() => new Map<string, string>()),
+    planKennungen().catch(() => new Set<string>()),
   ]);
 
   return [
-    ...ausFlotix(neu),
+    ...ausFlotix(neu, plan),
     ...alt.map((b) => ({
       ...b,
-      ditixEventId: zuordnung.get(b.ditixEventId) ?? b.ditixEventId,
+      ditixEventId: kennungFuerPlan(plan, [
+        b.ditixEventId,
+        zuordnung.get(b.ditixEventId) ?? null,
+      ]),
     })),
   ];
 }

@@ -21,6 +21,8 @@ import {
   flotixQuelle,
   flotixZuordnung,
   istTestkauf,
+  kennungFuerPlan,
+  planKennungen,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 
@@ -61,17 +63,21 @@ export async function holeParkplaetze(): Promise<Parkplatzbuchung[]> {
   if (!flotixQuelle()) return ausTabelle();
 
   // Beide Quellen. Der Grund steht in shop/rohdaten.ts.
-  const [neu, alt, zuordnung] = await Promise.all([
+  const [neu, alt, zuordnung, plan] = await Promise.all([
     flotixBestellungen().catch(() => []),
     ausTabelle().catch(() => [] as Parkplatzbuchung[]),
     flotixZuordnung().catch(() => new Map<string, string>()),
+    planKennungen().catch(() => new Set<string>()),
   ]);
 
   return [
-    ...ausFlotix(neu),
+    ...ausFlotix(neu, plan),
     ...alt.map((p) => ({
       ...p,
-      ditixEventId: zuordnung.get(p.ditixEventId) ?? p.ditixEventId,
+      ditixEventId: kennungFuerPlan(plan, [
+        p.ditixEventId,
+        zuordnung.get(p.ditixEventId) ?? null,
+      ]),
     })),
   ];
 }
@@ -162,7 +168,7 @@ async function ausTabelle(): Promise<Parkplatzbuchung[]> {
  * mehr. Der Eventmanager druckt die Schilder längst selbst, deshalb bleibt
  * das Feld leer, statt dass wir eine Adresse erfinden.
  */
-function ausFlotix(bestellungen: FlotixBestellung[]): Parkplatzbuchung[] {
+function ausFlotix(bestellungen: FlotixBestellung[], plan: Set<string> = new Set()): Parkplatzbuchung[] {
   const buchungen: Parkplatzbuchung[] = [];
 
   for (const b of bestellungen) {
@@ -189,7 +195,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): Parkplatzbuchung[] {
       orderId: b.bestellnummer || b.id,
       name,
       email: (b.email ?? "").toLowerCase(),
-      ditixEventId: b.vorstellungId,
+      ditixEventId: kennungFuerPlan(plan, [b.vorstellungId, b.ditixEventId]),
       eventName: b.showTitel,
       datum,
       uhrzeit,

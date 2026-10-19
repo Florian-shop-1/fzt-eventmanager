@@ -301,3 +301,35 @@ export function istTestkauf(b: {
     /flotix/.test(name)
   );
 }
+
+/**
+ * Welche Vorstellungskennungen der Spielplan gerade benutzt.
+ *
+ * Der Spielplan kommt über den Shop. Steht der Shop noch auf Ditix,
+ * trägt er Ditix-Kennungen; steht er auf FloTix, trägt er die aus
+ * FloTix. Das kann sich mitten im Betrieb ändern, und zwar genau am
+ * Umschalttag.
+ *
+ * Deshalb raten wir nicht, sondern fragen: Jede Buchung wird auf die
+ * Kennung gelegt, die der Spielplan tatsächlich kennt. So stehen die
+ * Gäste vorher, nachher und in der Minute dazwischen auf ihrem Abend.
+ */
+export async function planKennungen(): Promise<Set<string>> {
+  const { showtageAbHeute } = await import("@/lib/ditix/spielplan");
+  const tage = await showtageAbHeute(400).catch(() => []);
+  return new Set(tage.map((t) => t.ditixEventId));
+}
+
+/**
+ * Die Kennung, unter der diese Buchung zu ihrem Abend findet.
+ *
+ * Genommen wird die erste, die der Spielplan kennt. Kennt er keine, bleibt
+ * die erste nicht leere: Bei vergangenen Abenden steht im Spielplan
+ * nichts mehr, und die Listen von damals arbeiten mit der Kennung, unter
+ * der sie entstanden sind.
+ */
+export function kennungFuerPlan(plan: Set<string>, kandidaten: Array<string | null>): string {
+  for (const k of kandidaten) if (k && plan.has(k)) return k;
+  for (const k of kandidaten) if (k) return k;
+  return "";
+}
