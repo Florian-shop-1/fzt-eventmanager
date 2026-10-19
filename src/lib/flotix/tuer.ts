@@ -273,6 +273,48 @@ export async function flotixZuordnung(): Promise<Map<string, string>> {
 }
 
 /**
+ * Alles, was FloTix vor dem Umschalten verkauft hat, war eine Probe.
+ *
+ * Am Abend des 20.10.2026 lagen in FloTix 46 bezahlte Bestellungen, und
+ * alle 46 waren Testkäufe: "Max Muster", "test buchung", auf den
+ * Hausadressen. Über Namen allein waren sie nicht sauber zu trennen, über
+ * den Zeitpunkt schon. Deshalb zählt nur, was nach dem Umschalten bezahlt
+ * wurde.
+ *
+ * `FLOTIX_AB` ist dieser Zeitpunkt (ISO, zum Beispiel
+ * 2026-10-20T01:30:00Z). Ohne die Variable zählt alles, was FloTix
+ * hergibt; gesetzt wird sie am Umschalttag zusammen mit QUELLE.
+ */
+export function vorDemUmschalten(b: { bezahltAm: string | null; eingegangen: string }): boolean {
+  const ab = (process.env.FLOTIX_AB ?? "").trim();
+  if (!ab) return false;
+
+  const grenze = Date.parse(ab);
+  if (Number.isNaN(grenze)) return false;
+
+  const wann = Date.parse(b.bezahltAm ?? b.eingegangen);
+  return Number.isNaN(wann) ? false : wann < grenze;
+}
+
+/**
+ * Zählt diese Bestellung im Haus mit?
+ *
+ * Nein, wenn sie storniert ist, aus der Probezeit stammt oder sichtbar
+ * ein Testkauf ist. Diese eine Frage stellen alle Listen, damit nicht an
+ * drei Stellen drei verschiedene Antworten entstehen.
+ */
+export function zaehltMit(b: {
+  storniertAm: string | null;
+  bezahltAm: string | null;
+  eingegangen: string;
+  email: string | null;
+  vorname: string | null;
+  nachname: string | null;
+}): boolean {
+  return !b.storniertAm && !vorDemUmschalten(b) && !istTestkauf(b);
+}
+
+/**
  * Ein Testkauf, der in keiner Liste im Haus etwas zu suchen hat.
  *
  * Aus der Abnahme liegen in FloTix Käufe auf @example.com, auf
@@ -298,7 +340,10 @@ export function istTestkauf(b: {
     mail.endsWith("@example.org") ||
     mail.includes("+test") ||
     /test(s|kauf|buchung)?/.test(name) ||
-    /flotix/.test(name)
+    /tst/.test(name) ||
+    /flotix/.test(name) ||
+    // "Max Mustermann", "Musti Muster": die Namen der Abnahme.
+    /must(er|i)/.test(name)
   );
 }
 

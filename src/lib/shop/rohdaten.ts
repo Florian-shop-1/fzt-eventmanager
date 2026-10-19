@@ -22,9 +22,9 @@ import {
   flotixBestellungen,
   flotixQuelle,
   flotixZuordnung,
-  istTestkauf,
   kennungFuerPlan,
   planKennungen,
+  zaehltMit,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 import { istTicket, menueVarianteAus } from "./artikel";
@@ -278,9 +278,9 @@ export function ausFlotix(
       dort storniert ist, ist kein Gast mehr und auch kein Abzug, den
       noch jemand bei uns eintragen muesste.
     */
-    if (b.storniertAm) continue;
-    // Käufe aus der Abnahme gehören in keine Liste im Haus.
-    if (istTestkauf(b)) continue;
+    // Storniert, aus der Probezeit oder sichtbar ein Testkauf: siehe
+    // flotix/tuer.ts. Diese Frage stellen alle Listen gleich.
+    if (!zaehltMit(b)) continue;
 
     const name = nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim());
     const g: ShopGruppe = {

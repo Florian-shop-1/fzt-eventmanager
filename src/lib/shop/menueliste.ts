@@ -20,9 +20,9 @@ import {
   flotixBestellungen,
   flotixQuelle,
   flotixZuordnung,
-  istTestkauf,
   kennungFuerPlan,
   planKennungen,
+  zaehltMit,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 import { nameOrdentlich } from "@/lib/domain/namen";
@@ -196,9 +196,8 @@ function ausFlotix(bestellungen: FlotixBestellung[], plan: Set<string> = new Set
   const liste: ShopBestellung[] = [];
 
   for (const b of bestellungen) {
-    // Storniertes kennt FloTix selbst. Siehe shop/rohdaten.ts.
-    if (b.storniertAm) continue;
-    if (istTestkauf(b)) continue;
+    // Storniertes, Proben und Testkäufe: siehe flotix/tuer.ts.
+    if (!zaehltMit(b)) continue;
 
     const menues: Partial<Record<MenueVariante, number>> = {};
     let getraenkeArmbaender = 0;

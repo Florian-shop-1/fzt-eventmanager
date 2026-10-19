@@ -20,9 +20,9 @@ import {
   flotixBestellungen,
   flotixQuelle,
   flotixZuordnung,
-  istTestkauf,
   kennungFuerPlan,
   planKennungen,
+  zaehltMit,
   type FlotixBestellung,
 } from "@/lib/flotix/tuer";
 
@@ -172,8 +172,7 @@ function ausFlotix(bestellungen: FlotixBestellung[], plan: Set<string> = new Set
   const buchungen: Parkplatzbuchung[] = [];
 
   for (const b of bestellungen) {
-    if (b.storniertAm) continue;
-    if (istTestkauf(b)) continue;
+    if (!zaehltMit(b)) continue;
 
     const anzahl = b.positionen
       .filter((pos) => /park/i.test(pos.bezeichnung))
