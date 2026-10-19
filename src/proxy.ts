@@ -60,6 +60,13 @@ const OHNE_ANMELDUNG = [
   "/api/ditix/verkauf",
   // Nur lesender Pruefbericht ohne Personendaten, prueft selbst seinen Schluessel.
   "/api/ditix/pruefung",
+  /*
+    FloTix meldet jede neue Buchung hierher, damit sie ohne Wartezeit in
+    den Listen steht. Auch hier meldet sich kein Mensch an, sondern ein
+    Server; die Route prueft selbst den gemeinsamen Schluessel und legt
+    nichts ab, sie wirft nur den Zwischenspeicher weg.
+  */
+  "/api/flotix/meldung",
   // Die Antwort auf "Was hat dich abgehalten?" kommt aus einer Mail an
   // einen Gast. Der hat keinen Zugang und soll auch keinen brauchen.
   "/warum",
