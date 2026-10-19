@@ -16,6 +16,8 @@
 
 import type { MenueVariante } from "@/lib/domain/types";
 import { db } from "@/lib/db/client";
+import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
+import { nameOrdentlich } from "@/lib/domain/namen";
 
 const TABELLE_ID =
   process.env.SHOP_MENUELISTE_ID ?? "1Ma0OxVsVdAhNmt9pl2xtx3Pbz2IPAVHkdORSPOUGg2g";
@@ -173,7 +175,83 @@ export function pruefeTabelle(text: string, was: string): void {
 }
 
 /** Holt alle Bestellungen aus der Tabelle. */
+/**
+ * Dieselbe Liste, nur aus FloTix.
+ *
+ * Eingeordnet wird mit alsMenue und istShowticket, also genau wie bei der
+ * Tabelle. In der Tabelle war jeder Artikel eine Spalte, in FloTix ist er
+ * eine Position; unterschieden wird dasselbe.
+ */
+function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
+  const liste: ShopBestellung[] = [];
+
+  for (const b of bestellungen) {
+    // Storniertes kennt FloTix selbst. Siehe shop/rohdaten.ts.
+    if (b.storniertAm) continue;
+
+    const menues: Partial<Record<MenueVariante, number>> = {};
+    let getraenkeArmbaender = 0;
+    let vipArmbandGold = 0;
+    let stehtische = 0;
+    let tickets = 0;
+    const sonstiges: Array<{ bezeichnung: string; menge: number }> = [];
+
+    for (const pos of b.positionen) {
+      const menge = Number(pos.menge);
+      if (!Number.isFinite(menge) || menge <= 0) continue;
+      const bezeichnung = pos.bezeichnung.trim();
+      if (!bezeichnung) continue;
+
+      const klein = bezeichnung.toLowerCase();
+      const variante = alsMenue(bezeichnung);
+      const istGoldArmband = klein.includes("armband") && klein.includes("gold");
+
+      if (variante) {
+        menues[variante] = (menues[variante] ?? 0) + menge;
+      } else if (istGoldArmband) {
+        vipArmbandGold += menge;
+      } else if (klein.includes("getränke-flat") || klein.includes("armband")) {
+        getraenkeArmbaender += menge;
+      } else if (klein.includes("stehtisch")) {
+        stehtische += menge;
+      } else if (pos.mitPlatz || pos.art === "admission" || istShowticket(bezeichnung)) {
+        tickets += menge;
+      } else {
+        sonstiges.push({ bezeichnung, menge });
+      }
+    }
+
+    const beginn = new Date(b.beginn);
+    const wann = beginn.toLocaleString("de-DE", {
+      timeZone: "Europe/Berlin",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    liste.push({
+      bestellung: b.bestellnummer,
+      show: `${b.showTitel}, ${wann}`,
+      kunde: nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim()) || "Ohne Namen",
+      orderId: b.bestellnummer || b.id,
+      ditixEventId: b.vorstellungId,
+      menues,
+      getraenkeArmbaender,
+      vipArmbandGold,
+      stehtische,
+      tickets,
+      sonstiges,
+    });
+  }
+
+  return liste;
+}
+
 export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
+  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${TABELLE_BLATT}`;

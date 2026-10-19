@@ -16,6 +16,7 @@
 import { csvZerlegen, pruefeTabelle } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
 import { ortFehlt, orteZurPlz } from "./plzort";
+import { flotixQuelle, flotixSendungen, type FlotixSendung } from "@/lib/flotix/tuer";
 
 const TABELLE_ID =
   process.env.SHOP_VERSAND_ID ?? "1bZ5D0Zk5z3fxXm0zs8zoIK3AX02RTzkryY59P_fSWv8";
@@ -92,6 +93,8 @@ export function brauchtKlaerung(s: Sendung): string | null {
 }
 
 export async function holeSendungen(): Promise<Sendung[]> {
+  if (flotixQuelle()) return nachbereiten(ausFlotix(await flotixSendungen()));
+
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${BLATT_GID}`;
@@ -155,6 +158,13 @@ export async function holeSendungen(): Promise<Sendung[]> {
     });
   }
 
+  return nachbereiten(sendungen);
+}
+
+/**
+ * Was für beide Quellen gilt: fehlende Orte nachtragen, neueste zuerst.
+ */
+async function nachbereiten(sendungen: Sendung[]): Promise<Sendung[]> {
   // Steht als Ort ein Bundesland oder nichts, den Ort aus der PLZ holen.
   await Promise.all(
     sendungen
@@ -170,4 +180,45 @@ export async function holeSendungen(): Promise<Sendung[]> {
 
   // Neueste Bestellung zuerst: Was heute reinkam, ist heute dran.
   return sendungen.sort((a, b) => b.kaufdatum.localeCompare(a.kaufdatum));
+}
+
+/**
+ * Dieselben Sendungen, nur aus FloTix.
+ *
+ * FloTix schickt von sich aus nur, was bezahlt ist und per Post geht. Der
+ * Selbstausdruck taucht hier also gar nicht auf, und ein Status "prüfen"
+ * gibt es nicht: Steht eine Anschrift nicht vollständig drin, merkt das
+ * brauchtKlaerung() genauso wie bisher.
+ *
+ * Die Adresszeile ist in FloTix immer die des eingetragenen Empfängers,
+ * deshalb bleibt "Versand an" leer. postempfaenger() nimmt dann den
+ * Empfänger und, wenn keiner eingetragen ist, den Käufer.
+ */
+function ausFlotix(sendungen: FlotixSendung[]): Sendung[] {
+  const euro = (cent: number) => (cent / 100).toFixed(2).replace(".", ",");
+  const zustellart = (z: string) =>
+    z === "box" ? "Geschenkbox" : z === "umschlag" ? "Umschlag" : z;
+
+  return sendungen.map((g) => ({
+    bestellnummer: g.bestellnummer,
+    kaufdatum: (g.bezahltAm ?? g.kaufdatum).slice(0, 10),
+    kundenname: nameOrdentlich(`${g.vorname ?? ""} ${g.nachname ?? ""}`.trim()),
+    email: (g.email ?? "").toLowerCase(),
+    betrag: euro(g.betragCents + g.versandCents),
+    zustellart: zustellart(g.zustellung),
+    versandAn: "",
+    empfaenger: nameOrdentlich(g.empfaenger ?? ""),
+    strasse: g.strasse ?? "",
+    plz: g.plz ?? "",
+    ort: g.ort ?? "",
+    ortVorher: "",
+    ortMehrdeutig: [],
+    absender: g.von ?? "",
+    widmung: g.widmung ?? "",
+    motiv: g.motiv,
+    ditixVariante: "",
+    linkZurBestellung: "",
+    status: "",
+    notiz: g.notiz ?? "",
+  }));
 }

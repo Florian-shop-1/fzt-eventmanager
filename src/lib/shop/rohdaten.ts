@@ -18,6 +18,8 @@
 import type { MenueVariante } from "@/lib/domain/types";
 import { csvZerlegen, menueAenderungen, pruefeTabelle, type MenueAenderung } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
+import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
+import { istTicket, menueVarianteAus } from "./artikel";
 
 const TABELLE_ID =
   process.env.SHOP_MENUELISTE_ID ?? "1Ma0OxVsVdAhNmt9pl2xtx3Pbz2IPAVHkdORSPOUGg2g";
@@ -60,49 +62,6 @@ export interface ShopGruppe {
   manuell: boolean;
 }
 
-/**
- * Erkennt Menüs an der Artikelbezeichnung.
- *
- * Die Namen haben sich über die Jahre geändert, deshalb wird nach Mustern
- * gesucht statt nach festen Texten:
- *   "Magic Dinner CLASSIC inkl. Aperitif"          (alt)
- *   "4-Gang-Menü CLASSIC inkl. Welcome-Cocktail"   (danach)
- *   "4-Gang-Menü CLASSIC inkl. Welcome Drink"      (heute)
- */
-export function menueVarianteAus(bezeichnung: string): MenueVariante | null {
-  const s = bezeichnung.toLowerCase();
-  const istMenue = s.includes("gang") || s.includes("magic dinner") || s.includes("menü");
-  if (!istMenue) return null;
-  // Upgrades und Begleitungen sind keine eigenen Menüs, sie hängen an einem.
-  if (s.includes("upgrade") || s.includes("begleitung") || s.includes("arrangement")) return null;
-  if (s.includes("kids")) return "kids";
-  if (s.includes("sea") || s.includes("fisch")) return "sea";
-  if (s.includes("veggy") || s.includes("vegan") || s.includes("vegetar")) return "veggy";
-  if (s.includes("classic")) return "classic";
-  return "classic";
-}
-
-/**
- * Erkennt Showtickets an der Artikelbezeichnung.
- *
- * Die Namen wechseln über die Jahre, deshalb nach Mustern statt nach
- * festen Texten. Wichtig ist die Vollständigkeit: Was hier durchrutscht,
- * gilt als Zusatzleistung und taucht in Listen auf, in die es nicht
- * gehört. "Schnupper Magic", "Kinderticket" und "Ticket ab 10 Jahre"
- * fielen genau so durch das alte Muster.
- */
-function istTicket(bezeichnung: string): boolean {
-  const s = bezeichnung.toLowerCase();
-  return (
-    /\bkat\.?\s?\d/.test(s) ||
-    s.includes("golden seat") ||
-    s.includes("vip empore") ||
-    s.includes("rollstuhl") ||
-    s.includes("ticket") ||
-    s.includes("schnupper") ||
-    s.includes("show)")
-  );
-}
 
 /**
  * Holt alle Bestellungen aus dem Rohdatenblatt, so wie sie der Shop
@@ -112,6 +71,9 @@ function istTicket(bezeichnung: string): boolean {
  * nur, wer zeigen will, was abgezogen wurde (Florian, 04.10.2026).
  */
 export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
+  // Die neue Quelle. Siehe lib/flotix/tuer.ts: eine Variable, umkehrbar.
+  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${ROHDATEN_GID}`;
@@ -217,6 +179,86 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
   }
 
   return [...gruppen.values()];
+}
+
+/**
+ * Dieselben Gruppen, nur aus FloTix.
+ *
+ * Eingeordnet wird mit genau denselben beiden Funktionen wie bei der
+ * Tabelle, menueVarianteAus und istTicket. Das ist der Grund, warum
+ * diese Umsetzung hier steht und nicht in lib/flotix: Solange beide
+ * Quellen parallel laufen, soll ein Unterschied in den Zahlen aus den
+ * Daten kommen und nicht daraus, dass zweimal verschieden erkannt wird.
+ */
+export function ausFlotix(bestellungen: FlotixBestellung[]): ShopGruppe[] {
+  const gruppen: ShopGruppe[] = [];
+
+  for (const b of bestellungen) {
+    /*
+      Storniertes faellt hier heraus.
+
+      Bei der Tabelle fuehrt der Eventmanager eine eigene Stornoliste,
+      weil der alte Shop nichts davon wusste. FloTix weiss es selbst: Was
+      dort storniert ist, ist kein Gast mehr und auch kein Abzug, den
+      noch jemand bei uns eintragen muesste.
+    */
+    if (b.storniertAm) continue;
+
+    const name = nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim());
+    const g: ShopGruppe = {
+      orderId: b.bestellnummer || b.id,
+      name: name || "Ohne Namen",
+      firma: b.firma ? nameOrdentlich(b.firma) : null,
+      email: (b.email ?? "").toLowerCase(),
+      ditixEventId: b.vorstellungId,
+      menues: {},
+      menuesGesamt: 0,
+      tickets: 0,
+      ticketArten: [],
+      getraenkeArmbaender: 0,
+      zusatzleistungen: [],
+      eingegangen: b.eingegangen,
+      // An der Kasse oder im Backend von Hand gebucht, nicht im Webshop.
+      manuell: b.herkunft !== "" && b.herkunft !== "shop",
+    };
+
+    for (const pos of b.positionen) {
+      const menge = Number(pos.menge);
+      if (!Number.isFinite(menge) || menge <= 0) continue;
+      const bezeichnung = pos.bezeichnung.trim();
+      if (!bezeichnung) continue;
+
+      const variante = menueVarianteAus(bezeichnung);
+      if (variante) {
+        g.menues[variante] = (g.menues[variante] ?? 0) + menge;
+        g.menuesGesamt += menge;
+        continue;
+      }
+
+      /*
+        Ein Platz im Saal ist immer ein Ticket, auch wenn er
+        "Golden Seats, Reihe 1, Platz 1" heisst und damit durch jedes
+        Namensmuster fiele. FloTix sagt uns das direkt, die Tabelle
+        konnte es nicht.
+      */
+      if (pos.mitPlatz || pos.art === "admission" || istTicket(bezeichnung)) {
+        g.tickets += menge;
+        const schon = g.ticketArten.find((t) => t.bezeichnung === bezeichnung);
+        if (schon) schon.menge += menge;
+        else g.ticketArten.push({ bezeichnung, menge });
+        continue;
+      }
+
+      if (bezeichnung.toLowerCase().includes("armband")) g.getraenkeArmbaender += menge;
+      const vorhanden = g.zusatzleistungen.find((z) => z.bezeichnung === bezeichnung);
+      if (vorhanden) vorhanden.menge += menge;
+      else g.zusatzleistungen.push({ bezeichnung, menge });
+    }
+
+    gruppen.push(g);
+  }
+
+  return gruppen;
 }
 
 /*
@@ -416,3 +458,6 @@ export async function bestellungenZumStreichen(eventIds: string[]): Promise<Stor
       return summe(b.menues) - summe(a.menues) || a.kunde.localeCompare(b.kunde);
     });
 }
+
+// Die Erkennung liegt in artikel.ts. Von hier aus weiter nutzbar, wie bisher.
+export { menueVarianteAus };

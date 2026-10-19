@@ -16,6 +16,7 @@
 
 import { csvZerlegen, pruefeTabelle } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
+import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
 
 const TABELLE_ID =
   process.env.SHOP_PARKPLATZ_ID ?? "1bLoiE2NAJkYRT184pJL0lRGdHytEF_FmyEwBxup5Z7E";
@@ -46,6 +47,8 @@ function uhrzeitAus(startBerlin: string): string {
 
 /** Holt alle Parkplatzbuchungen aus der Tabelle. */
 export async function holeParkplaetze(): Promise<Parkplatzbuchung[]> {
+  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${ROHDATEN_GID}`;
@@ -110,6 +113,57 @@ export async function holeParkplaetze(): Promise<Parkplatzbuchung[]> {
       uhrzeit: uhrzeitAus((z[iStart] ?? "").trim()),
       anzahl: Number.isFinite(anzahl) && anzahl > 0 ? anzahl : 1,
       schildUrl: schild || null,
+    });
+  }
+
+  return buchungen;
+}
+
+/**
+ * Dieselben Buchungen, nur aus FloTix.
+ *
+ * In der Tabelle hatte der Parkplatz eine eigene Spalte. In FloTix ist er
+ * eine Position wie jede andere, erkannt an der Bezeichnung. Datum und
+ * Uhrzeit rechnen wir aus dem Beginn der Vorstellung, und zwar in
+ * Berliner Zeit: Auf dem Server läuft UTC, und ein Abend um 20 Uhr wäre
+ * dort schon der falsche Tag.
+ *
+ * Das Reservierungsschild als Google-Präsentation gibt es in FloTix nicht
+ * mehr. Der Eventmanager druckt die Schilder längst selbst, deshalb bleibt
+ * das Feld leer, statt dass wir eine Adresse erfinden.
+ */
+function ausFlotix(bestellungen: FlotixBestellung[]): Parkplatzbuchung[] {
+  const buchungen: Parkplatzbuchung[] = [];
+
+  for (const b of bestellungen) {
+    if (b.storniertAm) continue;
+
+    const anzahl = b.positionen
+      .filter((pos) => /park/i.test(pos.bezeichnung))
+      .reduce((summe, pos) => summe + (Number(pos.menge) || 0), 0);
+    if (anzahl <= 0) continue;
+
+    const name = nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim());
+    if (!name) continue;
+
+    const beginn = new Date(b.beginn);
+    const datum = beginn.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const uhrzeit = beginn.toLocaleTimeString("de-DE", {
+      timeZone: "Europe/Berlin",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    buchungen.push({
+      orderId: b.bestellnummer || b.id,
+      name,
+      email: (b.email ?? "").toLowerCase(),
+      ditixEventId: b.vorstellungId,
+      eventName: b.showTitel,
+      datum,
+      uhrzeit,
+      anzahl,
+      schildUrl: null,
     });
   }
 
