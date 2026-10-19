@@ -295,6 +295,7 @@ export function baueVorfreudemail(
         "",
         "Buchen kann man diese wundervollen Menüs ausschließlich als Showgast.",
         "Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch.",
+        "Und nur vorab: Am Abend selbst können wir kein Menü mehr dazunehmen.",
       );
     }
 
@@ -406,8 +407,10 @@ function menueBlock(isstDavor: boolean): string {
             Es ist super entspannt und der Welcome Drink ist im Menüpreis enthalten.
           </p>
           <p style="margin:12px 0 0;font-family:${sans};font-size:14.5px;line-height:1.6;color:#C4C4C4;">
-            Buchen kann man diese wundervollen Menüs <strong style="color:${WEISS};font-weight:600;">ausschließlich als Showgast</strong>.
-            Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch.
+            Buchen kann man diese wundervollen Menüs <strong style="color:${WEISS};font-weight:600;">ausschließlich als Showgast</strong>
+            und <strong style="color:${WEISS};font-weight:600;">nur vorab</strong>.
+            Es gibt sie nirgendwo sonst, auch nicht als Restaurantbesuch, und am Abend
+            selbst können wir kein Menü mehr dazunehmen.
           </p>
         </td></tr>
       </table>
