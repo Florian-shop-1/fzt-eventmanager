@@ -60,6 +60,32 @@ meldet FloTix absichtlich nichts. Bleibt eine Meldung aus, hinkt nichts länger 
 Minute nach: So lange gilt der Zwischenspeicher auch ohne Meldung. Eine doppelte Meldung
 schadet nicht, es wird derselbe Speicher zweimal weggeworfen.
 
+## Beide Quellen gleichzeitig, FloTix ist die Wahrheit
+
+"alle Buchungen die bis jetzt in den Eventmanager gekommen sind, sollen drin bleiben. Es darf
+nichts verloren gehen, was in Ditix gebucht wurde. Falls von Ditix wider Erwarten noch was
+kommt, soll das auch ankommen und entsprechend markiert werden. Aber grundsätzlich ist die
+Quelle der Wahrheit ab jetzt FloTix" (Florian, 20.10.2026).
+
+Mit `QUELLE=flotix` liest der Eventmanager deshalb **beide** Quellen und führt sie zusammen,
+statt eine abzuschalten:
+
+- Jede Buchung trägt eine Herkunft, `flotix` oder `ditix`. In der Parkplatzliste und im
+  Gutscheinversand steht sie als "aus Ditix" dran.
+- Die alten Buchungen liegen in den Tabellen unter der **Ditix**-Kennung der Vorstellung, die
+  neuen unter der aus FloTix. Zusammengelegt werden sie über `performances.external_reference`:
+  FloTix hat beim Import aus Ditix am 24.09.2026 die alte Kennung mitgespeichert. Dadurch
+  liegen alte und neue Gäste desselben Abends auf derselben Vorstellung und nicht auf zwei.
+- Kommt in Ditix doch noch etwas herein, erscheint es weiter: Die Tabellen werden
+  unverändert mitgelesen.
+- Fällt eine der beiden Quellen aus, bleibt die andere stehen. Eine halbe Gästeliste ist
+  besser als keine.
+- Testkäufe aus der Abnahme bleiben draußen, erkannt an `@example.com`, `+test` und "Test"
+  oder "Flotix" im Namen. Sichtbar machen kann man sie mit `FLOTIX_TESTKAEUFE=zeigen`.
+
+Nachprüfen lässt sich das auf **Einstellungen, FloTix**: Dort stehen die kommenden Abende mit
+den Gästen aus beiden Quellen nebeneinander.
+
 ## Was vor dem Umschalten noch fehlt
 
 1. **Vergleichslauf:** `npx tsx scripts/quellenvergleich.ts` stellt beide Quellen je

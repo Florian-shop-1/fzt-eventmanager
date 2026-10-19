@@ -16,7 +16,13 @@
 
 import type { MenueVariante } from "@/lib/domain/types";
 import { db } from "@/lib/db/client";
-import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
+import {
+  flotixBestellungen,
+  flotixQuelle,
+  flotixZuordnung,
+  istTestkauf,
+  type FlotixBestellung,
+} from "@/lib/flotix/tuer";
 import { nameOrdentlich } from "@/lib/domain/namen";
 
 const TABELLE_ID =
@@ -26,6 +32,8 @@ const TABELLE_BLATT = process.env.SHOP_MENUELISTE_GID ?? "824665040";
 /** Eine Bestellung aus dem Shop. */
 export interface ShopBestellung {
   bestellung: string;
+  /** Aus welchem Ticketing die Bestellung kommt. Siehe shop/rohdaten.ts. */
+  quelle: "ditix" | "flotix";
   show: string;
   kunde: string;
   orderId: string;
@@ -188,6 +196,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
   for (const b of bestellungen) {
     // Storniertes kennt FloTix selbst. Siehe shop/rohdaten.ts.
     if (b.storniertAm) continue;
+    if (istTestkauf(b)) continue;
 
     const menues: Partial<Record<MenueVariante, number>> = {};
     let getraenkeArmbaender = 0;
@@ -233,6 +242,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
 
     liste.push({
       bestellung: b.bestellnummer,
+      quelle: "flotix",
       show: `${b.showTitel}, ${wann}`,
       kunde: nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim()) || "Ohne Namen",
       orderId: b.bestellnummer || b.id,
@@ -250,8 +260,27 @@ function ausFlotix(bestellungen: FlotixBestellung[]): ShopBestellung[] {
 }
 
 export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
-  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+  if (!flotixQuelle()) return ausTabelle();
 
+  // Beide Quellen, die alten Buchungen auf die Vorstellung in FloTix
+  // umgelegt. Der Grund steht in shop/rohdaten.ts.
+  const [neu, alt, zuordnung] = await Promise.all([
+    flotixBestellungen().catch(() => []),
+    ausTabelle().catch(() => [] as ShopBestellung[]),
+    flotixZuordnung().catch(() => new Map<string, string>()),
+  ]);
+
+  return [
+    ...ausFlotix(neu),
+    ...alt.map((b) => ({
+      ...b,
+      ditixEventId: zuordnung.get(b.ditixEventId) ?? b.ditixEventId,
+    })),
+  ];
+}
+
+/** Die alte Quelle: das Menüblatt der Google-Tabelle. */
+async function ausTabelle(): Promise<ShopBestellung[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${TABELLE_BLATT}`;
@@ -329,6 +358,7 @@ export async function holeShopBestellungen(): Promise<ShopBestellung[]> {
 
       return {
         bestellung: (z[iBestellung] ?? "").trim(),
+        quelle: "ditix" as const,
         show: (z[iShow] ?? "").trim(),
         kunde: (z[iKunde] ?? "").trim(),
         orderId: (z[iOrder] ?? "").trim(),

@@ -1,4 +1,11 @@
-import { flotixBestellungen, flotixProbe, flotixQuelle } from "@/lib/flotix/tuer";
+import {
+  flotixBestellungen,
+  flotixProbe,
+  flotixQuelle,
+  flotixVorstellungen,
+} from "@/lib/flotix/tuer";
+import { ausFlotix, holeShopGruppenRoh } from "@/lib/shop/rohdaten";
+import { showtageAbHeute } from "@/lib/ditix/spielplan";
 
 export const metadata = { title: "FloTix | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -33,6 +40,79 @@ export default async function FlotixSeite({
 
   const probe = schluessel ? await flotixProbe().catch((f: Error) => ({ fehler: f.message })) : null;
   const alle = schluessel ? await flotixBestellungen().catch(() => []) : [];
+
+  /*
+    Die Gegenüberstellung je Vorstellung.
+
+    "es darf nichts verloren gehen, was in Ditix gebucht wurde" (Florian,
+    20.10.2026). Genau das steht hier nachprüfbar: je Abend die Gäste aus
+    FloTix und die aus Ditix, nebeneinander.
+
+    Verglichen wird nach Termin und nicht nach Kennung, denn dieselbe
+    Vorstellung hat in beiden Systemen eine eigene. Die Brücke dafür sind
+    die Vorstellungen aus FloTix: Dort steht neben der eigenen Kennung
+    auch die alte aus Ditix.
+  */
+  const [gruppen, vorstellungen, spielplan] = await Promise.all([
+    holeShopGruppenRoh().catch(() => []),
+    schluessel ? flotixVorstellungen().catch(() => []) : Promise.resolve([]),
+    showtageAbHeute(400).catch(() => []),
+  ]);
+
+  // Welcher Termin gehört zu welcher Kennung, egal aus welchem System.
+  const terminVon = new Map<string, { wann: string; name: string }>();
+  for (const t of spielplan) {
+    terminVon.set(t.ditixEventId, { wann: `${t.datum} ${t.uhrzeit}`, name: t.name });
+  }
+  for (const v of vorstellungen) {
+    const d = new Date(v.beginn);
+    const wann =
+      d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) +
+      " " +
+      d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+    const eintrag = { wann, name: v.showTitel };
+    if (!terminVon.has(v.id)) terminVon.set(v.id, eintrag);
+    if (v.ditixEventId && !terminVon.has(v.ditixEventId)) terminVon.set(v.ditixEventId, eintrag);
+  }
+
+  /*
+    Steht die Weiche noch auf Ditix, liefert holeShopGruppenRoh nur die
+    Tabelle. Damit die Spalte trotzdem etwas zeigt, kommt FloTix dann
+    direkt von der Tür.
+  */
+  const flotixGruppen = weiche
+    ? gruppen.filter((g) => g.quelle === "flotix")
+    : ausFlotix(alle);
+  const ditixGruppen = gruppen.filter((g) => g.quelle === "ditix");
+
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const abende = new Map<
+    string,
+    { wann: string; name: string; flotix: number; ditix: number; fGaeste: number; dGaeste: number }
+  >();
+  const einsortieren = (
+    liste: typeof ditixGruppen,
+    welche: "flotix" | "ditix",
+  ) => {
+    for (const g of liste) {
+      const t = terminVon.get(g.ditixEventId);
+      if (!t || t.wann.slice(0, 10) < heute) continue;
+      const e =
+        abende.get(t.wann) ??
+        { wann: t.wann, name: t.name, flotix: 0, ditix: 0, fGaeste: 0, dGaeste: 0 };
+      if (welche === "flotix") {
+        e.flotix += 1;
+        e.fGaeste += g.tickets;
+      } else {
+        e.ditix += 1;
+        e.dGaeste += g.tickets;
+      }
+      abende.set(t.wann, e);
+    }
+  };
+  einsortieren(flotixGruppen, "flotix");
+  einsortieren(ditixGruppen, "ditix");
+  const reihen = [...abende.values()].sort((a, b) => a.wann.localeCompare(b.wann));
 
   const gesucht = suche.trim().toLowerCase();
   const liste = (
@@ -118,6 +198,51 @@ export default async function FlotixSeite({
         </ul>
       </section>
 
+      <section>
+        <h2 className="font-semibold">Gäste je Abend, nach Quelle</h2>
+        <p className="mt-1 mb-2 text-sm text-leise">
+          Nur kommende Abende. Was in Ditix gebucht wurde, bleibt in der rechten Spalte stehen,
+          bis die Show gespielt ist.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <thead>
+              <tr className="border-b border-linie text-left text-xs text-leise">
+                <th className="py-2 pr-3">Abend</th>
+                <th className="py-2 pr-3">Show</th>
+                <th className="py-2 pr-3">aus FloTix</th>
+                <th className="py-2">aus Ditix</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reihen.map((r) => (
+                <tr key={r.wann} className="border-b border-linie">
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {r.wann.slice(8, 10)}.{r.wann.slice(5, 7)}.{r.wann.slice(0, 4)}
+                    <span className="text-leise"> {r.wann.slice(11)}</span>
+                  </td>
+                  <td className="py-2 pr-3">{r.name}</td>
+                  <td className="py-2 pr-3">
+                    {r.flotix === 0 ? <span className="text-leise">0</span> : `${r.fGaeste} Gäste, ${r.flotix} Bestellungen`}
+                  </td>
+                  <td className="py-2">
+                    {r.ditix === 0 ? <span className="text-leise">0</span> : `${r.dGaeste} Gäste, ${r.ditix} Bestellungen`}
+                  </td>
+                </tr>
+              ))}
+              {reihen.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-4 text-sm text-leise">
+                    Für die kommenden Abende liegt in keiner der beiden Quellen eine Buchung.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <h2 className="font-semibold">Einzelne Bestellungen in FloTix</h2>
       <form className="flex flex-wrap items-end gap-2">
         <label className="flex-1 text-xs">
           <span className="mb-1 block text-leise">Bestellnummer, Name oder E-Mail</span>

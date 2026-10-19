@@ -321,6 +321,14 @@ export default async function ParkplaetzeSeite({
                   <td className="py-2">
                     <div className="font-medium">
                       {b.name}
+                      {b.quelle === "ditix" && (
+                        <span
+                          className="ml-2 rounded px-1.5 py-0.5 text-[11px] text-leise"
+                          style={{ border: "1px solid var(--linie)" }}
+                        >
+                          aus Ditix
+                        </span>
+                      )}
                       {b.orderId.startsWith("hand:") && (
                         <span
                           className="ml-2 rounded px-1.5 py-0.5 text-[11px]"

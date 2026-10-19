@@ -71,10 +71,22 @@ export interface FlotixBestellung {
   firma: string | null;
   /** Kennung der Vorstellung in FloTix. Tritt an die Stelle der Ditix-Kennung. */
   vorstellungId: string;
+  /** Dieselbe Vorstellung in Ditix, falls sie von dort übernommen wurde. */
+  ditixEventId: string | null;
   beginn: string;
   vorstellungStatus: string;
   showTitel: string;
   positionen: FlotixPosition[];
+}
+
+export interface FlotixVorstellung {
+  /** Kennung in FloTix. */
+  id: string;
+  /** Die alte Ditix-Kennung, unter der die Buchungen in den Tabellen stehen. */
+  ditixEventId: string | null;
+  beginn: string;
+  status: string;
+  showTitel: string;
 }
 
 export interface FlotixSendung {
@@ -130,6 +142,7 @@ function alsBestellung(r: Record<string, unknown>): FlotixBestellung {
     vorstellungId: t(r.vorstellung_id),
     beginn: t(r.beginn),
     vorstellungStatus: t(r.vorstellung_status),
+    ditixEventId: r.ditix_event_id ? t(r.ditix_event_id) : null,
     showTitel: t(r.show_titel),
     positionen: roh.map((p) => ({
       bezeichnung: t(p.bezeichnung),
@@ -221,4 +234,70 @@ export async function flotixSendungen(): Promise<FlotixSendung[]> {
 /** Lebenszeichen, für die Einstellungsseite und den Vergleichslauf. */
 export async function flotixProbe(): Promise<Record<string, unknown>> {
   return holen("probe");
+}
+
+/** Alle Vorstellungen, die FloTix kennt, mit ihrer alten Ditix-Kennung. */
+export async function flotixVorstellungen(): Promise<FlotixVorstellung[]> {
+  const d = await holen("vorstellungen");
+  const liste = Array.isArray(d.vorstellungen)
+    ? (d.vorstellungen as Array<Record<string, unknown>>)
+    : [];
+
+  return liste.map((r) => ({
+    id: String(r.id),
+    ditixEventId: r.ditix_event_id ? String(r.ditix_event_id) : null,
+    beginn: String(r.beginn ?? ""),
+    status: String(r.status ?? ""),
+    showTitel: String(r.show_titel ?? ""),
+  }));
+}
+
+/**
+ * Die Brücke von der alten Kennung zur neuen.
+ *
+ * Die Buchungen in den Google-Tabellen stehen unter der Ditix-Kennung der
+ * Vorstellung, die aus FloTix unter deren eigener. Ohne diese Brücke lägen
+ * die Gäste eines Abends auf zwei verschiedenen Vorstellungen, und im Haus
+ * fehlte die Hälfte (Florian, 20.10.2026: "es darf nichts verloren gehen,
+ * was in Ditix gebucht wurde").
+ *
+ * Geraten wird dabei nichts: FloTix hat beim Import aus Ditix am
+ * 24.09.2026 die alte Kennung je Vorstellung mitgespeichert.
+ */
+export async function flotixZuordnung(): Promise<Map<string, string>> {
+  const paare = new Map<string, string>();
+  for (const v of await flotixVorstellungen()) {
+    if (v.ditixEventId) paare.set(v.ditixEventId, v.id);
+  }
+  return paare;
+}
+
+/**
+ * Ein Testkauf, der in keiner Liste im Haus etwas zu suchen hat.
+ *
+ * Aus der Abnahme liegen in FloTix Käufe auf @example.com, auf
+ * julian+test… und mit "Test" im Namen. Sie bleiben in FloTix liegen, bis
+ * das Steuerbüro wegen der verbrauchten Rechnungsnummern geantwortet hat
+ * (siehe UMSCHALTTAG.md im Backend), aber im Funktionsheet, auf dem
+ * Küchenblatt und in der Einlassliste haben sie nichts zu tun.
+ *
+ * Soll man sie trotzdem sehen, hilft FLOTIX_TESTKAEUFE=zeigen.
+ */
+export function istTestkauf(b: {
+  email: string | null;
+  vorname: string | null;
+  nachname: string | null;
+}): boolean {
+  if ((process.env.FLOTIX_TESTKAEUFE ?? "").trim().toLowerCase() === "zeigen") return false;
+
+  const mail = (b.email ?? "").toLowerCase();
+  const name = `${b.vorname ?? ""} ${b.nachname ?? ""}`.toLowerCase();
+
+  return (
+    mail.endsWith("@example.com") ||
+    mail.endsWith("@example.org") ||
+    mail.includes("+test") ||
+    /test(s|kauf|buchung)?/.test(name) ||
+    /flotix/.test(name)
+  );
 }

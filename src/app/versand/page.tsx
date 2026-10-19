@@ -588,6 +588,16 @@ function Karte({
                 Selbstausdruck, kein Versand
               </span>
             )}
+            {/*
+              Seit dem Umschalttag kommen Gutscheine aus FloTix. Die aus
+              Ditix bleiben in der Liste, bis sie in der Post sind, und
+              sind als solche gekennzeichnet (Florian, 20.10.2026).
+            */}
+            {sendung.quelle === "ditix" && (
+              <span className="rounded-full border border-linie px-2 py-px text-xs text-leise">
+                aus Ditix
+              </span>
+            )}
             {erledigt && (
               <span className="text-xs" style={{ color: "var(--gut)" }}>
                 erledigt

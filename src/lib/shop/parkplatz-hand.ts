@@ -93,6 +93,7 @@ export async function parkplatzWeg(id: string): Promise<void> {
  */
 export function alsBuchung(p: HandParkplatz, eventName: string, uhrzeit: string): Parkplatzbuchung {
   return {
+    quelle: "hand",
     orderId: `hand:${p.id}`,
     name: p.name,
     email: p.email,

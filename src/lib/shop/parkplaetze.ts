@@ -16,7 +16,13 @@
 
 import { csvZerlegen, pruefeTabelle } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
-import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
+import {
+  flotixBestellungen,
+  flotixQuelle,
+  flotixZuordnung,
+  istTestkauf,
+  type FlotixBestellung,
+} from "@/lib/flotix/tuer";
 
 const TABELLE_ID =
   process.env.SHOP_PARKPLATZ_ID ?? "1bLoiE2NAJkYRT184pJL0lRGdHytEF_FmyEwBxup5Z7E";
@@ -24,6 +30,11 @@ const TABELLE_ID =
 const ROHDATEN_GID = process.env.SHOP_PARKPLATZ_GID ?? "0";
 
 export interface Parkplatzbuchung {
+  /**
+   * Woher die Buchung kommt: aus einem der beiden Ticketings, oder von
+   * Hand eingetragen (siehe shop/parkplatz-hand.ts).
+   */
+  quelle: "ditix" | "flotix" | "hand";
   orderId: string;
   name: string;
   email: string;
@@ -47,8 +58,26 @@ function uhrzeitAus(startBerlin: string): string {
 
 /** Holt alle Parkplatzbuchungen aus der Tabelle. */
 export async function holeParkplaetze(): Promise<Parkplatzbuchung[]> {
-  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+  if (!flotixQuelle()) return ausTabelle();
 
+  // Beide Quellen. Der Grund steht in shop/rohdaten.ts.
+  const [neu, alt, zuordnung] = await Promise.all([
+    flotixBestellungen().catch(() => []),
+    ausTabelle().catch(() => [] as Parkplatzbuchung[]),
+    flotixZuordnung().catch(() => new Map<string, string>()),
+  ]);
+
+  return [
+    ...ausFlotix(neu),
+    ...alt.map((p) => ({
+      ...p,
+      ditixEventId: zuordnung.get(p.ditixEventId) ?? p.ditixEventId,
+    })),
+  ];
+}
+
+/** Die alte Quelle: die Parkplatztabelle. */
+async function ausTabelle(): Promise<Parkplatzbuchung[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${ROHDATEN_GID}`;
@@ -104,6 +133,7 @@ export async function holeParkplaetze(): Promise<Parkplatzbuchung[]> {
     const schild = (z[iSchild] ?? "").trim();
 
     buchungen.push({
+      quelle: "ditix",
       orderId: (z[iOrder] ?? "").trim(),
       name,
       email: (z[iMail] ?? "").trim(),
@@ -137,6 +167,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): Parkplatzbuchung[] {
 
   for (const b of bestellungen) {
     if (b.storniertAm) continue;
+    if (istTestkauf(b)) continue;
 
     const anzahl = b.positionen
       .filter((pos) => /park/i.test(pos.bezeichnung))
@@ -163,6 +194,7 @@ function ausFlotix(bestellungen: FlotixBestellung[]): Parkplatzbuchung[] {
       datum,
       uhrzeit,
       anzahl,
+      quelle: "flotix",
       schildUrl: null,
     });
   }

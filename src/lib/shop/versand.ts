@@ -25,6 +25,8 @@ const BLATT_GID = process.env.SHOP_VERSAND_GID ?? "0";
 export interface Sendung {
   /** Bestellnummer aus dem Shop. Stabil, deshalb unser Schlüssel. */
   bestellnummer: string;
+  /** Aus welchem Ticketing die Sendung kommt. Siehe shop/rohdaten.ts. */
+  quelle: "ditix" | "flotix";
   kaufdatum: string;
   kundenname: string;
   email: string;
@@ -93,8 +95,23 @@ export function brauchtKlaerung(s: Sendung): string | null {
 }
 
 export async function holeSendungen(): Promise<Sendung[]> {
-  if (flotixQuelle()) return nachbereiten(ausFlotix(await flotixSendungen()));
+  if (!flotixQuelle()) return nachbereiten(await ausTabelle());
 
+  /*
+    Beide Quellen. Ein Gutschein, der über Ditix verkauft wurde und noch
+    nicht in der Post ist, darf nicht aus Kevins Liste verschwinden
+    (Florian, 20.10.2026).
+  */
+  const [neu, alt] = await Promise.all([
+    flotixSendungen().catch(() => []),
+    ausTabelle().catch(() => [] as Sendung[]),
+  ]);
+
+  return nachbereiten([...ausFlotix(neu), ...alt]);
+}
+
+/** Die alte Quelle: die Versandtabelle. */
+async function ausTabelle(): Promise<Sendung[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${BLATT_GID}`;
@@ -136,6 +153,7 @@ export async function holeSendungen(): Promise<Sendung[]> {
 
     sendungen.push({
       bestellnummer: nummer,
+      quelle: "ditix",
       kaufdatum: feld(z, "Kaufdatum"),
       kundenname: nameOrdentlich(feld(z, "Kundenname")),
       email: feld(z, "E-Mail"),
@@ -158,7 +176,7 @@ export async function holeSendungen(): Promise<Sendung[]> {
     });
   }
 
-  return nachbereiten(sendungen);
+  return sendungen;
 }
 
 /**
@@ -201,6 +219,7 @@ function ausFlotix(sendungen: FlotixSendung[]): Sendung[] {
 
   return sendungen.map((g) => ({
     bestellnummer: g.bestellnummer,
+    quelle: "flotix" as const,
     kaufdatum: (g.bezahltAm ?? g.kaufdatum).slice(0, 10),
     kundenname: nameOrdentlich(`${g.vorname ?? ""} ${g.nachname ?? ""}`.trim()),
     email: (g.email ?? "").toLowerCase(),

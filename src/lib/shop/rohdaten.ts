@@ -18,7 +18,13 @@
 import type { MenueVariante } from "@/lib/domain/types";
 import { csvZerlegen, menueAenderungen, pruefeTabelle, type MenueAenderung } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
-import { flotixBestellungen, flotixQuelle, type FlotixBestellung } from "@/lib/flotix/tuer";
+import {
+  flotixBestellungen,
+  flotixQuelle,
+  flotixZuordnung,
+  istTestkauf,
+  type FlotixBestellung,
+} from "@/lib/flotix/tuer";
 import { istTicket, menueVarianteAus } from "./artikel";
 
 const TABELLE_ID =
@@ -60,6 +66,15 @@ export interface ShopGruppe {
   eingegangen: string;
   /** true, wenn die Bestellung im Backend von Hand angelegt wurde. */
   manuell: boolean;
+  /**
+   * Aus welchem Ticketing diese Buchung kommt.
+   *
+   * Seit dem Umschalttag ist FloTix die Quelle der Wahrheit, aber die in
+   * Ditix verkauften Gäste bleiben vollständig erhalten, und ein
+   * Nachzügler aus Ditix kommt weiter an. Im Haus muss man beides
+   * unterscheiden können (Florian, 20.10.2026).
+   */
+  quelle: "ditix" | "flotix";
 }
 
 
@@ -71,9 +86,56 @@ export interface ShopGruppe {
  * nur, wer zeigen will, was abgezogen wurde (Florian, 04.10.2026).
  */
 export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
-  // Die neue Quelle. Siehe lib/flotix/tuer.ts: eine Variable, umkehrbar.
-  if (flotixQuelle()) return ausFlotix(await flotixBestellungen());
+  if (!flotixQuelle()) return ausTabelle();
 
+  /*
+    Nach dem Umschalttag gelten beide Quellen, nicht eine.
+
+    "alle Buchungen die bis jetzt in den Eventmanager gekommen sind,
+    sollen drin bleiben. Es darf nichts verloren gehen, was in Ditix
+    gebucht wurde. Falls von Ditix wider Erwarten noch was kommt, soll
+    das auch ankommen und entsprechend markiert werden. Aber
+    grundsätzlich ist die Quelle der Wahrheit ab jetzt FloTix"
+    (Florian, 20.10.2026).
+
+    Also: FloTix holen, die Tabelle weiter lesen, und die alten
+    Buchungen über die Ditix-Kennung auf dieselbe Vorstellung legen.
+    Fällt eine der beiden Quellen aus, bleibt die andere stehen: Ein
+    Abend ohne halbe Gästeliste ist besser als ein Abend ohne Liste.
+  */
+  const [neu, alt, zuordnung] = await Promise.all([
+    flotixBestellungen().catch((f: Error) => {
+      console.error("[rohdaten] FloTix nicht erreichbar:", f.message);
+      return [];
+    }),
+    ausTabelle().catch((f: Error) => {
+      console.error("[rohdaten] Tabelle nicht lesbar:", f.message);
+      return [] as ShopGruppe[];
+    }),
+    flotixZuordnung().catch(() => new Map<string, string>()),
+  ]);
+
+  /*
+    Dieselbe Bestellnummer in beiden Quellen gibt es nicht, die Systeme
+    vergeben eigene. Falls doch einmal eine doppelt auftaucht, gilt
+    FloTix: Das ist jetzt die Wahrheit.
+  */
+  const ausFlotixGruppen = ausFlotix(neu);
+  const bekannt = new Set(ausFlotixGruppen.map((g) => `${g.orderId}|${g.ditixEventId}`));
+
+  const umgeschrieben = alt
+    .map((g) => ({
+      ...g,
+      // Auf die Vorstellung in FloTix umlegen, wenn es sie dort gibt.
+      ditixEventId: zuordnung.get(g.ditixEventId) ?? g.ditixEventId,
+    }))
+    .filter((g) => !bekannt.has(`${g.orderId}|${g.ditixEventId}`));
+
+  return [...ausFlotixGruppen, ...umgeschrieben];
+}
+
+/** Die alte Quelle: das Rohdatenblatt der Google-Tabelle. */
+async function ausTabelle(): Promise<ShopGruppe[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${ROHDATEN_GID}`;
@@ -148,6 +210,7 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
         zusatzleistungen: [],
         eingegangen: (z[iZeit] ?? "").trim(),
         manuell: (z[iArt] ?? "").trim() === "order_manuell_gepflegt",
+        quelle: "ditix",
       };
       gruppen.set(schluessel, g);
     }
@@ -203,6 +266,8 @@ export function ausFlotix(bestellungen: FlotixBestellung[]): ShopGruppe[] {
       noch jemand bei uns eintragen muesste.
     */
     if (b.storniertAm) continue;
+    // Käufe aus der Abnahme gehören in keine Liste im Haus.
+    if (istTestkauf(b)) continue;
 
     const name = nameOrdentlich(`${b.vorname ?? ""} ${b.nachname ?? ""}`.trim());
     const g: ShopGruppe = {
@@ -220,6 +285,7 @@ export function ausFlotix(bestellungen: FlotixBestellung[]): ShopGruppe[] {
       eingegangen: b.eingegangen,
       // An der Kasse oder im Backend von Hand gebucht, nicht im Webshop.
       manuell: b.herkunft !== "" && b.herkunft !== "shop",
+      quelle: "flotix",
     };
 
     for (const pos of b.positionen) {
