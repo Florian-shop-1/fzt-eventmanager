@@ -126,6 +126,12 @@ export default async function BenutzerSeite({
               WhatsApp
             </a>
             <a
+              href="/einstellungen/flotix"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              FloTix
+            </a>
+            <a
               href="/einstellungen/handynummern"
               className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
             >
