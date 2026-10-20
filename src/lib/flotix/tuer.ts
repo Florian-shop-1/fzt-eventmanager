@@ -112,6 +112,16 @@ export interface FlotixSendung {
   versandGemeldetAm: string | null;
   versendetAm: string | null;
   notiz: string | null;
+  /**
+   * Der Gutscheincode, wie er auf dem Gutschein steht.
+   *
+   * Ditix gab ihn nie über die Schnittstelle heraus, er musste aus dem
+   * Backend abgetippt werden. FloTix liefert ihn mit (Florian,
+   * 20.10.2026).
+   */
+  gutscheincode: string | null;
+  /** Ablaufdatum, falls eines gesetzt ist. Meist leer. */
+  gueltigBis: string | null;
 }
 
 /*
@@ -267,6 +277,8 @@ export async function flotixSendungen(): Promise<FlotixSendung[]> {
     versandGemeldetAm: t(r.versand_gemeldet_am),
     versendetAm: t(r.versendet_am),
     notiz: t(r.notiz),
+    gutscheincode: t(r.gutscheincode),
+    gueltigBis: t(r.gueltig_bis),
   }));
 }
 

@@ -48,5 +48,31 @@ export function einloesesatz(istGutschein: boolean): string {
         "melde dich einfach bei uns.";
 }
 
+/**
+ * Der Satz zur Gültigkeit.
+ *
+ * Zwei Regeln von Florian (20.10.2026): Ein Ablaufdatum steht nur dann
+ * da, wenn für diesen Gutschein wirklich eines hinterlegt ist. Gerechnet
+ * wird nichts, und "unbegrenzt gültig" steht nirgends, denn das wäre eine
+ * Zusage, die wir so nicht geben wollen.
+ *
+ * Dazu in jedem Fall der Satz, der unsere Kulanz sagt: Wir lösen auch
+ * abgelaufene Gutscheine ein. Das ist im Haus seit jeher so und soll auch
+ * dastehen, statt dass jemand seinen Gutschein für wertlos hält.
+ */
+export function gueltigkeitssatz(gueltigBis: string | null): string {
+  const kulanz = "Auch abgelaufene Gutscheine lösen wir gern ein.";
+  const datum = (gueltigBis ?? "").trim();
+  if (!datum) return kulanz;
+  return `Dein Gutschein ist gültig bis ${datumLang(datum)}. ${kulanz}`;
+}
+
+/** TT.MM.JJJJ, egal ob ISO oder schon deutsch hereinkommt. */
+function datumLang(wert: string): string {
+  const iso = wert.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.split("-").reverse().join(".");
+  return wert;
+}
+
 export const GRUSSFORMEL = "Bis ganz bald im Home of Magic";
 export const UNTERSCHRIFT_ROLLE = "Gastgeber & Magier";

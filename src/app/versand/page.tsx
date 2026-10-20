@@ -39,6 +39,7 @@ import {
   UNTERSCHRIFT_ROLLE,
   anrede,
   einloesesatz,
+  gueltigkeitssatz,
 } from "@/lib/shop/anschreiben";
 
 export const metadata = { title: "Versand | FZT Eventmanager" };
@@ -165,9 +166,13 @@ export default async function VersandSeite({
   const staebeZuDrucken = einzeln ? [] : staebeOffen.filter((z) => !z.offen);
   const zuDrucken = (einzeln ?? offen).filter(gehtInDiePost);
   const klaerung = offen.filter((s) => brauchtKlaerung(s));
-  // Ohne Gutscheincode kann kein Gutschein gedruckt werden. Ditix gibt ihn
-  // nicht über die Schnittstelle heraus, er muss von Hand herüber.
-  const ohneCode = zuDrucken.filter((s) => !staende.get(s.bestellnummer)?.gutscheincode);
+  /*
+    Ohne Gutscheincode kann kein Gutschein gedruckt werden.
+
+    FloTix liefert ihn seit dem 20.10.2026 mit. Nur bei den alten
+    Ditix-Sendungen muss er noch von Hand nachgetragen werden.
+  */
+  const ohneCode = zuDrucken.filter((s) => !codeVon(s, staende.get(s.bestellnummer)));
 
   /*
     Entsteht überhaupt ein Blatt?
@@ -225,7 +230,7 @@ export default async function VersandSeite({
         {(zuDrucken.length > 0 || staebeZuDrucken.length > 0) && (
           <Druckwahl
             anzahl={zuDrucken.length + staebeZuDrucken.length}
-            mitGutschein={zuDrucken.filter((s) => staende.get(s.bestellnummer)?.gutscheincode).length}
+            mitGutschein={zuDrucken.filter((s) => codeVon(s, staende.get(s.bestellnummer))).length}
             nur={nur}
             drucken={drucken}
           />
@@ -410,7 +415,9 @@ export default async function VersandSeite({
       <div className="briefseiten hidden print:block">
         {zuDrucken.map((s) => (
           <Fragment key={s.bestellnummer}>
-            {druckeAnschreiben && <Begleitschreiben sendung={s} />}
+            {druckeAnschreiben && (
+              <Begleitschreiben sendung={s} stand={staende.get(s.bestellnummer)} />
+            )}
             {druckeGutschein && <Gutschein sendung={s} stand={staende.get(s.bestellnummer)} />}
           </Fragment>
         ))}
@@ -664,9 +671,25 @@ function Karte({
         </div>
       </div>
 
-      {post && <Codeschritte sendung={sendung} stand={stand} code={stand?.gutscheincode ?? null} />}
+      {post && <Codeschritte sendung={sendung} stand={stand} code={codeVon(sendung, stand)} />}
     </article>
   );
+}
+
+/**
+ * Der Gutscheincode dieser Sendung.
+ *
+ * Aus FloTix, wenn er von dort kommt, sonst der von Hand nachgetragene.
+ * Seit dem 20.10.2026 liefert FloTix ihn mit; das Feld zum Eintippen
+ * bleibt nur für die alten Ditix-Sendungen (Florian, 20.10.2026).
+ */
+function codeVon(s: Sendung, stand: VersandStand | undefined): string | null {
+  return s.gutscheincode?.trim() || stand?.gutscheincode?.trim() || null;
+}
+
+/** Dasselbe für das Ablaufdatum. Meist gibt es keines. */
+function gueltigVon(s: Sendung, stand: VersandStand | undefined): string | null {
+  return s.gueltigBis?.trim() || stand?.gueltigBis?.trim() || null;
 }
 
 /**
@@ -692,6 +715,8 @@ function Codeschritte({
 }) {
   const wertCent = gutscheinCent(sendung, stand);
   const mitZauberstab = Number.isFinite(wertCent) && wertCent >= ZAUBERSTAB_AB_CENT;
+  // Kommt der Code mit der Bestellung aus FloTix, ist nichts einzutippen.
+  const ausFlotix = Boolean(sendung.gutscheincode?.trim());
 
   if (code) {
     return (
@@ -700,9 +725,17 @@ function Codeschritte({
         style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
       >
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span style={{ color: "var(--gut)" }}>Gutscheincode liegt vor:</span>
+          <span style={{ color: "var(--gut)" }}>
+            {ausFlotix ? "Gutscheincode aus FloTix:" : "Gutscheincode liegt vor:"}
+          </span>
           <strong className="font-mono text-base tracking-wider">{code}</strong>
-          <details className="ml-auto">
+          {/*
+            Kommt der Code aus FloTix, gibt es nichts zu ändern: Er steht
+            dort auf dem Gutschein, und ein abweichender Wert hier wäre ein
+            Fehler. Das Feld bleibt für die alten Ditix-Sendungen
+            (Florian, 20.10.2026).
+          */}
+          {!ausFlotix && <details className="ml-auto">
             <summary className="cursor-pointer text-xs text-leise">ändern</summary>
             <form
               action={gutscheincodeSetzen.bind(null, sendung.bestellnummer)}
@@ -713,7 +746,7 @@ function Codeschritte({
                 Sichern
               </button>
             </form>
-          </details>
+          </details>}
         </div>
 
         {/*
@@ -776,7 +809,9 @@ function Codeschritte({
       style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
     >
       <p className="mb-3 text-sm font-medium">
-        Gutscheincode fehlt noch. Ditix gibt ihn leider nicht automatisch heraus.
+        {sendung.quelle === "flotix"
+          ? "Zu dieser Bestellung hat FloTix noch keinen Gutscheincode geliefert."
+          : "Gutscheincode fehlt noch. Ditix gibt ihn leider nicht automatisch heraus."}
       </p>
 
       <ol className="space-y-3 text-sm">
@@ -871,7 +906,14 @@ function Schrittzahl({ n, gut }: { n: number; gut?: boolean }) {
  * Millimeter statt gestapelter Abstände: Verrutscht es, ist der Brief
  * unbrauchbar.
  */
-function Begleitschreiben({ sendung }: { sendung: Sendung }) {
+function Begleitschreiben({
+  sendung,
+  stand,
+}: {
+  sendung: Sendung;
+  /** Nur für die Gültigkeit gebraucht, siehe gueltigVon. */
+  stand?: VersandStand;
+}) {
   const istGutschein = !/ticket|karte/i.test(sendung.ditixVariante);
   // Wer den Umschlag bekommt, nicht wer beschenkt wird.
   const empfaenger = postempfaenger(sendung);
@@ -920,7 +962,14 @@ function Begleitschreiben({ sendung }: { sendung: Sendung }) {
         </p>
 
         <div className="text-[12pt] leading-relaxed">
-          {[...ANSCHREIBEN_ABSAETZE, einloesesatz(istGutschein), GRUSSFORMEL].map((absatz, i) => (
+          {[
+            ...ANSCHREIBEN_ABSAETZE,
+            // Der Einlösesatz und, beim Gutschein, die Gültigkeit dazu.
+            istGutschein
+              ? `${einloesesatz(true)} ${gueltigkeitssatz(gueltigVon(sendung, stand))}`
+              : einloesesatz(false),
+            GRUSSFORMEL,
+          ].map((absatz, i) => (
             <p key={i} style={{ marginTop: "5.6mm" }}>
               {absatz}
             </p>
@@ -980,7 +1029,7 @@ function Begleitschreiben({ sendung }: { sendung: Sendung }) {
  * wertlos, und ein leerer Ausdruck fällt später niemandem mehr auf.
  */
 function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand | undefined }) {
-  const code = stand?.gutscheincode;
+  const code = codeVon(sendung, stand);
   if (!code) return null;
 
   const g = gruesse(sendung, stand);
@@ -1057,11 +1106,16 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
         )}
       </div>
 
+      {/*
+        Die Gültigkeit, nach der Regel von Florian (20.10.2026): ein Datum
+        nur, wenn für diesen Gutschein wirklich eines hinterlegt ist, nie
+        "unbegrenzt", und in jedem Fall unsere Kulanz dazu.
+      */}
       <div
         className="absolute text-center text-[11pt]"
         style={{ left: "22mm", right: "22mm", top: "276mm" }}
       >
-        Gültig bis: {stand?.gueltigBis?.trim() || "Unbegrenzt"}
+        {gueltigkeitssatz(gueltigVon(sendung, stand))}
       </div>
 
       {/*

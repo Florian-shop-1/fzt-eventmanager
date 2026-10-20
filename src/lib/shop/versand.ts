@@ -27,6 +27,15 @@ export interface Sendung {
   bestellnummer: string;
   /** Aus welchem Ticketing die Sendung kommt. Siehe shop/rohdaten.ts. */
   quelle: "ditix" | "flotix";
+  /**
+   * Der Gutscheincode, soweit die Quelle ihn kennt.
+   *
+   * FloTix liefert ihn mit. Bei den alten Ditix-Sendungen ist er leer und
+   * wird im Eventmanager von Hand nachgetragen.
+   */
+  gutscheincode: string | null;
+  /** Ablaufdatum, falls gesetzt. Bei uns meist leer. */
+  gueltigBis: string | null;
   kaufdatum: string;
   kundenname: string;
   email: string;
@@ -154,6 +163,9 @@ async function ausTabelle(): Promise<Sendung[]> {
     sendungen.push({
       bestellnummer: nummer,
       quelle: "ditix",
+      // Ditix gibt den Code nicht heraus, er wird von Hand nachgetragen.
+      gutscheincode: null,
+      gueltigBis: null,
       kaufdatum: feld(z, "Kaufdatum"),
       kundenname: nameOrdentlich(feld(z, "Kundenname")),
       email: feld(z, "E-Mail"),
@@ -220,6 +232,8 @@ function ausFlotix(sendungen: FlotixSendung[]): Sendung[] {
   return sendungen.map((g) => ({
     bestellnummer: g.bestellnummer,
     quelle: "flotix" as const,
+    gutscheincode: g.gutscheincode?.trim() || null,
+    gueltigBis: g.gueltigBis?.trim() || null,
     kaufdatum: (g.bezahltAm ?? g.kaufdatum).slice(0, 10),
     kundenname: nameOrdentlich(`${g.vorname ?? ""} ${g.nachname ?? ""}`.trim()),
     email: (g.email ?? "").toLowerCase(),
