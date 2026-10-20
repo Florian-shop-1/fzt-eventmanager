@@ -339,11 +339,11 @@ export function istTestkauf(b: {
     mail.endsWith("@example.com") ||
     mail.endsWith("@example.org") ||
     mail.includes("+test") ||
-    /test(s|kauf|buchung)?/.test(name) ||
-    /tst/.test(name) ||
-    /flotix/.test(name) ||
+    /\btest(s|kauf|buchung)?\b/.test(name) ||
+    /\btst\b/.test(name) ||
+    /\bflotix\b/.test(name) ||
     // "Max Mustermann", "Musti Muster": die Namen der Abnahme.
-    /must(er|i)/.test(name)
+    /\bmust(er|i)/.test(name)
   );
 }
 
@@ -378,3 +378,5 @@ export function kennungFuerPlan(plan: Set<string>, kandidaten: Array<string | nu
   for (const k of kandidaten) if (k) return k;
   return "";
 }
+
+export const MARKE = "probe-A";
