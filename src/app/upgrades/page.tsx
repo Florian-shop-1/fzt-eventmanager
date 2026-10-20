@@ -21,8 +21,9 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
 import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
-import { flotixSitzgruppen } from "@/lib/flotix/tuer";
+import { beideKennungen, flotixSitzgruppen } from "@/lib/flotix/tuer";
 import { shopGruppenDesAbends } from "@/lib/shop/rohdaten";
+import { ditixSitzgruppen } from "@/lib/db/ditix-sitzgruppen";
 import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
 import { eingecheckteSitze } from "@/lib/db/sitzeinchecken";
 
@@ -126,9 +127,24 @@ export default async function UpgradeSeite({
     uns das je Platz; Plätze aus der Ditix-Zeit stehen nicht in der
     Karte, für sie wird weiter abgeleitet.
   */
-  const buchungen = vorstellung
-    ? await flotixSitzgruppen(vorstellung.ditixEventId).catch(() => new Map<string, string>())
-    : new Map<string, string>();
+  /*
+    Zwei Quellen, dieselbe Frage.
+
+    FloTix sagt es zu jedem Platz, den es selbst verkauft hat. Für die
+    Plätze aus der Ditix-Zeit steht es in der eigenen Tabelle, einmal aus
+    der Ditix-Verwaltung abgelesen (lib/db/ditix-sitzgruppen.ts). Wo
+    beides etwas sagt, gilt FloTix: Dort wird heute verkauft und
+    umgebucht.
+  */
+  const [ausFlotix, ausDitix] = vorstellung
+    ? await Promise.all([
+        flotixSitzgruppen(vorstellung.ditixEventId).catch(() => new Map<string, string>()),
+        beideKennungen(vorstellung.ditixEventId)
+          .then((k) => ditixSitzgruppen(k))
+          .catch(() => new Map<string, string>()),
+      ])
+    : [new Map<string, string>(), new Map<string, string>()];
+  const buchungen = new Map([...ausDitix, ...ausFlotix]);
 
   const rat = plan ? empfehlung(plan, buchungen) : null;
 

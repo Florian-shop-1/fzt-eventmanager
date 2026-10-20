@@ -287,6 +287,20 @@ export async function flotixProbe(): Promise<Record<string, unknown>> {
   return holen("probe");
 }
 
+/**
+ * Beide Kennungen derselben Vorstellung: die aus FloTix und die aus Ditix.
+ *
+ * Welche davon der Spielplan gerade nennt, hängt am Shop. Wer etwas unter
+ * der einen abgelegt hat und unter der anderen sucht, findet sonst nichts.
+ */
+export async function beideKennungen(eine: string): Promise<string[]> {
+  if (!eine) return [];
+  const alle = await flotixVorstellungen().catch(() => []);
+  const treffer = alle.find((v) => v.id === eine || v.ditixEventId === eine);
+  if (!treffer) return [eine];
+  return [...new Set([eine, treffer.id, treffer.ditixEventId ?? ""])].filter(Boolean);
+}
+
 /** Alle Vorstellungen, die FloTix kennt, mit ihrer alten Ditix-Kennung. */
 export async function flotixVorstellungen(): Promise<FlotixVorstellung[]> {
   const d = await holen("vorstellungen");
