@@ -115,7 +115,17 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
   // Aus dem Gedaechtnis kommt nur, was weder der Shop noch die eigenen
   // Termine schon nennen: Sonst stuende derselbe Abend zweimal im Plan.
   const bekannt = new Set([...ausDemShop.map((v) => v.id), ...eigene.map((e) => e.eventId)]);
-  const vergessene = (await gemerkteTermine()).filter((v) => !bekannt.has(v.id));
+  // Seit FloTix die Termine liefert, haben dieselben Abende neue Kennungen. Die alten Ditix-Kennungen
+  // im Gedaechtnis wuerden jeden Abend ein zweites Mal zeigen (Florian, 20.10.2026). Es ist nur ein
+  // Saal: Beginnt ein gemerkter Termin zur selben Minute wie ein aktueller, ist es derselbe Abend.
+  const beginne = new Set(
+    [...ausDemShop.map((v) => v.timestampStart), ...eigene.map((e) => beginnAls(e.datum, e.uhrzeit))].map((t) =>
+      Math.floor(t / 60000),
+    ),
+  );
+  const vergessene = (await gemerkteTermine()).filter(
+    (v) => !bekannt.has(v.id) && !beginne.has(Math.floor(v.timestampStart / 60000)),
+  );
 
   return [
     ...ausDemShop,
