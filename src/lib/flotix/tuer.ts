@@ -156,6 +156,45 @@ function alsBestellung(r: Record<string, unknown>): FlotixBestellung {
   };
 }
 
+/** Der Schlüssel, unter dem ein Platz in beiden Systemen zu finden ist. */
+export function sitzSchluessel(s: { sektor: string; reihe: string; name: string }): string {
+  return `${s.sektor.trim()}|${s.reihe.trim()}|${s.name.trim()}`;
+}
+
+/**
+ * Welcher Platz gehört zu welcher Buchung?
+ *
+ * Die Frage entscheidet die Showupgrades: Eine Gruppe wird nie
+ * auseinandergezogen, und eine Gruppe ist genau eine Buchung, nicht die
+ * Leute, die zufällig nebeneinander sitzen (Florian, 20.10.2026).
+ *
+ * Ditix hat das nie herausgegeben, FloTix weiß es. Plätze, die beim Umzug
+ * aus Ditix als verkauft übernommen wurden, stehen nicht in der Karte:
+ * Für sie gibt es bei uns keine Buchung, und der Eventmanager bleibt
+ * dort beim Ableiten aus der Sitzordnung.
+ */
+export async function flotixSitzgruppen(vorstellungId: string): Promise<Map<string, string>> {
+  const karte = new Map<string, string>();
+  if (!/^[0-9a-f-]{36}$/i.test(vorstellungId)) return karte;
+
+  const d = await holen(`sitzgruppen&vorstellung=${vorstellungId}`);
+  const liste = Array.isArray(d.plaetze) ? (d.plaetze as Array<Record<string, unknown>>) : [];
+
+  for (const p of liste) {
+    if (!p.bestellnummer) continue;
+    karte.set(
+      sitzSchluessel({
+        sektor: String(p.sektor ?? ""),
+        reihe: String(p.reihe ?? ""),
+        name: String(p.platz ?? ""),
+      }),
+      String(p.bestellnummer),
+    );
+  }
+
+  return karte;
+}
+
 async function holen(aktion: string): Promise<Record<string, unknown>> {
   const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
   if (!schluessel) throw new Error("FLOTIX_KEY fehlt. Ohne Schlüssel antwortet FloTix nicht.");

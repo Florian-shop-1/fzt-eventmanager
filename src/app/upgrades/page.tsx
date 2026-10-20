@@ -21,6 +21,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
 import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
+import { flotixSitzgruppen } from "@/lib/flotix/tuer";
 import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
 import { eingecheckteSitze } from "@/lib/db/sitzeinchecken";
 
@@ -118,7 +119,17 @@ export default async function UpgradeSeite({
   const ohneSaalplan = Boolean(vorstellung && !vorstellung.seatmapEventId);
   const karten = ohneSaalplan && vorstellung ? await kartenDerVorstellung(vorstellung.ditixEventId) : 0;
 
-  const rat = plan ? empfehlung(plan) : null;
+  /*
+    Wer gehört zusammen? Eine Gruppe ist eine Buchung, nicht die Leute,
+    die zufällig nebeneinander sitzen (Florian, 20.10.2026). FloTix sagt
+    uns das je Platz; Plätze aus der Ditix-Zeit stehen nicht in der
+    Karte, für sie wird weiter abgeleitet.
+  */
+  const buchungen = vorstellung
+    ? await flotixSitzgruppen(vorstellung.ditixEventId).catch(() => new Map<string, string>())
+    : new Map<string, string>();
+
+  const rat = plan ? empfehlung(plan, buchungen) : null;
 
   // Die Gästeliste: ohne Ticket, vor Ort zu setzen. Vorschläge nach den Upgrades.
   const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich[]>();

@@ -25,13 +25,19 @@
  * auch vorne zu viert nebeneinander. Lieber bleibt eine Gruppe sitzen,
  * als dass sie geteilt wird.
  *
- * Wer gehört zusammen? Ditix verrät es nicht. Das Feld für die
- * Bestellzugehörigkeit kommt leer zurück, an zwölf geprüften
- * Vorstellungen mit echten Verkäufen ausnahmslos, und die Rohdaten aus
- * dem Shop führen nur Stückzahlen, keine Platznummern. Also wird
- * abgeleitet: Nebeneinanderliegende verkaufte Plätze in derselben Reihe
- * sind eine Gruppe. Das kann zu grosszügig sein, wenn zwei Paare zufällig
- * nebeneinander sitzen, kostet dann etwas Platz, trennt aber niemanden.
+ * Wer gehört zusammen? Seit FloTix wissen wir es: Jeder Platz gehört zu
+ * einer Buchung, und genau die ist die Gruppe. Eltern mit zwei Kindern
+ * sind vier, ein Paar ist zwei, auch wenn beide nebeneinander sitzen
+ * (Florian, 20.10.2026: "eine Gruppe ist immer nur eine zusammenhängende
+ * Buchung! Also nicht eine Gruppe, weil sie zusammen sitzen").
+ *
+ * Ditix hat das nie herausgegeben: Das Feld für die Bestellzugehörigkeit
+ * kam leer zurück, an zwölf geprüften Vorstellungen ausnahmslos. Deshalb
+ * musste früher abgeleitet werden, und zwei Paare nebeneinander wurden zu
+ * einer Gruppe von vier. Für Plätze, die beim Umzug aus Ditix als
+ * verkauft übernommen wurden, gilt dieser Notbehelf weiter, denn für sie
+ * gibt es keine Buchung bei uns. Mit jedem gespielten Abend werden es
+ * weniger, und sie werden nie mit einer bekannten Buchung vermischt.
  *
  * DER MITTELGANG wird zweimal verschieden behandelt, und das ist der
  * Punkt, an dem ich zuerst danebenlag:
@@ -338,13 +344,22 @@ function zuBereich(reihe: Reihe, sitze: Sitz[]): Bereich {
 /**
  * Die Gruppen einer Reihe, die umgesetzt werden sollen.
  *
- * Alles, was nebeneinander verkauft ist und ausserhalb der Zone sitzt,
- * gilt als eine Gruppe. Ein Gang oder ein freier Platz dazwischen trennt.
+ * Eine Gruppe ist eine Buchung. Getrennt wird also bei jedem Wechsel der
+ * Bestellnummer, dazu wie bisher bei einem Gang oder einem freien Platz.
+ *
+ * `buchungen` sagt, welcher Platz zu welcher Bestellung gehört (siehe
+ * flotix/tuer.ts). Plätze, die dort nicht vorkommen, stammen aus Ditix:
+ * Für sie bleibt es beim Ableiten aus der Sitzordnung, und sie landen
+ * nie in derselben Gruppe wie eine bekannte Buchung.
  */
-function gruppenDerReihe(reihe: Reihe): Bereich[] {
+function gruppenDerReihe(reihe: Reihe, buchungen?: Map<string, string>): Bereich[] {
   const abstand = sitzabstand(reihe);
   const raus: Bereich[] = [];
   let lauf: Sitz[] = [];
+
+  // Zu welcher Buchung gehört dieser Platz? "?" heisst: unbekannt, aus Ditix.
+  const buchungVon = (s: Sitz): string =>
+    buchungen?.get(`${s.sektor.trim()}|${s.reihe.trim()}|${s.name.trim()}`) ?? "?";
 
   const abschliessen = () => {
     if (lauf.length > 0) raus.push(zuBereich(reihe, lauf));
@@ -358,6 +373,10 @@ function gruppenDerReihe(reihe: Reihe): Bereich[] {
     }
     const vorher = reihe.sitze[i - 1];
     if (lauf.length > 0 && vorher && !nebeneinander(vorher, s, abstand)) abschliessen();
+    // Andere Buchung, also andere Gruppe, auch wenn die Plätze aneinander
+    // grenzen. Das ist der Punkt, an dem aus zwei Paaren keine Vierergruppe
+    // mehr wird.
+    if (lauf.length > 0 && buchungVon(lauf[lauf.length - 1]) !== buchungVon(s)) abschliessen();
     lauf.push(s);
   });
   abschliessen();
@@ -366,7 +385,11 @@ function gruppenDerReihe(reihe: Reihe): Bereich[] {
 }
 
 /** Rechnet die Empfehlung für einen Abend aus. */
-export function empfehlung(plan: Saalplan): Empfehlung {
+export function empfehlung(
+  plan: Saalplan,
+  /** Platz zu Bestellung, siehe flotix/tuer.ts. Fehlt sie, wird abgeleitet. */
+  buchungen?: Map<string, string>,
+): Empfehlung {
   const reihen = reihenBilden(plan);
 
   // Die Empore zählt nicht mit. Sie wird an schwachen Abenden ohnehin
@@ -383,7 +406,7 @@ export function empfehlung(plan: Saalplan): Empfehlung {
     braucht.
   */
   const hinterDerZone = parkett.filter((r) => !zone.reihen.includes(r));
-  const gruppen = hinterDerZone.flatMap(gruppenDerReihe);
+  const gruppen = hinterDerZone.flatMap((r) => gruppenDerReihe(r, buchungen));
 
   /*
     Die letzte Reihe zuerst, dann die vorletzte, dann die drittletzte.
