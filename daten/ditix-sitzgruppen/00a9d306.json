@@ -1,0 +1,26 @@
+{
+  "ditixEventId": "00a9d306-ba2a-4115-8f97-953c56950af7",
+  "wann": "2026-10-24 15:00 ULMFASSBAR (für Schwaben)",
+  "bestellungen": [
+    { "bestellung": "d9ff8fb0-a6c0-484e-8bf8-92926d6fa276", "name": "Matthias Meißner",    "sitze": ["Golden Seats|1|11", "Golden Seats|1|12", "Golden Seats|1|13"] },
+    { "bestellung": "2f014c46-fc32-4e33-9501-b2c449166684", "name": "Gordon Kniesche",     "sitze": ["Golden Seats|1|7", "Golden Seats|1|8"] },
+    { "bestellung": "b3963e2f-e222-4bda-ac3b-52679cf13a54", "name": "Elisabeth Wolf",      "sitze": ["Golden Seats|1|9"] },
+    { "bestellung": "9806819d-e3b3-48d2-a6c9-5ed3aaa72f61", "name": "Kevin Holderried KVT","sitze": ["Golden Seats|1|10"] },
+    { "bestellung": "c7d63f4f-3589-418f-9ddd-e9001a184aa9", "name": "Marc Peter Voss",     "sitze": ["Kat. 1|3|7", "Kat. 1|3|8"] },
+    { "bestellung": "49b96bca-3f05-4067-ac28-a4f3587a3464", "name": "Lina Zeidler",        "sitze": ["Kat. 1|3|9", "Kat. 1|3|10", "Kat. 1|3|11"] },
+    { "bestellung": "db99dd73-2983-43c2-9293-3f04fa5ee89f", "name": "Regina Groll",        "sitze": ["Kat. 1|4|6", "Kat. 1|4|7", "Kat. 1|4|8"] },
+    { "bestellung": "0d48f9cf-3cd6-4f8f-911f-1733d7492fb0", "name": "Sabine Reiß",         "sitze": ["Kat. 1|4|9", "Kat. 1|4|10", "Kat. 1|4|11", "Kat. 1|4|12"] },
+    { "bestellung": "bc3127aa-d62a-4c76-820f-83068976c1fb", "name": "Su-Lin Hwang",        "sitze": ["Kat. 2|6|5", "Kat. 2|6|6"] },
+    { "bestellung": "902de45e-da43-4ea5-b2bb-8ee3082ff0a9", "name": "Christine Szabo",     "sitze": ["Kat. 2|6|7", "Kat. 2|6|8"] },
+    { "bestellung": "c19661d6-a118-4b01-9001-ea96d99c63e9", "name": "Stefan Atzkern",      "sitze": ["Kat. 2|6|9", "Kat. 2|6|10", "Kat. 2|6|11", "Kat. 2|6|12"] },
+    { "bestellung": "410d42b9-df76-4340-bb34-8d85c397b81c", "name": "Angela Fuchs",        "sitze": ["Kat. 2|6|13", "Kat. 2|6|14"] },
+    { "bestellung": "93691960-cc36-4dd6-a9f8-8d58cfcf1fc3", "name": "Irena Milos",         "sitze": ["Kat. 2|7|5", "Kat. 2|7|6", "Kat. 2|7|7", "Kat. 2|7|8"] },
+    { "bestellung": "095c440b-efcc-41a1-b63d-071ba30c8fa5", "name": "Patrick Lerner",      "sitze": ["Kat. 2|7|9", "Kat. 2|7|10", "Kat. 2|7|11", "Kat. 2|7|12", "Kat. 2|7|13", "Kat. 2|7|14"] },
+    { "bestellung": "cdf7f98e-0ac3-45c7-8518-9a9723835d1f", "name": "Christoph Schubert",  "sitze": ["Kat. 2|8|3", "Kat. 2|8|4", "Kat. 2|8|5", "Kat. 2|8|6"] },
+    { "bestellung": "f829a1d5-cd39-48be-9797-542a4421dd47", "name": "Julia Eberle",        "sitze": ["Kat. 2|8|7", "Kat. 2|8|8"] },
+    { "bestellung": "a7429d87-cbf8-40e6-abce-cce79b0862ae", "name": "Ivan Marinov",        "sitze": ["Kat. 3|9|2", "Kat. 3|9|3", "Kat. 3|9|4"] },
+    { "bestellung": "72df264f-22e3-4c99-821d-6218fd488e18", "name": "Sarah Rüger",         "sitze": ["Kat. 3|9|5", "Kat. 3|9|8"] },
+    { "bestellung": "1f285036-14b1-4bc1-adcf-c8e8ea84326e", "name": "Sabine Rüger",        "sitze": ["Kat. 3|9|6", "Kat. 3|9|7"] },
+    { "bestellung": "e35febaa-7b70-4454-9b5a-99916245b492", "name": "Sandra Rauscher",     "sitze": ["Kat. 3|9|9", "Kat. 3|9|10", "Kat. 3|9|11", "Kat. 3|9|12", "Kat. 3|9|13", "Kat. 3|9|14"] }
+  ]
+}
