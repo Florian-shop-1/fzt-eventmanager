@@ -43,7 +43,12 @@ export default async function WhatsAppEinrichten({
   const appUrl = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
   /*
-    "Nachricht vom Kunden" heisst: über WhatsApp hereingekommen.
+    "Nachricht über WhatsApp" heisst: von einer echten Nummer.
+
+    Erkennbar an der Unterhaltung: Eine echte trägt die Telefonnummer,
+    eine interne eine Kennung, die mit "web-" beginnt. Nicht an meta_id,
+    die ist bei internen Meldungen leer und war mein erster, falscher
+    Versuch.
     
     Vorher zählten hier auch die Meldungen mitgezählt, die der
     Eventmanager selbst in den Chat schreibt (liegengelassene Körbe,
@@ -57,7 +62,7 @@ export default async function WhatsAppEinrichten({
   */
   const [letzte] = (await db()`
     select max(zeitpunkt) filter (
-             where richtung = 'ein' and coalesce(meta_id, '') not like 'web-%'
+             where richtung = 'ein' and wa_id not like 'web-%'
            ) as eingang,
            max(zeitpunkt) filter (where richtung = 'ein') as eingangIntern,
            max(zeitpunkt) filter (where herkunft = 'automatik') as automatik
