@@ -419,3 +419,41 @@ export function kennungFuerPlan(plan: Set<string>, kandidaten: Array<string | nu
 }
 
 export const MARKE = "probe-A";
+
+/** Was FloTix über einen Warenkorb weiß. */
+export interface Korbstand {
+  bekannt: boolean;
+  bezahlt: boolean;
+  storniert: boolean;
+  bestellnummer: string | null;
+}
+
+/**
+ * Wurde dieser Warenkorb bezahlt?
+ *
+ * Der Eventmanager schreibt jede Übergabe zur Kasse mit und fragt später
+ * nach, ob daraus ein Kauf wurde. Die Antwort entscheidet, ob jemand die
+ * Mail "Was hat dich abgehalten?" bekommt. Bis zum Umschalttag gab sie
+ * der alte Shop; seitdem antwortet der mit 501, und ohne Antwort galt
+ * jeder zahlende Gast als Abbrecher (Florian, 20.10.2026).
+ *
+ * Gefragt wird deshalb bei FloTix, und zwar ohne Rücksicht auf QUELLE:
+ * Verkauft wird dort, auch wenn die Gästelisten noch gemischt sind.
+ * Fehlt der Schlüssel, kommt null zurück und der alte Weg bleibt.
+ */
+export async function flotixKorbstand(korb: string): Promise<Korbstand | null> {
+  if ((process.env.FLOTIX_KEY ?? "").trim().length < 16) return null;
+  if (!/^[0-9a-f-]{36}$/i.test(korb)) return null;
+
+  try {
+    const d = await holen(`korbstand&korb=${encodeURIComponent(korb)}`);
+    return {
+      bekannt: d.bekannt === true,
+      bezahlt: d.bezahlt === true,
+      storniert: d.storniert === true,
+      bestellnummer: d.bestellnummer ? String(d.bestellnummer) : null,
+    };
+  } catch {
+    return null;
+  }
+}

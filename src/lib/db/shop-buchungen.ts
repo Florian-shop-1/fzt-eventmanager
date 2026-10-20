@@ -146,6 +146,25 @@ const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheate
  * umrechenbar.
  */
 async function pruefeBezahlt(cartId: string): Promise<{ bezahlt: boolean; accessCode: string | null }> {
+  /*
+    Seit dem Umschalttag beantwortet FloTix diese Frage.
+
+    Der alte Shop antwortet auf checkout/status mit 501 "Im FloTix-Betrieb
+    nicht verfügbar", und ohne Antwort galt jeder zahlende Gast als
+    Abbrecher (Florian, 20.10.2026). FloTix kennt den Warenkorb unter
+    derselben Kennung und sagt dazu die Bestellnummer, die hier als
+    access_code weiterlebt.
+
+    Kennt FloTix den Korb nicht, ist es einer aus der Ditix-Zeit. Dann
+    bleibt der alte Weg, und wo auch der nichts mehr sagt, hilft der
+    Abgleich mit der Verkaufsliste (lib/db/ditix-abgleich.ts).
+  */
+  const { flotixKorbstand } = await import("@/lib/flotix/tuer");
+  const stand = await flotixKorbstand(cartId);
+  if (stand?.bekannt) {
+    return { bezahlt: stand.bezahlt && !stand.storniert, accessCode: stand.bestellnummer };
+  }
+
   try {
     const res = await fetch(`${SHOP_BASIS}/api/ditix/checkout/status`, {
       method: "POST",

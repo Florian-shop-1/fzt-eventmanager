@@ -143,6 +143,16 @@ export async function holeShopGruppenRoh(): Promise<ShopGruppe[]> {
   return [...ausFlotixGruppen, ...umgeschrieben];
 }
 
+/**
+ * Die Verkaufsliste pur, ohne FloTix und ohne Umschreiben der Kennungen.
+ *
+ * Für den Abgleich der alten Körbe (lib/db/ditix-abgleich.ts): Dort muss
+ * die Ditix-Kennung stehen bleiben, denn unter ihr stehen auch die Körbe.
+ */
+export async function verkaufslisteRoh(): Promise<ShopGruppe[]> {
+  return ausTabelle();
+}
+
 /** Die alte Quelle: das Rohdatenblatt der Google-Tabelle. */
 async function ausTabelle(): Promise<ShopGruppe[]> {
   const url =

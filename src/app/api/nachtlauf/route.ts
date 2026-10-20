@@ -20,6 +20,8 @@ import { anfragenMelden } from "@/lib/shop/lead-meldung";
 import { anwaltspostHolen } from "@/lib/personal/anwaltspost";
 import { auswaertsWache } from "@/lib/personal/fremdtermin";
 import { waschErinnerung } from "@/lib/foyer/waschtag";
+import { offeneNachfuehren } from "@/lib/db/shop-buchungen";
+import { ditixAbgleich } from "@/lib/db/ditix-abgleich";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
@@ -136,6 +138,22 @@ const MORGEN: Teil[] = [
     nicht gewaschen wurde" (Florian, 18.10.2026). Je Termin nur einmal.
   */
   { name: "waschtag", tun: () => waschErinnerung() },
+  /*
+    Der Zahlungsstand der Koerbe, unabhaengig von den Abbrecher-Mails.
+
+    Erst FloTix fragen, dann die alten Ditix-Koerbe gegen die
+    Verkaufsliste abgleichen. Bisher lief das nur, wenn jemand eine Seite
+    oeffnete oder der Abbrecher-Lauf startete; steht der still, erfaehrt
+    niemand mehr, wer bezahlt hat (Florian, 20.10.2026).
+  */
+  {
+    name: "zahlungsstand",
+    tun: async () => {
+      const bezahlt = await offeneNachfuehren({ hoechstens: 300, abstandMinuten: 60 });
+      const abgleich = await ditixAbgleich({});
+      return { bezahlt, ausVerkaufsliste: abgleich.bestaetigt, geprueft: abgleich.geprueft };
+    },
+  },
   /*
     Die Amazon-Rechnungen.
 
