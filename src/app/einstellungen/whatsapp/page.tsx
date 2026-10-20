@@ -1,5 +1,5 @@
 import { db } from "@/lib/db/client";
-import { istEingerichtet, vorlagenLesen } from "@/lib/whatsapp/senden";
+import { istEingerichtet, kontoAngeschlossen, vorlagenLesen } from "@/lib/whatsapp/senden";
 import { VORLAGEN } from "@/lib/whatsapp/vorlagen";
 import {
   autoantwortSpeichern,
@@ -42,11 +42,37 @@ export default async function WhatsAppEinrichten({
   const vorlagen = stand.zugangstoken ? await vorlagenLesen().catch(() => []) : [];
   const appUrl = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
+  /*
+    "Nachricht vom Kunden" heisst: über WhatsApp hereingekommen.
+    
+    Vorher zählten hier auch die Meldungen mitgezählt, die der
+    Eventmanager selbst in den Chat schreibt (liegengelassene Körbe,
+    Bewertungen, technische Probleme). Die tragen eine Kennung, die mit
+    "web-" beginnt, und kommen nicht von Meta. Mit ihnen stand hier
+    "letzte Nachricht vor zwei Stunden", obwohl über WhatsApp nie eine
+    einzige angekommen war. Genau daran war nicht zu erkennen, dass die
+    Verbindung zu Meta fehlt (Florian, 20.10.2026: "es kam keine
+    nachricht im eventmanager an, als ich vorhin per whats app
+    geschrieben hatte").
+  */
   const [letzte] = (await db()`
-    select max(zeitpunkt) filter (where richtung = 'ein') as eingang,
+    select max(zeitpunkt) filter (
+             where richtung = 'ein' and coalesce(meta_id, '') not like 'web-%'
+           ) as eingang,
+           max(zeitpunkt) filter (where richtung = 'ein') as eingangIntern,
            max(zeitpunkt) filter (where herkunft = 'automatik') as automatik
       from wa_nachricht
-  `) as Array<{ eingang: string | null; automatik: string | null }>;
+  `) as Array<{ eingang: string | null; eingangintern: string | null; automatik: string | null }>;
+
+  /*
+    Schickt Meta uns überhaupt etwas? Das ist die Frage, die bei einer
+    stummen Nummer zuerst zu klären ist: Ohne angeschlossenes Konto
+    liefert Meta keine eingehende Nachricht aus, egal wie richtig der
+    Webhook eingetragen ist.
+  */
+  const angeschlossen = stand.zugangstoken
+    ? await kontoAngeschlossen().catch(() => null)
+    : null;
 
   const freigaben = (await db()`
     select name from benutzer where whatsapp and aktiv order by name
@@ -92,11 +118,26 @@ export default async function WhatsAppEinrichten({
           <Punkt ok={stand.zugangstoken}>Zugangsschlüssel bei Vercel (WHATSAPP_ZUGANGSTOKEN)</Punkt>
           <Punkt ok={stand.appGeheimnis}>App-Geheimnis bei Vercel (WHATSAPP_APP_GEHEIMNIS)</Punkt>
           <Punkt ok={stand.pruefwort}>Prüfwort für den Webhook (WHATSAPP_PRUEFWORT)</Punkt>
+          <Punkt ok={angeschlossen === true}>
+            {angeschlossen === true
+              ? "Konto an die App angeschlossen, Meta schickt eingehende Nachrichten"
+              : angeschlossen === false
+                ? "Konto NICHT an die App angeschlossen: Meta schickt keine eingehende Nachricht. Unten auf „Konto anschließen“ drücken."
+                : "Anschluss nicht geprüft, es fehlt der Zugangsschlüssel"}
+          </Punkt>
           <Punkt ok={Boolean(letzte?.eingang)}>
             {letzte?.eingang
-              ? `Letzte Nachricht vom Kunden ${vorZeit(new Date(letzte.eingang).toISOString())}`
-              : "Noch keine Nachricht angekommen"}
+              ? `Letzte Nachricht über WhatsApp ${vorZeit(new Date(letzte.eingang).toISOString())}`
+              : "Über WhatsApp ist noch keine einzige Nachricht angekommen"}
           </Punkt>
+          {!letzte?.eingang && letzte?.eingangintern && (
+            <li className="text-leise">
+              Im Chat stehen trotzdem Meldungen: Die schreibt der Eventmanager selbst hinein,
+              etwa liegengelassene Körbe und Bewertungen. Die letzte{" "}
+              {vorZeit(new Date(letzte.eingangintern).toISOString())}. Sie laufen nicht über
+              Meta und sagen nichts darüber, ob WhatsApp funktioniert.
+            </li>
+          )}
         </ul>
         <p className="mt-4 text-leise">
           Sehen dürfen den Posteingang:{" "}
