@@ -40,6 +40,7 @@ import {
   anrede,
   einloesesatz,
   gueltigkeitssatz,
+  gueltigkeitszeile,
 } from "@/lib/shop/anschreiben";
 
 export const metadata = { title: "Versand | FZT Eventmanager" };
@@ -1115,7 +1116,7 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
         className="absolute text-center text-[11pt]"
         style={{ left: "22mm", right: "22mm", top: "276mm" }}
       >
-        {gueltigkeitssatz(gueltigVon(sendung, stand))}
+        {gueltigkeitszeile(gueltigVon(sendung, stand))}
       </div>
 
       {/*

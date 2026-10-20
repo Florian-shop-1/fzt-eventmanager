@@ -49,23 +49,37 @@ export function einloesesatz(istGutschein: boolean): string {
 }
 
 /**
- * Der Satz zur Gültigkeit.
+ * Die Gültigkeit, und was ist, wenn sie vorbei ist.
  *
- * Zwei Regeln von Florian (20.10.2026): Ein Ablaufdatum steht nur dann
- * da, wenn für diesen Gutschein wirklich eines hinterlegt ist. Gerechnet
- * wird nichts, und "unbegrenzt gültig" steht nirgends, denn das wäre eine
- * Zusage, die wir so nicht geben wollen.
+ * Zwei Dinge müssen zusammenpassen (Florian, 20.10.2026). Buchhalterisch
+ * laufen Gutscheine ab, und das soll auch so bleiben. Menschlich lösen
+ * wir einen abgelaufenen trotzdem ein, aus Nettigkeit.
  *
- * Dazu in jedem Fall der Satz, der unsere Kulanz sagt: Wir lösen auch
- * abgelaufene Gutscheine ein. Das ist im Haus seit jeher so und soll auch
- * dastehen, statt dass jemand seinen Gutschein für wertlos hält.
+ * Deshalb steht hier keine Zusage, sondern eine Einladung: Melde dich.
+ * Wer anruft oder schreibt, bekommt seinen Abend; wer nichts tut, hat
+ * keinen Anspruch darauf. "Unbegrenzt gültig" darf nirgends stehen, und
+ * ein Ablaufdatum wird nie selbst ausgerechnet, sondern nur gezeigt,
+ * wenn für diesen Gutschein wirklich eines hinterlegt ist.
  */
 export function gueltigkeitssatz(gueltigBis: string | null): string {
-  const kulanz = "Auch abgelaufene Gutscheine lösen wir gern ein.";
   const datum = (gueltigBis ?? "").trim();
-  if (!datum) return kulanz;
-  return `Dein Gutschein ist gültig bis ${datumLang(datum)}. ${kulanz}`;
+  return datum
+    ? `Gültig bis ${datumLang(datum)}. Danach melde dich einfach kurz bei uns, ` +
+        `per Mail an ${MAIL} oder unter ${TELEFON}, wir finden eine Lösung.`
+    : `Sollte dein Gutschein einmal abgelaufen sein, melde dich einfach kurz bei uns, ` +
+        `per Mail an ${MAIL} oder unter ${TELEFON}, wir finden eine Lösung.`;
 }
+
+/** Dieselbe Aussage in einer Zeile, für den Aufdruck auf dem Gutschein. */
+export function gueltigkeitszeile(gueltigBis: string | null): string {
+  const datum = (gueltigBis ?? "").trim();
+  return datum
+    ? `Gültig bis ${datumLang(datum)}. Danach melde dich kurz bei uns, wir finden eine Lösung.`
+    : "Abgelaufen? Melde dich kurz bei uns, wir finden eine Lösung.";
+}
+
+export const MAIL = "tickets@florianzimmer.com";
+export const TELEFON = "0731 7906 110";
 
 /** TT.MM.JJJJ, egal ob ISO oder schon deutsch hereinkommt. */
 function datumLang(wert: string): string {

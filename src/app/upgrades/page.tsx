@@ -22,6 +22,7 @@ import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
 import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
 import { flotixSitzgruppen } from "@/lib/flotix/tuer";
+import { shopGruppenDesAbends } from "@/lib/shop/rohdaten";
 import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
 import { eingecheckteSitze } from "@/lib/db/sitzeinchecken";
 
@@ -130,6 +131,24 @@ export default async function UpgradeSeite({
     : new Map<string, string>();
 
   const rat = plan ? empfehlung(plan, buchungen) : null;
+
+  /*
+    Wie gross kann eine Gruppe an diesem Abend ueberhaupt sein?
+
+    Fuer Plaetze aus der Ditix-Zeit kennen wir die Buchung nicht und
+    leiten sie aus der Sitzordnung ab. Das kann zu gross ausfallen: Am
+    23.10. stand ein Block von acht Plaetzen als eine Gruppe da, obwohl
+    die groesste Buchung des Abends sechs Karten hat. Dann sind es
+    mindestens zwei Buchungen (Florian, 20.10.2026).
+
+    Die Verkaufsliste kennt zwar keine Platznummern, aber die Groesse
+    jeder Buchung. Mehr als die groesste kann eine echte Gruppe nicht
+    haben, und das genuegt, um die falschen Faelle zu benennen.
+  */
+  const buchungsgroessen = vorstellung
+    ? (await shopGruppenDesAbends(vorstellung.ditixEventId).catch(() => [])).map((g) => g.tickets)
+    : [];
+  const groessteBuchung = buchungsgroessen.length > 0 ? Math.max(...buchungsgroessen) : 0;
 
   // Die Gästeliste: ohne Ticket, vor Ort zu setzen. Vorschläge nach den Upgrades.
   const vorschlaege = rat ? gaestePlaetze(rat, gaeste.filter((g) => !g.platz)) : new Map<string, Bereich[]>();
@@ -318,7 +337,7 @@ export default async function UpgradeSeite({
       {plan && rat && vorstellung && (
         <>
           <Lage plan={plan} rat={rat} vorstellung={vorstellung} gaesteliste={gaeste.reduce((n, g) => n + g.anzahl, 0)} />
-          <Umzugsliste rat={rat} />
+          <Umzugsliste rat={rat} groessteBuchung={groessteBuchung} buchungen={buchungen} />
         </>
       )}
 
@@ -493,8 +512,32 @@ function Kachel({
  * Der alte Platz steht bewusst zuerst: Danach sucht der Mitarbeiter,
  * wenn jemand am Einlass seine Karte hinhält.
  */
-function Umzugsliste({ rat }: { rat: Empfehlung }) {
+function Umzugsliste({
+  rat,
+  groessteBuchung,
+  buchungen,
+}: {
+  rat: Empfehlung;
+  /** Die groesste Buchung dieses Abends, 0 wenn unbekannt. */
+  groessteBuchung: number;
+  /** Platz zu Bestellung, siehe flotix/tuer.ts. */
+  buchungen: Map<string, string>;
+}) {
   if (rat.umzuege.length === 0) return null;
+
+  /*
+    Eine Gruppe ist zweifelhaft, wenn zu keinem ihrer Plaetze eine Buchung
+    bekannt ist und sie groesser ist als die groesste Buchung des Abends.
+    Dann steht fest: Das sind mehrere Buchungen, auch wenn wir nicht
+    wissen, wo die Grenze verlaeuft.
+  */
+  const zweifelhaft = (g: Empfehlung["umzuege"][number]["gruppe"]): boolean => {
+    if (groessteBuchung <= 0) return false;
+    const bekannt = g.sitze.some((si) =>
+      buchungen.has(`${si.sektor.trim()}|${si.reihe.trim()}|${si.name.trim()}`),
+    );
+    return !bekannt && g.sitze.length > groessteBuchung;
+  };
 
   return (
     <section className="space-y-3">
@@ -546,6 +589,15 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
               <span className="text-sm text-leise">
                 {u.gruppe.sitze.length} {u.gruppe.sitze.length === 1 ? "Gast" : "Gäste"}
               </span>
+              {zweifelhaft(u.gruppe) && (
+                <span
+                  className="druckt-farbe rounded px-2 py-0.5 text-xs font-medium"
+                  style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}
+                  title={`Die größte Buchung an diesem Abend hat ${groessteBuchung} Karten.`}
+                >
+                  mindestens zwei Buchungen, bitte fragen
+                </span>
+              )}
               {/* Zum Abhaken mit dem Stift. */}
               <span className="h-6 w-6 shrink-0 rounded border border-text" aria-hidden="true" />
             </span>
@@ -554,6 +606,16 @@ function Umzugsliste({ rat }: { rat: Empfehlung }) {
       </ul>
 
       <p className="max-w-prose text-xs text-leise">
+        {rat.umzuege.some((u) => zweifelhaft(u.gruppe)) && (
+          <>
+            <strong>Zu den gelb markierten Zeilen:</strong> Diese Plätze wurden über Ditix
+            verkauft, dort steht nicht dabei, wer zusammen gebucht hat. Sie sitzen
+            nebeneinander, sind aber größer als die größte Buchung des Abends
+            {groessteBuchung > 0 ? ` (${groessteBuchung} Karten)` : ""}. Frag die Leute kurz,
+            wer zusammengehört, und setze nur zusammen um, was zusammengehört. Bei Buchungen
+            aus FloTix steht es fest, da fragt niemand.{" "}
+          </>
+        )}
         Die Liste steht von vorne nach hinten. Jede Gruppe zieht am Stück um, niemand wird
         getrennt. Passt eine Gruppe nicht in eine Reihe, sitzt sie als Block auf zwei Reihen
         genau hintereinander. Kommt jemand nicht, bleibt sein Block einfach frei.
