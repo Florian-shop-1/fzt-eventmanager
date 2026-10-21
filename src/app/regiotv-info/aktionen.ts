@@ -36,6 +36,7 @@ export async function bereitsGeschrieben(): Promise<Set<string>> {
 export async function ueberspringen(b: ShopBuchung, abgemeldet: Set<string>, abgesagt: Set<string>, schonDa: Set<string>): Promise<string | null> {
   if (!b.bestaetigt) return "nicht bezahlt";
   if (!b.email || !b.email.includes("@")) return "keine Adresse";
+  if (/@example\.(com|org|net)$/i.test(b.email.trim())) return "Testadresse";
   if (abgemeldet.has(adresse(b.email))) return "abgemeldet";
   if (abgesagt.has(b.ditixEventId)) return "Show abgesagt";
   if (schonDa.has(adresse(b.email))) return "schon geschrieben";
