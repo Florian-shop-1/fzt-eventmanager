@@ -1,0 +1,19 @@
+{
+  "_hinweis": "Entwurf, nicht angewendet (Julian, 20.10.2026). In Szenario 6551205 direkt NACH Modul 5 (JSON erstellen) einfügen, vor den Sheets-Modulen. Modul 5 baut schon das JSON mit allen Feldern (typ, name, email, telefon, teilnehmerzahl, wunschdatum, kommentar, quelle_*), das geht unverändert weiter. Beim Einfügen per API die metadata.expect/interface der übrigen Module unverändert lassen. <SCHLUESSEL> = ANFRAGEN_SCHLUESSEL. stopOnHttpError=true: Lehnt der Eventmanager ab, bricht der Lauf ab und Make zeigt den Fehler (Wiederholen im Make-Verlauf möglich; doppelte Meldungen erkennt der Eventmanager).",
+  "id": 6,
+  "module": "http:MakeRequest",
+  "version": 4,
+  "mapper": {
+    "url": "https://eventmanager.florianzimmertheater.de/api/anfrage?schluessel=<SCHLUESSEL>",
+    "method": "post",
+    "contentType": "json",
+    "inputMethod": "jsonString",
+    "jsonStringBodyContent": "{{5.json}}",
+    "parseResponse": true,
+    "stopOnHttpError": true,
+    "allowRedirects": true,
+    "shareCookies": false,
+    "requestCompressedContent": true
+  },
+  "metadata": { "designer": { "x": 450, "y": -200, "name": "An Eventmanager" } }
+}

@@ -19,9 +19,16 @@ import { mailVerschicken } from "@/lib/mail/versand";
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 const NL = String.fromCharCode(10);
 
-/** Wohin die Meldung geht. Ohne eigene Angabe ins Ticketpostfach. */
-function empfaenger(): string {
-  return (process.env.ANFRAGEN_MELDEN_AN ?? process.env.MAIL_ABSENDER ?? "").trim();
+/**
+ * Wohin die Meldung geht. Ohne eigene Angabe ins Ticketpostfach.
+ * Mehrere Adressen mit Komma (Julian, 20.10.2026: Kevin, Florian und Julian;
+ * die Mail aus Make an Kevin fällt dafür weg).
+ */
+function empfaenger(): string[] {
+  return (process.env.ANFRAGEN_MELDEN_AN ?? process.env.MAIL_ABSENDER ?? "")
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean);
 }
 
 function h(s: string): string {
@@ -81,9 +88,11 @@ export async function anfragenMelden(): Promise<Meldelauf> {
     const wer = l.name || l.email || "Jemand";
 
     try {
-      if (an) {
+      if (an.length) {
         await mailVerschicken({
           an,
+          // Antworten gehen direkt an den Anfragenden.
+          ...(l.email.includes("@") ? { antwortAn: l.email } : {}),
           betreff: `Neue Anfrage: ${wer}${l.wunschdatum ? ` (${l.wunschdatum})` : ""}`,
           text: [
             "Es ist eine neue Anfrage hereingekommen.",

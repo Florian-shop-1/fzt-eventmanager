@@ -100,7 +100,27 @@ export function leadSchluessel(eingang: string, email: string, name: string): st
     .replace(/\s+/g, " ");
 }
 
+/**
+ * Woher die Anfragen kommen (Julian, 20.10.2026).
+ *
+ * ANFRAGEN_QUELLE=datenbank: aus der eigenen Tabelle anfrage, befüllt über
+ * /api/anfrage. Sonst wie bisher aus der Google-Tabelle. So lässt sich am
+ * Umschalttag umlegen und notfalls in einer Minute zurück.
+ */
+export function anfragenAusDatenbankAktiv(): boolean {
+  return (process.env.ANFRAGEN_QUELLE ?? "").trim().toLowerCase() === "datenbank";
+}
+
 export async function holeLeads(): Promise<Lead[]> {
+  if (anfragenAusDatenbankAktiv()) {
+    const { anfragenAusDatenbank } = await import("@/lib/db/anfragen");
+    return anfragenAusDatenbank();
+  }
+  return holeLeadsAusTabelle();
+}
+
+/** Die Anfragen aus der Google-Tabelle (bisheriger Weg, auch für die einmalige Übernahme). */
+export async function holeLeadsAusTabelle(): Promise<Lead[]> {
   const url =
     `https://docs.google.com/spreadsheets/d/${TABELLE_ID}/export` +
     `?format=csv&gid=${BLATT_GID}`;

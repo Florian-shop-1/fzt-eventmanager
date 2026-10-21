@@ -67,6 +67,12 @@ const OHNE_ANMELDUNG = [
     nichts ab, sie wirft nur den Zwischenspeicher weg.
   */
   "/api/flotix/meldung",
+  /*
+    Anfragen von der Website und aus Meta-Leadformularen (ueber Make), seit
+    20.10.2026 direkt hierher statt in die Google-Tabelle. Die Route prueft
+    selbst den gemeinsamen Schluessel (ANFRAGEN_SCHLUESSEL).
+  */
+  "/api/anfrage",
   // Die Antwort auf "Was hat dich abgehalten?" kommt aus einer Mail an
   // einen Gast. Der hat keinen Zugang und soll auch keinen brauchen.
   "/warum",
