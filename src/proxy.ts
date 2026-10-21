@@ -67,6 +67,8 @@ const OHNE_ANMELDUNG = [
     nichts ab, sie wirft nur den Zwischenspeicher weg.
   */
   "/api/flotix/meldung",
+  // FloTix storniert ein Ditix-Menue; die Route prueft selbst denselben Schluessel.
+  "/api/flotix/menue-storno",
   /*
     Anfragen von der Website und aus Meta-Leadformularen (ueber Make), seit
     20.10.2026 direkt hierher statt in die Google-Tabelle. Die Route prueft
