@@ -56,6 +56,26 @@ export default async function CodesSeite({
         </p>
       </header>
 
+      {/*
+        Diese Seite wird abgeschaltet.
+
+        "Kevin schickt nun die Codes vom Schlemmerblock direkt aus dem
+        Ticketsystem. Das ist also nicht mehr notwendig, diese
+        Möglichkeit im Eventmanager. Bitte dort ein Hinweis, dass diese
+        Funktion demnächst abgeschaltet wird" (Florian, 21.10.2026).
+
+        Der Hinweis steht ganz oben und nicht am Rand: Wer die Seite
+        öffnet, will gleich wissen, ob er hier noch richtig ist. Sie
+        funktioniert bis dahin unverändert weiter, damit niemand
+        mittendrin stehenbleibt.
+      */}
+      <Kasten farbe="warnung">
+        <strong>Diese Seite wird demnächst abgeschaltet.</strong> Die Codes, auch die vom
+        Schlemmerblock, verschickt Kevin inzwischen direkt aus dem Ticketsystem. Bis zur
+        Abschaltung funktioniert hier alles wie bisher, neue Wege solltest du aber nicht mehr
+        darüber aufbauen. Wer schon einen Code von hier bekommen hat, kann ihn weiter einlösen.
+      </Kasten>
+
       {verschickt && (
         <Kasten farbe="gut">
           <strong>Ist raus.</strong> Die Codes sind an {verschickt} unterwegs, von
@@ -166,7 +186,7 @@ export default async function CodesSeite({
   );
 }
 
-function Kasten({ farbe, children }: { farbe: "gut" | "blocker"; children: React.ReactNode }) {
+function Kasten({ farbe, children }: { farbe: "gut" | "blocker" | "warnung"; children: React.ReactNode }) {
   return (
     <div
       className="rounded-lg border px-4 py-3 text-sm"
