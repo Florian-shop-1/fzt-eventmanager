@@ -1,3 +1,4 @@
+import { ABEND_AUSNAHMEN } from "@/lib/ditix/spielplan";
 import Link from "next/link";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
@@ -131,6 +132,11 @@ export default async function FoyerSeite({
             {datumKurz(blatt.datum)} ·{" "}
             {blatt.shows.map((s) => `${s.uhrzeit} ${s.name}`).join("  ·  ")}
           </div>
+          {ABEND_AUSNAHMEN[blatt.datum] && (
+            <div className="mt-1 text-base font-semibold" style={{ color: "var(--warnung)" }}>
+              Menübeginn {ABEND_AUSNAHMEN[blatt.datum].menueBeginnt} Uhr · {ABEND_AUSNAHMEN[blatt.datum].hinweis}
+            </div>
+          )}
           <div className="mt-1 text-sm text-leise">
             {blatt.gesamtMenues} Gäste essen bei uns · Stand: {zeitpunkt(new Date())}
           </div>

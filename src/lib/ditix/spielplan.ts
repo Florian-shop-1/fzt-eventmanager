@@ -255,6 +255,21 @@ export const RESTAURANT_OEFFNET = "17:00";
 export const MENUE_BEGINNT = "18:00";
 
 /**
+ * Abende, die vom Ublichen abweichen (Florian, 22.10.2026).
+ *
+ * RegioTV Jahresrueckblick am 01.12.2026: Die TV-Aufzeichnung beginnt um 19:30 Uhr, das Menue schon um 17:30 Uhr.
+ * Der Shop liefert den Showbeginn (19:30) von selbst, das Menue kennt er nicht. Hier steht es fuer die Kueche
+ * und das Foyer, damit es auf Funktionsheet und Foyerblatt erscheint.
+ */
+export const ABEND_AUSNAHMEN: Record<string, { menueBeginnt: string; hinweis: string }> = {
+  "2026-12-01": { menueBeginnt: "17:30", hinweis: "RegioTV Jahresrückblick: Die TV-Aufzeichnung beginnt um 19:30 Uhr." },
+};
+
+export function menueBeginntAm(datum: string): string {
+  return ABEND_AUSNAHMEN[datum]?.menueBeginnt ?? MENUE_BEGINNT;
+}
+
+/**
  * Isst diese Vorstellung vor der Show oder danach?
  *
  * Gemessen am Menuebeginn: Wer spaeter anfaengt als das Essen, isst davor.

@@ -1,3 +1,4 @@
+import { ABEND_AUSNAHMEN } from "@/lib/ditix/spielplan";
 import Link from "next/link";
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
@@ -214,6 +215,11 @@ export default async function FunktionsheetSeite({
             {datumKurz(blatt.datum)} ·{" "}
             {blatt.shows.map((s) => `${s.uhrzeit} ${s.name}`).join("  ·  ")}
           </div>
+          {ABEND_AUSNAHMEN[blatt.datum] && (
+            <div className="mt-2 text-base font-semibold" style={{ color: "var(--warnung)" }}>
+              Menübeginn {ABEND_AUSNAHMEN[blatt.datum].menueBeginnt} Uhr · {ABEND_AUSNAHMEN[blatt.datum].hinweis}
+            </div>
+          )}
           {blatt.shopFehler && (
             <div
               className="mt-3 border-2 px-3 py-2 text-sm"
