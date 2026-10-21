@@ -186,6 +186,49 @@ export async function bekannteAdressen(hoechstens = 20000): Promise<Set<string>>
 }
 
 /**
+ * Kennt Brevo diese Adresse schon, und in welchen Listen steht sie?
+ *
+ * Gebraucht beim Gewinnspiel: "wir wollen das nämlich nur an Kontakte
+ * ausspielen, die wir noch NICHT in der Kartei haben" (Florian,
+ * 21.10.2026). Unsere eigenen Tabellen sagen nur etwas über Käufer;
+ * wer bloß im Newsletter steht, taucht dort nicht auf.
+ *
+ * Gefragt wird je Adresse einzeln und nicht über die ganze Kontaktliste:
+ * Bei rund 24.700 Kontakten wäre das ein langer Abzug für eine Handvoll
+ * Namen. Die Antwort wird eine Viertelstunde zwischengespeichert.
+ *
+ * Rückgabe: die Listennummern, oder null, wenn Brevo die Adresse nicht
+ * kennt. Fehlt der Schlüssel oder antwortet Brevo nicht, kommt
+ * "unbekannt" zurück, nicht "neu": Eine Störung darf niemanden
+ * fälschlich zum neuen Kontakt machen.
+ */
+export async function brevoListenZu(email: string): Promise<number[] | null | "unbekannt"> {
+  const sauber = email.trim().toLowerCase();
+  if (!sauber) return "unbekannt";
+  if (!process.env.BREVO_API_KEY?.trim()) return "unbekannt";
+
+  try {
+    const antwort = await fetch(`${BREVO}/contacts/${encodeURIComponent(sauber)}`, {
+      headers: { "api-key": schluessel(), accept: "application/json" },
+      next: { revalidate: 900 },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (antwort.status === 404) return null;
+    if (!antwort.ok) return "unbekannt";
+    const d = (await antwort.json()) as { listIds?: number[] };
+    return Array.isArray(d.listIds) ? d.listIds : [];
+  } catch {
+    return "unbekannt";
+  }
+}
+
+/** Die Listen, die im Haus einen Namen haben. */
+export const BREVO_LISTEN: Record<number, string> = {
+  7: "Newsletter",
+  61: "WINGS Gewinnspiel 2026",
+};
+
+/**
  * Kontakte aus einer Datei uebertragen.
  *
  * Wie leadsUebertragen, nur mit den Feldern aus der Datei. Getrennt

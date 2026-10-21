@@ -29,6 +29,7 @@ import { heuteBerlin } from "@/lib/foyer/pause";
 import { ZauberstabBrief } from "@/components/ZauberstabBrief";
 import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang, zeitpunkt } from "@/lib/zeit";
+import { BREVO_LISTEN, brevoListenZu } from "@/lib/marketing/brevo-kontakte";
 import { eur } from "@/lib/domain/pricing";
 import {
   ABSENDERZEILE,
