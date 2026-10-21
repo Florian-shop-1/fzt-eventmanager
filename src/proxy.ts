@@ -71,6 +71,9 @@ const OHNE_ANMELDUNG = [
   "/api/flotix/menue-storno",
   // FloTix bittet um eine Rueckueberweisung (Mail an Werner und Florian); die Route prueft selbst den Schluessel.
   "/api/flotix/erstattung",
+  // FloTix verkauft auf Rechnung und storniert sie wieder; die Routen pruefen selbst den Schluessel.
+  "/api/flotix/rechnung",
+  "/api/flotix/rechnung-storno",
   /*
     Anfragen von der Website und aus Meta-Leadformularen (ueber Make), seit
     20.10.2026 direkt hierher statt in die Google-Tabelle. Die Route prueft
