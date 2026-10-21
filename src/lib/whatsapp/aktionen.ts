@@ -346,7 +346,9 @@ export async function verbindungTesten(): Promise<void> {
         ? " · Konto an die App angeschlossen"
         : " · Konto NICHT an die App angeschlossen, eingehende Nachrichten kommen nicht an";
     }
-    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(`${v.name} · ${v.nummer} · Qualität ${v.qualitaet}${anschluss}`)}`;
+    ziel = `/einstellungen/whatsapp?verbunden=${encodeURIComponent(
+      `Meta kennt die Nummer: ${v.name} · ${v.nummer} · Qualität ${v.qualitaet}${anschluss}.`,
+    )}`;
   } catch (e) {
     const meldung = e instanceof WhatsAppFehler ? e.message : "Der Test ist fehlgeschlagen.";
     ziel = `/einstellungen/whatsapp?fehler=${encodeURIComponent(meldung.slice(0, 300))}`;

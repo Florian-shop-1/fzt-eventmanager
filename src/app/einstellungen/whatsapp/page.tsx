@@ -98,9 +98,19 @@ export default async function WhatsAppEinrichten({
           <strong>Gespeichert.</strong>
         </Kasten>
       )}
+      {/*
+        Die Rückmeldung steht so da, wie die Aktion sie schreibt.
+
+        Vorher stand hier fest "Meta kennt die Nummer als ...", und jede
+        andere Rückmeldung wurde in diesen Satz hineingezwängt. Nach dem
+        Einreichen einer Vorlage las sich das als "Meta kennt die Nummer
+        als Vorlage bei Meta eingereicht. Die Prüfung dauert meist ein
+        bis zwei Tage.." (Florian, 21.10.2026). Die Aktionen schreiben
+        jetzt ganze Sätze, und hier steht nur noch der Rahmen.
+      */}
       {verbunden && (
         <Kasten farbe="gut">
-          <strong>Verbindung steht.</strong> Meta kennt die Nummer als {verbunden}.
+          <strong>Geschafft.</strong> {verbunden}
         </Kasten>
       )}
       {getestet && (
