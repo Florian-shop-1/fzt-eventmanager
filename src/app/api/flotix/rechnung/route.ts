@@ -32,7 +32,9 @@ interface Eingabe {
   leistungszeitraum?: string;
   zahlungszielTage?: number;
   von?: string;
-  /** Beim Nachholen fuer eine schon verkaufte Bestellung: keine Mail, nur anlegen. */
+  /** Eine von FloTix schon vergebene Rechnungsnummer: Dann ist das hier nur das Gegenstueck fuer Kontoabgleich und Erinnerung. */
+  nummer?: string;
+  /** FloTix hat die Rechnung selbst verschickt: Hier geht keine Mail raus, sie steht als versendet. */
   nichtMailen?: boolean;
   positionen?: Array<{ bezeichnung?: string; menge?: number; einzelBruttoCent?: number; ust?: number }>;
 }
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
       notiz: `FloTix, Bestellung ${nummer}`,
       positionen,
       von,
+      nummer: String(d.nummer ?? "").trim() || undefined,
     });
   } catch (fehler) {
     console.error("[flotix/rechnung] nicht angelegt:", fehler);
@@ -119,6 +122,11 @@ export async function POST(request: Request) {
       console.error("[flotix/rechnung] Mail:", meldung);
       await versandMerken({ rechnungId: rechnung.id, an: email, fehler: meldung, wer: von }).catch(() => undefined);
     }
+  }
+
+  // FloTix hat sie verschickt: Hier gilt sie als versendet, damit der Abgleich und die Erinnerungen sie wie jede andere behandeln.
+  if (d.nichtMailen === true) {
+    await versandMerken({ rechnungId: rechnung.id, an: email, wer: von }).catch(() => undefined);
   }
 
   return NextResponse.json({ ok: true, nummer: rechnung.nummer, id: rechnung.id, faelligAm: rechnung.faelligAm, mailGesendet });

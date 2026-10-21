@@ -74,6 +74,8 @@ const OHNE_ANMELDUNG = [
   // FloTix verkauft auf Rechnung und storniert sie wieder; die Routen pruefen selbst den Schluessel.
   "/api/flotix/rechnung",
   "/api/flotix/rechnung-storno",
+  "/api/flotix/rechnung-status",
+  "/api/flotix/bank",
   /*
     Anfragen von der Website und aus Meta-Leadformularen (ueber Make), seit
     20.10.2026 direkt hierher statt in die Google-Tabelle. Die Route prueft

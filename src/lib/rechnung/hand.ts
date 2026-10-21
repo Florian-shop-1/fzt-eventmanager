@@ -41,6 +41,8 @@ export interface HandRechnung {
   notiz?: string;
   positionen: HandPosition[];
   von: string;
+  /** Eine schon vergebene Nummer, etwa von FloTix: Dann entsteht hier nur das Gegenstueck fuer Abgleich und Erinnerung. */
+  nummer?: string;
 }
 
 export function summeCent(positionen: HandPosition[]): number {
@@ -55,7 +57,7 @@ export async function handRechnungAnlegen(o: HandRechnung): Promise<Rechnung> {
   const betragCent = summeCent(positionen);
   if (betragCent <= 0) throw new Error("Der Rechnungsbetrag muss größer als null sein.");
 
-  const nummer = await naechsteRechnungsnummer();
+  const nummer = o.nummer?.trim() || (await naechsteRechnungsnummer());
   const ziel = o.zahlungszielTage ?? (await einstellung()).zahlungszielTage;
 
   const rechnung = await rechnungAnlegen({
