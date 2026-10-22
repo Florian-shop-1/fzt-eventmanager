@@ -104,14 +104,19 @@ export async function abbrecherMeldung(o: {
     seite: abend || null,
   });
 
-  await nachEingang([
-    {
-      ...neu,
-      name: dringend
-        ? `${a.name || "Gast"}, technisches Problem beim Buchen`
-        : `${a.name || "Gast"}, Warenkorb liegen gelassen`,
-    },
-  ]);
+  /*
+    Mails nur bei einem technischen Problem (Florian, 22.10.2026): Kevin ruft Abbrecher nicht an, und wer den Warenkorb
+    einfach liegen gelassen hat, bekommt von uns ohnehin nach einiger Zeit eine Mail und ist wieder im Ablauf. Die
+    Meldung steht weiter im Posteingang und in der Abbrecherliste, nur die Mail an das Team entfaellt.
+  */
+  if (dringend) {
+    await nachEingang([
+      {
+        ...neu,
+        name: `${a.name || "Gast"}, technisches Problem beim Buchen`,
+      },
+    ]);
+  }
 
   // Bei einem technischen Problem zusaetzlich direkt an Florian und
   // Kevin. Die Meldung im Posteingang kann ein paar Stunden liegen
