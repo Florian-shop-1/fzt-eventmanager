@@ -38,6 +38,36 @@ function erlaubte(): string[] {
     .filter(Boolean);
 }
 
+/*
+  Microsoft kennt seine eigenen Ordner nur unter festen Kurznamen.
+  "Sent Items" oder "Gesendete Elemente" quittiert es mit "Id is
+  malformed" (geprüft am 22.10.2026). Deshalb übersetzen wir die
+  gebräuchlichen Namen, alles andere geht unverändert durch.
+*/
+function ordnerName(wunsch: string): string {
+  const k = wunsch.trim().toLowerCase().replace(/\s+/g, "");
+  const bekannt: Record<string, string> = {
+    posteingang: "inbox",
+    inbox: "inbox",
+    gesendet: "sentitems",
+    gesendeteelemente: "sentitems",
+    sentitems: "sentitems",
+    entwuerfe: "drafts",
+    "entwürfe": "drafts",
+    drafts: "drafts",
+    geloeschteelemente: "deleteditems",
+    "gelöschteelemente": "deleteditems",
+    papierkorb: "deleteditems",
+    deleteditems: "deleteditems",
+    archiv: "archive",
+    archive: "archive",
+    junk: "junkemail",
+    junkemail: "junkemail",
+    spam: "junkemail",
+  };
+  return bekannt[k] ?? wunsch;
+}
+
 function gleich(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
@@ -144,7 +174,7 @@ export async function GET(request: Request) {
       );
 
       const basis = ordner
-        ? `/users/${wer}/mailFolders/${encodeURIComponent(ordner)}/messages`
+        ? `/users/${wer}/mailFolders/${encodeURIComponent(ordnerName(ordner))}/messages`
         : `/users/${wer}/messages`;
       const d = await graph<{ value: GraphNachricht[] }>(`${basis}?${teile.join("&")}`);
       console.log("[postfach] gelesen:", postfach, aktion, d.value.length, "Nachrichten");
