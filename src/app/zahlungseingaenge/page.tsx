@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { alleRechnungen, einstellung, umsaetze } from "@/lib/rechnung/db";
-import { vorschlaege } from "@/lib/rechnung/abgleich";
+import { keinKunde, vorschlaege } from "@/lib/rechnung/abgleich";
 import { euro, tagKurz } from "@/components/RechnungStatus";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { zeitpunkt } from "@/lib/zeit";
@@ -219,7 +219,15 @@ export default async function ZahlungseingaengeSeite({
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-leise">Keine passende Rechnung gefunden.</p>
+                  /*
+                    Sagen, warum nichts vorgeschlagen wird. Bei einer
+                    Auszahlung von PayPal oder einer Umbuchung von uns
+                    selbst gibt es nichts zu suchen, und das ist etwas
+                    anderes als "nichts gefunden" (Florian, 22.10.2026).
+                  */
+                  <p className="mt-2 text-sm text-leise">
+                    {keinKunde(u) ?? "Keine passende Rechnung gefunden."}
+                  </p>
                 )}
 
                 <form action={beiseitelegen} className="mt-3 flex flex-wrap items-center gap-2 text-sm">

@@ -79,8 +79,31 @@ function tageDazwischen(a: string, b: string): number {
  * Vorschläge für einen Zahlungseingang, der beste zuerst.
  * Stornierte und schon vollständig bezahlte Rechnungen bleiben außen vor.
  */
+/**
+ * Zahler, die niemals zu einer einzelnen Kundenrechnung gehören.
+ *
+ * Eigene Überweisungen zwischen unseren Konten und die Auszahlungen der
+ * Zahlungsdienste. Beides sind keine Kunden: PayPal zahlt die Einnahmen
+ * vieler Gäste in einer Summe aus, und was von der eigenen GmbH kommt,
+ * ist eine Umbuchung (Florian, 22.10.2026: "du musst dir angucken, wer
+ * der Auftraggeber war").
+ */
+const EIGENE = /florian\s*zimmer\s*theater|magic.?expert|true\s*talent/i;
+const SAMMELZAHLER = /paypal|stripe|klarna|mollie|sumup|adyen|shopify/i;
+
+/** Warum zu diesem Umsatz gar keine Rechnung vorgeschlagen wird. */
+export function keinKunde(umsatz: BankUmsatz): string | null {
+  const wer = (umsatz.gegenname ?? "").trim();
+  if (!wer) return null;
+  if (EIGENE.test(wer)) return "Überweisung von uns selbst, also eine Umbuchung";
+  if (SAMMELZAHLER.test(wer)) return `Auszahlung von ${wer}, darin stecken viele Buchungen auf einmal`;
+  return null;
+}
+
 export function vorschlaege(umsatz: BankUmsatz, rechnungen: Rechnung[]): Vorschlag[] {
   if (umsatz.betragCent <= 0) return [];
+  // Wer der Auftraggeber ist, entscheidet zuerst.
+  if (keinKunde(umsatz)) return [];
   const nummern = nummernAusText(umsatz.verwendungszweck);
   const offene = rechnungen.filter((r) => r.status !== "CANCELLED" && r.offenCent > 0);
 
@@ -100,10 +123,8 @@ export function vorschlaege(umsatz: BankUmsatz, rechnungen: Rechnung[]): Vorschl
     } else if (umsatz.betragCent === r.betragCent) {
       punkte += 20;
       gruende.push("Betrag entspricht der Rechnungssumme");
-    } else if (umsatz.betragCent < r.offenCent) {
-      punkte += 6;
-      gruende.push("könnte eine Teilzahlung sein");
     }
+    const betragTrifft = umsatz.betragCent === r.offenCent || umsatz.betragCent === r.betragCent;
 
     const naehe = namensNaehe(umsatz.gegenname, r.kunde);
     if (naehe >= 0.85) {
@@ -119,13 +140,41 @@ export function vorschlaege(umsatz: BankUmsatz, rechnungen: Rechnung[]): Vorschl
       gruende.push("IBAN ist von diesem Kunden bekannt");
     }
 
+    const nummerTrifft = nummern.some((n) => gleicheNummer(n, r.nummer));
+    const ibanTrifft = Boolean(
+      r.kundeIban && umsatz.gegenIban && r.kundeIban.replace(/\s/g, "") === umsatz.gegenIban.replace(/\s/g, ""),
+    );
+
+    /*
+      Eine Teilzahlung ist nur dann eine, wenn sonst etwas passt.
+
+      Sonst gilt jeder kleinere Betrag der Welt als Teilzahlung jeder
+      offenen Rechnung, und am Ende schlägt eine Überweisung über 5.000
+      Euro die Arztrechnung über 1.264 Euro vor.
+    */
+    if (!betragTrifft && umsatz.betragCent < r.offenCent && (nummerTrifft || ibanTrifft || naehe >= 0.5)) {
+      punkte += 6;
+      gruende.push("könnte eine Teilzahlung sein");
+    }
+
     const abstand = tageDazwischen(umsatz.buchungstag, r.rechnungsdatum);
     if (abstand <= 45) {
       punkte += 4;
       gruende.push("zeitlich passend");
     }
 
-    if (punkte > 0) liste.push({ rechnung: r, punkte, gruende });
+    /*
+      Zeitliche Nähe allein ist kein Grund.
+
+      Sie war es bisher: Ein Vorschlag entstand schon bei einem einzigen
+      Punkt, und "zeitlich passend" gibt vier. Damit stand unter jeder
+      Zahlung jede offene Rechnung der letzten sechs Wochen
+      (Florian, 22.10.2026). Es braucht jetzt einen echten Anhaltspunkt:
+      die Rechnungsnummer im Verwendungszweck, den passenden Betrag, den
+      Namen des Auftraggebers oder seine bekannte IBAN.
+    */
+    const echterGrund = nummerTrifft || betragTrifft || ibanTrifft || naehe >= 0.5;
+    if (punkte > 0 && echterGrund) liste.push({ rechnung: r, punkte, gruende });
   }
 
   return liste.sort((a, b) => b.punkte - a.punkte).slice(0, 5);
