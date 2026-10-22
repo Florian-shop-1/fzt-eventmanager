@@ -67,6 +67,11 @@ const OHNE_ANMELDUNG = [
     nichts ab, sie wirft nur den Zwischenspeicher weg.
   */
   "/api/flotix/meldung",
+  // Eine freigegebene Einzelmail aus einem Hauspostfach, prueft selbst
+  // ihren Schluessel. Siehe app/api/mail/senden.
+  "/api/mail/senden",
+  // Lesender Blick in die Postfaecher, prueft selbst ihren Schluessel.
+  "/api/mail/postfach",
   // FloTix storniert ein Ditix-Menue; die Route prueft selbst denselben Schluessel.
   "/api/flotix/menue-storno",
   // FloTix bittet um eine Rueckueberweisung (Mail an Werner und Florian); die Route prueft selbst den Schluessel.
