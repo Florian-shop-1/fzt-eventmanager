@@ -50,6 +50,8 @@ export interface Nachricht {
   status: string | null;
   fehler: string | null;
   gesendetVon: string | null;
+  /** Hängt eine Datei dran, die wir anzeigen können? Siehe api/whatsapp/medien. */
+  hatDatei: boolean;
 }
 
 /**
@@ -225,7 +227,9 @@ export async function holeUnterhaltungen(suche = ""): Promise<Unterhaltung[]> {
 export async function holeVerlauf(waId: string): Promise<Nachricht[]> {
   await verlangeWhatsApp();
   const zeilen = (await db()`
-    select id, richtung, herkunft, typ, text, zeitpunkt, status, fehler, gesendet_von
+    select id, richtung, herkunft, typ, text, zeitpunkt, status, fehler, gesendet_von,
+           (roh is not null and typ in ('image', 'sticker', 'video', 'audio', 'document'))
+             as hat_datei
       from wa_nachricht where wa_id = ${waId}
      order by zeitpunkt
      limit 500
@@ -241,6 +245,7 @@ export async function holeVerlauf(waId: string): Promise<Nachricht[]> {
     status: (z.status as string) ?? null,
     fehler: (z.fehler as string) ?? null,
     gesendetVon: (z.gesendet_von as string) ?? null,
+    hatDatei: Boolean(z.hat_datei),
   }));
 }
 

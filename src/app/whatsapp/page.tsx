@@ -473,7 +473,8 @@ function Blase({ nachricht: n }: { nachricht: Nachricht }) {
             : { background: "var(--gut-hell)", border: "1px solid var(--gut)" }
         }
       >
-        <p className="whitespace-pre-wrap break-words">{n.text || `[${n.typ}]`}</p>
+        {n.hatDatei && <Datei nachricht={n} />}
+        <p className="whitespace-pre-wrap break-words">{beschriftung(n) || (n.hatDatei ? "" : `[${n.typ}]`)}</p>
         <div className="mt-1 flex justify-end gap-2 text-[11px] text-leise">
           {wer && <span>{wer}</span>}
           <span className="tabular-nums">{uhrzeit(new Date(n.zeitpunkt))}</span>
@@ -486,6 +487,51 @@ function Blase({ nachricht: n }: { nachricht: Nachricht }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Die Beschriftung ohne den Platzhalter davor.
+ *
+ * Solange das Bild nicht zu sehen war, stand "[Bild]" im Text, bei einer
+ * Bildunterschrift sogar "[Bild] Leider funktioniert der Code nicht".
+ * Wird das Bild selbst gezeigt, ist der Platzhalter überflüssig.
+ */
+function beschriftung(n: Nachricht): string {
+  const t = n.text ?? "";
+  if (!n.hatDatei) return t;
+  return t.replace(/^\[[^\]]*\]\s*/, "");
+}
+
+/**
+ * Das Bild, die Sprachnachricht oder die Datei selbst.
+ *
+ * Geholt wird sie erst beim Ansehen, ueber unsere eigene Adresse: Meta
+ * gibt sie nur mit Schlüssel heraus, und der gehört nicht in den
+ * Browser (Florian, 22.10.2026).
+ */
+function Datei({ nachricht: n }: { nachricht: Nachricht }) {
+  const quelle = `/api/whatsapp/medien/${n.id}`;
+
+  if (n.typ === "image" || n.typ === "sticker") {
+    return (
+      <a href={quelle} target="_blank" rel="noreferrer" className="mb-1 block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={quelle}
+          alt={beschriftung(n) || "Bild aus WhatsApp"}
+          className="max-h-64 w-auto rounded"
+          style={{ maxWidth: "100%" }}
+        />
+      </a>
+    );
+  }
+  if (n.typ === "audio") return <audio controls src={quelle} className="mb-1 w-full" />;
+  if (n.typ === "video") return <video controls src={quelle} className="mb-1 max-h-64 w-full rounded" />;
+  return (
+    <a href={quelle} target="_blank" rel="noreferrer" className="mb-1 block underline">
+      Datei öffnen
+    </a>
   );
 }
 
