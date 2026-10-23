@@ -221,6 +221,7 @@ function Karte({ lead, stand }: { lead: Lead; stand: LeadStand | undefined }) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{lead.name || "Ohne Namen"}</h2>
+            {lead.firma && <span className="text-sm text-leise">{lead.firma}</span>}
             <span
               className="rounded-full border px-2 py-px text-xs font-medium"
               style={{ color: farbe, borderColor: farbe }}

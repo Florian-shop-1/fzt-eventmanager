@@ -154,19 +154,35 @@ export async function anfrageAnnehmen(
   return { schluessel, neu: true };
 }
 
+/**
+ * Firma aus dem Rohinhalt. Make reicht das Meta-Feld „Name des Unternehmens“
+ * je nach Zuordnung unter einem dieser Namen durch; eine eigene Spalte braucht
+ * es dafür nicht.
+ */
+export const FIRMA_FELDER = ["firma", "company_name", "firmenname", "unternehmen", "company"] as const;
+
+export function firmaAus(roh: Record<string, unknown> | null | undefined): string {
+  for (const f of FIRMA_FELDER) {
+    const w = t(roh?.[f], 200);
+    if (w) return w;
+  }
+  return "";
+}
+
 /** Alle Anfragen aus der Datenbank, im selben Format wie bisher aus der Tabelle. */
 export async function anfragenAusDatenbank(gegeben?: Abfrage): Promise<Lead[]> {
   const sql = await abfrage(gegeben);
   const zeilen = (await sql`
     select schluessel, eingang, name, telefon, email, teilnehmer, wunschdatum, typ, status,
-           ablehnungsgrund, kommentar, umsatz, quelle_source, quelle_campaign
+           ablehnungsgrund, kommentar, umsatz, quelle_source, quelle_campaign, roh
       from anfrage
      order by eingang_am desc
-  `) as Array<Record<string, string>>;
+  `) as Array<Record<string, string> & { roh: unknown }>;
   return zeilen.map((z) => ({
     schluessel: z.schluessel,
     eingang: z.eingang,
     name: nameOrdentlich(z.name),
+    firma: firmaAus(typeof z.roh === "string" ? JSON.parse(z.roh) : (z.roh as Record<string, unknown>)),
     telefon: z.telefon,
     email: z.email,
     teilnehmer: z.teilnehmer,
