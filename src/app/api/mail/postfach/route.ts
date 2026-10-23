@@ -186,6 +186,46 @@ export async function GET(request: Request) {
       });
     }
 
+    /*
+      Einen Anhang herausgeben, so wie er ist.
+
+      Gedacht fuer die Belegarbeit: Die Rechnung von Make, Anthropic oder
+      Celonis haengt als PDF an der Mail, und wer sie der Buchhaltung
+      weitergeben will, braucht die Datei und nicht ihren Namen. Es wird
+      nur gelesen; in der Mail aendert sich nichts.
+    */
+    if (aktion === "anhang") {
+      const id = (u.searchParams.get("id") ?? "").trim();
+      const nr = Number(u.searchParams.get("nr") ?? 0);
+      if (!id) return NextResponse.json({ ok: false, fehler: "id fehlt" }, { status: 400 });
+
+      const a = await graph<{
+        value: Array<{
+          "@odata.type"?: string;
+          name?: string;
+          contentType?: string;
+          contentBytes?: string;
+        }>;
+      }>(`/users/${wer}/messages/${encodeURIComponent(id)}/attachments`);
+
+      const dateien = a.value.filter((x) => (x["@odata.type"] ?? "").includes("fileAttachment"));
+      const gewaehlt = dateien[Number.isFinite(nr) ? nr : 0];
+      if (!gewaehlt?.contentBytes) {
+        return NextResponse.json(
+          { ok: false, fehler: `Anhang ${nr} gibt es nicht (${dateien.length} vorhanden).` },
+          { status: 404 },
+        );
+      }
+      console.log("[postfach] Anhang geholt:", postfach, gewaehlt.name);
+      const inhalt = Buffer.from(gewaehlt.contentBytes, "base64");
+      return new NextResponse(new Uint8Array(inhalt), {
+        headers: {
+          "content-type": gewaehlt.contentType ?? "application/octet-stream",
+          "content-disposition": `attachment; filename="${(gewaehlt.name ?? "anhang").replace(/[^A-Za-z0-9._ +-]/g, "_")}"`,
+        },
+      });
+    }
+
     if (aktion === "mail") {
       const id = (u.searchParams.get("id") ?? "").trim();
       if (!id) return NextResponse.json({ ok: false, fehler: "id fehlt" }, { status: 400 });
