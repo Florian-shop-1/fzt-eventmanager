@@ -694,6 +694,48 @@ function Karte({
       {post && sendung.art !== "tickets" && (
         <Codeschritte sendung={sendung} stand={stand} code={codeVon(sendung, stand)} />
       )}
+      {/*
+        Bei Tickets die gleichen Schritte wie beim Gutschein, nur ohne Code (Florian, 23.10.2026): Anschreiben auf den
+        Briefbogen, Tickets auf das Ticketpapier, beides in den Umschlag, abhaken.
+      */}
+      {post && sendung.art === "tickets" && !problem && !erledigt && (
+        <div
+          className="mt-4 rounded border p-3 print:hidden"
+          style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+        >
+          <ol className="space-y-2 text-sm">
+            <li className="flex flex-wrap items-center gap-3">
+              <Schrittzahl n={1} gut />
+              <Link
+                href={`/versand?nur=${sendung.bestellnummer}&drucken=anschreiben&sofort=1`}
+                className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+              >
+                Anschreiben drucken
+              </Link>
+              <span className="text-leise">auf weißes Papier</span>
+            </li>
+            <li className="flex flex-wrap items-center gap-3">
+              <Schrittzahl n={2} gut />
+              <a
+                href={`/versand/tickets?nur=${encodeURIComponent(sendung.bestellnummer)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+              >
+                Tickets drucken
+              </a>
+              <span className="text-leise">auf das Ticketpapier, eine Seite je Ticket</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <Schrittzahl n={3} gut />
+              <span>
+                Beides in den Fensterumschlag, das Anschreiben mit der Anschrift nach vorn. Danach oben rechts{" "}
+                <strong>als verschickt abhaken</strong>.
+              </span>
+            </li>
+          </ol>
+        </div>
+      )}
     </article>
   );
 }
