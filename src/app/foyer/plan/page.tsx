@@ -7,7 +7,15 @@ import { Absendeknopf } from "@/components/Absendeknopf";
 import { ShowKommentare } from "@/components/ShowKommentare";
 import { FoyerZusatzPlaetze } from "@/components/FoyerZusatzPlaetze";
 import { kommentareFuer } from "@/lib/dienstplan/kommentar";
-import { festMarkieren, foyerUebernahmeEntscheiden, foyerUebernehmenAnbieten, tagEintragen, zeiten } from "./aktionen";
+import {
+  festMarkieren,
+  foyerUebernahmeEntscheiden,
+  foyerUebernehmenAnbieten,
+  tagAufteilen,
+  tagEintragen,
+  tagZusammenlegen,
+  zeiten,
+} from "./aktionen";
 
 export const metadata = { title: "Foyer-Dienstplan | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -229,91 +237,133 @@ export default async function FoyerPlanSeite({
               */}
               {t.abgesagt ? (
                 <ul className="mt-2 space-y-1 text-sm">
-                  {t.dienste
+                  {t.bloecke
+                    .flatMap((blk) => blk.dienste.map((d) => ({ ...d, titel: blk.titel })))
                     .filter((d) => d.benutzerId)
                     .map((d, i) => (
-                      <li key={d.nummer} className="line-through text-leise">
+                      <li key={`${d.abschnitt}-${d.nummer}`} className="line-through text-leise">
+                        {d.titel ? `${d.titel}, ` : ""}
                         {i + 1}. Person: {leute.find((p) => p.id === d.benutzerId)?.name ?? "unbekannt"}
                         {" "}· {d.von} bis {d.bis} Uhr
                       </li>
                     ))}
-                  {t.dienste.every((d) => !d.benutzerId) && (
+                  {t.bloecke.every((blk) => blk.dienste.every((d) => !d.benutzerId)) && (
                     <li className="text-leise">Hier war noch niemand eingeteilt.</li>
                   )}
                 </ul>
               ) : (
-              <form action={tagEintragen}>
-                <input type="hidden" name="datum" value={t.datum} />
-                <ul className="mt-2 space-y-2">
+                <>
                   {/*
-                    Die Nummer in der Anzeige zaehlt die Zeilen durch, die
-                    Nummer in der Datenbank bleibt die alte: Wird ein
-                    mittlerer Platz frei geraeumt, soll hier trotzdem
-                    "1., 2., 3." stehen und nicht "1., 2., 4.".
-                  */}
-                  {t.dienste
-                    .filter((d, i) => i < 2 || d.benutzerId)
-                    .map((d, i) => (
-                      <PlatzZeile
-                        key={d.nummer}
-                        d={d}
-                        anzeige={i + 1}
-                        leute={leute}
-                        zeitenAendern={darfZeiten}
-                      />
-                    ))}
-                </ul>
-                {(() => {
-                  const naechster = t.dienste[t.dienste.length - 1];
-                  if (!naechster || naechster.benutzerId) return null;
-                  return (
-                    <FoyerZusatzPlaetze
-                      abNummer={naechster.nummer}
-                      abAnzeige={t.dienste.filter((d, i) => i < 2 || d.benutzerId).length + 1}
-                      von={naechster.von}
-                      bis={naechster.bis}
-                      leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
-                      zeitenAendern={darfZeiten}
-                    />
-                  );
-                })()}
-                <div className="mt-2">
-                  <Absendeknopf text="Tag speichern" laeuftText="..." />
-                </div>
-              </form>
-              )}
+                    Zwei Shows an einem Tag, zwei Moeglichkeiten.
 
-              {!t.abgesagt && (
-              <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-leise underline">Zeiten oder Notiz ändern</summary>
-                {t.dienste.filter((d, i) => i < 2 || d.benutzerId).map((d) => (
-                  <form key={d.nummer} action={zeiten} className="mt-2 flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="datum" value={t.datum} />
-                    <input type="hidden" name="nummer" value={d.nummer} />
-                    <span className="w-24 shrink-0">{d.nummer}. Person</span>
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-leise">von</span>
-                      <input type="time" name="von" defaultValue={d.von} className="w-28" />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-leise">bis</span>
-                      <input type="time" name="bis" defaultValue={d.bis} className="w-28" />
-                    </label>
-                    <label className="block min-w-[12rem] flex-1">
-                      <span className="mb-1 block text-xs text-leise">Notiz</span>
-                      <input name="notiz" defaultValue={d.notiz} maxLength={300} placeholder="zum Beispiel Pause während der Nachmittagsshow" />
-                    </label>
-                    <button type="submit" className="rounded-md border border-linie px-3 py-1.5">
-                      Speichern
-                    </button>
-                  </form>
-                ))}
-              </details>
+                    Ungeteilt steht hier ein Dienst von mittags bis nachts.
+                    Genau das war der Hinweis aus dem Foyer: "es würden auch
+                    gerne mal mitarbeiter sich aufteilen. du machst mittags,
+                    ich abends" (Florian, 23.10.2026). Wer den ganzen Tag
+                    machen will, lässt es, wie es ist.
+                  */}
+                  {t.teilbar && (
+                    <form action={t.geteilt ? tagZusammenlegen : tagAufteilen} className="mt-2">
+                      <input type="hidden" name="datum" value={t.datum} />
+                      <button type="submit" className="rounded-md border border-linie px-3 py-1 text-sm">
+                        {t.geteilt
+                          ? "Teilung aufheben, wieder ein Dienst für den ganzen Tag"
+                          : "Tag aufteilen in Mittagsshow und Abendshow"}
+                      </button>
+                    </form>
+                  )}
+
+                  {t.bloecke.map((blk) => (
+                    <div key={blk.abschnitt} className={blk.titel ? "mt-3" : ""}>
+                      {blk.titel && (
+                        <h3 className="text-sm font-semibold">
+                          {blk.titel}
+                          {blk.abschnitt === "mittag" && t.shows[0] ? ` · ${t.shows[0].uhrzeit} Uhr` : ""}
+                          {blk.abschnitt === "abend" && t.shows.length > 1
+                            ? ` · ${t.shows[t.shows.length - 1].uhrzeit} Uhr`
+                            : ""}
+                        </h3>
+                      )}
+                      <form action={tagEintragen}>
+                        <input type="hidden" name="datum" value={t.datum} />
+                        <input type="hidden" name="abschnitt" value={blk.abschnitt} />
+                        <ul className="mt-2 space-y-2">
+                          {/*
+                            Die Nummer in der Anzeige zaehlt die Zeilen durch, die
+                            Nummer in der Datenbank bleibt die alte: Wird ein
+                            mittlerer Platz frei geraeumt, soll hier trotzdem
+                            "1., 2., 3." stehen und nicht "1., 2., 4.".
+                          */}
+                          {blk.dienste
+                            .filter((d, i) => i < 2 || d.benutzerId)
+                            .map((d, i) => (
+                              <PlatzZeile
+                                key={d.nummer}
+                                d={d}
+                                anzeige={i + 1}
+                                leute={leute}
+                                zeitenAendern={darfZeiten}
+                              />
+                            ))}
+                        </ul>
+                        {(() => {
+                          const naechster = blk.dienste[blk.dienste.length - 1];
+                          if (!naechster || naechster.benutzerId) return null;
+                          return (
+                            <FoyerZusatzPlaetze
+                              abNummer={naechster.nummer}
+                              abAnzeige={blk.dienste.filter((d, i) => i < 2 || d.benutzerId).length + 1}
+                              von={naechster.von}
+                              bis={naechster.bis}
+                              leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
+                              zeitenAendern={darfZeiten}
+                            />
+                          );
+                        })()}
+                        <div className="mt-2">
+                          <Absendeknopf
+                            text={blk.titel ? `${blk.titel} speichern` : "Tag speichern"}
+                            laeuftText="..."
+                          />
+                        </div>
+                      </form>
+
+                      <details className="mt-2 text-sm">
+                        <summary className="cursor-pointer text-leise underline">
+                          Zeiten oder Notiz ändern{blk.titel ? ` (${blk.titel})` : ""}
+                        </summary>
+                        {blk.dienste.filter((d, i) => i < 2 || d.benutzerId).map((d) => (
+                          <form key={d.nummer} action={zeiten} className="mt-2 flex flex-wrap items-end gap-2">
+                            <input type="hidden" name="datum" value={t.datum} />
+                            <input type="hidden" name="abschnitt" value={blk.abschnitt} />
+                            <input type="hidden" name="nummer" value={d.nummer} />
+                            <span className="w-24 shrink-0">{d.nummer}. Person</span>
+                            <label className="block">
+                              <span className="mb-1 block text-xs text-leise">von</span>
+                              <input type="time" name="von" defaultValue={d.von} className="w-28" />
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-xs text-leise">bis</span>
+                              <input type="time" name="bis" defaultValue={d.bis} className="w-28" />
+                            </label>
+                            <label className="block min-w-[12rem] flex-1">
+                              <span className="mb-1 block text-xs text-leise">Notiz</span>
+                              <input name="notiz" defaultValue={d.notiz} maxLength={300} placeholder="zum Beispiel Pause während der Nachmittagsshow" />
+                            </label>
+                            <button type="submit" className="rounded-md border border-linie px-3 py-1.5">
+                              Speichern
+                            </button>
+                          </form>
+                        ))}
+                      </details>
+                    </div>
+                  ))}
+                </>
               )}
 
               {!t.abgesagt && ichArbeiteImFoyer && (
                 <VertretungAnbieten
-                  dienste={t.dienste.filter((d) => d.benutzerId && d.benutzerId !== b.id)}
+                  dienste={t.bloecke.flatMap((blk) => blk.dienste).filter((d) => d.benutzerId && d.benutzerId !== b.id)}
                   leute={leute}
                 />
               )}

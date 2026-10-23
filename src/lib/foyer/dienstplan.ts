@@ -33,6 +33,19 @@ import { showtageAbHeute, type Vorstellungstermin } from "@/lib/ditix/spielplan"
 
 export type Freigabe = "nicht_noetig" | "angefragt" | "frei" | "abgelehnt";
 
+/**
+ * Welchen Teil des Tages ein Dienst abdeckt.
+ *
+ * "wäre besser, das zu trennen in vormittag und nachmittag, bzw.
+ * mittagsshow und abendshow.. es würden auch gerne mal mitarbeiter sich
+ * aufteilen" (Florian, 23.10.2026, nach einem Hinweis aus dem Foyer).
+ *
+ * "ganz" ist der Normalfall und bleibt es: An Tagen mit einer einzigen
+ * Show gibt es nichts zu teilen, und wer einen Doppeltag am Stück machen
+ * will, soll das weiter können.
+ */
+export type Abschnitt = "ganz" | "mittag" | "abend";
+
 export interface FoyerPerson {
   id: string;
   name: string;
@@ -44,6 +57,7 @@ export interface FoyerPerson {
 export interface FoyerDienst {
   id: string;
   datum: string;
+  abschnitt: Abschnitt;
   nummer: number;
   benutzerId: string | null;
   name: string | null;
@@ -92,11 +106,29 @@ export interface FoyerTag {
   abgesagt: boolean;
   /** Verantwortliche Technik je Vorstellung an diesem Tag. */
   technik: FoyerTechnik[];
+  /**
+   * Die Dienste des Tages, in einem Block oder in zweien.
+   *
+   * Ungeteilt steht hier genau ein Block "ganz" und die Seite sieht aus
+   * wie vorher. Geteilt sind es zwei, Mittag und Abend, jeder mit
+   * eigenen Plaetzen und eigenen Zeiten.
+   */
+  bloecke: FoyerBlock[];
+  /** Laesst sich dieser Tag ueberhaupt teilen? Nur bei zwei Shows. */
+  teilbar: boolean;
+  /** Ist er geteilt? */
+  geteilt: boolean;
+  /** Pause zwischen den Shows, nur an ungeteilten Tagen mit zwei Vorstellungen. */
+  pause: string | null;
+}
+
+export interface FoyerBlock {
+  abschnitt: Abschnitt;
+  /** "Mittagsshow", "Abendshow" oder leer beim ganzen Tag. */
+  titel: string;
   dienste: FoyerDienst[];
   /** Vorgeschlagene Zeiten, wenn noch nichts eingetragen ist. */
   vorschlag: Array<{ von: string; bis: string }>;
-  /** Pause zwischen den Shows, nur an Tagen mit zwei Vorstellungen. */
-  pause: string | null;
 }
 
 /*
@@ -137,8 +169,10 @@ function plus(uhrzeit: string, minuten: number): string {
 export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   vorschlag: Array<{ von: string; bis: string }>;
   pause: string | null;
+  /** Die Zeiten der beiden Haelften, falls der Tag zwei Shows hat. */
+  geteilt: { mittag: Array<{ von: string; bis: string }>; abend: Array<{ von: string; bis: string }> } | null;
 } {
-  if (shows.length === 0) return { vorschlag: [], pause: null };
+  if (shows.length === 0) return { vorschlag: [], pause: null, geteilt: null };
   const erste = shows[0].uhrzeit;
   const letzte = shows[shows.length - 1].uhrzeit;
   const ende = plus(letzte, 180);
@@ -160,7 +194,45 @@ export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   // Zwei Shows an einem Tag: dazwischen ist Pause, meist eine Dreiviertelstunde.
   const pause =
     shows.length > 1 ? `${minus(letzte, 120)} bis ${minus(letzte, 75)}` : null;
-  return { vorschlag, pause };
+
+  /*
+    Geteilter Tag: zwei eigenstaendige Dienste statt eines langen.
+
+    Der Mittagsdienst endet drei Stunden nach dem Beginn der Matinee, der
+    Abenddienst beginnt zwei Stunden vor der Abendshow. Bei 14 und 19 Uhr
+    treffen sich beide um 17 Uhr, die Uebergabe passiert also im Haus und
+    nicht per Telefon. Die zweite Person kommt wie immer 45 Minuten
+    spaeter dazu und geht abends nach der Pause.
+  */
+  /*
+    Teilen lohnt nur, wenn zwischen den Shows wirklich ein Tag liegt.
+
+    Am 01.11.2026 stehen zwei Vorstellungen um 12 und um 14 Uhr im Plan.
+    Zwei Dienste daraus zu machen hiesse, dass sich beide ueberlappen und
+    die zweite Person kaeme, waehrend die erste noch arbeitet. Unter drei
+    Stunden Abstand bleibt es deshalb bei einem Dienst.
+  */
+  const abstand =
+    Number(letzte.slice(0, 2)) * 60 + Number(letzte.slice(3)) -
+    (Number(erste.slice(0, 2)) * 60 + Number(erste.slice(3)));
+
+  const geteilt =
+    shows.length > 1 && abstand >= 210
+      ? {
+          mittag: [
+            { von: minus(erste, erste < "14:00" ? 90 : 120), bis: plus(erste, 180) },
+            { von: minus(erste, (erste < "14:00" ? 90 : 120) - 45), bis: plus(erste, 180) },
+            { von: minus(erste, (erste < "14:00" ? 90 : 120) - 45), bis: plus(erste, 180) },
+          ],
+          abend: [
+            { von: minus(letzte, 120), bis: ende },
+            { von: minus(letzte, 75), bis: nachDerPause },
+            { von: minus(letzte, 75), bis: nachDerPause },
+          ],
+        }
+      : null;
+
+  return { vorschlag, pause, geteilt };
 }
 
 /** Wer im Foyer arbeiten kann, mit dem Vermerk, wer fest angestellt ist. */
@@ -185,7 +257,7 @@ export async function festSetzen(benutzerId: string, fest: boolean): Promise<voi
 /** Ein einzelner Dienst über seine id, fürs Übernehmen-Anbieten. */
 export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> {
   const z = (await db()`
-    select d.id, d.datum::text as datum, d.nummer, d.benutzer_id, b.name,
+    select d.id, d.datum::text as datum, d.abschnitt, d.nummer, d.benutzer_id, b.name,
            coalesce(d.von, '') as von, coalesce(d.bis, '') as bis,
            d.freigabe, d.freigabe_von, d.notiz
       from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
@@ -196,6 +268,7 @@ export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> 
   return {
     id: String(r.id),
     datum: String(r.datum),
+    abschnitt: ((r.abschnitt as Abschnitt) ?? "ganz"),
     nummer: Number(r.nummer),
     benutzerId: (r.benutzer_id as string) ?? null,
     name: (r.name as string) ?? null,
@@ -210,16 +283,17 @@ export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> 
 /** Alle Einträge ab heute, für die Planung. */
 async function diensteAb(datum: string): Promise<FoyerDienst[]> {
   const z = (await db()`
-    select d.id, d.datum::text as datum, d.nummer, d.benutzer_id, b.name,
+    select d.id, d.datum::text as datum, d.abschnitt, d.nummer, d.benutzer_id, b.name,
            coalesce(d.von, '') as von, coalesce(d.bis, '') as bis,
            d.freigabe, d.freigabe_von, d.notiz
       from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
      where d.datum >= ${datum}::date
-     order by d.datum, d.nummer
+     order by d.datum, d.abschnitt, d.nummer
   `) as Array<Record<string, unknown>>;
   return z.map((r) => ({
     id: String(r.id),
     datum: String(r.datum),
+    abschnitt: ((r.abschnitt as Abschnitt) ?? "ganz"),
     nummer: Number(r.nummer),
     benutzerId: (r.benutzer_id as string) ?? null,
     name: (r.name as string) ?? null,
@@ -240,12 +314,14 @@ async function diensteAb(datum: string): Promise<FoyerDienst[]> {
  */
 function plaetzeBauen(
   datum: string,
+  abschnitt: Abschnitt,
   amTag: FoyerDienst[],
   vorschlag: Array<{ von: string; bis: string }>,
 ): FoyerDienst[] {
   const leer = (n: number): FoyerDienst => ({
     id: "",
     datum,
+    abschnitt,
     nummer: n,
     benutzerId: null,
     name: null,
@@ -330,8 +406,43 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
       const laufen = sortiert.filter((s) => !abgesagt.has(s.ditixEventId));
       const allesAbgesagt = laufen.length === 0;
       // Die Zeiten richten sich nach dem, was stattfindet.
-      const { vorschlag, pause } = foyerZeiten(allesAbgesagt ? sortiert : laufen);
+      const { vorschlag, pause, geteilt } = foyerZeiten(allesAbgesagt ? sortiert : laufen);
       const amTag = dienste.filter((d) => d.datum === datum);
+      const istGeteilt = amTag.some((d) => d.abschnitt !== "ganz");
+      const teilbar = geteilt !== null;
+      const bloecke: FoyerBlock[] = istGeteilt
+        ? [
+            {
+              abschnitt: "mittag" as const,
+              titel: "Mittagsshow",
+              vorschlag: geteilt?.mittag ?? vorschlag,
+              dienste: plaetzeBauen(
+                datum,
+                "mittag",
+                amTag.filter((d) => d.abschnitt === "mittag"),
+                geteilt?.mittag ?? vorschlag,
+              ),
+            },
+            {
+              abschnitt: "abend" as const,
+              titel: "Abendshow",
+              vorschlag: geteilt?.abend ?? vorschlag,
+              dienste: plaetzeBauen(
+                datum,
+                "abend",
+                amTag.filter((d) => d.abschnitt === "abend"),
+                geteilt?.abend ?? vorschlag,
+              ),
+            },
+          ]
+        : [
+            {
+              abschnitt: "ganz" as const,
+              titel: "",
+              vorschlag,
+              dienste: plaetzeBauen(datum, "ganz", amTag.filter((d) => d.abschnitt === "ganz"), vorschlag),
+            },
+          ];
       return {
         datum,
         abgesagt: allesAbgesagt,
@@ -352,9 +463,10 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
               sonderveranstaltung: t.sonder,
             };
           }),
-        dienste: plaetzeBauen(datum, amTag, vorschlag),
-        vorschlag,
-        pause,
+        bloecke,
+        teilbar,
+        geteilt: istGeteilt,
+        pause: istGeteilt ? null : pause,
       };
     });
 }
@@ -362,6 +474,7 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
 /** Einteilen oder wieder frei machen. Gibt den gespeicherten Eintrag zurück. */
 export async function dienstSetzen(o: {
   datum: string;
+  abschnitt?: Abschnitt;
   nummer: number;
   benutzerId: string | null;
   von: string;
@@ -370,9 +483,10 @@ export async function dienstSetzen(o: {
   von_wem: string;
 }): Promise<void> {
   await db()`
-    insert into foyer_dienst (datum, nummer, benutzer_id, von, bis, freigabe, geaendert_von, geaendert_am)
-    values (${o.datum}::date, ${o.nummer}, ${o.benutzerId}, ${o.von}, ${o.bis}, ${o.freigabe}, ${o.von_wem}, now())
-    on conflict (datum, nummer) do update set
+    insert into foyer_dienst (datum, abschnitt, nummer, benutzer_id, von, bis, freigabe, geaendert_von, geaendert_am)
+    values (${o.datum}::date, ${o.abschnitt ?? "ganz"}, ${o.nummer}, ${o.benutzerId}, ${o.von}, ${o.bis},
+            ${o.freigabe}, ${o.von_wem}, now())
+    on conflict (datum, abschnitt, nummer) do update set
       benutzer_id = excluded.benutzer_id, von = excluded.von, bis = excluded.bis,
       freigabe = excluded.freigabe, freigabe_von = null, freigabe_am = null,
       geaendert_von = excluded.geaendert_von, geaendert_am = now()
@@ -381,6 +495,7 @@ export async function dienstSetzen(o: {
 
 export async function zeitenSetzen(o: {
   datum: string;
+  abschnitt?: Abschnitt;
   nummer: number;
   von: string;
   bis: string;
@@ -388,9 +503,10 @@ export async function zeitenSetzen(o: {
   von_wem: string;
 }): Promise<void> {
   await db()`
-    insert into foyer_dienst (datum, nummer, von, bis, notiz, geaendert_von, geaendert_am)
-    values (${o.datum}::date, ${o.nummer}, ${o.von}, ${o.bis}, ${o.notiz}, ${o.von_wem}, now())
-    on conflict (datum, nummer) do update set
+    insert into foyer_dienst (datum, abschnitt, nummer, von, bis, notiz, geaendert_von, geaendert_am)
+    values (${o.datum}::date, ${o.abschnitt ?? "ganz"}, ${o.nummer}, ${o.von}, ${o.bis}, ${o.notiz},
+            ${o.von_wem}, now())
+    on conflict (datum, abschnitt, nummer) do update set
       von = excluded.von, bis = excluded.bis, notiz = excluded.notiz,
       geaendert_von = excluded.geaendert_von, geaendert_am = now()
   `;
@@ -404,7 +520,89 @@ export async function zeitenSetzen(o: {
  * gespeichert, soll die Zeile ganz verschwinden und nicht als leerer
  * Platz stehen bleiben.
  */
-export async function dienstWeg(datum: string, nummer: number): Promise<void> {
+export async function dienstWeg(datum: string, nummer: number, abschnitt: Abschnitt = "ganz"): Promise<void> {
   if (nummer <= PLAETZE.length) return;
-  await db()`delete from foyer_dienst where datum = ${datum}::date and nummer = ${nummer}`;
+  await db()`
+    delete from foyer_dienst
+     where datum = ${datum}::date and abschnitt = ${abschnitt} and nummer = ${nummer}
+  `;
+}
+
+/**
+ * Einen Doppelshow-Tag in Mittag und Abend teilen.
+ *
+ * Wer schon eingeteilt ist, bleibt eingeteilt, und zwar mittags: Die
+ * Matinee faengt frueher an, und wer sich umentscheidet, verschiebt sich
+ * mit zwei Klicks. Der Abend startet leer, mit den Vorschlagszeiten.
+ * Niemand verliert durch die Teilung seinen Dienst.
+ */
+export async function tagTeilen(
+  datum: string,
+  zeiten: { mittag: Array<{ von: string; bis: string }>; abend: Array<{ von: string; bis: string }> },
+  vonWem: string,
+): Promise<void> {
+  const vorhanden = (await db()`
+    select nummer, von, bis from foyer_dienst
+     where datum = ${datum}::date and abschnitt = 'ganz' and benutzer_id is not null
+     order by nummer
+  `) as Array<{ nummer: number; von: string | null; bis: string | null }>;
+
+  await db()`
+    update foyer_dienst set abschnitt = 'mittag', geaendert_von = ${vonWem}, geaendert_am = now()
+     where datum = ${datum}::date and abschnitt = 'ganz'
+  `;
+
+  // Die Mittagszeiten setzen, aber nur dort, wo noch der alte
+  // Tagesvorschlag steht: Von Hand gesetzte Zeiten bleiben stehen.
+  for (const d of vorhanden) {
+    const z = zeiten.mittag[Math.min(d.nummer, zeiten.mittag.length) - 1];
+    if (!z) continue;
+    await db()`
+      update foyer_dienst set bis = ${z.bis}, geaendert_am = now()
+       where datum = ${datum}::date and abschnitt = 'mittag' and nummer = ${d.nummer}
+    `;
+  }
+}
+
+/** Die Teilung wieder aufheben: alles zurueck auf einen Tagesdienst. */
+export async function teilungAufheben(datum: string, vonWem: string): Promise<void> {
+  /*
+    Der Abend wird mit dem Mittag zusammengelegt. Steht abends jemand
+    anderes als mittags, bleibt er als zusaetzlicher Platz erhalten,
+    damit die Teilung niemanden aus dem Plan wirft.
+  */
+  const abend = (await db()`
+    select nummer, benutzer_id, von, bis, notiz from foyer_dienst
+     where datum = ${datum}::date and abschnitt = 'abend' and benutzer_id is not null
+     order by nummer
+  `) as Array<Record<string, unknown>>;
+  const mittagsLeute = (await db()`
+    select benutzer_id from foyer_dienst
+     where datum = ${datum}::date and abschnitt = 'mittag' and benutzer_id is not null
+  `) as Array<{ benutzer_id: string }>;
+  const schon = new Set(mittagsLeute.map((x) => x.benutzer_id));
+
+  await db()`delete from foyer_dienst where datum = ${datum}::date and abschnitt = 'abend'`;
+  await db()`
+    update foyer_dienst set abschnitt = 'ganz', geaendert_von = ${vonWem}, geaendert_am = now()
+     where datum = ${datum}::date and abschnitt = 'mittag'
+  `;
+
+  const [{ hoechste }] = (await db()`
+    select coalesce(max(nummer), 0)::int as hoechste from foyer_dienst
+     where datum = ${datum}::date and abschnitt = 'ganz'
+  `) as Array<{ hoechste: number }>;
+
+  let naechste = Math.max(hoechste, PLAETZE.length);
+  for (const a of abend) {
+    if (schon.has(String(a.benutzer_id))) continue;
+    naechste += 1;
+    await db()`
+      insert into foyer_dienst (datum, abschnitt, nummer, benutzer_id, von, bis, notiz, geaendert_von, geaendert_am)
+      values (${datum}::date, 'ganz', ${naechste}, ${String(a.benutzer_id)},
+              ${(a.von as string) ?? ""}, ${(a.bis as string) ?? ""}, ${(a.notiz as string) ?? ""},
+              ${vonWem}, now())
+      on conflict (datum, abschnitt, nummer) do nothing
+    `;
+  }
 }

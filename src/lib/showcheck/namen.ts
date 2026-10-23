@@ -27,7 +27,8 @@ export async function namenImDienst(o: {
           from foyer_dienst d
           join benutzer b on b.id = d.benutzer_id
          where d.datum = ${o.datum}::date
-         order by d.nummer
+         -- Geteilte Tage: erst die Mittagsschicht, dann der Abend.
+         order by case d.abschnitt when 'abend' then 1 else 0 end, d.nummer
       `) as Array<{ name: string }>;
       return eindeutig(z.map((r) => String(r.name)));
     }

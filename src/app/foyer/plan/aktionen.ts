@@ -14,7 +14,18 @@ import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/a
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
-import { dienstSetzen, dienstWeg, festSetzen, foyerDienstLesen, foyerLeute, zeitenSetzen } from "@/lib/foyer/dienstplan";
+import {
+  dienstSetzen,
+  dienstWeg,
+  festSetzen,
+  foyerDienstLesen,
+  foyerLeute,
+  foyerZeiten,
+  tagTeilen,
+  teilungAufheben,
+  zeitenSetzen,
+  type Abschnitt,
+} from "@/lib/foyer/dienstplan";
 import { uebernahmeAnbieten, uebernahmeEntscheiden, uebernahmeLesen } from "@/lib/dienstplan/uebernahme";
 import { abgesagteEventIds } from "@/lib/absage/db";
 import { findeTermin } from "@/lib/ditix/spielplan";
@@ -30,6 +41,42 @@ async function darfPlanen() {
   const b = await angemeldeterBenutzer();
   if (!b || !["chef", "team", "foyer"].includes(b.rolle)) throw new Error("Nicht erlaubt.");
   return b;
+}
+
+/**
+ * Einen Tag mit zwei Shows aufteilen.
+ *
+ * Der Anstoss kam aus dem Foyer: An Doppelshow-Tagen stand bisher eine
+ * Person von mittags bis nachts da, weil der Dienst am Tag hing und
+ * nicht an der Vorstellung. Wer sich aufteilen wollte, konnte es nicht
+ * (Florian, 23.10.2026).
+ *
+ * Wer schon eingeteilt ist, bleibt eingeteilt und landet im Mittag. Der
+ * Abend startet leer. Niemand faellt durch die Teilung aus dem Plan.
+ */
+export async function tagAufteilen(f: FormData): Promise<void> {
+  const b = await darfPlanen();
+  const datum = text(f, "datum", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) zurueck("Dieser Tag geht nicht.");
+
+  const shows = await showsAmTag(datum);
+  if (shows.length < 2) {
+    zurueck("An diesem Tag gibt es nur eine Vorstellung, da ist nichts zu teilen.");
+  }
+
+  const { geteilt } = foyerZeiten(shows.map((u) => ({ uhrzeit: u })));
+  if (!geteilt) zurueck("Die Zeiten lassen sich nicht teilen.");
+  await tagTeilen(datum, geteilt!, b.name);
+  zurueck("Der Tag ist jetzt geteilt: Mittagsshow und Abendshow lassen sich getrennt besetzen.");
+}
+
+/** Die Teilung wieder aufheben. */
+export async function tagZusammenlegen(f: FormData): Promise<void> {
+  const b = await darfPlanen();
+  const datum = text(f, "datum", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) zurueck("Dieser Tag geht nicht.");
+  await teilungAufheben(datum, b.name);
+  zurueck("Wieder ein Dienst für den ganzen Tag.");
 }
 
 /** Wer fest angestellt ist, legt nur das Büro fest. */
@@ -124,9 +171,29 @@ async function tagFaelltAus(datum: string): Promise<boolean> {
   return amTag.length > 0 && amTag.every((t) => abgesagt.has(t.ditixEventId));
 }
 
+/** Welcher Teil des Tages gemeint ist. Fehlt die Angabe, ist es der ganze. */
+function abschnittAus(f: FormData): Abschnitt {
+  const w = text(f, "abschnitt", 7);
+  return w === "mittag" || w === "abend" ? w : "ganz";
+}
+
+/** Die Anfangszeiten der Vorstellungen eines Tages, die stattfinden. */
+async function showsAmTag(datum: string): Promise<string[]> {
+  const { showtageAbHeute } = await import("@/lib/ditix/spielplan");
+  const [termine, abgesagt] = await Promise.all([
+    showtageAbHeute(400),
+    abgesagteEventIds().catch(() => new Set<string>()),
+  ]);
+  return termine
+    .filter((t) => t.datum === datum && !abgesagt.has(t.ditixEventId))
+    .map((t) => t.uhrzeit)
+    .sort();
+}
+
 export async function tagEintragen(f: FormData): Promise<void> {
   const b = await darfPlanen();
   const datum = text(f, "datum", 10);
+  const abschnitt = abschnittAus(f);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) zurueck("Dieser Tag geht nicht.");
   if (await tagFaelltAus(datum)) {
     zurueck("An diesem Tag ist die Vorstellung abgesagt. Hier wird niemand mehr eingeteilt.");
@@ -134,7 +201,8 @@ export async function tagEintragen(f: FormData): Promise<void> {
 
   const leute = await foyerLeute();
   const bestehend = (await db()`
-    select nummer, benutzer_id from foyer_dienst where datum = ${datum}::date
+    select nummer, benutzer_id from foyer_dienst
+     where datum = ${datum}::date and abschnitt = ${abschnitt}
   `) as Array<{ nummer: number; benutzer_id: string | null }>;
   const vorher = new Map(bestehend.map((r) => [r.nummer, r.benutzer_id]));
 
@@ -163,12 +231,13 @@ export async function tagEintragen(f: FormData): Promise<void> {
     // Ein zusaetzlicher Platz ohne Person verschwindet wieder, sonst
     // waechst die Liste bei jedem Speichern um eine leere Zeile.
     if (!person && nummer > 2) {
-      await dienstWeg(datum, nummer);
+      await dienstWeg(datum, nummer, abschnitt);
       continue;
     }
 
     await dienstSetzen({
       datum,
+      abschnitt,
       nummer,
       benutzerId: person?.id ?? null,
       von,
@@ -353,9 +422,10 @@ export async function zeiten(f: FormData): Promise<void> {
   if (await tagFaelltAus(datum)) {
     zurueck("An diesem Tag ist die Vorstellung abgesagt.");
   }
-  const nummer = Math.max(1, Math.min(3, Number(text(f, "nummer", 2)) || 1));
+  const nummer = Math.max(1, Math.min(20, Number(text(f, "nummer", 2)) || 1));
   await zeitenSetzen({
     datum,
+    abschnitt: abschnittAus(f),
     nummer,
     von: text(f, "von", 5),
     bis: text(f, "bis", 5),
