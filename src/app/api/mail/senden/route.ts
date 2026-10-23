@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     antwortAn?: string;
     betreff?: string;
     text?: string;
+    anhaenge?: Array<{ name?: string; typ?: string; base64?: string }>;
   } | null;
 
   if (!d?.an || !d.betreff || !d.text) {
@@ -60,8 +61,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    /*
+      Anhaenge gehen als Base64 mit. Microsoft nimmt eine Mail nur bis
+      etwa drei Megabyte an, deshalb die Grenze hier: lieber eine klare
+      Absage als eine Mail, die beim Empfaenger nie ankommt.
+    */
+    const anhaenge = (d.anhaenge ?? [])
+      .filter((a) => a.base64 && a.name)
+      .map((a) => ({ name: a.name!, typ: a.typ ?? "application/octet-stream", base64: a.base64! }));
+    const summe = anhaenge.reduce((z, a) => z + a.base64.length * 0.75, 0);
+    if (summe > 3_000_000) {
+      return NextResponse.json(
+        { ok: false, fehler: "Die Anhaenge sind zusammen zu gross, Microsoft nimmt etwa 3 MB." },
+        { status: 413 },
+      );
+    }
+
     await mailVerschicken({
       an: d.an,
+      anhaenge: anhaenge.length ? anhaenge : undefined,
       absender: absender || undefined,
       antwortAn: d.antwortAn || absender || undefined,
       betreff: d.betreff,
