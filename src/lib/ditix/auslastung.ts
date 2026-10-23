@@ -15,6 +15,9 @@
  *    "Kat. 1", "VIP Empore", "Golden Seats" und so weiter.
  */
 
+import { holeSaalplanFlotix } from "./saalplan";
+import { flotixQuelle } from "@/lib/flotix/tuer";
+
 const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
 
 export interface KategorieAuslastung {
@@ -47,6 +50,31 @@ interface SaalplanAntwort {
  * @param seatmapEventId Kennung aus dem Spielplan, Feld `seatmapEventId`.
  */
 export async function holeAuslastung(seatmapEventId: string): Promise<Auslastung> {
+  /*
+    Mit FloTix als Quelle die tatsaechliche Auslastung (Florian, 23.10.2026): Was die Automatik zurueckhaelt, ist nicht verkauft.
+    Der Weg ueber den Shop zeigt es als verkauft, weil Gaeste es so sehen sollen. Hier zaehlt nur, was wirklich gebucht ist;
+    zurueckgehaltene und gesperrte Plaetze stehen als gesperrt, nicht als verkauft.
+  */
+  if (flotixQuelle() && /^[0-9a-f-]{36}$/i.test(seatmapEventId)) {
+    const plan = await holeSaalplanFlotix(seatmapEventId);
+    const zaehler = new Map<string, KategorieAuslastung>();
+    for (const sitz of plan.sitze) {
+      const k = zaehler.get(sitz.kategorie) ?? { name: sitz.kategorie, frei: 0, verkauft: 0, gesperrt: 0, gesamt: 0 };
+      k[sitz.status === "frei" ? "frei" : sitz.status === "verkauft" ? "verkauft" : "gesperrt"] += 1;
+      k.gesamt += 1;
+      zaehler.set(sitz.kategorie, k);
+    }
+    const gesamt = plan.sitze.length;
+    return {
+      kategorien: [...zaehler.values()].sort((x, y) => y.gesamt - x.gesamt),
+      frei: plan.frei,
+      verkauft: plan.verkauft,
+      gesperrt: plan.gesperrt,
+      gesamt,
+      prozent: gesamt > 0 ? Math.round((plan.verkauft / gesamt) * 100) : 0,
+    };
+  }
+
   const antwort = await fetch(`${SHOP_BASIS}/api/ditix/seatmap`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
