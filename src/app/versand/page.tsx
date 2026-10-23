@@ -233,7 +233,8 @@ export default async function VersandSeite({
         {(zuDrucken.length > 0 || staebeZuDrucken.length > 0) && (
           <Druckwahl
             anzahl={zuDrucken.length + staebeZuDrucken.length}
-            mitGutschein={zuDrucken.filter((s) => codeVon(s, staende.get(s.bestellnummer))).length}
+            mitGutschein={zuDrucken.filter((s) => s.art !== "tickets" && codeVon(s, staende.get(s.bestellnummer))).length}
+            mitTickets={zuDrucken.filter((s) => s.art === "tickets" && !brauchtKlaerung(s)).length}
             nur={nur}
             drucken={drucken}
           />
@@ -1234,11 +1235,13 @@ function gruesse(sendung: Sendung, stand: VersandStand | undefined) {
 function Druckwahl({
   anzahl,
   mitGutschein,
+  mitTickets,
   nur,
   drucken,
 }: {
   anzahl: number;
   mitGutschein: number;
+  mitTickets: number;
   nur: string | undefined;
   drucken: string | undefined;
 }) {
@@ -1264,6 +1267,17 @@ function Druckwahl({
         >
           Gutscheine ({mitGutschein})
         </Link>
+        {/* Die Tickets kommen als fertiges PDF aus FloTix (eine Seite je Ticket, ohne Preis) und gehen auf das Ticketpapier. */}
+        {mitTickets > 0 && (
+          <a
+            href={nur ? `/versand/tickets?nur=${encodeURIComponent(nur)}` : "/versand/tickets"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md border border-linie bg-flaeche px-3 py-2 text-sm font-medium"
+          >
+            Tickets drucken ({mitTickets})
+          </a>
+        )}
       </div>
 
       <div className="mt-2">

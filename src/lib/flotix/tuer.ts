@@ -328,6 +328,23 @@ export async function flotixTicketSendungen(): Promise<FlotixTicketSendung[]> {
   }));
 }
 
+/**
+ * Die Tickets mehrerer Bestellungen in einem PDF, ohne Preis, zum Drucken auf das Ticketpapier.
+ * Wirft, wenn FloTix nichts liefert.
+ */
+export async function flotixTicketDruck(nummern: string[]): Promise<{ pdf: ArrayBuffer; ohneDruck: string[] }> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  if (!schluessel) throw new Error("FLOTIX_KEY fehlt.");
+  const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=ticketdruck&nummern=${encodeURIComponent(nummern.join(","))}`, {
+    headers: { "x-eventmanager-key": schluessel },
+    cache: "no-store",
+    signal: AbortSignal.timeout(55000),
+  });
+  if (!antwort.ok) throw new Error(`FloTix liefert keine Tickets (${antwort.status}).`);
+  const ohne = (antwort.headers.get("x-ohne-druck") ?? "").split(",").filter(Boolean);
+  return { pdf: await antwort.arrayBuffer(), ohneDruck: ohne };
+}
+
 /** Das PDF mit den Tickets einer Bestellung, ohne Preis (so, wie es verschenkt wird). */
 export function ticketPdfLink(zugang: string): string {
   return `${FLOTIX_URL}/api/ticket?t=${encodeURIComponent(zugang)}&pdf=1&ohnepreis=1`;
