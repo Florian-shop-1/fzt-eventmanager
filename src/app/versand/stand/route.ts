@@ -41,7 +41,8 @@ export async function GET() {
 
     for (const s of sendungen) {
       if (!gehtInDiePost(s)) continue;
-      if (staende.get(s.bestellnummer)?.erledigtAm) continue;
+      // Erledigt ist, was hier abgehakt wurde oder in FloTix schon als versendet steht.
+      if (staende.get(s.bestellnummer)?.erledigtAm || /versendet/i.test(s.status)) continue;
       offen += 1;
       if (brauchtKlaerung(s)) klaerung += 1;
     }

@@ -16,7 +16,8 @@
  * wird genauso: Variable weg, neu veröffentlichen, eine Minute. Das ist
  * bewusst dieselbe Mechanik, mit der Julian den Shop umschaltet.
  *
- * Gelesen wird nur. In FloTix schreibt der Eventmanager nichts.
+ * Gelesen wird fast nur. Die eine Ausnahme (Florian, 23.10.2026): Wer eine Sendung hier als verschickt abhakt, setzt
+ * den Versandstand auch in FloTix, damit er dort und hier gleichzeitig stimmt.
  */
 
 const FLOTIX_URL = process.env.FLOTIX_URL ?? "https://flotix.florianzimmertheater.de";
@@ -280,6 +281,81 @@ export async function flotixSendungen(): Promise<FlotixSendung[]> {
     gutscheincode: t(r.gutscheincode),
     gueltigBis: t(r.gueltig_bis),
   }));
+}
+
+/** Eine Bestellung mit Tickets, die per Post geht (Umschlag oder Geschenkbox). */
+export interface FlotixTicketSendung {
+  id: string;
+  bestellnummer: string;
+  kaufdatum: string;
+  bezahltAm: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  email: string | null;
+  telefon: string | null;
+  zustellung: string;
+  /** Name, Strasse, PLZ, Ort, Land der Lieferanschrift. */
+  lieferung: Record<string, string>;
+  versendetAm: string | null;
+  /** Zugangsschluessel: Damit oeffnet sich das PDF der Tickets (ohne Preis). */
+  zugang: string;
+  showTitel: string;
+  beginn: string;
+  plaetze: number;
+}
+
+/** Die Tickets, die per Post gehen. */
+export async function flotixTicketSendungen(): Promise<FlotixTicketSendung[]> {
+  const d = await holen("ticketversand");
+  const liste = Array.isArray(d.sendungen) ? (d.sendungen as Array<Record<string, unknown>>) : [];
+  const t = (w: unknown): string | null => (w === null || w === undefined ? null : String(w));
+  return liste.map((r) => ({
+    id: String(r.id),
+    bestellnummer: String(r.bestellnummer ?? ""),
+    kaufdatum: String(r.kaufdatum ?? ""),
+    bezahltAm: t(r.bezahlt_am),
+    vorname: t(r.vorname),
+    nachname: t(r.nachname),
+    email: t(r.email),
+    telefon: t(r.telefon),
+    zustellung: String(r.zustellung ?? ""),
+    lieferung: (r.lieferung && typeof r.lieferung === "object" ? r.lieferung : {}) as Record<string, string>,
+    versendetAm: t(r.versendet_am),
+    zugang: String(r.zugang ?? ""),
+    showTitel: String(r.show_titel ?? ""),
+    beginn: String(r.beginn ?? ""),
+    plaetze: Number(r.plaetze ?? 0),
+  }));
+}
+
+/** Das PDF mit den Tickets einer Bestellung, ohne Preis (so, wie es verschenkt wird). */
+export function ticketPdfLink(zugang: string): string {
+  return `${FLOTIX_URL}/api/ticket?t=${encodeURIComponent(zugang)}&pdf=1&ohnepreis=1`;
+}
+
+/**
+ * Den Versandstand in FloTix setzen oder zuruecknehmen.
+ *
+ * Wirft nie: Das Haekchen im Eventmanager gilt auch dann, wenn FloTix gerade nicht antwortet. Dann steht der
+ * Stand nur hier, und FloTix zeigt die Sendung weiter als offen, bis jemand es dort nachzieht.
+ * Gibt zurueck, ob FloTix den Stand uebernommen hat.
+ */
+export async function flotixVersandAbhaken(bestellnummer: string, erledigt: boolean): Promise<boolean> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  if (!flotixQuelle() || !schluessel || !bestellnummer) return false;
+  try {
+    const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=versand-abhaken`, {
+      method: "POST",
+      headers: { "x-eventmanager-key": schluessel, "content-type": "application/json" },
+      body: JSON.stringify({ bestellnummer, erledigt }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
+    return antwort.ok;
+  } catch (f) {
+    console.error("[flotix] Versandstand nicht gesetzt:", bestellnummer, f instanceof Error ? f.message : f);
+    return false;
+  }
 }
 
 /** Lebenszeichen, für die Einstellungsseite und den Vergleichslauf. */

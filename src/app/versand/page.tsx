@@ -174,7 +174,8 @@ export default async function VersandSeite({
     FloTix liefert ihn seit dem 20.10.2026 mit. Nur bei den alten
     Ditix-Sendungen muss er noch von Hand nachgetragen werden.
   */
-  const ohneCode = zuDrucken.filter((s) => !codeVon(s, staende.get(s.bestellnummer)));
+  // Tickets haben keinen Gutscheincode und kommen auf kein Gutscheinpapier (Florian, 23.10.2026).
+  const ohneCode = zuDrucken.filter((s) => s.art !== "tickets" && !codeVon(s, staende.get(s.bestellnummer)));
 
   /*
     Entsteht überhaupt ein Blatt?
@@ -446,18 +447,19 @@ export default async function VersandSeite({
  * gepackt werden muss. Die Farbe traegt dabei nicht allein: Sie ist eine
  * Hilfe, das Wort steht daneben (Florian, 30.09.2026).
  */
-function Marke({ art }: { art: "gutschein" | "zauberstab" }) {
+function Marke({ art }: { art: "gutschein" | "zauberstab" | "tickets" }) {
   const gutschein = art === "gutschein";
+  const tickets = art === "tickets";
   return (
     <span
       className="rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide"
       style={{
-        background: gutschein ? "var(--gold-hell)" : "#ece7f8",
-        color: gutschein ? "var(--gold-dunkel)" : "#5b3fa8",
-        border: `1px solid ${gutschein ? "var(--gold)" : "#b9a7e8"}`,
+        background: gutschein ? "var(--gold-hell)" : tickets ? "#e3f1ec" : "#ece7f8",
+        color: gutschein ? "var(--gold-dunkel)" : tickets ? "#1f6b55" : "#5b3fa8",
+        border: `1px solid ${gutschein ? "var(--gold)" : tickets ? "#8cc5b3" : "#b9a7e8"}`,
       }}
     >
-      {gutschein ? "GUTSCHEIN" : "ZAUBERSTAB"}
+      {gutschein ? "GUTSCHEIN" : tickets ? "TICKETS" : "ZAUBERSTAB"}
     </span>
   );
 }
@@ -590,7 +592,7 @@ function Karte({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Marke art="gutschein" />
+            <Marke art={sendung.art === "tickets" ? "tickets" : "gutschein"} />
             <h2 className="font-semibold">{postempfaenger(sendung)}</h2>
             {!post && (
               <span className="rounded-full border border-linie px-2 py-px text-xs text-leise">
@@ -637,7 +639,22 @@ function Karte({
             <span>bestellt von {sendung.kundenname}</span>
           </div>
 
-          <Grusswortfeld sendung={sendung} stand={stand} />
+          {/* Tickets: was drin ist, und das PDF zum Drucken (ohne Preis, wie es verschenkt wird). */}
+          {sendung.art === "tickets" && (
+            <p className="mt-2 text-sm">
+              {sendung.inhalt}
+              {sendung.ticketLink && (
+                <>
+                  {" · "}
+                  <a href={sendung.ticketLink} target="_blank" rel="noopener noreferrer" className="underline print:hidden">
+                    Tickets als PDF öffnen
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+
+          {sendung.art !== "tickets" && <Grusswortfeld sendung={sendung} stand={stand} />}
 
           {problem && !erledigt && (
             <p className="mt-3 text-sm" style={{ color: "var(--warnung)" }}>
@@ -673,7 +690,9 @@ function Karte({
         </div>
       </div>
 
-      {post && <Codeschritte sendung={sendung} stand={stand} code={codeVon(sendung, stand)} />}
+      {post && sendung.art !== "tickets" && (
+        <Codeschritte sendung={sendung} stand={stand} code={codeVon(sendung, stand)} />
+      )}
     </article>
   );
 }

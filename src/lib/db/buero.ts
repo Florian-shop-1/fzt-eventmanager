@@ -12,6 +12,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "./client";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { flotixVersandAbhaken, KENNZEICHEN } from "@/lib/flotix/tuer";
+import { revalidateTag } from "next/cache";
 
 /**
  * Wer den Versand abhaken darf: Buero und Foyer.
@@ -129,6 +131,12 @@ export async function versandAbhaken(
     `;
   }
 
+  /*
+    Derselbe Stand in FloTix (Florian, 23.10.2026): Kevin hakt hier ab, und im Backend von FloTix soll die Sendung
+    gleichzeitig als versendet stehen. Eine Nummer, die FloTix nicht kennt (aus dem alten Shop), ist kein Fehler.
+  */
+  await flotixVersandAbhaken(bestellnummer, !zurueck);
+  revalidateTag(KENNZEICHEN, { expire: 0 });
   revalidatePath("/versand");
 
   const frage = new URLSearchParams();

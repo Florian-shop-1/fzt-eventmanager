@@ -16,7 +16,15 @@
 import { csvZerlegen, pruefeTabelle } from "./menueliste";
 import { nameOrdentlich } from "@/lib/domain/namen";
 import { ortFehlt, orteZurPlz } from "./plzort";
-import { flotixQuelle, flotixSendungen, type FlotixSendung } from "@/lib/flotix/tuer";
+import {
+  flotixQuelle,
+  flotixSendungen,
+  flotixTicketSendungen,
+  ticketPdfLink,
+  zaehltMit,
+  type FlotixSendung,
+  type FlotixTicketSendung,
+} from "@/lib/flotix/tuer";
 
 const TABELLE_ID =
   process.env.SHOP_VERSAND_ID ?? "1bZ5D0Zk5z3fxXm0zs8zoIK3AX02RTzkryY59P_fSWv8";
@@ -66,6 +74,12 @@ export interface Sendung {
   /** Stand aus der Tabelle, etwa "Zu versenden" oder "Versendet". */
   status: string;
   notiz: string;
+  /** Was geht in die Post? Ohne Angabe: ein Gutschein. */
+  art?: "gutschein" | "tickets";
+  /** Bei Tickets: was drin ist, in einem Satz. */
+  inhalt?: string;
+  /** Bei Tickets: das PDF der Tickets ohne Preis (aus FloTix). */
+  ticketLink?: string;
 }
 
 /**
@@ -111,12 +125,13 @@ export async function holeSendungen(): Promise<Sendung[]> {
     nicht in der Post ist, darf nicht aus Kevins Liste verschwinden
     (Florian, 20.10.2026).
   */
-  const [neu, alt] = await Promise.all([
+  const [neu, tickets, alt] = await Promise.all([
     flotixSendungen().catch(() => []),
+    flotixTicketSendungen().catch(() => [] as FlotixTicketSendung[]),
     ausTabelle().catch(() => [] as Sendung[]),
   ]);
 
-  return nachbereiten([...ausFlotix(neu), ...alt]);
+  return nachbereiten([...ausFlotix(neu), ...ausFlotixTickets(tickets), ...alt]);
 }
 
 /** Die alte Quelle: die Versandtabelle. */
@@ -251,7 +266,60 @@ function ausFlotix(sendungen: FlotixSendung[]): Sendung[] {
     motiv: g.motiv,
     ditixVariante: "",
     linkZurBestellung: "",
-    status: "",
+    // Was in FloTix schon als versendet steht, gilt hier genauso (Florian, 23.10.2026): egal, wo abgehakt wurde.
+    status: g.versendetAm ? "Versendet" : "",
     notiz: g.notiz ?? "",
   }));
+}
+
+/**
+ * Tickets, die per Post gehen, in derselben Liste wie die Gutscheine (Florian, 23.10.2026: Kevin macht den Versand
+ * lieber aus dem Eventmanager). Testkaeufe und die Zeit vor dem Umschalten zaehlen nicht.
+ */
+function ausFlotixTickets(sendungen: FlotixTicketSendung[]): Sendung[] {
+  return sendungen
+    .filter((t) =>
+      zaehltMit({
+        storniertAm: null,
+        bezahltAm: t.bezahltAm,
+        eingegangen: t.kaufdatum,
+        email: t.email,
+        vorname: t.vorname,
+        nachname: t.nachname,
+      }),
+    )
+    .map((t) => {
+      const l = t.lieferung ?? {};
+      const kunde = nameOrdentlich(`${t.vorname ?? ""} ${t.nachname ?? ""}`.trim());
+      const tag = t.beginn ? new Date(t.beginn).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }) : "";
+      return {
+        bestellnummer: t.bestellnummer,
+        quelle: "flotix" as const,
+        art: "tickets" as const,
+        gutscheincode: null,
+        gueltigBis: null,
+        kaufdatum: (t.bezahltAm ?? t.kaufdatum).slice(0, 10),
+        kundenname: kunde,
+        email: (t.email ?? "").toLowerCase(),
+        betrag: "",
+        zustellart: t.zustellung === "box" ? "Geschenkbox" : "Umschlag",
+        versandAn: "",
+        empfaenger: nameOrdentlich(l.name ?? ""),
+        strasse: l.strasse ?? "",
+        plz: l.plz ?? "",
+        ort: l.ort ?? "",
+        ortVorher: "",
+        ortMehrdeutig: [],
+        absender: "",
+        widmung: "",
+        motiv: "",
+        // Das Begleitschreiben erkennt an dieser Zeichenfolge, dass es um Tickets geht und nicht um einen Gutschein.
+        ditixVariante: "Tickets",
+        linkZurBestellung: "",
+        status: t.versendetAm ? "Versendet" : "",
+        notiz: "",
+        inhalt: `${t.plaetze > 0 ? `${t.plaetze} ${t.plaetze === 1 ? "Ticket" : "Tickets"}` : "Tickets"} für ${t.showTitel.trim()}${tag ? `, ${tag}` : ""}`,
+        ticketLink: t.zugang ? ticketPdfLink(t.zugang) : undefined,
+      };
+    });
 }
