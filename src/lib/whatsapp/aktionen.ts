@@ -32,6 +32,14 @@ import { merkeMailGesendet, naechsteBuchungZu } from "@/lib/db/shop-buchungen";
 import { baueVorfreudemail } from "@/lib/mail/vorfreude";
 import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 import { alsWaNummer, istKennung } from "@/lib/whatsapp/kennung";
+import {
+  antwortText,
+  codesZiehen,
+  nachfrageText,
+  schlemmerErkennen,
+} from "@/lib/whatsapp/schlemmerblock";
+import { entwurfLoeschen, entwurfSpeichern } from "@/lib/db/whatsapp-entwurf";
+import { vorname as vornameVon } from "@/lib/mail/vorfreude";
 
 const ziel = (waId: string, fehler?: string) =>
   `/whatsapp?mit=${encodeURIComponent(waId)}${fehler ? `&fehler=${encodeURIComponent(fehler.slice(0, 300))}` : ""}`;
@@ -59,12 +67,82 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
   try {
     const metaId = await textSchicken(waId, inhalt.slice(0, 4096));
     await ausgangSpeichern(waId, metaId, inhalt, benutzer.name);
+    // Ein vorbereiteter Entwurf hat seinen Zweck erfuellt.
+    await entwurfLoeschen(waId);
   } catch (e) {
     fehler = e instanceof WhatsAppFehler ? e.message : "Die Nachricht ging nicht hinaus.";
   }
 
   revalidatePath("/whatsapp");
   redirect(ziel(waId, fehler));
+}
+
+/**
+ * Die Schlemmerblock-Antwort vorbereiten: Code ziehen, Text schreiben.
+ *
+ * Abgeschickt wird nichts. Der Text landet im Antwortfeld, ein Mensch
+ * liest drueber und klickt auf Senden. Gezogen wird der Code trotzdem
+ * jetzt und nicht erst beim Absenden: Er steht im Text, und ein Code,
+ * der im Text steht, aber nicht als vergeben vermerkt ist, geht beim
+ * naechsten Mal an jemand anderen.
+ */
+export async function schlemmerVorbereiten(waId: string): Promise<void> {
+  const benutzer = await verlangeWhatsApp();
+  if (!istKennung(waId)) redirect("/whatsapp");
+
+  const [letzte] = (await db()`
+    select n.text, u.profilname
+      from wa_nachricht n
+      left join wa_unterhaltung u on u.wa_id = n.wa_id
+     where n.wa_id = ${waId} and n.richtung = 'ein'
+     order by n.zeitpunkt desc limit 1
+  `) as Array<{ text: string | null; profilname: string | null }>;
+
+  const befund = schlemmerErkennen(letzte?.text ?? "");
+  if (!befund.trifft) redirect(ziel(waId, "In dieser Nachricht steht nichts vom Schlemmerblock."));
+  if (befund.fuerMenschen) redirect(ziel(waId, befund.fuerMenschen));
+
+  const vorname = vornameVon(letzte?.profilname ?? "");
+
+  // Ohne Jahrgang erst fragen, dann Codes ziehen.
+  if (befund.jahrgang === null) {
+    await entwurfSpeichern({
+      waId,
+      text: nachfrageText(vorname),
+      anlass: "schlemmerblock-nachfrage",
+      codes: "",
+      von: benutzer.name,
+    });
+    revalidatePath("/whatsapp");
+    redirect(ziel(waId));
+  }
+
+  const anzahl = Math.max(1, Math.min(3, befund.bloecke ?? 1));
+  let codes: string[];
+  try {
+    const gezogen = await codesZiehen(anzahl, letzte?.profilname?.trim() || waId);
+    codes = gezogen.codes;
+  } catch (e) {
+    redirect(ziel(waId, e instanceof Error ? e.message : "Der Code kam nicht."));
+  }
+
+  await entwurfSpeichern({
+    waId,
+    text: antwortText({ vorname, codes: codes! }),
+    anlass: "schlemmerblock",
+    codes: codes!.join(", "),
+    von: benutzer.name,
+  });
+  revalidatePath("/whatsapp");
+  redirect(ziel(waId));
+}
+
+/** Einen vorbereiteten Entwurf wieder wegwerfen. */
+export async function entwurfVerwerfen(waId: string): Promise<void> {
+  await verlangeWhatsApp();
+  await entwurfLoeschen(waId);
+  revalidatePath("/whatsapp");
+  redirect(ziel(waId));
 }
 
 /**

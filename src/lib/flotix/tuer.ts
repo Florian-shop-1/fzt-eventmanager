@@ -375,6 +375,35 @@ export async function flotixVersandAbhaken(bestellnummer: string, erledigt: bool
   }
 }
 
+/**
+ * Freie Schlemmerblock-Codes holen und dort als vergeben vermerken.
+ *
+ * Die Codes liegen seit der Umstellung in FloTix, und nur dort weiss
+ * man, welcher schon heraus ist. Der Vermerk entsteht im selben Zug:
+ * Lieber ein Code zu viel vergeben als zweimal derselbe an zwei Gaeste.
+ */
+export async function flotixCodeZiehen(
+  anzahl: number,
+  an: string,
+): Promise<{ codes: string[]; rest: number }> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  if (!schluessel) throw new Error("FLOTIX_KEY fehlt, ohne den gibt es keine Codes.");
+
+  const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=code-ziehen`, {
+    method: "POST",
+    headers: { "x-eventmanager-key": schluessel, "content-type": "application/json" },
+    body: JSON.stringify({ anzahl, an, notiz: `WhatsApp ${an}` }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!antwort.ok) {
+    const d = (await antwort.json().catch(() => ({}))) as { fehler?: string };
+    if (d.fehler === "keine_codes_frei") throw new Error("Es sind keine freien Codes mehr da.");
+    throw new Error(`FloTix gibt keinen Code heraus (${antwort.status}).`);
+  }
+  return (await antwort.json()) as { codes: string[]; rest: number };
+}
+
 /** Lebenszeichen, für die Einstellungsseite und den Vergleichslauf. */
 export async function flotixProbe(): Promise<Record<string, unknown>> {
   return holen("probe");

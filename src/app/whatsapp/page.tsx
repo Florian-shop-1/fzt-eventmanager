@@ -10,6 +10,8 @@ import {
 import {
   anderweitigErledigt,
   antworten,
+  entwurfVerwerfen,
+  schlemmerVorbereiten,
   perMailAntworten,
   perWhatsAppAntworten,
   vorfreudeJetztSchicken,
@@ -29,6 +31,8 @@ const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
 const tagKurz = (iso: string) => iso.split("-").reverse().join(".");
 import { alsWaNummer, istKennung, istNummer, kennungLesbar } from "@/lib/whatsapp/kennung";
 import { vorschlaege } from "@/lib/whatsapp/vorschlag";
+import { schlemmerErkennen, VIELE_BLOECKE } from "@/lib/whatsapp/schlemmerblock";
+import { entwurfLesen, type WaEntwurf } from "@/lib/db/whatsapp-entwurf";
 import { Antworttext } from "@/components/Antworttext";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
@@ -352,7 +356,7 @@ function Liste({
   );
 }
 
-function Verlauf({
+async function Verlauf({
   unterhaltung,
   verlauf,
   fehler,
@@ -447,6 +451,7 @@ function Verlauf({
         unterhaltung={unterhaltung}
         fehler={fehler}
         frage={[...verlauf].reverse().find((n) => n.richtung === "ein")?.text ?? ""}
+        entwurf={await entwurfLesen(unterhaltung.waId)}
       />
     </section>
   );
@@ -543,18 +548,98 @@ function Haken({ status }: { status: string | null }) {
   return null;
 }
 
+/**
+ * Der Schlemmerblock-Kasten ueber dem Antwortfeld.
+ *
+ * Jede dritte Nachricht dreht sich darum. Der Eventmanager erkennt die
+ * Anfrage, zieht auf Knopfdruck den Code und schreibt die Antwort;
+ * abgeschickt wird sie von einem Menschen (Florian, 23.10.2026).
+ *
+ * Erkennt er die Lage nicht sicher, steht hier der Grund und kein
+ * Knopf. Lieber von Hand als eine Freikarte an den Falschen.
+ */
+function Schlemmerkasten({
+  u,
+  befund,
+  entwurf,
+}: {
+  u: Unterhaltung;
+  befund: ReturnType<typeof schlemmerErkennen>;
+  entwurf: WaEntwurf | null;
+}) {
+  if (!befund.trifft && !entwurf) return null;
+
+  if (entwurf) {
+    return (
+      <div
+        className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+        style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+      >
+        <p>
+          <strong>Antwort liegt bereit.</strong>{" "}
+          {entwurf.codes
+            ? `Gezogen: ${entwurf.codes}. Der Code ist in FloTix als vergeben vermerkt.`
+            : "Rueckfrage nach dem Jahrgang, noch ohne Code."}{" "}
+          Bitte lies drueber, dann abschicken.
+        </p>
+        <form action={entwurfVerwerfen.bind(null, u.waId)}>
+          <button type="submit" className="rounded-md border border-linie px-3 py-1">
+            Entwurf verwerfen
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  const bloecke = befund.bloecke ?? 1;
+  return (
+    <div
+      className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+      style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+    >
+      <p>
+        <strong>Schlemmerblock erkannt.</strong>{" "}
+        {befund.fuerMenschen
+          ? `${befund.fuerMenschen} Bitte selbst beantworten.`
+          : befund.jahrgang === null
+            ? `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang steht nicht dabei. Der Entwurf fragt zuerst danach.`
+            : `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang ${befund.jahrgang}.`}
+      </p>
+      {!befund.fuerMenschen && (
+        <form action={schlemmerVorbereiten.bind(null, u.waId)}>
+          <Absendeknopf
+            text={
+              befund.jahrgang === null
+                ? "Nach dem Jahrgang fragen"
+                : bloecke === 1
+                  ? "Code ziehen und Antwort vorbereiten"
+                  : `${bloecke} Codes ziehen und Antwort vorbereiten`
+            }
+            laeuftText="..."
+          />
+        </form>
+      )}
+    </div>
+  );
+}
+
 function Antwortfeld({
   unterhaltung,
   fehler,
   frage,
+  entwurf,
 }: {
   unterhaltung: Unterhaltung;
   fehler: string | null;
   /** Die letzte Nachricht des Kunden, für den Textvorschlag. */
   frage: string;
+  /** Eine vorbereitete Antwort, die nur noch abgeschickt werden muss. */
+  entwurf: WaEntwurf | null;
 }) {
+  const befund = schlemmerErkennen(frage);
   return (
     <div className="border-t border-linie p-4">
+      <Schlemmerkasten u={unterhaltung} befund={befund} entwurf={entwurf} />
       {fehler && (
         <p
           className="mb-3 rounded-md border px-3 py-2 text-sm"
@@ -607,7 +692,12 @@ function Antwortfeld({
               rows={5}
               platzhalter={`Antwort an ${name(unterhaltung)}`}
               standard=""
-              vorschlaege={vorschlaege(frage, { vorname: vornameVon(unterhaltung.profilname) })}
+              vorschlaege={[
+                ...(entwurf
+                  ? [{ titel: "Vorbereitet", text: entwurf.text }]
+                  : []),
+                ...vorschlaege(frage, { vorname: vornameVon(unterhaltung.profilname) }),
+              ]}
             />
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-leise">Geht von 0731 7906110 hinaus.</span>
