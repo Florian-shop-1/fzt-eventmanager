@@ -29,7 +29,8 @@ export const dynamic = "force-dynamic";
 
 /** Postfächer, in die hineingesehen werden darf. */
 const VOREINSTELLUNG =
-  "info@florianzimmer.com,tickets@florianzimmer.com,rechnung@florianzimmer.com,kevin.steele@florianzimmer.com";
+  "info@florianzimmer.com,tickets@florianzimmer.com,rechnung@florianzimmer.com,"
+  + "kevin.steele@florianzimmer.com,florian@florianzimmer.com";
 
 function erlaubte(): string[] {
   return (process.env.MAIL_POSTFAECHER ?? VOREINSTELLUNG)
