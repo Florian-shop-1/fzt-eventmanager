@@ -111,6 +111,52 @@ export async function holeSaalplan(seatmapEventId: string): Promise<Saalplan> {
   return entschluesseln((await antwort.json()) as Rohplan);
 }
 
+/**
+ * Der Saalplan direkt aus FloTix, mit dem echten Stand (Florian, 23.10.2026).
+ *
+ * Der Weg ueber den Shop zeigt, was ein Gast sieht: Plaetze, die die Automatik zurueckhaelt, stehen dort als verkauft.
+ * Beim Saalplan-Upgrade sind sie aber in Wirklichkeit frei. Hier kommen sie deshalb als "gesperrt" an: grau gezeichnet,
+ * aber benutzbar, so wie es zu Ditix-Zeiten mit den gesperrten Plaetzen war. Verkauft ist nur, was wirklich verkauft ist.
+ *
+ * Die Platzkennungen sind dieselben wie auf dem Weg ueber den Shop (1.000.000 plus die Stelle in der Liste), damit
+ * bereits gespeicherte Umsetzungen weiter zum selben Platz gehoeren. Die Liste kommt in derselben Reihenfolge und ohne
+ * Plaetze, die keine Lage auf dem Plan haben.
+ */
+export async function holeSaalplanFlotix(vorstellungId: string): Promise<Saalplan> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  const basis = process.env.FLOTIX_URL ?? "https://flotix.florianzimmertheater.de";
+  const antwort = await fetch(`${basis}/api/shop?aktion=saalplan&id=${encodeURIComponent(vorstellungId)}&intern=1`, {
+    headers: { "x-eventmanager-key": schluessel },
+    next: { revalidate: 30 },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!antwort.ok) throw new Error(`Der Saalplan konnte nicht aus FloTix geladen werden (${antwort.status}).`);
+
+  const daten = (await antwort.json()) as {
+    plaetze?: Array<{ zustand: string; bereich: string; reihe: string; platz: string; kategorie: string; x: number | null; y: number | null }>;
+  };
+  const alle = (daten.plaetze ?? []).filter((p) => p.x !== null && p.y !== null);
+
+  const sitze: Sitz[] = alle.map((p, i) => ({
+    id: 1_000_000 + i,
+    name: p.platz,
+    reihe: p.reihe,
+    sektor: p.bereich,
+    kategorie: p.kategorie,
+    x: Math.round(Number(p.x)),
+    y: Math.round(Number(p.y)),
+    status: p.zustand === "frei" ? "frei" : p.zustand === "verkauft" ? "verkauft" : "gesperrt",
+  }));
+
+  return {
+    sitze,
+    hintergrund: null,
+    frei: sitze.filter((s) => s.status === "frei").length,
+    verkauft: sitze.filter((s) => s.status === "verkauft").length,
+    gesperrt: sitze.filter((s) => s.status === "gesperrt").length,
+  };
+}
+
 /** Packt die Antwort aus dem Ticketshop zu einer Liste echter Plätze aus. */
 export function entschluesseln(roh: Rohplan): Saalplan {
   const p = roh.layout?.plainSeats ?? {};

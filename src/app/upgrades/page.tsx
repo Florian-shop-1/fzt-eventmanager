@@ -2,7 +2,8 @@ import Link from "next/link";
 import { alleShowtage, kartenDerVorstellung } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { termineDesTages, findeTermin, type Vorstellungstermin } from "@/lib/ditix/spielplan";
-import { holeSaalplan, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
+import { holeSaalplan, holeSaalplanFlotix, type Saalplan, type Sitz } from "@/lib/ditix/saalplan";
+import { flotixQuelle } from "@/lib/flotix/tuer";
 import {
   empfehlung,
   gaestePlaetze,
@@ -99,7 +100,12 @@ export default async function UpgradeSeite({
   let fehler: string | null = null;
   const [plan, gaeste, benutzer, umsetzungen, eingecheckt] = await Promise.all([
     vorstellung?.seatmapEventId
-      ? holeSaalplan(vorstellung.seatmapEventId).catch((e: unknown) => {
+      ? (
+          // Mit FloTix als Quelle der echte Stand: Was die Automatik zurueckhaelt, ist frei und nur grau (Florian, 23.10.2026).
+          flotixQuelle() && /^[0-9a-f-]{36}$/i.test(vorstellung.seatmapEventId)
+            ? holeSaalplanFlotix(vorstellung.seatmapEventId)
+            : holeSaalplan(vorstellung.seatmapEventId)
+        ).catch((e: unknown) => {
           fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
           return null as Saalplan | null;
         })
