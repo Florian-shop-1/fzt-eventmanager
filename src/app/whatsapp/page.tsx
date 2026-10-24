@@ -17,6 +17,7 @@ import {
   vorfreudeJetztSchicken,
 } from "@/lib/whatsapp/aktionen";
 import { buchungZuGast } from "@/lib/shop/buchung-finden";
+import { naechsteBuchungZuNummer } from "@/lib/db/shop-buchungen";
 import { LinkKopieren } from "@/components/LinkKopieren";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -623,7 +624,7 @@ function Schlemmerkasten({
   );
 }
 
-function Antwortfeld({
+async function Antwortfeld({
   unterhaltung,
   fehler,
   frage,
@@ -637,8 +638,40 @@ function Antwortfeld({
   entwurf: WaEntwurf | null;
 }) {
   const befund = schlemmerErkennen(frage);
+
+  /*
+    Wer per WhatsApp schreibt, hinterlaesst keine Mailadresse, sondern
+    seine Nummer. Genau darueber findet sich die Buchung, und damit der
+    persoenliche Link zum Dazubuchen. Ohne diese Suche stand im
+    Vorschlag zwar "Men\u00fc dazubuchen", aber ohne Link, und der Gast
+    konnte gar nichts tun (Meryem, 23.10.2026).
+  */
+  const buchung =
+    unterhaltung.kanal === "whatsapp" && istNummer(unterhaltung.waId)
+      ? await naechsteBuchungZuNummer(unterhaltung.waId).catch(() => null)
+      : null;
+  const link = buchung ? `${SHOP}/upgrade/${buchung.zugangToken}` : null;
+  const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
+
   return (
     <div className="border-t border-linie p-4">
+      {buchung && link && (
+        <div
+          className="mb-3 space-y-2 rounded-md border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <p>
+            <strong>{buchung.bestaetigt ? "Hat gebucht:" : "Warenkorb, noch nicht best\u00e4tigt:"}</strong>{" "}
+            {tagKurz(buchung.datum)}
+            {buchung.uhrzeit ? `, ${buchung.uhrzeit} Uhr` : ""}
+            {buchung.plaetze
+              ? `, ${buchung.plaetze} ${buchung.plaetze === 1 ? "Ticket" : "Tickets"}`
+              : ""}
+            {menueDabei ? ", Men\u00fc ist dabei" : ", noch ohne Men\u00fc"}
+          </p>
+          <LinkKopieren link={link} />
+        </div>
+      )}
       <Schlemmerkasten u={unterhaltung} befund={befund} entwurf={entwurf} />
       {fehler && (
         <p
@@ -696,7 +729,12 @@ function Antwortfeld({
                 ...(entwurf
                   ? [{ titel: "Vorbereitet", text: entwurf.text }]
                   : []),
-                ...vorschlaege(frage, { vorname: vornameVon(unterhaltung.profilname) }),
+                ...vorschlaege(frage, {
+                  vorname: vornameVon(unterhaltung.profilname),
+                  showUhrzeit: buchung?.uhrzeit ?? null,
+                  showDatum: buchung ? tagKurz(buchung.datum) : null,
+                  link,
+                }),
               ]}
             />
             <div className="flex items-center justify-between gap-3">

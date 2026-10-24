@@ -317,6 +317,43 @@ export async function naechsteBuchungZu(email: string): Promise<ShopBuchung | nu
 }
 
 /**
+ * Die naechste Buchung zu einer Telefonnummer.
+ *
+ * Wer per WhatsApp schreibt, hinterlaesst keine Mailadresse, sondern nur
+ * seine Nummer. Bisher fand der Posteingang deshalb keine Buchung und
+ * konnte auch keinen persoenlichen Link zum Dazubuchen anbieten, obwohl
+ * die Buchung laengst da war: Meryem hatte am 23.10.2026 nach dem Menue
+ * gefragt, ihre Nummer stand in der Buchung, nur gesucht hat sie niemand.
+ *
+ * Verglichen werden die letzten neun Ziffern. Das traegt ueber alle
+ * Schreibweisen hinweg: 01737845303, +49 173 7845303, 491737845303.
+ */
+export async function naechsteBuchungZuNummer(nummer: string): Promise<ShopBuchung | null> {
+  const ziffern = (nummer ?? "").replace(/\D/g, "");
+  if (ziffern.length < 9) return null;
+  const endung = ziffern.slice(-9);
+
+  try {
+    const zeilen = (await db()`
+      select *, datum::text as datum_text
+        from shop_buchung
+       where right(regexp_replace(coalesce(telefon, ''), '[^0-9]', '', 'g'), 9) = ${endung}
+         and datum >= (now() at time zone 'Europe/Berlin')::date
+       order by datum, bestaetigt desc, eingegangen_am desc
+       limit 1
+    `) as Record<string, unknown>[];
+    if (zeilen.length === 0) return null;
+    const posten = (await db()`
+      select * from shop_buchung_posten where buchung_id = ${String(zeilen[0].id)}
+    `) as Record<string, unknown>[];
+    return baueBuchung(zeilen[0], posten);
+  } catch (e) {
+    console.warn("[shop-buchungen] Suche nach Nummer fehlgeschlagen:", e);
+    return null;
+  }
+}
+
+/**
  * Haelt fest, dass die Vorfreude-Mail raus ist.
  *
  * Wird erst NACH dem erfolgreichen Versand gerufen, nie vorher. Andersherum
