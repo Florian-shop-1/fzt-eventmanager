@@ -143,8 +143,12 @@ const BAUSTEINE: Baustein[] = [
           "dem Bezahlen ein. Die Karte wird dann automatisch abgezogen.\n\n" +
           "WICHTIG: Bitte bring deinen Gutschein am Tag der Veranstaltung mit, und er muss dann " +
           "noch gültig sein. Ohne gültigen Gutschein müssen wir die Karte nachträglich berechnen.\n\n" +
-          "Wenn ihr dazu essen möchtet: Zu beiden Karten lässt sich im Shop ein Menü dazubuchen, " +
-          "auch zur freien Karte.",
+          "Der Block gilt bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an Feiertagen und " +
+          "nicht bei Sonderveranstaltungen.
+
+" +
+          "Wenn ihr dazu essen möchtet: Zu jeder Karte lässt sich unser 4-Gang-Menü für 69 Euro " +
+          "dazubuchen, Welcome Drink inklusive, auch zur freien Karte.",
       ),
   },
   {

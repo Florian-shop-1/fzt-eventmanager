@@ -30,16 +30,34 @@ import { flotixCodeZiehen } from "@/lib/flotix/tuer";
 export const VIELE_BLOECKE = 4;
 
 /**
- * Welcher Jahrgang gerade gilt.
+ * Bis wann ein Jahrgang gilt (Florian, 24.10.2026).
  *
- * Der Schlemmerblock läuft als Jahresausgabe. Ab Dezember ist der des
- * kommenden Jahres im Umlauf, der alte läuft aus. Diese Zahl entscheidet
- * nur, ob die Antwort ohne Rückfrage vorbereitet wird; die endgültige
- * Prüfung macht der Einlass am Abriss.
+ * Der Block 2025/2026 gilt bis zum 1. Dezember 2026, der Block
+ * 2026/2027 bis zum 1. Dezember 2027. Die Regel ist also immer
+ * dieselbe: erster Dezember des späteren Jahres. Genau diese spätere
+ * Jahreszahl liest jahrgangLesen aus "2025,26" oder "2026/27" heraus.
  */
-export function aktuellerJahrgang(heute = new Date()): number {
-  return heute.getMonth() >= 11 ? heute.getFullYear() + 1 : heute.getFullYear();
+export function gueltigBis(jahrgang: number): string {
+  return `${jahrgang}-12-01`;
 }
+
+/** Gilt ein Block dieses Jahrgangs heute noch? */
+export function jahrgangGueltig(jahrgang: number, heute = new Date()): boolean {
+  const tag = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(heute);
+  return tag <= gueltigBis(jahrgang);
+}
+
+/**
+ * Wo der Schlemmerblock überhaupt gilt.
+ *
+ * Nur bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an
+ * Feiertagen und nicht bei Sonderveranstaltungen (Florian, 24.10.2026).
+ * Beim Einlösen prüft FloTix dasselbe noch einmal, siehe dort
+ * src/codes.ts: Diese Liste hier dient nur der Auskunft.
+ */
+export const GILT_BEI = "ULMFASSBAR, Magic Memories und Flo-Zirkus";
+export const GILT_NICHT_BEI =
+  "an Feiertagen und bei Sonderveranstaltungen, zum Beispiel an Silvester oder Weihnachten";
 
 export interface SchlemmerBefund {
   /** Geht es überhaupt um den Schlemmerblock? */
@@ -172,11 +190,26 @@ export function schlemmerErkennen(text: string, heute = new Date()): SchlemmerBe
       trifft: true,
       bloecke,
       jahrgang,
-      fuerMenschen: "Hier geht es um den Essensgutschein aus dem Buch, nicht um die Freikarte.",
+      fuerMenschen:
+        "Hier geht es um das Essen aus dem Buch. Das A-la-carte-Angebot aus dem Block 2025/2026 " +
+        "gibt es nicht mehr; stattdessen lässt sich zu jedem Showticket das 4-Gang-Menü für 69 Euro dazubuchen.",
     };
   }
   if (bloecke !== null && bloecke >= VIELE_BLOECKE) {
     return { trifft: true, bloecke, jahrgang, fuerMenschen: `${bloecke} Blöcke auf einmal.` };
+  }
+  /*
+    Ein abgelaufener Block ist eine Absage, und die schreibt ein
+    Mensch. Die Kulanz bei abgelaufenen Gutscheinen gilt für unsere
+    eigenen, nicht für das Buch eines Partners.
+  */
+  if (jahrgang !== null && !jahrgangGueltig(jahrgang, heute)) {
+    return {
+      trifft: true,
+      bloecke,
+      jahrgang,
+      fuerMenschen: `Der Block ${jahrgang - 1}/${jahrgang} galt nur bis zum 1. Dezember ${jahrgang}.`,
+    };
   }
 
   return { trifft: true, bloecke, jahrgang, fuerMenschen: "" };
@@ -227,8 +260,9 @@ export function antwortText(o: { vorname: string; codes: string[] }): string {
     `WICHTIG: Bring bitte den Abriss aus dem Schlemmerblock am Showtag mit${mehrere ? ", für jeden Code einen" : ""}. ` +
     "Ohne Abriss kommst du mit der freien Karte leider nicht in die Show, das müssen wir leider " +
     "streng nehmen.\n\n" +
-    "Und wenn ihr den Abend rund machen wollt: Zu jeder Karte lässt sich unser 4-Gang-Menü " +
-    "dazubuchen, auch zur freien. Das gibt es nur für Showgäste, und ihr sitzt vor der Show in " +
-    "Ruhe beisammen."
+    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}.\n\n` +
+    "Und wenn ihr den Abend rund machen wollt: Zu jeder Karte lässt sich unser 4-Gang-Menü für " +
+    "69 Euro dazubuchen, der Welcome Drink ist dabei. Das gilt auch für die freie Karte. Es gibt " +
+    "das Menü nur für Showgäste, und ihr sitzt vorher in Ruhe beisammen, ohne Restaurantwechsel."
   );
 }
