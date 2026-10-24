@@ -322,6 +322,26 @@ function alsZielMoeglich(s: Sitz, zone: Spielzone, freiWerdend?: Set<number>): b
     rueckt der Saal von hinten auf (Florian, 10.10.2026).
   */
   if (freiWerdend?.has(s.id)) return true;
+  /*
+    Auch Plaetze, die nicht im Verkauf sind, sind Ziele.
+
+    "der upgrader im eventmanager scheint nicht vorzuschlagen auch auf
+    blockierte plaetze zu setzen. das darf er aber" (Florian,
+    24.10.2026). Am 24.10. waren von 194 Plaetzen 50 nicht im Verkauf
+    und sieben gesperrt, alle ohne Grund: Sie stehen im Saal, sind
+    sauber und leer, und wer sie beim Umsetzen auslaesst, verschenkt
+    die halbe vordere Haelfte.
+
+    Das gilt auch fuer zurueckgehaltene Plaetze: Die Automatik legt sie
+    beiseite, damit der Shop keine Einzelplaetze zerstreut verkauft. Am
+    Abend sind sie leer, und leer ist leer (siehe ditix/saalplan.ts:
+    "grau gezeichnet, aber benutzbar").
+
+    Geschuetzt bleibt, was oben schon ausgenommen ist: Rollstuhlplaetze,
+    die Sektoren aus NICHT_ZIEL und der eine Platz, der wirklich frei
+    bleiben muss.
+  */
+  if (s.status === "gesperrt") return true;
   return s.status === "frei";
 }
 

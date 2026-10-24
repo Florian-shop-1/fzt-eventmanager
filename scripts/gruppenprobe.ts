@@ -23,6 +23,7 @@ function saal(verkauft: Array<{ reihe: number; platz: number }>): Saalplan {
         name: String(p),
         reihe: String(r),
         sektor: "Kat. 1",
+        sperrgrund: null,
         kategorie: "Kat. 1",
         x: p * 10,
         y: r * 10,

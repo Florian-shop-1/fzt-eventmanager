@@ -43,6 +43,14 @@ export interface Sitz {
   x: number;
   y: number;
   status: Sitzstatus;
+  /**
+   * Warum dieser Platz gesperrt ist, falls jemand einen Grund eingetragen hat.
+   *
+   * Wichtig fuer das Umsetzen: Ein Platz, der schlicht nicht im Verkauf
+   * ist, steht am Abend trotzdem im Saal und darf bespielt werden. Ein
+   * Platz mit Grund ist aus einem Grund gesperrt und bleibt leer.
+   */
+  sperrgrund: string | null;
 }
 
 export interface Saalplan {
@@ -133,7 +141,7 @@ export async function holeSaalplanFlotix(vorstellungId: string): Promise<Saalpla
   if (!antwort.ok) throw new Error(`Der Saalplan konnte nicht aus FloTix geladen werden (${antwort.status}).`);
 
   const daten = (await antwort.json()) as {
-    plaetze?: Array<{ zustand: string; bereich: string; reihe: string; platz: string; kategorie: string; x: number | null; y: number | null }>;
+    plaetze?: Array<{ zustand: string; bereich: string; reihe: string; platz: string; kategorie: string; x: number | null; y: number | null; sperrgrund?: string | null }>;
   };
   const alle = (daten.plaetze ?? []).filter((p) => p.x !== null && p.y !== null);
 
@@ -146,6 +154,7 @@ export async function holeSaalplanFlotix(vorstellungId: string): Promise<Saalpla
     x: Math.round(Number(p.x)),
     y: Math.round(Number(p.y)),
     status: p.zustand === "frei" ? "frei" : p.zustand === "verkauft" ? "verkauft" : "gesperrt",
+    sperrgrund: (p.sperrgrund as string | null) ?? null,
   }));
 
   return {
@@ -198,6 +207,8 @@ export function entschluesseln(roh: Rohplan): Saalplan {
       x: x[i],
       y: y[i],
       status: STATUS[status.get(id) ?? ""] ?? "gesperrt",
+      // Ditix kannte keinen Sperrgrund, dort war gesperrt gleich gesperrt.
+      sperrgrund: null,
     };
   });
 
