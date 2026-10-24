@@ -247,9 +247,14 @@ export function nachfrageText(vorname: string): string {
 /** Die Antwort mit Code oder Codes. */
 export function antwortText(o: { vorname: string; codes: string[] }): string {
   const mehrere = o.codes.length > 1;
+  /*
+    Die Freikarte gibt es nur zusammen mit einer regulär gekauften
+    Karte, und bei zwei verschiedenen Preisen ist die günstigere die
+    freie (Florian, 24.10.2026). FloTix rechnet beim Einlösen genauso.
+  */
   const codeZeile = mehrere
-    ? `Deine Codes: ${o.codes.join(", ")}. Jeder Code macht eine Karte frei.`
-    : `Dein Code: ${o.codes[0]}. Damit ist eine Karte derselben Kategorie für dich frei.`;
+    ? `Deine Codes: ${o.codes.join(", ")}. Jeder Code macht zu einer gekauften Karte eine zweite frei.`
+    : `Dein Code: ${o.codes[0]}. Damit bekommst du zu einer regulär gekauften Karte eine zweite derselben Kategorie gratis.`;
 
   return (
     `${anrede(o.vorname)}\n\n` +
@@ -258,9 +263,9 @@ export function antwortText(o: { vorname: string; codes: string[] }): string {
     `Bezahlen ein${mehrere ? ", einen nach dem anderen" : ""}. Die Karte wird dann automatisch ` +
     "abgezogen.\n\n" +
     `WICHTIG: Bring bitte den Abriss aus dem Schlemmerblock am Showtag mit${mehrere ? ", für jeden Code einen" : ""}. ` +
-    "Ohne Abriss kommst du mit der freien Karte leider nicht in die Show, das müssen wir leider " +
-    "streng nehmen.\n\n" +
-    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}.\n\n` +
+    "Wir sammeln ihn beim Einlass ein. Ohne Abriss kommst du mit der freien Karte leider nicht " +
+    "in die Show, das müssen wir streng nehmen.\n\n" +
+    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}. Einlösen lässt er sich einmal.\n\n` +
     "Und wenn ihr den Abend rund machen wollt: Zu jeder Karte lässt sich unser 4-Gang-Menü für " +
     "69 Euro dazubuchen, der Welcome Drink ist dabei. Das gilt auch für die freie Karte. Es gibt " +
     "das Menü nur für Showgäste, und ihr sitzt vorher in Ruhe beisammen, ohne Restaurantwechsel."
