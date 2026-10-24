@@ -65,8 +65,18 @@ export async function entwurfLoeschen(waId: string): Promise<void> {
  * geschrieben" reicht das, und es bleibt nachvollziehbar.
  */
 export function abweichung(entwurf: string, gesendet: string): number {
-  const a = entwurf.trim();
-  const b = gesendet.trim();
+  /*
+    Leerraum zaehlt nicht als Aenderung.
+
+    Der erste echte Fall am 24.10.2026 ging Wort fuer Wort so hinaus, wie
+    er vorbereitet war, und wurde trotzdem mit 73 Prozent gemeldet: Das
+    Antwortfeld schickt die Absaetze mit anderen Umbruechen zurueck.
+    Eine Zahl, die bei unveraendertem Text Alarm schlaegt, taugt nicht
+    als Messwert.
+  */
+  const glatt = (t: string) => t.replace(/\s+/g, " ").trim();
+  const a = glatt(entwurf);
+  const b = glatt(gesendet);
   if (!a || !b) return b ? 100 : 0;
   if (a === b) return 0;
 
