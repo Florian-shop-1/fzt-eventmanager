@@ -65,7 +65,7 @@ export async function meldungSchicken(waId: string, name: string, texte: string[
       u?.rueckweg === "anruf" ? "Wünscht sich einen Rückruf." : "Wünscht sich eine Antwort per Mail.",
       ...(u?.telefon ? [`Telefon: ${u.telefon}`] : []),
       ...(u?.email ? [`E-Mail: ${u.email}`] : []),
-      ...(u?.seite && !bewertung ? [`Geschrieben auf: shop.florianzimmertheater.de${u.seite}`] : []),
+      ...(u?.seite && !bewertung ? [`Geschrieben auf: florianzimmertheater.de${u.seite}`] : []),
       ...(u?.seite && (bewertung || abbrecher) ? [`Abend: ${u.seite}`] : []),
     ];
   }

@@ -134,7 +134,7 @@ export async function vorfreudeVerschicken(
         antwortAn: "tickets@florianzimmer.com",
         ueberBrevo: true,
         schlagwort: "vorfreude",
-        abmeldenLink: `${(process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
+        abmeldenLink: `${(process.env.SHOP_URL ?? "https://florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
       });
       // Erst nach dem Versand markieren, siehe merkeMailGesendet.
       await merkeMailGesendet(b.id);

@@ -93,7 +93,7 @@ export async function bewertungenVerschicken(datum: string, probelauf = false): 
         antwortAn: "tickets@florianzimmer.com",
         ueberBrevo: true,
         schlagwort: "bewertung",
-        abmeldenLink: `${(process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
+        abmeldenLink: `${(process.env.SHOP_URL ?? "https://florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
       });
       await merkeBewertungMail(b.id);
       ergebnis.verschickt.push(b.email);

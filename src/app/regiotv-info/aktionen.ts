@@ -93,7 +93,7 @@ export async function anAlleSchicken(): Promise<void> {
         antwortAn: "tickets@florianzimmer.com",
         ueberBrevo: true,
         schlagwort: "regiotv-info",
-        abmeldenLink: `${process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de"}/abmelden/${b.zugangToken}`,
+        abmeldenLink: `${process.env.SHOP_URL ?? "https://florianzimmertheater.de"}/abmelden/${b.zugangToken}`,
       });
       // Erst nach dem Versand merken (wie bei der Vorfreude-Mail), und je Adresse nur einmal.
       await db()`insert into regiotv_info_gesendet (email) values (${adresse(b.email)}) on conflict (email) do nothing`;

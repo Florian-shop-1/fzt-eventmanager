@@ -26,7 +26,7 @@ import { vorZeit } from "@/components/Status";
 import { uhrzeit, datumMitWochentag, isoDatum, zeitpunkt } from "@/lib/zeit";
 import { vorname as vornameVon } from "@/lib/mail/vorfreude";
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 /** "11.12.2026" aus "2026-12-11". */
 const tagKurz = (iso: string) => iso.split("-").reverse().join(".");

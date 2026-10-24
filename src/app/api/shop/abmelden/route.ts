@@ -5,7 +5,7 @@ import { widerspruchEintragen } from "@/lib/db/werbewiderspruch";
 /**
  * Der Abmeldeweg aus der Vorfreude-Mail.
  *
- * Der Gast klickt im Shop auf shop.florianzimmertheater.de/abmelden/<token>,
+ * Der Gast klickt im Shop auf florianzimmertheater.de/abmelden/<token>,
  * und der Shop meldet es serverseitig hierher. Der gemeinsame Schlüssel ist
  * derselbe wie bei den übrigen Shop-Routen.
  *

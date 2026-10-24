@@ -15,7 +15,7 @@ import { db } from "@/lib/db/client";
 import { holeAuslastung } from "@/lib/ditix/auslastung";
 import { kommendeTermine } from "@/lib/ditix/spielplan";
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 /*
   Wie knapp es wirklich ist, erfaehrt der Anrufer nicht.

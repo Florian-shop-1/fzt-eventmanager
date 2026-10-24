@@ -11,7 +11,7 @@
 import type { ShopBuchung } from "@/lib/db/shop-buchungen";
 import { vorname } from "@/lib/mail/vorfreude";
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 const SCHWARZ = "#080808";
 const FLAECHE = "#111111";

@@ -87,7 +87,7 @@ export const GESCHENK_ERKLAERUNG: Record<GeschenkArt, string> = {
  * auseinanderlaufen kann. Fuers VIP-Baendchen gibt es noch kein Foto,
  * dort bleibt es beim Text (Florian, 23.09.2026).
  */
-const SHOP_BILDER = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP_BILDER = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 export const GESCHENK_BILD: Record<GeschenkArt, string | null> = {
   baendchen: null,

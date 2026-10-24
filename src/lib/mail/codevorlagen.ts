@@ -54,7 +54,7 @@ export const CODEVORLAGEN: Codevorlage[] = [
       "deiner Wahl. Hier ist dein Code:",
     ),
     schluss: z(
-      "Die Termine stehen auf shop.florianzimmertheater.de.",
+      "Die Termine stehen auf florianzimmertheater.de.",
       GRUSS,
     ),
   },
@@ -112,7 +112,7 @@ export const CODEVORLAGEN: Codevorlage[] = [
       "wie besprochen hier Ihre Codes für Ihre Gäste:",
     ),
     schluss: z(
-      "Die Termine stehen auf shop.florianzimmertheater.de.",
+      "Die Termine stehen auf florianzimmertheater.de.",
       "",
       "Wenn Sie mehr Codes brauchen oder etwas nicht funktioniert, schreiben",
       "Sie uns einfach zurück. Wir kümmern uns darum.",

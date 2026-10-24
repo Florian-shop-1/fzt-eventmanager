@@ -231,7 +231,7 @@ export default async function StoerungenSeite({
         Kommen mehrere Meldungen kurz hintereinander, ist das kein Zufall, sondern ein Ausfall.
         Der Shop beantwortet unter{" "}
         <a
-          href="https://shop.florianzimmertheater.de/status"
+          href="https://florianzimmertheater.de/status"
           className="underline"
           target="_blank"
           rel="noreferrer"

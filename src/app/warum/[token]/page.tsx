@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const TELEFON = "0731 7906 110";
 const TELEFON_LINK = "tel:+497317906110";
 const MAIL = "tickets@florianzimmer.com";
-const SPIELPLAN = "https://shop.florianzimmertheater.de/spielplan";
+const SPIELPLAN = "https://florianzimmertheater.de/spielplan";
 
 /**
  * Die Antwort auf "Was hat dich abgehalten?".

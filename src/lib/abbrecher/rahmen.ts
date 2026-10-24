@@ -31,7 +31,7 @@
  *    Posteingang.
  */
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 export const SCHWARZ = "#080808";
 export const FLAECHE = "#111111";

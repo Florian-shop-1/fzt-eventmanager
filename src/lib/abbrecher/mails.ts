@@ -19,7 +19,7 @@ import { GESCHENK_DAZU, GESCHENK_ERKLAERUNG, GESCHENK_TEXT, type GeschenkArt } f
 import { GOLD, LEISE, WEISS, absatz, h, kasten, klein, knopf, mailRahmen, ueberschrift } from "./rahmen";
 
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 const SERIF = "'Playfair Display', Georgia, 'Times New Roman', serif";
 

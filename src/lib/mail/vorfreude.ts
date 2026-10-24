@@ -30,7 +30,7 @@ import type { Leistungsgruppe } from "@/lib/shop/zusatzleistungen";
 import { MENUE_BEGINNT } from "@/lib/ditix/spielplan";
 import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 /*
   ZAUBERGELD

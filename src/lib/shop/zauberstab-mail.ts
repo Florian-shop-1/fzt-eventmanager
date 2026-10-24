@@ -13,7 +13,7 @@
 import { absatz, klein, knopf, mailRahmen, ueberschrift } from "@/lib/abbrecher/rahmen";
 import type { Zauberstab } from "./zauberstab";
 
-const SHOP = process.env.SHOP_URL ?? "https://shop.florianzimmertheater.de";
+const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
 
 export function anschriftLink(z: Zauberstab): string {
   return `${SHOP}/zauberstab-adresse/${z.token}`;

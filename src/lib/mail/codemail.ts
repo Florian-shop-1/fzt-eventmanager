@@ -71,6 +71,6 @@ export function codeMailHtml(o: {
       codes,
       ...absaetze(o.schluss).map((a) => absatz(h(a))),
     ].join(""),
-    fuss: `Florian Zimmer Theater · <a href="https://shop.florianzimmertheater.de" style="color:${LEISE};text-decoration:underline;">shop.florianzimmertheater.de</a>`,
+    fuss: `Florian Zimmer Theater · <a href="https://florianzimmertheater.de" style="color:${LEISE};text-decoration:underline;">florianzimmertheater.de</a>`,
   });
 }
