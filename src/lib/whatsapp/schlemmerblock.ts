@@ -233,14 +233,19 @@ function anrede(vorname: string): string {
  * Ohne gültigen Block keine Freikarte, und ob er gültig ist, wissen wir
  * erst, wenn wir den Jahrgang kennen. "könnten sie ein foto schicken im
  * zweifel und du guckst es an" (Florian, 23.10.2026).
+ *
+ * Gefragt wird nach dem UMSCHLAG, nicht nach der Gutscheinseite: Auf dem
+ * Cover steht der Jahrgang groß, und das liest sich auch auf einem
+ * unscharfen Handyfoto noch (Florian, 24.10.2026). Die Gutscheinseite
+ * nehmen wir natürlich trotzdem, wenn sie kommt.
  */
 export function nachfrageText(vorname: string): string {
   return (
     `${anrede(vorname)}\n\n` +
     "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Eine Frage noch, dann " +
-    "schicke ich dir gleich den Code: Von welchem Jahr ist dein Block?\n\n" +
-    "Wenn du nicht sicher bist, mach einfach ein Foto von der Gutscheinseite und schick es mir " +
-    "hier, dann schaue ich nach."
+    "schicke ich dir gleich den Code: Ist dein Block von 2025/2026 oder von 2026/2027?\n\n" +
+    "Wenn du nicht sicher bist: Fotografier einfach den Umschlag von deinem Block und schick " +
+    "das Bild hier herein. Auf dem Cover steht das Jahr groß drauf, das sehe ich dann sofort."
   );
 }
 
