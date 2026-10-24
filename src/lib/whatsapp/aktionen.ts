@@ -38,7 +38,12 @@ import {
   nachfrageText,
   schlemmerErkennen,
 } from "@/lib/whatsapp/schlemmerblock";
-import { entwurfLoeschen, entwurfSpeichern } from "@/lib/db/whatsapp-entwurf";
+import {
+  entwurfLesen,
+  entwurfLoeschen,
+  entwurfSpeichern,
+  lernenMitschreiben,
+} from "@/lib/db/whatsapp-entwurf";
 import { vorname as vornameVon } from "@/lib/mail/vorfreude";
 
 const ziel = (waId: string, fehler?: string) =>
@@ -63,12 +68,21 @@ export async function antworten(waId: string, formData: FormData): Promise<void>
     Posteingang, und gespeichert wird nichts: Im Verlauf bleibt dann
     keine Nachricht stehen, die nie ankam.
   */
+  /*
+    Lag ein Entwurf bereit, wird festgehalten, was aus ihm geworden ist.
+    Jede Aenderung von Hand ist ein Hinweis, dass die Vorlage etwas nicht
+    trifft (Florian, 24.10.2026).
+  */
+  const entwurf = await entwurfLesen(waId);
+
   let fehler: string | undefined;
   try {
     const metaId = await textSchicken(waId, inhalt.slice(0, 4096));
     await ausgangSpeichern(waId, metaId, inhalt, benutzer.name);
-    // Ein vorbereiteter Entwurf hat seinen Zweck erfuellt.
-    await entwurfLoeschen(waId);
+    if (entwurf) {
+      await lernenMitschreiben({ waId, entwurf, gesendet: inhalt, wer: benutzer.name });
+      await entwurfLoeschen(waId);
+    }
   } catch (e) {
     fehler = e instanceof WhatsAppFehler ? e.message : "Die Nachricht ging nicht hinaus.";
   }
@@ -139,7 +153,13 @@ export async function schlemmerVorbereiten(waId: string): Promise<void> {
 
 /** Einen vorbereiteten Entwurf wieder wegwerfen. */
 export async function entwurfVerwerfen(waId: string): Promise<void> {
-  await verlangeWhatsApp();
+  const benutzer = await verlangeWhatsApp();
+  /*
+    Auch das Wegwerfen gehoert in die Mitschrift, und zwar besonders: Ein
+    verworfener Entwurf sagt mehr als eine kleine Korrektur.
+  */
+  const entwurf = await entwurfLesen(waId);
+  if (entwurf) await lernenMitschreiben({ waId, entwurf, gesendet: "", wer: benutzer.name });
   await entwurfLoeschen(waId);
   revalidatePath("/whatsapp");
   redirect(ziel(waId));

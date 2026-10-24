@@ -11,6 +11,7 @@ import {
 } from "@/lib/whatsapp/aktionen";
 import { holeEinstellung, AUTOANTWORT_STUNDEN } from "@/lib/db/whatsapp";
 import { Absendeknopf } from "@/components/Absendeknopf";
+import { lernenLesen } from "@/lib/db/whatsapp-entwurf";
 import { vorZeit } from "@/components/Status";
 
 export const metadata = { title: "WhatsApp einrichten | FZT Eventmanager" };
@@ -315,6 +316,8 @@ export default async function WhatsAppEinrichten({
           </div>
         </form>
       </section>
+
+      <Mitschrift zeilen={await lernenLesen(40)} />
     </div>
   );
 }
@@ -331,6 +334,62 @@ function Punkt({ ok, children }: { ok: boolean; children: React.ReactNode }) {
       </span>
       <span className={ok ? "" : "text-leise"}>{children}</span>
     </li>
+  );
+}
+
+/**
+ * Was am vorbereiteten Text geändert wurde.
+ *
+ * Die Entwürfe für den Schlemmerblock schreibt der Eventmanager,
+ * gegengelesen und abgeschickt werden sie von Hand. Genau dazwischen
+ * liegt das Wissen: "dokumentierst du mit, was wir verändern in der
+ * antwortnachricht über den eventmanager, dass du daraus in einer
+ * woche lernen kannst?" (Florian, 24.10.2026).
+ *
+ * Deshalb steht hier nicht nur eine Quote, sondern der geänderte Text
+ * selbst. Eine Zahl sagt, DASS etwas nicht passt, der Text sagt, WAS.
+ */
+function Mitschrift({ zeilen }: { zeilen: Awaited<ReturnType<typeof lernenLesen>> }) {
+  if (zeilen.length === 0) return null;
+
+  const verworfen = zeilen.filter((z) => !z.gesendet).length;
+  const unveraendert = zeilen.filter((z) => z.gesendet && z.abweichung === 0).length;
+  const klein = zeilen.filter((z) => z.gesendet && z.abweichung > 0 && z.abweichung <= 15).length;
+  const gross = zeilen.filter((z) => z.gesendet && z.abweichung > 15).length;
+
+  return (
+    <section className="rounded-lg border border-linie bg-flaeche p-5 text-sm">
+      <h2 className="font-semibold">Was ihr an den Entwürfen ändert</h2>
+      <p className="mt-1 text-leise">
+        Mitgeschrieben wird, was der Eventmanager vorgeschlagen hat und was wirklich hinausging.
+        Daraus werden die Vorlagen besser.
+      </p>
+      <p className="mt-2">
+        <strong>{zeilen.length}</strong> Entwürfe: {unveraendert} unverändert gesendet, {klein}{" "}
+        mit Kleinigkeiten, {gross} deutlich umgeschrieben, {verworfen} verworfen.
+      </p>
+
+      <ul className="mt-3 space-y-3">
+        {zeilen
+          .filter((z) => z.abweichung > 0 || !z.gesendet)
+          .slice(0, 12)
+          .map((z, i) => (
+            <li key={`${z.waId}-${i}`} className="rounded-md border border-linie p-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 text-xs text-leise">
+                <span>{vorZeit(z.am)}</span>
+                <span>{z.wer}</span>
+                {z.codes && <span>Code {z.codes}</span>}
+                <span>
+                  {z.gesendet ? `${z.abweichung} % geändert` : "verworfen, nichts gesendet"}
+                </span>
+              </div>
+              {z.gesendet && (
+                <p className="mt-2 whitespace-pre-wrap break-words">{z.gesendet}</p>
+              )}
+            </li>
+          ))}
+      </ul>
+    </section>
   );
 }
 
