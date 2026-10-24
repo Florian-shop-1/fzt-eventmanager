@@ -448,10 +448,25 @@ async function Verlauf({
         sucht der Posteingang den passenden Textvorschlag (Florian,
         04.10.2026).
       */}
+      {/*
+        Fuer die Erkennung zaehlt die letzte Nachricht MIT Text.
+
+        Schickt der Gast ein Foto, steht in der letzten Zeile nur
+        "[Bild]", und der Posteingang fand nichts mehr. Worum es geht,
+        steht dann eine Nachricht weiter oben (Florian, 24.10.2026).
+      */}
       <Antwortfeld
         unterhaltung={unterhaltung}
         fehler={fehler}
-        frage={[...verlauf].reverse().find((n) => n.richtung === "ein")?.text ?? ""}
+        frage={
+          [...verlauf].reverse().find((n) => n.richtung === "ein" && beschriftung(n).trim())?.text ??
+          [...verlauf].reverse().find((n) => n.richtung === "ein")?.text ??
+          ""
+        }
+        bildDa={[...verlauf]
+          .reverse()
+          .slice(0, 5)
+          .some((n) => n.richtung === "ein" && n.hatDatei)}
         entwurf={await entwurfLesen(unterhaltung.waId)}
       />
     </section>
@@ -563,10 +578,13 @@ function Schlemmerkasten({
   u,
   befund,
   entwurf,
+  bildDa = false,
 }: {
   u: Unterhaltung;
   befund: ReturnType<typeof schlemmerErkennen>;
   entwurf: WaEntwurf | null;
+  /** Kam zuletzt ein Bild herein? Dann lesen wir den Jahrgang daraus. */
+  bildDa?: boolean;
 }) {
   if (!befund.trifft && !entwurf) return null;
 
@@ -603,7 +621,9 @@ function Schlemmerkasten({
         {befund.fuerMenschen
           ? `${befund.fuerMenschen} Bitte selbst beantworten.`
           : befund.jahrgang === null
-            ? `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang steht nicht dabei. Der Entwurf fragt zuerst danach.`
+            ? bildDa
+              ? `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang steht nicht im Text. Ich lese ihn vom Foto.`
+              : `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang steht nicht dabei. Der Entwurf fragt zuerst danach.`
             : `${bloecke === 1 ? "Ein Block" : `${bloecke} Bl\u00f6cke`}, Jahrgang ${befund.jahrgang}.`}
       </p>
       {!befund.fuerMenschen && (
@@ -611,7 +631,9 @@ function Schlemmerkasten({
           <Absendeknopf
             text={
               befund.jahrgang === null
-                ? "Nach dem Jahrgang fragen"
+                ? bildDa
+                  ? "Foto lesen und Antwort vorbereiten"
+                  : "Nach dem Jahrgang fragen"
                 : bloecke === 1
                   ? "Code ziehen und Antwort vorbereiten"
                   : `${bloecke} Codes ziehen und Antwort vorbereiten`
@@ -628,10 +650,13 @@ async function Antwortfeld({
   unterhaltung,
   fehler,
   frage,
+  bildDa = false,
   entwurf,
 }: {
   unterhaltung: Unterhaltung;
   fehler: string | null;
+  /** Kam zuletzt ein Bild herein? */
+  bildDa?: boolean;
   /** Die letzte Nachricht des Kunden, für den Textvorschlag. */
   frage: string;
   /** Eine vorbereitete Antwort, die nur noch abgeschickt werden muss. */
@@ -672,7 +697,7 @@ async function Antwortfeld({
           <LinkKopieren link={link} />
         </div>
       )}
-      <Schlemmerkasten u={unterhaltung} befund={befund} entwurf={entwurf} />
+      <Schlemmerkasten u={unterhaltung} befund={befund} entwurf={entwurf} bildDa={bildDa} />
       {fehler && (
         <p
           className="mb-3 rounded-md border px-3 py-2 text-sm"

@@ -35,9 +35,11 @@ import { alsWaNummer, istKennung } from "@/lib/whatsapp/kennung";
 import {
   antwortText,
   codesZiehen,
+  jahrgangGueltig,
   nachfrageText,
   schlemmerErkennen,
 } from "@/lib/whatsapp/schlemmerblock";
+import { jahrgangAusBild, whatsappBild } from "@/lib/whatsapp/blockfoto";
 import {
   entwurfLesen,
   entwurfLoeschen,
@@ -104,22 +106,65 @@ export async function schlemmerVorbereiten(waId: string): Promise<void> {
   const benutzer = await verlangeWhatsApp();
   if (!istKennung(waId)) redirect("/whatsapp");
 
-  const [letzte] = (await db()`
-    select n.text, u.profilname
+  /*
+    Gelesen wird die letzte Nachricht MIT Text.
+
+    Schickt der Gast als Antwort ein Foto, steht in der letzten Zeile
+    nur "[Bild]", und die Erkennung fand nichts mehr (Florian,
+    24.10.2026). Die Frage danach, worum es geht, steht eine Nachricht
+    weiter oben.
+  */
+  const letzten = (await db()`
+    select n.id, n.text, n.typ, u.profilname
       from wa_nachricht n
       left join wa_unterhaltung u on u.wa_id = n.wa_id
      where n.wa_id = ${waId} and n.richtung = 'ein'
-     order by n.zeitpunkt desc limit 1
-  `) as Array<{ text: string | null; profilname: string | null }>;
+     order by n.zeitpunkt desc limit 8
+  `) as Array<{ id: string; text: string | null; typ: string; profilname: string | null }>;
+
+  const letzte = letzten.find((n) => (n.text ?? "").replace(/^\[[^\]]*\]\s*/, "").trim()) ?? letzten[0];
+  const bildNachricht = letzten.find((n) => n.typ === "image" || n.typ === "sticker");
 
   const befund = schlemmerErkennen(letzte?.text ?? "");
   if (!befund.trifft) redirect(ziel(waId, "In dieser Nachricht steht nichts vom Schlemmerblock."));
   if (befund.fuerMenschen) redirect(ziel(waId, befund.fuerMenschen));
 
-  const vorname = vornameVon(letzte?.profilname ?? "");
+  const vorname = vornameVon(letzte?.profilname ?? letzten[0]?.profilname ?? "");
+
+  /*
+    Steht der Jahrgang nicht im Text, schauen wir aufs Foto.
+
+    Auf dem Umschlag steht die Saison gross, und genau deshalb bitten
+    wir um den Umschlag. Liest das Modell nichts Sicheres, bleibt es
+    bei der Rueckfrage: Lieber einmal mehr fragen als eine Freikarte
+    auf einen abgelaufenen Block.
+  */
+  let jahrgang = befund.jahrgang;
+  let vomFoto = "";
+  if (jahrgang === null && bildNachricht) {
+    const bild = await whatsappBild(bildNachricht.id).catch(() => null);
+    if (bild) {
+      const lesung = await jahrgangAusBild(bild);
+      if (lesung.jahrgang !== null) {
+        jahrgang = lesung.jahrgang;
+        vomFoto = lesung.gelesen;
+        console.log("[schlemmerblock] Jahrgang vom Foto:", jahrgang, lesung.gelesen);
+      }
+    }
+  }
+
+  // Ein abgelaufener Jahrgang vom Foto gehoert ebenso an einen Menschen.
+  if (jahrgang !== null && !jahrgangGueltig(jahrgang)) {
+    redirect(
+      ziel(
+        waId,
+        `Der Block auf dem Foto ist von ${jahrgang - 1}/${jahrgang} und galt nur bis zum 1. Dezember ${jahrgang}.`,
+      ),
+    );
+  }
 
   // Ohne Jahrgang erst fragen, dann Codes ziehen.
-  if (befund.jahrgang === null) {
+  if (jahrgang === null) {
     await entwurfSpeichern({
       waId,
       text: nachfrageText(vorname),
@@ -143,7 +188,7 @@ export async function schlemmerVorbereiten(waId: string): Promise<void> {
   await entwurfSpeichern({
     waId,
     text: antwortText({ vorname, codes: codes! }),
-    anlass: "schlemmerblock",
+    anlass: vomFoto ? "schlemmerblock-foto" : "schlemmerblock",
     codes: codes!.join(", "),
     von: benutzer.name,
   });
