@@ -79,7 +79,8 @@ export function korbText(a: Abbrecher): string {
 function fussZeile(a: Abbrecher): string {
   return (
     "Du bekommst diese Mail, weil du bei uns eine Buchung begonnen hast. " +
-    `Wenn du nichts mehr von uns hören möchtest, <a href="${h(abmeldenLink(a))}" style="color:${LEISE};text-decoration:underline;">hier abmelden</a>.`
+    "Außerdem nehmen wir dich in unsere Magic News mit Zaubernews und Angeboten auf. " +
+    `Wenn du nichts mehr von uns hören möchtest, <a href="${h(abmeldenLink(a))}" style="color:${LEISE};text-decoration:underline;">hier abmelden</a>, das geht jederzeit mit einem Klick.`
   );
 }
 

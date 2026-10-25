@@ -25,6 +25,7 @@ import { widersprochene } from "@/lib/db/werbewiderspruch";
 import { abbrecher, abbruchEinstellung, angebotVermerken, frageVermerken, heuteAngeschrieben, type Abbrecher } from "./db";
 import { geschenkVersprechen, istGutscheinkorb, passendesGeschenk, type GeschenkArt } from "./geschenk";
 import { klingtNachGebucht } from "./schon-gebucht";
+import { abbrecherInMagicNews } from "./magic-news";
 import { abmeldenLink, angebotMail, frageMail, gutscheinFrageMail } from "./mails";
 
 /** Wie viele Getränkepakete in einer Woche vergeben werden. */
@@ -281,6 +282,15 @@ export async function abbrecherLauf(probelauf = false): Promise<AbbrecherLauf> {
     } catch (f) {
       ergebnis.fehler.push(`${a.email}: ${f instanceof Error ? f.message : f}`);
     }
+  }
+
+  /*
+    Wer eine Rueckholmail bekommen und nicht widersprochen hat, steht danach in den Magic News (Florian, 25.10.2026).
+    Wer sich ueber den Abmeldeweg meldet, wird dort wieder entfernt (werbewiderspruch.ts). Ein Fehler hier haelt nichts auf.
+  */
+  if (!probelauf) {
+    const news = await abbrecherInMagicNews(alle, abgemeldet).catch(() => null);
+    if (news) console.log(`[abbrecher] Magic News: ${news.eingetragen} eingetragen, ${news.abgelehnt} nicht angenommen`);
   }
 
   if (ergebnis.fehler.length) console.error("[abbrecher]", ergebnis.fehler.join("; "));

@@ -12,6 +12,7 @@
  */
 
 import { db } from "@/lib/db/client";
+import { ausMagicNews } from "@/lib/abbrecher/magic-news";
 
 export interface Widerspruch {
   email: string;
@@ -39,6 +40,8 @@ export async function widerspruchEintragen(email: string, quelle: string): Promi
     values (${a}, ${quelle})
     on conflict (email) do nothing
   `;
+  // Wer widerspricht, ist auch aus den Magic News heraus (Florian, 25.10.2026).
+  await ausMagicNews(a);
 }
 
 /** Nimmt einen Widerspruch zurück. Nur für den Fall, dass jemand darum bittet. */
