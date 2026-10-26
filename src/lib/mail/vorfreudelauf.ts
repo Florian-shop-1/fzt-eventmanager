@@ -33,6 +33,7 @@ import { verfuegbareGruppen } from "@/lib/shop/zusatzleistungen";
 import { isoDatum } from "@/lib/zeit";
 import { VORLAUF_TAGE } from "@/lib/mail/vorlauf";
 import { abgesagteEventIds } from "@/lib/absage/db";
+import { kassenbuchungenNachtragen } from "@/lib/flotix/kassenbuchungen";
 
 // Weitergereicht, damit Aufrufer nicht wissen muessen, wo die Zahl steht.
 export { VORLAUF_TAGE };
@@ -90,6 +91,8 @@ export async function vorfreudeVerschicken(
   datum: string,
   probelauf = false,
 ): Promise<LaufErgebnis> {
+  // Was an unserer Kasse verkauft oder als Freikarte verschickt wurde, kennt die Tabelle noch nicht (Florian, 26.10.2026).
+  await kassenbuchungenNachtragen(datum).catch((e) => console.warn("[vorfreude] Kassenbuchungen:", e));
   const buchungen = await buchungenFuerTag(datum);
   const ergebnis: LaufErgebnis = {
     datum,
