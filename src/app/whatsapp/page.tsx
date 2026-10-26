@@ -747,6 +747,7 @@ async function Antwortfeld({
             <Antworttext
               key={unterhaltung.waId}
               name="text"
+              codeAn={unterhaltung.waId}
               rows={5}
               platzhalter={`Antwort an ${name(unterhaltung)}`}
               standard=""
@@ -901,6 +902,7 @@ async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
           <Antworttext
             key={u.waId}
             name="text"
+            codeAn={u.waId}
             rows={6}
             vorschlaege={textvorschlaege}
             standard={
@@ -946,6 +948,7 @@ Dein Team vom Florian Zimmer Theater`
           <Antworttext
             key={u.waId}
             name="text"
+            codeAn={u.waId}
             rows={6}
             vorschlaege={textvorschlaege}
             standard={`Hallo ${vornameVon(u.profilname)},
