@@ -103,6 +103,31 @@ function Formular({
             </>
           )}
 
+          {/*
+            Der Wunschtag gehoert neben den Wunschzeitraum.
+
+            "bitte hier eintragen, wenn ja kein termin bekannt ist:
+            Wunschtag, Mo, Di, Mi, usw." (Florian, 26.10.2026). Der
+            Wochentag entscheidet bei uns den Preis und was ueberhaupt
+            geht, und wer ihn gleich notiert, muss nicht zweimal
+            fragen.
+          */}
+          <Feld
+            label="Wunschtag, falls kein Termin feststeht"
+            hinweis="Freitag und Samstag sind die vollen Abende. Unter der Woche ist mehr möglich."
+          >
+            <select name="wunschtag" defaultValue="">
+              <option value="">kein bestimmter Tag</option>
+              <option value="Montag">Montag</option>
+              <option value="Dienstag">Dienstag</option>
+              <option value="Mittwoch">Mittwoch</option>
+              <option value="Donnerstag">Donnerstag</option>
+              <option value="Freitag">Freitag</option>
+              <option value="Samstag">Samstag</option>
+              <option value="Sonntag">Sonntag</option>
+            </select>
+          </Feld>
+
           <Feld
             label="Wunschzeitraum, falls kein Termin feststeht"
             hinweis="Wie in der Leadliste, zum Beispiel: in den nächsten 3 Monaten, Dezember 2026, Betriebsfeier Q4."

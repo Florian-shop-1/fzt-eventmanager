@@ -18,6 +18,7 @@ import {
   menueSetzen,
   statusSetzen,
   vorgangLoeschen,
+  wunschSetzen,
   zahlungErfassen,
 } from "@/lib/db/aktionen";
 import { StatusBadge, datumKurz, vorZeit } from "@/components/Status";
@@ -28,6 +29,9 @@ import { findeTermin, kommendeTermine } from "@/lib/ditix/spielplan";
 import { holeAuslastung } from "@/lib/ditix/auslastung";
 import { artikelDerGruppe } from "@/lib/domain/artikel";
 import type { Buchungsgruppe, MenueVariante } from "@/lib/domain/types";
+import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { auslastung, empfehlung, optionen } from "@/lib/flotix/option";
+import { optionFreigeben, optionLaengerHalten, plaetzeOptionieren } from "./optionen";
 
 const MENUEVARIANTEN: Array<{ wert: MenueVariante; label: string }> = [
   { wert: "classic", label: "Classic" },
@@ -76,6 +80,27 @@ export default async function VorgangSeite({
   const appUrl = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
   const personen = vorgang.gruppen.reduce((s, g) => s + g.personen, 0);
+  // Die Kennung des Abends in FloTix, dort haengen die Plaetze.
+  const vorgangFlotixId = vorgang.vorstellung?.ditixEventId ?? "";
+  const ich = await angemeldeterBenutzer();
+  const darfOptionieren = Boolean(ich && darfKaufmaennisches(ich.rolle));
+
+  /*
+    Optionierte Plätze, falls welche gehalten werden.
+
+    Die Plätze liegen in FloTix, hier steht nur, was daraus folgt.
+    Fällt FloTix aus, fehlt der Kasten, der Rest der Seite bleibt
+    benutzbar (Florian, 26.10.2026).
+  */
+  const [laufendeOptionen, auslastungDesAbends] = await Promise.all([
+    optionen().catch(() => []),
+    vorgangFlotixId ? auslastung(vorgangFlotixId).catch(() => null) : Promise.resolve(null),
+  ]);
+  const meineOption = laufendeOptionen.find((o) => o.vorgang === vorgang.nummer) ?? null;
+  const rat = empfehlung(
+    auslastungDesAbends,
+    angebote[0]?.gueltigBis ? new Date(angebote[0].gueltigBis) : null,
+  );
   const gezahlt = vorgang.zahlungen.reduce(
     (s, z) => s + (z.art === "erstattung" ? -z.betragCent : z.betragCent),
     0,
@@ -93,8 +118,10 @@ export default async function VorgangSeite({
             {vorgang.nummer} ·{" "}
             {vorgang.vorstellung
               ? `${datumKurz(vorgang.vorstellung.datum)} · ${vorgang.vorstellung.show}`
-              : vorgang.wunschzeitraum
-                ? `Termin offen, Wunsch: ${vorgang.wunschzeitraum}`
+              : vorgang.wunschzeitraum || vorgang.wunschtag
+                ? `Termin offen, Wunsch: ${[vorgang.wunschtag, vorgang.wunschzeitraum]
+                    .filter(Boolean)
+                    .join(", ")}`
                 : "Termin steht noch nicht fest"}{" "}
             · {personen} {personen === 1 ? "Gast" : "Gäste"}
             {vorgang.personenUngefaehr && ` (Anfrage: ${vorgang.personenUngefaehr})`}
@@ -321,10 +348,62 @@ export default async function VorgangSeite({
             <div className="rounded-lg border border-warnung bg-warnung-hell px-4 py-3 text-sm">
               <strong style={{ color: "var(--warnung)" }}>Kein Termin festgelegt.</strong>
               <p className="mt-1 text-leise">
-                {vorgang.wunschzeitraum
-                  ? `Der Kunde hat sich gewünscht: ${vorgang.wunschzeitraum}. Bitte den Abend auswählen.`
+                {vorgang.wunschtag || vorgang.wunschzeitraum
+                  ? `Der Kunde hat sich gewünscht: ${[
+                      vorgang.wunschtag,
+                      vorgang.wunschzeitraum?.replace(/_/g, " "),
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}. Bitte den Abend auswählen.`
                   : "Ein Angebot lässt sich trotzdem schreiben. Für Sitzplan und Küchenblatt wird der Termin gebraucht."}
               </p>
+
+              {/*
+                Der Wunsch, hier zu aendern.
+
+                "wo ist das mit dem wunschtag" (Florian, 26.10.2026): Im
+                Anlegeformular stand er, im laufenden Vorgang nicht. Beim
+                Telefonat ist aber der Vorgang offen, nicht das Formular.
+              */}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs underline">
+                  Wunschtag und Zeitraum eintragen
+                </summary>
+                <form
+                  action={wunschSetzen.bind(null, vorgang.id)}
+                  className="mt-2 flex flex-wrap items-end gap-2"
+                >
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Wunschtag</span>
+                    <select name="wunschtag" defaultValue={vorgang.wunschtag ?? ""} className="w-40">
+                      <option value="">kein bestimmter Tag</option>
+                      <option value="Montag">Montag</option>
+                      <option value="Dienstag">Dienstag</option>
+                      <option value="Mittwoch">Mittwoch</option>
+                      <option value="Donnerstag">Donnerstag</option>
+                      <option value="Freitag">Freitag</option>
+                      <option value="Samstag">Samstag</option>
+                      <option value="Sonntag">Sonntag</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Zeitraum</span>
+                    <input
+                      name="wunschzeitraum"
+                      defaultValue={vorgang.wunschzeitraum?.replace(/_/g, " ") ?? ""}
+                      placeholder="in den nächsten 3 Monaten"
+                      className="w-56"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm"
+                  >
+                    Wunsch speichern
+                  </button>
+                </form>
+              </details>
+
               <TerminWahl vorgangId={vorgang.id} aktuell={null} wunsch={vorgang.wunschzeitraum} />
             </div>
           ) : (
@@ -332,6 +411,103 @@ export default async function VorgangSeite({
               <p className="text-sm">
                 <strong>{datumKurz(vorgang.vorstellung.datum)}</strong> · {vorgang.vorstellung.show}
               </p>
+
+              {/*
+                Plätze freihalten, solange der Kunde überlegt.
+
+                "wenn der kunde noch zeit braucht, sollte man auch plätze
+                blockieren können" (Florian, 26.10.2026). Wie lange,
+                schlägt der Eventmanager anhand der Auslastung vor: Einen
+                vollen Samstag hält man niemandem eine Woche frei.
+              */}
+              {darfOptionieren && (
+                <div
+                  className="mt-3 rounded-md border px-3 py-2 text-sm"
+                  style={{
+                    borderColor: meineOption ? "var(--gold)" : "var(--linie)",
+                    background: meineOption ? "var(--gold-hell)" : "transparent",
+                  }}
+                >
+                  {meineOption ? (
+                    <>
+                      <strong>
+                        {meineOption.plaetze.length}{" "}
+                        {meineOption.plaetze.length === 1 ? "Platz ist" : "Plätze sind"} optioniert,
+                        bis {new Date(meineOption.bis).toLocaleDateString("de-DE")}.
+                      </strong>
+                      <div className="mt-1 text-xs text-leise">
+                        {meineOption.plaetze
+                          .slice(0, 12)
+                          .map((p) => `Reihe ${p.reihe}, Platz ${p.platz}`)
+                          .join(" · ")}
+                        {meineOption.plaetze.length > 12 ? " und weitere" : ""}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-end gap-2">
+                        <form action={optionLaengerHalten.bind(null, vorgang.id)}>
+                          <label className="text-xs text-leise">
+                            noch einmal
+                            <input
+                              type="number"
+                              name="tage"
+                              min={1}
+                              max={7}
+                              defaultValue={rat.tage}
+                              className="mx-1 w-14"
+                            />
+                            Tage
+                          </label>
+                          <button
+                            type="submit"
+                            className="ml-1 rounded-md border border-linie bg-flaeche px-2 py-1 text-xs"
+                          >
+                            verlängern
+                          </button>
+                        </form>
+                        <form action={optionFreigeben.bind(null, vorgang.id)}>
+                          <button type="submit" className="text-xs text-leise underline">
+                            Plätze wieder freigeben
+                          </button>
+                        </form>
+                      </div>
+                    </>
+                  ) : (
+                    <form
+                      action={plaetzeOptionieren.bind(null, vorgang.id)}
+                      className="flex flex-wrap items-end gap-2"
+                    >
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-leise">Plätze</span>
+                        <input
+                          type="number"
+                          name="anzahl"
+                          min={1}
+                          max={400}
+                          defaultValue={personen || vorgang.personenUngefaehr || 10}
+                          className="w-20"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-leise">Tage</span>
+                        <input
+                          type="number"
+                          name="tage"
+                          min={1}
+                          max={7}
+                          defaultValue={rat.tage}
+                          className="w-16"
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm"
+                      >
+                        Plätze optionieren
+                      </button>
+                      <span className="w-full text-xs text-leise">{rat.grund}</span>
+                    </form>
+                  )}
+                </div>
+              )}
 
               {/*
                 Zusage oder nicht. "es muss klar ersichtlich sein, ob es

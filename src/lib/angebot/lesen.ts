@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db/client";
 import type { Position } from "@/lib/domain/vorgang";
+import { oeffnungMelden } from "./oeffnungsmeldung";
 
 export interface AngebotDetail {
   id: string;
@@ -170,6 +171,18 @@ export async function holeAngebotFuerKunden(
        where id = ${angebot.vorgangId}
          and status in ('angebot_erstellt', 'angebot_versendet')
     `;
+
+    /*
+      Und jetzt soll Kevin anrufen.
+
+      Die Meldung haengt bewusst hier und nicht am Mailversand: Eine
+      geoeffnete Mail sagt wenig, eine geoeffnete Angebotsseite sagt,
+      dass jemand gerade liest (Florian, 26.10.2026).
+
+      Angehalten wird dafuer nichts. Faellt der Mailversand aus, sieht
+      der Kunde sein Angebot trotzdem.
+    */
+    void oeffnungMelden(angebot);
   }
 
   return angebot;

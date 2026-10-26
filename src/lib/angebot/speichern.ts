@@ -33,6 +33,7 @@ import {
 } from "./erstellen";
 import type { Variante } from "./ablaufplan";
 import type { Vorgang } from "@/lib/domain/vorgang";
+import { vormerkungNachziehen } from "@/lib/kueche/vormerkung";
 
 async function verlangeTeam(): Promise<string> {
   const benutzer = await angemeldeterBenutzer();
@@ -191,6 +192,15 @@ export async function angebotErzeugen(
     update vorgang set status = 'angebot_erstellt', geaendert_am = now()
      where id = ${vorgangId} and status in ('anfrage', 'in_klaerung')
   `;
+
+  /*
+    Ab jetzt ist das Essen reserviert.
+
+    Sobald ein Angebot steht, meldet der Eventmanager die Menues an
+    FloTix, und der Shop verkauft an dem Tag entsprechend weniger
+    (Florian, 25.10.2026).
+  */
+  await vormerkungNachziehen(vorgangId);
 
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");

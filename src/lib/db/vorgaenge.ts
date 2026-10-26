@@ -23,6 +23,8 @@ export interface VorgangZeile {
   /** Grobe Angabe aus der Anfrage, etwa "11-50", wenn kein Termin feststeht. */
   personenUngefaehr: string | null;
   wunschzeitraum: string | null;
+  /** Wunsch-Wochentag, wenn kein Termin feststeht. Siehe migrations/212. */
+  wunschtag: string | null;
   personen: number;
   /** Anzahl der Angebote, die zu diesem Vorgang gehören. */
   angebote: number;
@@ -48,6 +50,7 @@ export async function listeVorgaenge(): Promise<VorgangZeile[]> {
       s.show,
       v.personen_ungefaehr,
       v.wunschzeitraum,
+      v.wunschtag,
       coalesce((select sum(g.personen) from gruppe g where g.vorgang_id = v.id), 0)::int as personen,
       (select count(*) from angebot a where a.vorgang_id = v.id)::int as angebote,
       (select max(o.zeitpunkt) from oeffnung o
@@ -79,6 +82,7 @@ export async function listeVorgaenge(): Promise<VorgangZeile[]> {
     show: (z.show as string) ?? null,
     personenUngefaehr: (z.personen_ungefaehr as string) ?? null,
     wunschzeitraum: (z.wunschzeitraum as string) ?? null,
+    wunschtag: (z.wunschtag as string) ?? null,
     personen: Number(z.personen),
     angebote: Number(z.angebote),
     letzteOeffnung: z.letzte_oeffnung ? new Date(z.letzte_oeffnung as string).toISOString() : null,
@@ -109,6 +113,7 @@ export async function listeVorstellungen(): Promise<VorstellungZeile[]> {
       s.show,
       v.personen_ungefaehr,
       v.wunschzeitraum,
+      v.wunschtag,
       (select count(*) from vorgang v where v.vorstellung_id = s.id)::int as vorgaenge,
       coalesce((select sum(g.personen)
                   from gruppe g
@@ -149,6 +154,8 @@ export interface VorgangDetail {
   vorstellung: { id: string; datum: string; show: string; ditixEventId: string | null } | null;
   personenUngefaehr: string | null;
   wunschzeitraum: string | null;
+  /** Wunsch-Wochentag, wenn kein Termin feststeht. Siehe migrations/212. */
+  wunschtag: string | null;
   gruppen: Buchungsgruppe[];
   notizen: Array<{ id: string; benutzer: string; text: string; zeitpunkt: string }>;
   aufgaben: Array<{ id: string; faellig: string; text: string; erledigt: boolean }>;
@@ -160,7 +167,7 @@ export interface VorgangDetail {
 export async function holeVorgang(id: string): Promise<VorgangDetail | null> {
   const kopf = (await db()`
     select v.id, v.nummer, v.status, v.quelle, v.erstellt_am,
-           v.personen_ungefaehr, v.wunschzeitraum,
+           v.personen_ungefaehr, v.wunschzeitraum, v.wunschtag,
            k.id as kunde_id, k.name as kunde_name, k.ansprechpartner, k.anrede,
            k.email, k.telefon, k.strasse, k.plz, k.ort,
            s.id as vorstellung_id, to_char(s.datum, 'YYYY-MM-DD') as datum, s.show,
@@ -233,6 +240,7 @@ export async function holeVorgang(id: string): Promise<VorgangDetail | null> {
       : null,
     personenUngefaehr: (k.personen_ungefaehr as string) ?? null,
     wunschzeitraum: (k.wunschzeitraum as string) ?? null,
+    wunschtag: (k.wunschtag as string) ?? null,
     gruppen: gruppen.map((g) => zuBuchungsgruppe(g, k.status as VorgangStatus)),
     notizen: notizen.map((n) => ({
       id: String(n.id),

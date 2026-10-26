@@ -9,6 +9,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { vormerkungNachziehen } from "@/lib/kueche/vormerkung";
 import { redirect } from "next/navigation";
 import { db } from "./client";
 import type { VorgangStatus } from "@/lib/domain/vorgang";
@@ -288,10 +289,11 @@ export async function anfrageAufnehmen(formData: FormData): Promise<void> {
 
   const vorgang = (await db()`
     insert into vorgang (nummer, kunde_id, vorstellung_id, quelle, status,
-                         personen_ungefaehr, wunschzeitraum)
+                         personen_ungefaehr, wunschzeitraum, wunschtag)
     values (${nummer}, ${kundeId}, ${vorstellungId}, ${text(formData, "quelle") || null}, 'anfrage',
             ${text(formData, "personenUngefaehr") || null},
-            ${text(formData, "wunschzeitraum") || null})
+            ${text(formData, "wunschzeitraum") || null},
+            ${text(formData, "wunschtag") || null})
     returning id
   `) as { id: string }[];
 
@@ -394,6 +396,8 @@ export async function statusSetzen(vorgangId: string, status: VorgangStatus): Pr
   await db()`
     update vorgang set status = ${status}, geaendert_am = now() where id = ${vorgangId}
   `;
+  // Mit dem Stand aendert sich, ob das Essen reserviert ist.
+  await vormerkungNachziehen(vorgangId);
   revalidatePath("/vorgaenge");
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
@@ -792,6 +796,8 @@ export async function plaetzeFreigeben(
   await db()`
     update vorgang set status = 'abgesagt', geaendert_am = now() where id = ${vorgangId}
   `;
+  // Abgesagt heisst: Die Menues sind wieder frei fuer den Shop.
+  await vormerkungNachziehen(vorgangId);
   await db()`
     insert into notiz (vorgang_id, benutzer, text)
     values (${vorgangId}, ${await aktuellerBenutzer()},
@@ -858,4 +864,34 @@ export async function zusammenlegungAufheben(id: string): Promise<void> {
   await db()`delete from zusammenlegung where id = ${id}`;
   revalidatePath("/sitzplan");
   revalidatePath("/kueche");
+}
+
+/**
+ * Den Wunschtag nachtragen, wenn der Termin noch offen ist.
+ *
+ * "wo ist das mit dem wunschtag" (Florian, 26.10.2026). Im Formular für
+ * eine neue Anfrage stand er schon, im laufenden Vorgang nicht. Genau
+ * dort wird er aber gebraucht: Beim Telefonat mit dem Kunden steht der
+ * Vorgang offen, nicht das Anlegeformular.
+ *
+ * Der Wunschzeitraum kommt mit, die beiden gehören zusammen: "Freitag"
+ * und "im Dezember" sind erst zusammen eine Ansage.
+ */
+export async function wunschSetzen(vorgangId: string, formData: FormData): Promise<void> {
+  await verlangeTeam();
+
+  const tag = text(formData, "wunschtag");
+  const zeitraum = text(formData, "wunschzeitraum");
+
+  await db()`
+    update vorgang
+       set wunschtag = ${tag || null},
+           wunschzeitraum = ${zeitraum || null},
+           geaendert_am = now()
+     where id = ${vorgangId}
+  `;
+
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+  revalidatePath("/vorgaenge");
+  redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Wunsch gespeichert.")}`);
 }

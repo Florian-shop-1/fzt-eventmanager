@@ -102,6 +102,13 @@ export default async function VorgaengeSeite() {
                     ) : (
                       <>
                         <div className="text-leise">Termin offen</div>
+                        {/*
+                          Der Wunschtag zuerst: Freitag oder Samstag heisst
+                          voller Abend und anderer Preis (Florian, 26.10.2026).
+                        */}
+                        {v.wunschtag && (
+                          <div className="text-xs font-medium">{v.wunschtag}</div>
+                        )}
                         {v.wunschzeitraum && (
                           <div className="text-xs text-leise">{v.wunschzeitraum}</div>
                         )}
