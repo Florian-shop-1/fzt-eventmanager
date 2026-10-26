@@ -9,8 +9,11 @@ import { buchungPerToken } from "@/lib/db/shop-buchungen";
  * der Schreibweg. Im Browser des Gastes landet nur, was die Seite anzeigt.
  *
  * Absichtlich sparsam: Wir geben Termin, Zeit, Show und die gebuchten Posten
- * heraus, aber weder E-Mail noch Telefonnummer noch Bestellnummer. Die Seite
- * braucht sie nicht, und was nicht rausgeht, kann auch nicht verloren gehen.
+ * heraus, aber keine Bestellnummer. Name, E-Mail und Telefon gehen seit dem
+ * 26.10.2026 mit, aber nur an den Shop auf dem Server: Wer ueber den Link ein
+ * Menue dazubucht, soll seine Daten nicht noch einmal eintippen
+ * (Florian: "die hast du doch schon"). Im Browser des Gastes landen sie in
+ * den Feldern der Zahlseite, mit seinem eigenen Link.
  */
 
 export const dynamic = "force-dynamic";
@@ -47,6 +50,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ token: stri
       show: buchung.show,
       plaetze: buchung.plaetze,
       bestaetigt: buchung.bestaetigt,
+      kontakt: { name: buchung.name, email: buchung.email, telefon: buchung.telefon },
       posten: buchung.posten.map((p) => ({
         ticketTypeId: p.ticketTypeId,
         name: p.name,
