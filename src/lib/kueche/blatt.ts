@@ -69,8 +69,19 @@ export interface Kuechenblatt {
    * Was einzelne Gaeste aus dem Shop zusaetzlich gebucht haben, mit Namen:
    * Stehtische, Armbaender, alles ausser Menue und Ticket. Das Foyer
    * braucht die Zuordnung, nicht nur die Summe.
+   *
+   * Dazu die Show: An einem Tag mit zwei Vorstellungen wusste das Foyer
+   * nicht, welcher Stehtisch zu welcher gehoert (Florian, 24.10.2026).
+   * Ein Stehtisch gilt fuer eine Show, nicht fuer den Tag.
    */
-  shopZusatz: Array<{ name: string; bezeichnung: string; menge: number }>;
+  shopZusatz: Array<{
+    name: string;
+    bezeichnung: string;
+    menge: number;
+    /** HH:MM der Show, zu der die Buchung gehoert. */
+    uhrzeit: string;
+    showName: string;
+  }>;
   /** Menüs aus dem Shop, aus der Google-Tabelle. */
   shop: ShopZusammenfassung | null;
   /** Fehlermeldung, falls die Menüliste nicht erreichbar war. */
@@ -230,13 +241,16 @@ export async function holeKuechenblatt(ditixEventId: string): Promise<Kuechenbla
       const mitMenue = alle.filter((g) => g.menuesGesamt > 0);
       bestellungen += mitMenue.length;
 
-      // Wer hat was dazugebucht? Namentlich, fuer das Foyer.
+      // Wer hat was dazugebucht? Namentlich und mit Show, fuer das Foyer.
+      const dieseShow = showZuEvent.get(eventId);
       for (const g of alle) {
         for (const z of g.zusatzleistungen) {
           shopZusatz.push({
             name: g.firma ?? g.name,
             bezeichnung: z.bezeichnung,
             menge: z.menge,
+            uhrzeit: dieseShow?.uhrzeit ?? "",
+            showName: dieseShow?.name ?? "",
           });
         }
       }

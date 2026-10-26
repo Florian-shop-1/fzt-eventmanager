@@ -81,9 +81,30 @@ export default async function FoyerSeite({
   // Welcher Tisch für wen? Die Summe allein hilft im Foyer nicht: Silver
   // und Gold werden unterschiedlich eingedeckt, und der Tisch braucht ein
   // Schild mit dem richtigen Namen.
-  const tische = blatt.shopZusatz.filter((z) =>
-    z.bezeichnung.toLowerCase().includes("stehtisch"),
-  );
+  const tische = blatt.shopZusatz
+    .filter((z) => z.bezeichnung.toLowerCase().includes("stehtisch"))
+    .sort((a, b) => a.uhrzeit.localeCompare(b.uhrzeit) || a.name.localeCompare(b.name, "de"));
+
+  /*
+    Zu welcher Show gehoert der Tisch?
+
+    "die foyer-Mitarbeiter wissen nicht welcher Stehtisch fuer welche
+    show gilt bei zwei shows" (Florian, 24.10.2026). Ein Stehtisch gilt
+    fuer eine Vorstellung: Nach der Mittagsshow wird er abgeraeumt und
+    fuer den Abend neu eingedeckt. Deshalb steht die Show an jeder Zeile
+    und die Zahl oben getrennt, sobald der Tag mehr als eine hat.
+  */
+  const showzeiten = [...new Set(blatt.shows.map((s) => s.uhrzeit))].sort();
+  const zweiShows = showzeiten.length > 1;
+  const tischeJeShow = showzeiten
+    .map((uhrzeit) => ({
+      uhrzeit,
+      name: blatt.shows.find((s) => s.uhrzeit === uhrzeit)?.name ?? "",
+      anzahl: tische
+        .filter((t) => t.uhrzeit === uhrzeit)
+        .reduce((summe, t) => summe + t.menge, 0),
+    }))
+    .filter((x) => x.anzahl > 0);
 
   return (
     <div className="space-y-6">
@@ -223,7 +244,11 @@ export default async function FoyerSeite({
             <Kachel
               zahl={stehtische}
               was={stehtische === 1 ? "Stehtisch" : "Stehtische"}
-              hinweis="im Foyer, reserviert für die Pause"
+              hinweis={
+                zweiShows && tischeJeShow.length > 0
+                  ? tischeJeShow.map((x) => `${x.anzahl} um ${x.uhrzeit}`).join(", ")
+                  : "im Foyer, reserviert für die Pause"
+              }
             />
             <Kachel
               zahl={flatArmbaender + shopArmbaender}
@@ -232,10 +257,22 @@ export default async function FoyerSeite({
             />
           </div>
 
+          {zweiShows && tische.length > 0 && (
+            <p className="mb-2 text-xs text-leise">
+              Heute sind zwei Shows. Jeder Stehtisch gilt nur für seine Show: nach der
+              Mittagsshow abräumen und für den Abend neu eindecken.
+            </p>
+          )}
+
           {tische.length > 0 ? (
             <table className="w-full text-sm">
               <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
                 <tr>
+                  {/*
+                    Die Show nur an Tagen mit zwei Vorstellungen: An allen
+                    anderen ist sie eine Spalte, in der dreimal dasselbe steht.
+                  */}
+                  {zweiShows && <th className="w-28 pb-1 font-medium">Show</th>}
                   <th className="pb-1 font-medium">Für wen</th>
                   <th className="pb-1 font-medium">Welcher Tisch</th>
                   <th className="w-16 pb-1 text-right font-medium">Anzahl</th>
@@ -247,6 +284,16 @@ export default async function FoyerSeite({
                     key={t.name + t.bezeichnung}
                     className="border-b border-linie align-top last:border-0"
                   >
+                    {zweiShows && (
+                      <td className="py-2">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-xs font-semibold"
+                          style={{ background: "var(--gold-hell)" }}
+                        >
+                          {t.uhrzeit || "ohne Zeit"}
+                        </span>
+                      </td>
+                    )}
                     <td className="py-2 font-medium">{t.name}</td>
                     <td className="py-2">
                       {t.bezeichnung}
