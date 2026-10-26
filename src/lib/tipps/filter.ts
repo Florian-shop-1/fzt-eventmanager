@@ -13,8 +13,8 @@ export interface Tipp {
   videoTyp: string;
   erstelltVon: string;
   erstelltAm: string;
-  /** "show" oder "foyer": fuer wen die Anleitung gedacht ist. */
-  bereich?: "show" | "foyer";
+  /** "show", "foyer" oder "gebaeude": fuer wen die Anleitung gedacht ist. */
+  bereich?: "show" | "foyer" | "gebaeude";
   /** video, datei oder notiz. */
   art?: "video" | "datei" | "notiz";
   /** Text einer Notiz, oder eine Ergänzung zu Video und Datei. */

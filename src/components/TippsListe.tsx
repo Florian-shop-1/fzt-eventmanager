@@ -10,8 +10,8 @@ import { DateiFeld } from "@/components/DateiFeld";
 /** Eine mehrteilige Anleitung, wie sie von der Seite hereinkommt. */
 export interface ReiheAnsicht {
   id: string;
-  /** "show" oder "foyer". */
-  bereich?: "show" | "foyer";
+  /** "show", "foyer" oder "gebaeude". */
+  bereich?: "show" | "foyer" | "gebaeude";
   titel: string;
   beschreibung: string;
   schlagworte: string;
@@ -46,7 +46,7 @@ export function TippsListe({
    * dorthin. Zwei heissen: Buero oder Chef, sie entscheiden je Eintrag
    * (Florian, 05.10.2026).
    */
-  bereiche: Array<"show" | "foyer">;
+  bereiche: Array<"show" | "foyer" | "gebaeude">;
   /**
    * Welche Eintraege weg duerfen.
    *
@@ -156,7 +156,7 @@ function TippKarte({ tipp, darfLoeschen }: { tipp: Tipp; darfLoeschen: boolean }
   );
 }
 
-function HochladenFormular({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
+function HochladenFormular({ bereiche }: { bereiche: Array<"show" | "foyer" | "gebaeude"> }) {
   const [offen, setOffen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [fortschritt, setFortschritt] = useState(0);
@@ -365,7 +365,7 @@ function ReihenKarte({ reihe, darfLoeschen }: { reihe: ReiheAnsicht; darfLoesche
  * trotzdem, und der Titel jedes Schritts laesst sich vorher aendern
  * (Florian, 29.09.2026).
  */
-function ReiheFormular({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
+function ReiheFormular({ bereiche }: { bereiche: Array<"show" | "foyer" | "gebaeude"> }) {
   const [offen, setOffen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [stand, setStand] = useState("");
@@ -697,14 +697,20 @@ export function TippInhalt({ tipp }: { tipp: Tipp }) {
  * mit: Niemand soll etwas auswaehlen, wo es nichts zu waehlen gibt.
  * Buero und Chef entscheiden je Eintrag (Florian, 05.10.2026).
  */
-function BereichFeld({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
+function BereichFeld({ bereiche }: { bereiche: Array<"show" | "foyer" | "gebaeude"> }) {
   if (bereiche.length <= 1) {
     const b = bereiche[0] ?? "show";
     return (
       <>
         <input type="hidden" name="bereich" value={b} />
         <p className="text-xs text-leise">
-          Die Anleitung erscheint {b === "foyer" ? "bei den Tipps fürs Foyer" : "bei den Tipps für die Show"}.
+          Die Anleitung erscheint{" "}
+          {b === "foyer"
+            ? "bei den Tipps fürs Foyer"
+            : b === "gebaeude"
+              ? "bei den Tipps fürs Gebäude"
+              : "bei den Tipps für die Show"}
+          .
         </p>
       </>
     );
@@ -715,6 +721,8 @@ function BereichFeld({ bereiche }: { bereiche: Array<"show" | "foyer"> }) {
       <select name="bereich" defaultValue="show" className="text-sm">
         <option value="show">Show</option>
         <option value="foyer">Foyer</option>
+        {/* Haustechnik sehen nur Florian und Kevin (26.10.2026). */}
+        {bereiche.includes("gebaeude") && <option value="gebaeude">Gebäude</option>}
       </select>
     </label>
   );

@@ -100,151 +100,26 @@ export default async function BenutzerSeite({
       link: `${process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de"}/putzen/${f.schluessel}`,
     }));
 
-  return (
-    <div className="space-y-6">
-      <header>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
-          <div className="flex gap-2">
-            <a
-              href="/einstellungen/einladungen"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
-              style={{ background: "var(--gold-dunkel)" }}
-            >
-              Einladungslinks
-            </a>
-            <a
-              href="/einstellungen/mail"
-              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
-            >
-              E-Mail-Versand
-            </a>
-            <a
-              href="/einstellungen/whatsapp"
-              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
-            >
-              WhatsApp
-            </a>
-            <a
-              href="/einstellungen/flotix"
-              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
-            >
-              FloTix
-            </a>
-            <a
-              href="/einstellungen/handynummern"
-              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
-            >
-              Handynummern
-            </a>
-          </div>
-        </div>
-        <p className="mt-1 text-sm text-leise">
-          Wer darf ins Programm, und was darf er sehen. Es werden keine Einladungsmails
-          verschickt: Du bekommst ein Startpasswort angezeigt und gibst es selbst weiter.
-        </p>
-        <p className="mt-2 text-sm text-leise">
-          Solange jemand noch mit dem Startpasswort arbeitet, steht es hier zum Nachlesen.
-          Sobald er sich ein eigenes vergibt, verschwindet es: Selbst gewählte Passwörter sind
-          so gespeichert, dass sie sich nicht zurückrechnen lassen, auch nicht für dich. Wer
-          seines vergisst, bekommt über <strong>Passwort neu vergeben</strong> ein neues.
-        </p>
-      </header>
-      {meldung && (
-        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
-          {meldung}
-        </p>
-      )}
-      {fehler && (
-        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}>
-          {fehler}
-        </p>
-      )}
+  /*
+    Ehemalige stehen im Archiv, nicht in der Liste.
 
-      <section className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Einladungslinks je Bereich</h2>
-          <a href="/einstellungen/einladungen" className="text-sm underline">
-            verwalten
-          </a>
-        </div>
-        <p className="text-sm text-leise">
-          Schick den passenden Link an die neue Person. Sie trägt sich selbst ein und ist sofort
-          drin, ohne Startpasswort. Jeder, der den Link hat, kann sich einen Zugang anlegen.
-        </p>
-        <ul className="space-y-3">
-          {BEREICHE.map((b) => {
-            const e = offeneLinks.find((o) => o.rolle === b.rolle);
-            return (
-              <li key={b.rolle} className="border-t border-linie pt-3 first:border-0 first:pt-0">
-                <p className="text-sm font-medium">
-                  {b.titel}
-                  {e && e.benutzt > 0 && (
-                    <span className="ml-2 text-xs text-leise">
-                      {e.benutzt} {e.benutzt === 1 ? "Eintrag" : "Einträge"}
-                    </span>
-                  )}
-                </p>
-                {e ? (
-                  <div className="mt-1">
-                    <LinkKopieren link={einladungsLink(e.token)} />
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm text-leise">
-                    Noch kein Link.{" "}
-                    <a href={`/einstellungen/einladungen#b-${b.rolle}`} className="underline">
-                      Jetzt einen erstellen
-                    </a>
-                  </p>
-                )}
-              </li>
-            );
-          })}
+    "nimm den aus der anzeige raus.. ich will den nicht sehen, oder
+    erst wenn man irgendwo auf archiv klickt" (Florian, 26.10.2026).
+    Wer ausgeschieden ist, gehoert nicht mehr in die taegliche
+    Uebersicht: Dort stehen die Leute, die arbeiten.
 
-          {/*
-            Die Putzfirma hat keinen Einladungslink, sondern einen
-            Stempellink: Dahinter legt niemand einen Zugang an, dahinter
-            steht nur die Uhr. Er steht trotzdem hier, weil hier gesucht
-            wird, wenn man einen Link braucht (Florian, 07.10.2026: "wo
-            ist der link").
-          */}
-          {putzlinks.map((p) => (
-            <li key={p.id} className="border-t border-linie pt-3">
-              <p className="text-sm font-medium">
-                {p.name}
-                <span className="ml-2 text-xs text-leise">nur Stempeluhr, kein Zugang</span>
-              </p>
-              <div className="mt-1">
-                <LinkKopieren link={p.link} />
-              </div>
-              <p className="mt-1 text-xs text-leise">
-                Dahinter steht nur die Stempeluhr: ein Knopf zum Ein- und Ausstempeln und die Frage, wie
-                viele Leute da sind. Auswertung unter{" "}
-                <a href="/reinigung" className="underline">
-                  Reinigung
-                </a>
-                .
-              </p>
-            </li>
-          ))}
-        </ul>
-      </section>
+    Ein bloss gesperrter Zugang bleibt sichtbar. Gesperrt heisst
+    'gerade nicht', ausgeschieden heisst 'nicht mehr', und nur das
+    Zweite gehoert weg.
+  */
+  const ehemalige = benutzer.filter((b) => b.ausgeschieden_am);
+  const aktuelle = benutzer.filter((b) => !b.ausgeschieden_am);
+  // Was im Archiv noch offen ist, darf nicht mit verschwinden.
+  const offeneAbmeldung = ehemalige.filter((b) => !b.abgemeldet_am && b.art !== "extern").length;
 
-      <div className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
-        <table className="w-full text-sm">
-          <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
-            <tr>
-              <th className="px-4 py-2 font-medium">Name</th>
-              <th className="px-4 py-2 font-medium">E-Mail</th>
-              <th className="px-4 py-2 font-medium">Darf</th>
-              <th className="px-4 py-2 font-medium">FZT</th>
-              <th className="px-4 py-2 font-medium">WhatsApp</th>
-              <th className="px-4 py-2 font-medium">Zuletzt da</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {benutzer.map((b) => (
+  /** Dieselben Zeilen fuer beide Tabellen: die Liste und das Archiv. */
+  const reihen = (liste: Zeile[]) =>
+    liste.map((b) => (
               <tr key={b.id} className="border-b border-linie last:border-0">
                 <td className="px-4 py-3 font-medium">
                   {b.name}
@@ -400,10 +275,191 @@ export default async function BenutzerSeite({
                   </div>
                 </td>
               </tr>
-            ))}
+    ));
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Zugänge</h1>
+          <div className="flex gap-2">
+            <a
+              href="/einstellungen/einladungen"
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
+              style={{ background: "var(--gold-dunkel)" }}
+            >
+              Einladungslinks
+            </a>
+            <a
+              href="/einstellungen/mail"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              E-Mail-Versand
+            </a>
+            <a
+              href="/einstellungen/whatsapp"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              WhatsApp
+            </a>
+            <a
+              href="/einstellungen/flotix"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              FloTix
+            </a>
+            <a
+              href="/einstellungen/handynummern"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-gold-hell"
+            >
+              Handynummern
+            </a>
+          </div>
+        </div>
+        <p className="mt-1 text-sm text-leise">
+          Wer darf ins Programm, und was darf er sehen. Es werden keine Einladungsmails
+          verschickt: Du bekommst ein Startpasswort angezeigt und gibst es selbst weiter.
+        </p>
+        <p className="mt-2 text-sm text-leise">
+          Solange jemand noch mit dem Startpasswort arbeitet, steht es hier zum Nachlesen.
+          Sobald er sich ein eigenes vergibt, verschwindet es: Selbst gewählte Passwörter sind
+          so gespeichert, dass sie sich nicht zurückrechnen lassen, auch nicht für dich. Wer
+          seines vergisst, bekommt über <strong>Passwort neu vergeben</strong> ein neues.
+        </p>
+      </header>
+      {meldung && (
+        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
+          {meldung}
+        </p>
+      )}
+      {fehler && (
+        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}>
+          {fehler}
+        </p>
+      )}
+
+      <section className="space-y-3 rounded-lg border border-linie bg-flaeche p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold">Einladungslinks je Bereich</h2>
+          <a href="/einstellungen/einladungen" className="text-sm underline">
+            verwalten
+          </a>
+        </div>
+        <p className="text-sm text-leise">
+          Schick den passenden Link an die neue Person. Sie trägt sich selbst ein und ist sofort
+          drin, ohne Startpasswort. Jeder, der den Link hat, kann sich einen Zugang anlegen.
+        </p>
+        <ul className="space-y-3">
+          {BEREICHE.map((b) => {
+            const e = offeneLinks.find((o) => o.rolle === b.rolle);
+            return (
+              <li key={b.rolle} className="border-t border-linie pt-3 first:border-0 first:pt-0">
+                <p className="text-sm font-medium">
+                  {b.titel}
+                  {e && e.benutzt > 0 && (
+                    <span className="ml-2 text-xs text-leise">
+                      {e.benutzt} {e.benutzt === 1 ? "Eintrag" : "Einträge"}
+                    </span>
+                  )}
+                </p>
+                {e ? (
+                  <div className="mt-1">
+                    <LinkKopieren link={einladungsLink(e.token)} />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-leise">
+                    Noch kein Link.{" "}
+                    <a href={`/einstellungen/einladungen#b-${b.rolle}`} className="underline">
+                      Jetzt einen erstellen
+                    </a>
+                  </p>
+                )}
+              </li>
+            );
+          })}
+
+          {/*
+            Die Putzfirma hat keinen Einladungslink, sondern einen
+            Stempellink: Dahinter legt niemand einen Zugang an, dahinter
+            steht nur die Uhr. Er steht trotzdem hier, weil hier gesucht
+            wird, wenn man einen Link braucht (Florian, 07.10.2026: "wo
+            ist der link").
+          */}
+          {putzlinks.map((p) => (
+            <li key={p.id} className="border-t border-linie pt-3">
+              <p className="text-sm font-medium">
+                {p.name}
+                <span className="ml-2 text-xs text-leise">nur Stempeluhr, kein Zugang</span>
+              </p>
+              <div className="mt-1">
+                <LinkKopieren link={p.link} />
+              </div>
+              <p className="mt-1 text-xs text-leise">
+                Dahinter steht nur die Stempeluhr: ein Knopf zum Ein- und Ausstempeln und die Frage, wie
+                viele Leute da sind. Auswertung unter{" "}
+                <a href="/reinigung" className="underline">
+                  Reinigung
+                </a>
+                .
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
+        <table className="w-full text-sm">
+          <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
+            <tr>
+              <th className="px-4 py-2 font-medium">Name</th>
+              <th className="px-4 py-2 font-medium">E-Mail</th>
+              <th className="px-4 py-2 font-medium">Darf</th>
+              <th className="px-4 py-2 font-medium">FZT</th>
+              <th className="px-4 py-2 font-medium">WhatsApp</th>
+              <th className="px-4 py-2 font-medium">Zuletzt da</th>
+              <th className="px-4 py-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reihen(aktuelle)}
           </tbody>
         </table>
       </div>
+
+      {/*
+        Das Archiv: zugeklappt, aber auffindbar.
+
+        Offene Abmeldungen ans Lohnbuero stehen in der Ueberschrift.
+        Sonst waere mit dem Aufraeumen auch die Aufgabe verschwunden.
+      */}
+      {ehemalige.length > 0 && (
+        <details className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+            Archiv: ehemalige Mitarbeiter ({ehemalige.length})
+            {offeneAbmeldung > 0 && (
+              <span className="ml-2 font-normal" style={{ color: "var(--warnung)" }}>
+                {offeneAbmeldung === 1
+                  ? "bei einem fehlt noch die Abmeldung ans Lohnbüro"
+                  : `bei ${offeneAbmeldung} fehlt noch die Abmeldung ans Lohnbüro`}
+              </span>
+            )}
+          </summary>
+          <table className="w-full text-sm">
+            <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
+              <tr>
+                <th className="px-4 py-2 font-medium">Name</th>
+                <th className="px-4 py-2 font-medium">E-Mail</th>
+                <th className="px-4 py-2 font-medium">Darf</th>
+                <th className="px-4 py-2 font-medium">FZT</th>
+                <th className="px-4 py-2 font-medium">WhatsApp</th>
+                <th className="px-4 py-2 font-medium">Zuletzt da</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>{reihen(ehemalige)}</tbody>
+          </table>
+        </details>
+      )}
 
       <BenutzerAnlegen />
 

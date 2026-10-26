@@ -34,8 +34,8 @@ export default async function TippsSeite({
   */
   const erlaubt = bereicheFuer(benutzer?.rolle);
   const bereiche =
-    gewuenscht && erlaubt.includes(gewuenscht as "show" | "foyer")
-      ? [gewuenscht as "show" | "foyer"]
+    gewuenscht && erlaubt.includes(gewuenscht as "show" | "foyer" | "gebaeude")
+      ? [gewuenscht as "show" | "foyer" | "gebaeude"]
       : erlaubt;
   const tipps = alle.filter((t) => bereiche.includes(t.bereich ?? "show"));
   const reihen = alleR.filter((r) => bereiche.includes(r.bereich));
@@ -69,8 +69,10 @@ export default async function TippsSeite({
           {bereiche.length === 1
             ? bereiche[0] === "foyer"
               ? " Hier stehen die Anleitungen fürs Foyer."
-              : " Hier stehen die Anleitungen für die Show."
-            : " Beim Hochladen wählst du, ob es zur Show oder ins Foyer gehört."}
+              : bereiche[0] === "gebaeude"
+                ? " Hier steht alles zum Haus: Lüftung, Heizung, Brandmeldeanlage, Technik im Gebäude."
+                : " Hier stehen die Anleitungen für die Show."
+            : " Beim Hochladen wählst du, wohin es gehört."}
         </p>
       </header>
 

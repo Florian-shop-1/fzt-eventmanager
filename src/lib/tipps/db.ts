@@ -18,15 +18,20 @@ export type { Tipp } from "./filter";
  *
  * Das Foyer braucht die Kaffeemaschine und die Kasse, das Showteam das
  * Lichtpult. Wer alles sieht, findet nichts (Florian, 05.10.2026).
+ *
+ * Seit dem 26.10.2026 gibt es das Gebaeude dazu: Lueftung, Heizung,
+ * Brandmeldeanlage. Das sind Dinge, die zweimal im Jahr vorkommen und
+ * beim zweiten Mal niemand mehr weiss. Sie gehen nur Florian und Kevin
+ * etwas an, deshalb ein eigener Bereich und nicht alles in einem Topf.
  */
-export type TippBereich = "show" | "foyer";
+export type TippBereich = "show" | "foyer" | "gebaeude";
 
 /** Welche Bereiche jemand sehen und befuellen darf. */
 export function bereicheFuer(rolle: string | undefined): TippBereich[] {
   if (rolle === "foyer") return ["foyer"];
   if (rolle === "showteam") return ["show"];
-  // Buero und Chef sehen beides und entscheiden beim Hochladen selbst.
-  return ["show", "foyer"];
+  // Buero und Chef sehen alles und entscheiden beim Hochladen selbst.
+  return ["show", "foyer", "gebaeude"];
 }
 
 export interface Reihe {

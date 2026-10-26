@@ -167,9 +167,31 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
       { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
       { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
+      // Visitenkarten, die Florian persoenlich bekommt: lesen und in die
+      // Magic News (Florian, 25.10.2026). Nur das Buero, denn dabei
+      // entsteht ein Kontakt, den wir anschreiben.
+      { href: "/visitenkarten", label: "Visitenkarten", rollen: ["chef", "team"] },
+      // Den Magic-News-Verteiler durchgehen: Adressen, hinter denen kein
+      // Gast sitzt (Florian, 25.10.2026).
+      { href: "/verteiler", label: "Verteiler aufräumen", rollen: ["chef", "team"] },
       { href: "/geschenke", label: "Geschenke", rollen: ["chef", "team", "foyer"] },
       // Dieselbe Seite, nur der Foyer-Teil (Florian, 05.10.2026).
       { href: "/tipps?bereich=foyer", label: "Tipps & Tricks", rollen: ["chef", "team", "foyer"] },
+    ],
+  },
+  /*
+    Das Haus selbst.
+
+    "lass uns einen neuen menuepunkt machen im manager, den wir
+    gebaeude nennen, nur fuer kevin und mich" (Florian, 26.10.2026).
+    Lueftung, Heizung, Brandmeldeanlage: Dinge, die zweimal im Jahr
+    vorkommen und beim zweiten Mal niemand mehr weiss. Deshalb faengt
+    es mit den Anleitungen an.
+  */
+  {
+    titel: "Gebäude",
+    punkte: [
+      { href: "/tipps?bereich=gebaeude", label: "Tipps & Tricks", rollen: ["chef", "team"] },
     ],
   },
   {
@@ -242,7 +264,25 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
   "/putzen" ist die Stempeluhr der Putzfirma: ein langer
   Zufallsschluessel im Link, dahinter nur die eigene Uhr.
 */
-const OHNE_ANMELDUNG = ["/anmelden", "/ihr-angebot", "/einladung", "/warum", "/angebot", "/alternative", "/putzen"];
+/*
+  Dieselbe Liste wie im Proxy, zweite Verteidigungslinie.
+
+  Beides muss gepflegt werden: Der Proxy laesst herein, dieses Layout
+  zeigt an. Am 25.10.2026 stand "Passwort vergessen" nur im Proxy, und
+  die Seite leitete trotzdem zur Anmeldung um, also genau den weg, der
+  sich nicht anmelden kann.
+*/
+const OHNE_ANMELDUNG = [
+  "/anmelden",
+  "/ihr-angebot",
+  "/einladung",
+  "/warum",
+  "/angebot",
+  "/alternative",
+  "/putzen",
+  "/passwort-vergessen",
+  "/passwort-neu",
+];
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Den Pfad setzt die Middleware als Header, das Layout selbst kennt ihn nicht.
