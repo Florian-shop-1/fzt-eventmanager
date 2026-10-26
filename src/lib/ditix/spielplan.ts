@@ -81,6 +81,35 @@ export interface Vorstellungstermin {
  * Holt den Spielplan. Das Ergebnis wird eine Stunde zwischengespeichert,
  * damit nicht bei jedem Seitenaufruf eine Anfrage nach draußen geht.
  */
+/*
+  Seit dem 20.10.2026 verkauft FloTix.
+
+  Bis dahin kamen die Vorstellungen aus Ditix, und beide Zeitrechnungen
+  stehen bis heute im Gedaechtnis: derselbe Abend einmal mit der alten
+  und einmal mit der neuen Kennung. Die alte fuehrt ins Leere, ihr
+  Saalplan laesst sich nicht mehr laden ("Saalplan nicht lesbar, 404",
+  Florian, 24.10.2026) und FloTix laeuft: "ditix brauchst du nicht mehr
+  anzeigen dort."
+
+  Darum faellt ab diesem Tag alles Alte weg. Vorher nicht: Fuer die
+  Abende bis zum 19.10. ist Ditix die einzige Quelle, die wir haben,
+  und ein Funktionsheet vom September soll weiter aufgehen.
+*/
+const FLOTIX_AB = Date.parse("2026-10-20T00:00:00+02:00");
+
+/**
+ * Kommt dieser gemerkte Termin aus FloTix?
+ *
+ * Beide Quellen tragen Kennungen in Uuid-Form, daran ist nichts zu
+ * erkennen. Unterscheiden laesst sich der Saalplan: In FloTix ist er
+ * die Vorstellung selbst, in Ditix war er eine eigene Nummer ("5364").
+ */
+function ausFloTix(v: ShopVorstellung): boolean {
+  const schema = String(v.seatmapSchemaId ?? "");
+  if (!schema) return true;
+  return !/^\d+$/.test(schema);
+}
+
 export async function holeSpielplan(): Promise<ShopVorstellung[]> {
   const antwort = await fetch(`${SHOP_BASIS}/api/ditix/events`, {
     next: { revalidate: 3600 },
@@ -123,9 +152,32 @@ export async function holeSpielplan(): Promise<ShopVorstellung[]> {
       Math.floor(t / 60000),
     ),
   );
-  const vergessene = (await gemerkteTermine()).filter(
-    (v) => !bekannt.has(v.id) && !beginne.has(Math.floor(v.timestampStart / 60000)),
+  /*
+    Auch untereinander nur einmal.
+
+    Derselbe Abend steht im Gedaechtnis zweimal: einmal unter seiner
+    alten Ditix-Kennung, einmal unter der neuen aus FloTix. Solange der
+    Shop ihn nennt, faellt das nicht auf, denn dann sind beide schon
+    ueber die Startzeit ausgeschlossen. Sobald die Show begonnen hat,
+    nennt der Shop sie nicht mehr, und beide kamen zurueck: Am
+    24.10.2026 stand im Foyer "15:00 und 15:00 und 20:00 Uhr"
+    (Florian). Es ist ein Saal, also zaehlt die Startminute.
+
+    Welche der beiden Kennungen bleibt, ist nicht egal: Auf der aus
+    FloTix liegen Saalplan und Bestellungen. Deshalb kommt sie zuerst.
+  */
+  const schonDa = new Set(beginne);
+  const gemerkt = [...(await gemerkteTermine())].sort(
+    (a, b) => Number(ausFloTix(b)) - Number(ausFloTix(a)),
   );
+  const vergessene = gemerkt.filter((v) => {
+    // Keine Ditix-Vorstellung mehr, seit FloTix laeuft. Siehe unten.
+    if (v.timestampStart >= FLOTIX_AB && !ausFloTix(v)) return false;
+    const minute = Math.floor(v.timestampStart / 60000);
+    if (bekannt.has(v.id) || schonDa.has(minute)) return false;
+    schonDa.add(minute);
+    return true;
+  });
 
   return [
     ...ausDemShop,

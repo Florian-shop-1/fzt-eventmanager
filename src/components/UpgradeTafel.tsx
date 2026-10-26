@@ -1151,8 +1151,9 @@ export function UpgradeTafel({
         {modus === "einchecken" ? (
           <p className="text-sm">
             <strong>Auf einen Platz tippen markiert ihn mit einem X: hier sitzt jemand.</strong> Nochmal tippen nimmt
-            das X zurück. Das geht bei jedem Platz, auch bei einem gesperrten. Später übernimmt das ein Scanner,
-            bis dahin von Hand.
+            das X zurück. Das geht bei jedem Platz, auch bei einem gesperrten. Der Saalplan bleibt dabei, wie du
+            ihn vom Umsetzen kennst: Jede Gruppe behält ihre Farbe und ihren Buchstaben, grün heißt abgehakt.
+            Später übernimmt das ein Scanner, bis dahin von Hand.
           </p>
         ) : !offen ? (
           <p className="text-sm">
@@ -1396,44 +1397,43 @@ export function UpgradeTafel({
                 }
 
                 /*
-                  Im Einchecken-Modus zählt nur das X, nicht Gruppe oder
-                  Vorschlag: eigene, einfachere Farbgebung statt der
-                  Umsetz-Logik oben (Florian, 28.09.2026).
+                  Beim Durch-x-en bleibt der Saal, wie er aussieht.
 
-                  Gezeigt wird aber der Stand NACH dem Umsetzen, nicht der
-                  aus dem Ticketshop. Wer eine Gruppe nach vorne gesetzt
-                  hat und dann zum Durch-x-en wechselt, sah bisher den
-                  alten Saal: Die Leute standen noch auf ihren alten
-                  Plätzen, die neuen waren leer. Abgehakt wird aber dort,
-                  wo die Gäste wirklich sitzen (Florian, 30.09.2026).
+                  Frueher bekam dieser Modus seine eigene Farbgebung: alles
+                  Besetzte schwarz. Damit war beim Umschalten der ganze
+                  Plan ein anderer, und die Gruppenfarben, nach denen man
+                  eben noch gesetzt hat, waren weg: "es ist verwirrend
+                  sonst, wenn alles schwarz wird" (Florian, 24.10.2026).
+
+                  Jetzt bleibt oben stehen, was oben gerechnet wurde, und
+                  dieser Modus aendert nur zweierlei:
+
+                    1. Durch-x-t wird gruen mit einem x. Das ist das
+                       Einzige, was dieser Modus wirklich zu sagen hat.
+                    2. Ein verkaufter Platz ohne eigene Farbe wird dunkel.
+                       Er gehoert zu keiner Gruppe, saehe sonst aus wie
+                       frei, und man wuesste nicht, wen man dort abhakt.
+
+                  Gezeigt wird dabei der Stand NACH dem Umsetzen: Wer eine
+                  Gruppe nach vorne gesetzt hat, hakt sie vorne ab, nicht
+                  auf ihrem alten Platz (Florian, 30.09.2026).
                 */
                 const durchgext = eingecheckt.has(s.id);
                 if (modus === "einchecken") {
                   // Hierher umgesetzt heißt besetzt, von hier weggesetzt heißt frei.
                   const jetztBesetzt = Boolean(zielVon) || (s.status === "verkauft" && !heimatUmsetzung);
+                  // Eine eigene Farbe hat, wer zu einer Gruppe gehoert und hier sitzt.
+                  const hatFarbe = Boolean(zielVon) || Boolean(heimat && !heimatUmsetzung);
                   if (durchgext) {
                     fuellung = "var(--gut)";
                     rahmen = "var(--gut)";
                     schrift = "#fff";
-                  } else if (jetztBesetzt) {
+                    beschriftung = "×";
+                  } else if (jetztBesetzt && !hatFarbe && !s.freiLassen) {
                     fuellung = "var(--text)";
                     rahmen = "var(--text)";
                     schrift = "#fff";
-                  } else if (s.status === "gesperrt") {
-                    fuellung = "var(--linie)";
-                    rahmen = "var(--linie)";
-                    schrift = "var(--flaeche)";
-                  } else {
-                    fuellung = "var(--flaeche)";
-                    rahmen = "var(--linie)";
-                    schrift = "var(--text-leise)";
                   }
-                  /*
-                    Der Buchstabe der umgesetzten Gruppe bleibt stehen,
-                    solange nicht abgehakt ist: So sieht der Einlass, wen
-                    er auf diesem Platz erwartet.
-                  */
-                  beschriftung = durchgext ? "×" : zielVon ? zeichen : s.name;
                 }
 
                 const anfassbar =
@@ -1569,8 +1569,15 @@ export function UpgradeTafel({
               durch-x-t: hier sitzt jemand
             </span>
             <span>
+              <span
+                className="mr-1 inline-block h-3 w-3 rounded-sm align-middle"
+                style={{ background: FARBEN[0] }}
+              />
+              Gruppe mit ihrem Buchstaben, noch nicht durch-x-t
+            </span>
+            <span>
               <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--text)" }} />
-              verkauft, noch nicht durch-x-t
+              verkauft ohne Gruppe, noch nicht durch-x-t
             </span>
             <span>
               <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "var(--linie)" }} />
