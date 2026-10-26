@@ -47,6 +47,7 @@ import {
   lernenMitschreiben,
 } from "@/lib/db/whatsapp-entwurf";
 import { vorname as vornameVon } from "@/lib/mail/vorfreude";
+import { schlemmerEntwurfBauen } from "@/lib/whatsapp/schlemmerlauf";
 
 const ziel = (waId: string, fehler?: string) =>
   `/whatsapp?mit=${encodeURIComponent(waId)}${fehler ? `&fehler=${encodeURIComponent(fehler.slice(0, 300))}` : ""}`;
@@ -107,91 +108,23 @@ export async function schlemmerVorbereiten(waId: string): Promise<void> {
   if (!istKennung(waId)) redirect("/whatsapp");
 
   /*
-    Gelesen wird die letzte Nachricht MIT Text.
+    Derselbe Weg wie beim Eingang.
 
-    Schickt der Gast als Antwort ein Foto, steht in der letzten Zeile
-    nur "[Bild]", und die Erkennung fand nichts mehr (Florian,
-    24.10.2026). Die Frage danach, worum es geht, steht eine Nachricht
-    weiter oben.
+    Gebaut wird der Entwurf in whatsapp/schlemmerlauf.ts, und zwar nur
+    dort: Zwei Stellen mit denselben Regeln laufen nach dem dritten
+    Umbau auseinander (25.10.2026). Hier bleibt nur, was dieser Knopf
+    zusaetzlich kann: dem Menschen sagen, warum es nicht ging.
   */
-  const letzten = (await db()`
-    select n.id, n.text, n.typ, u.profilname
-      from wa_nachricht n
-      left join wa_unterhaltung u on u.wa_id = n.wa_id
-     where n.wa_id = ${waId} and n.richtung = 'ein'
-     order by n.zeitpunkt desc limit 8
-  `) as Array<{ id: string; text: string | null; typ: string; profilname: string | null }>;
-
-  const letzte = letzten.find((n) => (n.text ?? "").replace(/^\[[^\]]*\]\s*/, "").trim()) ?? letzten[0];
-  const bildNachricht = letzten.find((n) => n.typ === "image" || n.typ === "sticker");
-
-  const befund = schlemmerErkennen(letzte?.text ?? "");
-  if (!befund.trifft) redirect(ziel(waId, "In dieser Nachricht steht nichts vom Schlemmerblock."));
-  if (befund.fuerMenschen) redirect(ziel(waId, befund.fuerMenschen));
-
-  const vorname = vornameVon(letzte?.profilname ?? letzten[0]?.profilname ?? "");
-
-  /*
-    Steht der Jahrgang nicht im Text, schauen wir aufs Foto.
-
-    Auf dem Umschlag steht die Saison gross, und genau deshalb bitten
-    wir um den Umschlag. Liest das Modell nichts Sicheres, bleibt es
-    bei der Rueckfrage: Lieber einmal mehr fragen als eine Freikarte
-    auf einen abgelaufenen Block.
-  */
-  let jahrgang = befund.jahrgang;
-  let vomFoto = "";
-  if (jahrgang === null && bildNachricht) {
-    const bild = await whatsappBild(bildNachricht.id).catch(() => null);
-    if (bild) {
-      const lesung = await jahrgangAusBild(bild);
-      if (lesung.jahrgang !== null) {
-        jahrgang = lesung.jahrgang;
-        vomFoto = lesung.gelesen;
-        console.log("[schlemmerblock] Jahrgang vom Foto:", jahrgang, lesung.gelesen);
-      }
-    }
-  }
-
-  // Ein abgelaufener Jahrgang vom Foto gehoert ebenso an einen Menschen.
-  if (jahrgang !== null && !jahrgangGueltig(jahrgang)) {
-    redirect(
-      ziel(
-        waId,
-        `Der Block auf dem Foto ist von ${jahrgang - 1}/${jahrgang} und galt nur bis zum 1. Dezember ${jahrgang}.`,
-      ),
-    );
-  }
-
-  // Ohne Jahrgang erst fragen, dann Codes ziehen.
-  if (jahrgang === null) {
-    await entwurfSpeichern({
-      waId,
-      text: nachfrageText(vorname),
-      anlass: "schlemmerblock-nachfrage",
-      codes: "",
-      von: benutzer.name,
-    });
-    revalidatePath("/whatsapp");
-    redirect(ziel(waId));
-  }
-
-  const anzahl = Math.max(1, Math.min(3, befund.bloecke ?? 1));
-  let codes: string[];
+  let lage;
   try {
-    const gezogen = await codesZiehen(anzahl, letzte?.profilname?.trim() || waId);
-    codes = gezogen.codes;
+    lage = await schlemmerEntwurfBauen(waId, benutzer.name);
   } catch (e) {
     redirect(ziel(waId, e instanceof Error ? e.message : "Der Code kam nicht."));
   }
 
-  await entwurfSpeichern({
-    waId,
-    text: antwortText({ vorname, codes: codes! }),
-    anlass: vomFoto ? "schlemmerblock-foto" : "schlemmerblock",
-    codes: codes!.join(", "),
-    von: benutzer.name,
-  });
+  if (!lage.trifft) redirect(ziel(waId, "In dieser Nachricht steht nichts vom Schlemmerblock."));
+  if (lage.art === "mensch" || lage.art === "abgelaufen") redirect(ziel(waId, lage.meldung));
+
   revalidatePath("/whatsapp");
   redirect(ziel(waId));
 }

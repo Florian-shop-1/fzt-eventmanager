@@ -125,11 +125,14 @@ const BAUSTEINE: Baustein[] = [
     falsch. Er macht eine Karte derselben Kategorie frei, und zwar ueber
     einen Code im Shop (Florian, 08.10.2026).
 
-    Der Code steht bewusst nicht im Programm, sondern wird vor dem
-    Absenden eingesetzt: Jeder Gast bekommt einen eigenen, und einer,
-    der in einer Vorlage steht, waere nach einer Woche in Umlauf.
-    Deshalb ein Platzhalter in Grossbuchstaben, der beim Lesen nicht zu
-    uebersehen ist.
+    Seit dem 25.10.2026 steht hier kein Platzhalter mehr.
+
+    Frueher stand "[HIER FREICODE EINTRAGEN]" im Text, und wer den
+    fertigen Entwurf nicht sah, verschickte ihn so. Den Code zieht
+    jetzt der Eventmanager selbst, sobald die Nachricht eingeht
+    (siehe whatsapp/schlemmerlauf.ts). Dieser Baustein ist nur noch
+    der Rueckfall, wenn das nicht geklappt hat, und fragt dann nach
+    dem Jahrgang: Das ist immer richtig und braucht keinen Code.
   */
   {
     titel: "Schlemmerblock",
@@ -137,14 +140,14 @@ const BAUSTEINE: Baustein[] = [
     bauen: (d) =>
       brief(
         d.vorname,
-        "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Mit dem Code " +
-          "[HIER FREICODE EINTRAGEN] ist eine Karte derselben Kategorie für dich frei.\n\n" +
-          "So geht es: Such dir im Shop deine Plätze aus und gib den Code im letzten Schritt vor " +
-          "dem Bezahlen ein. Die Karte wird dann automatisch abgezogen.\n\n" +
-          "WICHTIG: Bitte bring deinen Gutschein am Tag der Veranstaltung mit, und er muss dann " +
-          "noch gültig sein. Ohne gültigen Gutschein müssen wir die Karte nachträglich berechnen.\n\n" +
+        "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Eine Karte derselben " +
+          "Kategorie ist damit für dich frei.\n\n" +
+          "Eine Frage vorweg, damit ich dir den richtigen Code schicken kann: Von wann ist dein " +
+          "Block, 2025/2026 oder 2026/2027? Du kannst mir auch einfach ein Foto vom Umschlag " +
+          "schicken, dann sehe ich es selbst.\n\n" +
           "Der Block gilt bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an Feiertagen und " +
-          "nicht bei Sonderveranstaltungen.\n\n" +
+          "nicht bei Sonderveranstaltungen. Bitte bring ihn am Showtag mit, der Abriss wird " +
+          "eingesammelt.\n\n" +
           "Wenn ihr dazu essen möchtet: Zu jeder Karte lässt sich unser 4-Gang-Menü für 69 Euro " +
           "dazubuchen, Welcome Drink inklusive, auch zur freien Karte.",
       ),

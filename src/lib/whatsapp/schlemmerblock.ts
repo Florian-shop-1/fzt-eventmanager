@@ -84,7 +84,18 @@ export interface SchlemmerBefund {
   ankommen: Schlemmerblock, Gutscheinbuch, Gutscheinheft, Freizeitblock,
   Kundenkarte.
 */
-const ERKENNT = /schlemmer\s*block|schlemmerblock|gutschein(buch|heft)|freizeit\s?block|kundenkarte/i;
+/*
+  Die Mehrzahl zaehlt mit.
+
+  "4 Tickets mit zwei Schlemmerblöcken" (Markus, 25.10.2026) ging hier
+  durchs Netz: Das Muster kannte nur den Block, nicht die Blöcke. Die
+  Nachricht landete beim alten Baustein mit dem Platzhalter, und der
+  fertige Entwurf mit Code entstand nie. Gezählt wurde die Mehrzahl
+  schon immer richtig, siehe bloeckeZaehlen; nur hereingelassen wurde
+  sie nicht.
+*/
+const ERKENNT =
+  /schlemmer\s*bl(?:o|ö)ck\w*|gutschein(?:buch|b(?:ü|u)cher|heft\w*)|freizeit\s?block\w*|kundenkarte\w*/i;
 
 /** Zahlwörter, wie sie in den Nachrichten stehen. */
 const ZAHLWORT: Record<string, number> = {

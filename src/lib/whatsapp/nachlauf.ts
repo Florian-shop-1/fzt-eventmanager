@@ -23,6 +23,7 @@ import {
 import { textSchicken } from "@/lib/whatsapp/senden";
 import { istWebseite, kennungLesbar } from "@/lib/whatsapp/kennung";
 import { db } from "@/lib/db/client";
+import { schlemmerAutomatisch } from "@/lib/whatsapp/schlemmerlauf";
 
 const NL = String.fromCharCode(10);
 
@@ -38,6 +39,18 @@ export async function nachEingang(neue: NeuerEingang[]): Promise<void> {
   for (const [waId, nachrichten] of jeKunde) {
     await melden(waId, nachrichten);
     await automatischAntworten(waId);
+    /*
+      Den Schlemmerblock-Entwurf gleich mitbauen.
+
+      "du sollst das doch komplett fertig machen, so dass wir nur
+      noch den entwurf bestätigen und dem gast antworten mit einem
+      click" (Florian, 25.10.2026). Vorher hing das an einem Knopf
+      im Eventmanager, und wer ihn nicht fand, bekam die alte
+      Vorlage mit dem Platzhalter statt eines Codes.
+
+      Abgeschickt wird weiterhin nichts von allein.
+    */
+    await schlemmerAutomatisch(waId);
   }
 }
 
