@@ -34,6 +34,7 @@ import {
 import type { Variante } from "./ablaufplan";
 import type { Vorgang } from "@/lib/domain/vorgang";
 import { vormerkungNachziehen } from "@/lib/kueche/vormerkung";
+import { optionAusAngebot } from "@/lib/flotix/option-aus-angebot";
 
 async function verlangeTeam(): Promise<string> {
   const benutzer = await angemeldeterBenutzer();
@@ -201,6 +202,16 @@ export async function angebotErzeugen(
     (Florian, 25.10.2026).
   */
   await vormerkungNachziehen(vorgangId);
+
+  /*
+    Und die Plaetze werden festgehalten.
+
+    "kevin erstellt ein angebot, der eventmanager blockiert dann die
+    plaetze, und wenn das angebot ablaeuft werden sie automatisch
+    freigegeben" (Florian, 26.10.2026). So lange wie das Angebot
+    gilt, hoechstens sieben Tage.
+  */
+  await optionAusAngebot(vorgangId);
 
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");

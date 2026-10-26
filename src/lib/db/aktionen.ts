@@ -21,6 +21,7 @@ import {
   darfKaufmaennisches,
   darfSitzplanAendern,
 } from "@/lib/auth/sitzung";
+import { optionZurueck } from "@/lib/flotix/option-aus-angebot";
 
 /**
  * Wacht über jede Änderung.
@@ -796,8 +797,9 @@ export async function plaetzeFreigeben(
   await db()`
     update vorgang set status = 'abgesagt', geaendert_am = now() where id = ${vorgangId}
   `;
-  // Abgesagt heisst: Die Menues sind wieder frei fuer den Shop.
+  // Abgesagt heisst: Menues und Plaetze sind wieder frei fuer den Shop.
   await vormerkungNachziehen(vorgangId);
+  await optionZurueck(vorgangId);
   await db()`
     insert into notiz (vorgang_id, benutzer, text)
     values (${vorgangId}, ${await aktuellerBenutzer()},

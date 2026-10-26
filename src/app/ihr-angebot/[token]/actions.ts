@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
+import { optionZurueck } from "@/lib/flotix/option-aus-angebot";
 
 /**
  * Der Kunde nimmt sein Angebot an.
@@ -58,6 +59,16 @@ export async function angebotAblehnen(token: string, formData: FormData): Promis
     values (${zeilen[0].vorgang_id}, 'Kunde',
             ${'Angebot online abgelehnt.' + (grund ? ' Grund: ' + grund : '')})
   `;
+
+  /*
+    Und die Plaetze gehen zurueck in den Verkauf.
+
+    Abgelaufene Optionen loest FloTix von selbst. Hier kommt die
+    Antwort frueher als der Ablauf, und das ist der haeufigere Fall:
+    Ein Nein am zweiten Tag soll nicht fuenf Tage Plaetze kosten
+    (Florian, 26.10.2026).
+  */
+  await optionZurueck(zeilen[0].vorgang_id);
 
   revalidatePath(`/ihr-angebot/${token}`);
   revalidatePath(`/vorgaenge/${zeilen[0].vorgang_id}`);
