@@ -412,6 +412,36 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
     nachTag.set(t.datum, [...(nachTag.get(t.datum) ?? []), t]);
   }
 
+  /*
+    Zwei Shows, zwei Kacheln. Ohne Knopf.
+
+    Frueher musste jemand "Tag aufteilen" druecken, sonst stand ein
+    Dienst von mittags bis nachts im Plan. "das mit dem aufteilen ist
+    doch quatsch, wir wollten, dass die shows extra kacheln haben, also
+    die mittagshow und abendshow getrennt eingeteilt werden" (Florian,
+    26.10.2026, nach einem Hinweis von Veronica, bei der der Knopf nichts
+    tat). Also teilt der Plan selbst, sobald zwischen den Shows genug
+    Zeit liegt.
+
+    Wer an so einem Tag schon fuer den ganzen Tag eingetragen war, wird
+    dabei einmal umgeschrieben, genau wie der Knopf es tat: mittags und
+    abends dieselben Leute, abends herausnehmen ist schnell. Danach gibt
+    es an dem Tag nichts mehr nachzuziehen.
+  */
+  let nachgezogen = false;
+  for (const [datum, shows] of nachTag) {
+    const laufen = shows.filter((s) => !abgesagt.has(s.ditixEventId));
+    const sortiert = [...(laufen.length > 0 ? laufen : shows)].sort((a, b) =>
+      a.uhrzeit.localeCompare(b.uhrzeit),
+    );
+    const { geteilt } = foyerZeiten(sortiert);
+    if (!geteilt) continue;
+    if (!dienste.some((d) => d.datum === datum && d.abschnitt === "ganz")) continue;
+    await tagTeilen(datum, geteilt, "Plan");
+    nachgezogen = true;
+  }
+  const alleDienste = nachgezogen ? await diensteAb(heute) : dienste;
+
   return [...nachTag.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([datum, shows]) => {
@@ -420,9 +450,11 @@ export async function foyerPlan(wochen = 8): Promise<FoyerTag[]> {
       const allesAbgesagt = laufen.length === 0;
       // Die Zeiten richten sich nach dem, was stattfindet.
       const { vorschlag, pause, geteilt } = foyerZeiten(allesAbgesagt ? sortiert : laufen);
-      const amTag = dienste.filter((d) => d.datum === datum);
-      const istGeteilt = amTag.some((d) => d.abschnitt !== "ganz");
+      const amTag = alleDienste.filter((d) => d.datum === datum);
       const teilbar = geteilt !== null;
+      // Zwei Shows mit Abstand sind immer zwei Dienste, auch wenn noch
+      // niemand eingeteilt ist: Die Kacheln stehen von Anfang an getrennt.
+      const istGeteilt = teilbar || amTag.some((d) => d.abschnitt !== "ganz");
       const bloecke: FoyerBlock[] = istGeteilt
         ? [
             {

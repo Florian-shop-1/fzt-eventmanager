@@ -11,9 +11,7 @@ import {
   festMarkieren,
   foyerUebernahmeEntscheiden,
   foyerUebernehmenAnbieten,
-  tagAufteilen,
   tagEintragen,
-  tagZusammenlegen,
   zeiten,
 } from "./aktionen";
 
@@ -254,24 +252,15 @@ export default async function FoyerPlanSeite({
               ) : (
                 <>
                   {/*
-                    Zwei Shows an einem Tag, zwei Moeglichkeiten.
+                    Zwei Shows an einem Tag sind zwei Dienste.
 
-                    Ungeteilt steht hier ein Dienst von mittags bis nachts.
-                    Genau das war der Hinweis aus dem Foyer: "es würden auch
-                    gerne mal mitarbeiter sich aufteilen. du machst mittags,
-                    ich abends" (Florian, 23.10.2026). Wer den ganzen Tag
-                    machen will, lässt es, wie es ist.
+                    Hier stand ein Knopf "Tag aufteilen". Er war eine Huerde,
+                    und bei Veronica tat er obendrein nichts. "das mit dem
+                    aufteilen ist doch quatsch, wir wollten, dass die shows
+                    extra kacheln haben" (Florian, 26.10.2026). Mittag und
+                    Abend stehen jetzt von selbst getrennt da, wer beide
+                    Shows macht, traegt sich eben zweimal ein.
                   */}
-                  {t.teilbar && (
-                    <form action={t.geteilt ? tagZusammenlegen : tagAufteilen} className="mt-2">
-                      <input type="hidden" name="datum" value={t.datum} />
-                      <button type="submit" className="rounded-md border border-linie px-3 py-1 text-sm">
-                        {t.geteilt
-                          ? "Teilung aufheben, wieder ein Dienst für den ganzen Tag"
-                          : "Tag aufteilen in Mittagsshow und Abendshow"}
-                      </button>
-                    </form>
-                  )}
 
                   {/*
                     Wer beide Shows macht, braucht eine Aufgabe dazwischen.
