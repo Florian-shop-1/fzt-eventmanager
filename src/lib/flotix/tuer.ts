@@ -20,7 +20,7 @@
  * den Versandstand auch in FloTix, damit er dort und hier gleichzeitig stimmt.
  */
 
-const FLOTIX_URL = process.env.FLOTIX_URL ?? "https://flotix.florianzimmertheater.de";
+export const FLOTIX_URL = process.env.FLOTIX_URL ?? "https://flotix.florianzimmertheater.de";
 
 /** Unter diesem Kennzeichen liegt alles, was von FloTix kommt. */
 export const KENNZEICHEN = "flotix";
@@ -604,4 +604,51 @@ export async function flotixKorbstand(korb: string): Promise<Korbstand | null> {
   } catch {
     return null;
   }
+}
+
+/* ---------------------------------------------------------------------
+   Vorgemerkte Menües.
+
+   Firmen buchen nicht im Shop, ihre Menüs stehen im Angebot. FloTix muss
+   sie trotzden kennen, sonst verkauft der Shop an einem Tag mit einem
+   großen Firmenevent noch einmal die vollen 90 Essen (Florian,
+   25.10.2026).
+
+   Gemeldet wird je Tag, und jede Meldung ersetzt den Tag. Der
+   Eventmanager ist die Quelle, FloTix führt nur mit.
+   --------------------------------------------------------------------- */
+
+export async function flotixVormerkungMelden(o: {
+  tag: string;
+  anzahl: number;
+  posten: Array<{ firma: string; personen: number; menues: number; status: string; vorgang: string }>;
+}): Promise<void> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  if (!schluessel) throw new Error("FLOTIX_KEY fehlt, ohne den nimmt FloTix nichts an.");
+
+  const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=menue-vormerkung`, {
+    method: "POST",
+    headers: { "x-eventmanager-key": schluessel, "content-type": "application/json" },
+    body: JSON.stringify(o),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!antwort.ok) {
+    throw new Error(`FloTix nimmt die Vormerkung nicht an (${antwort.status}).`);
+  }
+}
+
+/** Was FloTix gerade an Vormerkungen führt. */
+export async function flotixVormerkungen(): Promise<Array<{ tag: string; anzahl: number }>> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  if (!schluessel) return [];
+
+  const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=menue-vormerkung`, {
+    headers: { "x-eventmanager-key": schluessel },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!antwort.ok) return [];
+  const d = (await antwort.json()) as { vormerkungen?: Array<{ tag: string; anzahl: number }> };
+  return (d.vormerkungen ?? []).map((v) => ({ tag: String(v.tag), anzahl: Number(v.anzahl) }));
 }

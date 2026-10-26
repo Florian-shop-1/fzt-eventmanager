@@ -25,6 +25,9 @@ import { ditixAbgleich } from "@/lib/db/ditix-abgleich";
 import { zauberstabLauf } from "@/lib/shop/zauberstab-lauf";
 import { langeSchichtenPruefen, nachtabschluss, pausenPflichtPruefen } from "@/lib/stempel/wache";
 import { taeglicherRechnungslauf } from "@/lib/wein/rechnung";
+import { alleTageMelden } from "@/lib/kueche/vormerkung";
+import { liegengebliebeneUebertragen } from "@/lib/scanner/nachzuegler";
+import { optionenErinnern } from "@/lib/flotix/option-erinnerung";
 
 /**
  * Alle täglichen Läufe in zwei Aufrufen statt in acht.
@@ -69,6 +72,31 @@ const NACHT: Teil[] = [
       abschluss: await nachtabschluss(),
     }),
   },
+  /*
+    Die vorgemerkten Menues neu melden.
+
+    Am Tag meldet jeder geaenderte Vorgang seinen Tag selbst. Das
+    reicht nicht: Ein Angebot kann anderswo geaendert worden sein, und
+    wenn FloTix einmal nicht erreichbar war, bliebe eine falsche Zahl
+    stehen und naehme dem Shop Plaetze weg. Einmal in der Nacht steht
+    alles wieder richtig (Florian, 25.10.2026).
+  */
+  { name: "menue-vormerkungen", tun: () => alleTageMelden() },
+  /*
+    Was im Emoji-Scanner liegengeblieben ist, geht doch noch hinaus.
+
+    "geht das verlaesslich alles zu brevo in die magic-news? auch
+    wenn der mitarbeiter keinen button drueckt" (Florian,
+    25.10.2026). Nach zwei Tagen uebernimmt das Programm.
+  */
+  { name: "moji-nachzuegler", tun: () => liegengebliebeneUebertragen() },
+  /*
+    Optionen, die morgen auslaufen.
+
+    Die Mail ist ein Verkaufsanlass, kein Verwaltungsakt: Wer jetzt
+    anruft, hat etwas anzubieten (Florian, 26.10.2026).
+  */
+  { name: "optionen", tun: () => optionenErinnern() },
 ];
 
 /*
