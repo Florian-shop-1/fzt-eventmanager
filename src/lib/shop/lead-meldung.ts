@@ -38,6 +38,7 @@ function h(s: string): string {
 function zeilen(l: Lead): Array<[string, string]> {
   return [
     ["Name", l.name],
+    ["Firma", l.firma],
     ["E-Mail", l.email],
     ["Telefon", l.telefon],
     ["Teilnehmer", l.teilnehmer],

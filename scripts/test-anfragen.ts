@@ -7,7 +7,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { anfrageAnnehmen, anfragenAusDatenbank, ausTabelleUebernehmen, deutschesDatum, TABELLE_DDL, type Abfrage } from "../src/lib/db/anfragen";
+import { anfrageAnnehmen, anfragenAusDatenbank, ausTabelleUebernehmen, deutschesDatum, firmaAus, TABELLE_DDL, type Abfrage } from "../src/lib/db/anfragen";
 import { leadSchluessel, type Lead } from "../src/lib/shop/leads";
 
 let fehler = 0;
@@ -66,7 +66,7 @@ async function main() {
   pruefe(a3.neu && a3.schluessel === `${a1.schluessel}#2`, "eigener Schlüssel mit #2", a3.schluessel);
 
   console.log("\n=== Meta-Lead ===");
-  const meta = await anfrageAnnehmen({ typ: "Event", name: "Max Muster", email: "max@example.org", teilnehmerzahl: "11-50", quelle_source: "fb", quelle_medium: "paid" }, jetzt, sql);
+  const meta = await anfrageAnnehmen({ typ: "Event", name: "Max Muster", email: "max@example.org", teilnehmerzahl: "11-50", company_name: "Muster GmbH", quelle_source: "fb", quelle_medium: "paid" }, jetzt, sql);
   const [kanal] = (await sql`select kanal, teilnehmer from anfrage where schluessel = ${meta.schluessel}`) as Array<{ kanal: string; teilnehmer: string }>;
   pruefe(kanal?.kanal === "meta" && kanal.teilnehmer === "11-50", "als Meta erkannt, Teilnehmerzahl übernommen", kanal);
 
@@ -75,10 +75,14 @@ async function main() {
   pruefe(leads.length === 3, "drei Anfragen", leads.length);
   const erika = leads.find((l) => l.schluessel === a1.schluessel);
   pruefe(erika?.status === "Anfrage eingegangen" && erika?.anfragetyp === "Loge" && erika?.herkunft === "google", "Felder passen", erika);
+  pruefe(erika?.firma === "", "ohne Firma bleibt das Feld leer", erika?.firma);
+  const max = leads.find((l) => l.schluessel === meta.schluessel);
+  pruefe(max?.firma === "Muster GmbH", "Firma aus dem Meta-Feld company_name", max?.firma);
+  pruefe(firmaAus({ firma: "  Beispiel AG " }) === "Beispiel AG" && firmaAus({ firmenname: "X" }) === "X" && firmaAus(null) === "", "Firma auch unter anderen Feldnamen");
 
   console.log("\n=== Übernahme aus der Google-Tabelle ===");
   const alt: Lead = {
-    schluessel: leadSchluessel("12.10.2026", "alt@example.org", "Alte Anfrage"), eingang: "12.10.2026", name: "Alte Anfrage",
+    schluessel: leadSchluessel("12.10.2026", "alt@example.org", "Alte Anfrage"), eingang: "12.10.2026", name: "Alte Anfrage", firma: "",
     telefon: "", email: "alt@example.org", teilnehmer: "51-200", wunschdatum: "", anfragetyp: "Event", status: "Angebot",
     ablehnungsgrund: "", kommentar: "", umsatz: "", herkunft: "ig · Eventanfragen",
   };

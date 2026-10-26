@@ -79,6 +79,8 @@ export interface Lead {
   schluessel: string;
   eingang: string;
   name: string;
+  /** Firma, falls angegeben (Meta-Formular „Name des Unternehmens“). */
+  firma: string;
   telefon: string;
   email: string;
   teilnehmer: string;
@@ -177,6 +179,7 @@ export async function holeLeadsAusTabelle(): Promise<Lead[]> {
       schluessel: wievielte === 1 ? basis : `${basis}#${wievielte}`,
       eingang,
       name: nameOrdentlich(name),
+      firma: feld(z, "Firma"),
       telefon: feld(z, "Mobilnummer"),
       email: feld(z, "E-Mail"),
       teilnehmer: feld(z, "Teilnehmerzahl"),
