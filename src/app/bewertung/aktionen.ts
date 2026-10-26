@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, type AngemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { bewertungAktivSetzen, probeEmpfaenger } from "@/lib/db/bewertung";
+import { bewertungAktivSetzen, erledigtVomBuero, probeEmpfaenger } from "@/lib/db/bewertung";
 import { buchungenFuerTag, type ShopBuchung } from "@/lib/db/shop-buchungen";
 import { baueBewertungsmail } from "@/lib/mail/bewertung";
 import { mailVerschicken } from "@/lib/mail/versand";
@@ -108,4 +108,14 @@ export async function tagVerschicken(formular: FormData): Promise<void> {
   if ((await buchungenFuerTag(tag)).length === 0) zurueck("An diesem Tag gibt es keine Shop-Buchungen.", tag);
   const e = await bewertungenVerschicken(tag);
   zurueck(`${e.verschickt.length} verschickt, ${e.uebersprungen.length} übersprungen, ${e.fehler.length} Fehler.`, tag);
+}
+
+/** Supporter von Hand abhaken (Bewertung gesehen oder vom Gast bestätigt) oder wieder öffnen. */
+export async function supporterAbhaken(formular: FormData): Promise<void> {
+  const benutzer = await berechtigt();
+  const id = String(formular.get("id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) zurueck("Diese Buchung gibt es nicht.");
+  const erledigt = formular.get("erledigt") === "ja";
+  await erledigtVomBuero(id, benutzer.name, erledigt);
+  zurueck(erledigt ? "Als bewertet abgehakt." : "Wieder geöffnet.");
 }

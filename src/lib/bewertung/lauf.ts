@@ -11,8 +11,9 @@
 
 import { buchungenFuerTag, type ShopBuchung } from "@/lib/db/shop-buchungen";
 import { widersprochene, adresse } from "@/lib/db/werbewiderspruch";
-import { bewertungAktiv, merkeBewertungMail } from "@/lib/db/bewertung";
-import { baueBewertungsmail } from "@/lib/mail/bewertung";
+import { bewertungAktiv, merkeBewertungMail, supporterIds, supporterZuErinnern, merkeErinnerung } from "@/lib/db/bewertung";
+import { kassenbuchungenNachtragen } from "@/lib/flotix/kassenbuchungen";
+import { baueBewertungsmail, baueSupporterMail } from "@/lib/mail/bewertung";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { isoDatum } from "@/lib/zeit";
 import { db } from "@/lib/db/client";
@@ -56,6 +57,8 @@ function grund(b: ShopBuchung, schonGeschrieben: Set<string>, abgemeldet: Set<st
  * gebucht hat, soll nicht zweimal nach demselben Abend gefragt werden.
  */
 export async function bewertungenVerschicken(datum: string, probelauf = false): Promise<BewertungsLauf> {
+  // Auch Kassenverkäufe und Freikarten, die kurzfristig verkauft wurden und deshalb keine Vorfreude-Mail bekamen (Florian, 26.10.2026).
+  await kassenbuchungenNachtragen(datum).catch((e) => console.warn("[bewertung] Kassenbuchungen:", e));
   const buchungen = await buchungenFuerTag(datum);
   const ergebnis: BewertungsLauf = {
     datum, gefunden: buchungen.length, verschickt: [], uebersprungen: [], fehler: [], probelauf,
@@ -63,6 +66,7 @@ export async function bewertungenVerschicken(datum: string, probelauf = false): 
   if (buchungen.length === 0) return ergebnis;
 
   const schon = await bewertungMailAm(buchungen.map((b) => b.id));
+  const supporter = await supporterIds(buchungen.map((b) => b.id));
   const abgemeldet = await widersprochene(buchungen.map((b) => b.email));
   const heuteAngeschrieben = new Set<string>();
 
@@ -83,7 +87,8 @@ export async function bewertungenVerschicken(datum: string, probelauf = false): 
       continue;
     }
 
-    const mail = baueBewertungsmail(b);
+    // Supporter bekommen keine Sternefrage, sondern die direkte Bitte um die Bewertung.
+    const mail = supporter.has(b.id) ? baueSupporterMail(b) : baueBewertungsmail(b);
     try {
       await mailVerschicken({
         an: b.email,
@@ -92,7 +97,7 @@ export async function bewertungenVerschicken(datum: string, probelauf = false): 
         html: mail.html,
         antwortAn: "tickets@florianzimmer.com",
         ueberBrevo: true,
-        schlagwort: "bewertung",
+        schlagwort: supporter.has(b.id) ? "supporter" : "bewertung",
         abmeldenLink: `${(process.env.SHOP_URL ?? "https://florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
       });
       await merkeBewertungMail(b.id);
@@ -104,11 +109,50 @@ export async function bewertungenVerschicken(datum: string, probelauf = false): 
   return ergebnis;
 }
 
+/**
+ * Die Erinnerung an Supporter, die nach drei Tagen weder auf Google noch auf Tripadvisor getippt haben. Einmal je Gast.
+ * Wer abgemeldet ist, bekommt sie nicht.
+ */
+export async function supporterErinnern(probelauf = false): Promise<{ verschickt: string[]; fehler: string[] }> {
+  const zeilen = await supporterZuErinnern();
+  const ergebnis = { verschickt: [] as string[], fehler: [] as string[] };
+  if (zeilen.length === 0) return ergebnis;
+  const abgemeldet = await widersprochene(zeilen.map((z) => String(z.email ?? "")));
+  for (const z of zeilen) {
+    const email = String(z.email ?? "");
+    if (!email.includes("@") || abgemeldet.has(adresse(email))) continue;
+    if (probelauf) {
+      ergebnis.verschickt.push(email);
+      continue;
+    }
+    const b = {
+      id: String(z.id), zugangToken: String(z.zugang_token ?? ""), name: String(z.name ?? ""), email,
+      datum: String(z.datum_text ?? ""), uhrzeit: (z.uhrzeit as string) ?? null,
+    } as unknown as ShopBuchung;
+    const mail = baueSupporterMail(b, true);
+    try {
+      await mailVerschicken({
+        an: email, betreff: mail.betreff, text: mail.text, html: mail.html,
+        antwortAn: "tickets@florianzimmer.com", ueberBrevo: true, schlagwort: "supporter",
+        abmeldenLink: `${(process.env.SHOP_URL ?? "https://florianzimmertheater.de")}/abmelden/${b.zugangToken}`,
+      });
+      await merkeErinnerung(b.id);
+      ergebnis.verschickt.push(email);
+    } catch (f) {
+      ergebnis.fehler.push(`${email}: ${f instanceof Error ? f.message : "Unbekannter Fehler"}`);
+    }
+  }
+  return ergebnis;
+}
+
 /** Was die Uhr um 10 Uhr aufruft. */
 export async function taeglicherBewertungslauf(): Promise<BewertungsLauf> {
   const datum = gestern();
   if (!(await bewertungAktiv()).aktiv) {
     return { datum, gefunden: 0, verschickt: [], uebersprungen: [], fehler: [], probelauf: false, ausgeschaltet: true };
   }
-  return bewertungenVerschicken(datum);
+  const lauf = await bewertungenVerschicken(datum);
+  // Danach die Erinnerung an Supporter, die sich nach drei Tagen nicht gerührt haben.
+  await supporterErinnern().catch((e) => console.warn("[bewertung] Supporter-Erinnerung:", e));
+  return lauf;
 }

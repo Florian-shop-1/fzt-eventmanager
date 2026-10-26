@@ -37,6 +37,8 @@ export interface BewerteteBuchung {
   sterneAm: Date | null;
   kritik: string | null;
   unterhaltung: string | null;
+  /** Supporter-Ticket: Freikarte, deren Gegenleistung die Bewertung ist. */
+  supporter: boolean;
 }
 
 function baue(z: Record<string, unknown>): BewerteteBuchung {
@@ -52,6 +54,7 @@ function baue(z: Record<string, unknown>): BewerteteBuchung {
     sterneAm: z.sterne_am ? new Date(z.sterne_am as string) : null,
     kritik: (z.kritik as string) ?? null,
     unterhaltung: (z.bewertung_unterhaltung as string) ?? null,
+    supporter: z.supporter === true,
   };
 }
 
@@ -149,4 +152,107 @@ export async function probeEmpfaenger(): Promise<{ name: string; email: string }
     select name, email from benutzer where aktiv and rolle in ('chef', 'team') order by name
   `) as Array<{ name: string; email: string }>;
   return zeilen.map((z) => ({ name: String(z.name), email: String(z.email) }));
+}
+
+/**
+ * Auf Google oder Tripadvisor getippt. Gilt als "vermutlich bewertet": Es lässt sich nicht prüfen, ob danach wirklich etwas
+ * geschrieben wurde, aber wer nicht einmal tippt, hat es sicher nicht getan. Der erste Klick bleibt stehen.
+ */
+export async function klickMerken(token: string, wo: string): Promise<BewerteteBuchung | null> {
+  const [z] = (await db()`
+    update shop_buchung
+       set bewertung_klick_am = coalesce(bewertung_klick_am, now()),
+           bewertung_klick_wo = case when bewertung_klick_wo is null or bewertung_klick_wo = ${wo} then ${wo} else 'beide' end
+     where zugang_token = ${token}
+    returning *, datum::text as datum_text
+  `) as Array<Record<string, unknown>>;
+  return z ? baue(z) : null;
+}
+
+/** "Ich habe bewertet" auf der Seite. */
+export async function erledigtMerken(token: string, von: string): Promise<BewerteteBuchung | null> {
+  const [z] = (await db()`
+    update shop_buchung
+       set bewertung_erledigt_am = coalesce(bewertung_erledigt_am, now()), bewertung_erledigt_von = coalesce(bewertung_erledigt_von, ${von})
+     where zugang_token = ${token}
+    returning *, datum::text as datum_text
+  `) as Array<Record<string, unknown>>;
+  return z ? baue(z) : null;
+}
+
+/** Vom Büro abgehakt oder wieder geöffnet. */
+export async function erledigtVomBuero(id: string, von: string, erledigt: boolean): Promise<void> {
+  await db()`
+    update shop_buchung
+       set bewertung_erledigt_am = ${erledigt ? new Date().toISOString() : null}, bewertung_erledigt_von = ${erledigt ? von : null}
+     where id = ${id}::uuid and supporter
+  `;
+}
+
+export interface SupporterZeile {
+  id: string;
+  name: string;
+  email: string;
+  show: string;
+  datum: string;
+  mailAm: Date | null;
+  klickAm: Date | null;
+  klickWo: string | null;
+  erinnertAm: Date | null;
+  erledigtAm: Date | null;
+  erledigtVon: string | null;
+  sterne: number | null;
+}
+
+/** Alle Supporter der letzten 120 Tage, neueste Show zuerst, mit dem, was wir über ihre Bewertung wissen. */
+export async function supporterListe(): Promise<SupporterZeile[]> {
+  const zeilen = (await db()`
+    select id, name, email, show, datum::text as datum_text, bewertung_mail_am, bewertung_klick_am, bewertung_klick_wo,
+           bewertung_erinnerung_am, bewertung_erledigt_am, bewertung_erledigt_von, sterne
+      from shop_buchung
+     where supporter and bestaetigt and datum > (now() - interval '120 days')::date
+     order by datum desc, name
+  `) as Array<Record<string, unknown>>;
+  const d = (w: unknown) => (w ? new Date(w as string) : null);
+  return zeilen.map((z) => ({
+    id: String(z.id),
+    name: String(z.name ?? ""),
+    email: String(z.email ?? ""),
+    show: String(z.show ?? ""),
+    datum: String(z.datum_text ?? ""),
+    mailAm: d(z.bewertung_mail_am),
+    klickAm: d(z.bewertung_klick_am),
+    klickWo: (z.bewertung_klick_wo as string) ?? null,
+    erinnertAm: d(z.bewertung_erinnerung_am),
+    erledigtAm: d(z.bewertung_erledigt_am),
+    erledigtVon: (z.bewertung_erledigt_von as string) ?? null,
+    sterne: z.sterne === null || z.sterne === undefined ? null : Number(z.sterne),
+  }));
+}
+
+/** Welche dieser Buchungen sind Supporter-Tickets? */
+export async function supporterIds(ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  try {
+    const zeilen = (await db()`select id from shop_buchung where id = any(${ids}::uuid[]) and supporter`) as Array<{ id: string }>;
+    return new Set(zeilen.map((z) => String(z.id)));
+  } catch (e) {
+    // Solange die Migration 216 noch nicht eingespielt ist, gibt es keine Supporter. Die normale Bewertungsmail darf daran nicht scheitern.
+    console.warn("[bewertung] Supporter nicht lesbar:", e);
+    return new Set();
+  }
+}
+
+/** Supporter, die vor mehr als drei Tagen die Mail bekamen und weder getippt noch abgehakt haben. Je Gast nur eine Erinnerung. */
+export async function supporterZuErinnern(): Promise<Array<Record<string, unknown>>> {
+  return (await db()`
+    select *, datum::text as datum_text from shop_buchung
+     where supporter and bestaetigt and bewertung_mail_am is not null
+       and bewertung_mail_am < now() - interval '3 days' and bewertung_mail_am > now() - interval '30 days'
+       and bewertung_klick_am is null and bewertung_erledigt_am is null and bewertung_erinnerung_am is null
+  `) as Array<Record<string, unknown>>;
+}
+
+export async function merkeErinnerung(id: string): Promise<void> {
+  await db()`update shop_buchung set bewertung_erinnerung_am = now() where id = ${id}::uuid`;
 }

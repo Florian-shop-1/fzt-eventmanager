@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { kritikSpeichern, sterneSpeichern, buchungZurBewertung } from "@/lib/db/bewertung";
+import { kritikSpeichern, sterneSpeichern, buchungZurBewertung, klickMerken, erledigtMerken } from "@/lib/db/bewertung";
 import { nachKritik, nachSternen } from "@/lib/bewertung/meldung";
 import { vorname } from "@/lib/mail/vorfreude";
 import { tageszeit } from "@/lib/mail/bewertung";
@@ -14,6 +14,8 @@ import { tageszeit } from "@/lib/mail/bewertung";
  *
  *   { token, sterne }   speichert die Sterne
  *   { token, kritik }   speichert die Kritik bei bis zu drei Sternen
+ *   { token, klick }    "google" oder "tripadvisor": der Gast ist auf den Knopf getippt (26.10.2026)
+ *   { token, erledigt } der Gast sagt, er hat bewertet (Supporter-Ticket)
  *   { token }           liefert nur Vorname und bisherige Sterne
  */
 
@@ -53,6 +55,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, vorname: vorname(b.name), sterne });
     }
 
+    if (daten.klick === "google" || daten.klick === "tripadvisor") {
+      const b = await klickMerken(token, daten.klick);
+      if (!b) return NextResponse.json({ ok: false, fehler: "unbekannt" }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (daten.erledigt === true) {
+      const b = await erledigtMerken(token, "Gast");
+      if (!b) return NextResponse.json({ ok: false, fehler: "unbekannt" }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (typeof daten.kritik === "string") {
       const kritik = daten.kritik.trim().slice(0, 4000);
       if (!kritik) return NextResponse.json({ ok: false }, { status: 400 });
@@ -64,7 +78,7 @@ export async function POST(request: Request) {
 
     const b = await buchungZurBewertung(token);
     if (!b) return NextResponse.json({ ok: false, fehler: "unbekannt" }, { status: 404 });
-    return NextResponse.json({ ok: true, vorname: vorname(b.name), sterne: b.sterne, tageszeit: tageszeit(b.uhrzeit) });
+    return NextResponse.json({ ok: true, vorname: vorname(b.name), sterne: b.sterne, tageszeit: tageszeit(b.uhrzeit), supporter: b.supporter });
   } catch (e) {
     console.error("[bewertung]", e instanceof Error ? e.message : e);
     return NextResponse.json({ ok: false }, { status: 500 });

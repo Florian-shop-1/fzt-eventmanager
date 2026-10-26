@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { bewertungAktiv, bewertungsuebersicht, probeEmpfaenger } from "@/lib/db/bewertung";
+import { bewertungAktiv, bewertungsuebersicht, probeEmpfaenger, supporterListe } from "@/lib/db/bewertung";
 import { bewertungenVerschicken, gestern } from "@/lib/bewertung/lauf";
 import { SCHLECHT_BIS } from "@/lib/bewertung/meldung";
-import { probeSchicken, schalterUmlegen, tagVerschicken } from "./aktionen";
+import { probeSchicken, schalterUmlegen, supporterAbhaken, tagVerschicken } from "./aktionen";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 
@@ -33,6 +33,7 @@ export default async function BewertungSeite({
   const team = await probeEmpfaenger();
   const vorschau = await bewertungenVerschicken(tag, true);
   const uebersicht = await bewertungsuebersicht();
+  const supporter = await supporterListe();
   const summe = Object.values(uebersicht.verteilung).reduce((a, b) => a + b, 0);
   const schnitt = summe
     ? Object.entries(uebersicht.verteilung).reduce((a, [s, n]) => a + Number(s) * n, 0) / summe
@@ -141,6 +142,70 @@ export default async function BewertungSeite({
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-linie bg-flaeche p-5 text-sm">
+        <h2 className="font-semibold">Supporter</h2>
+        <p className="mt-1 max-w-prose text-leise">
+          Gäste mit einem Supporter-Ticket (Freikarte, Gegenleistung: Bewertung). Sie bekommen am Morgen nach der Show eine Mail
+          mit der direkten Bitte um eine Bewertung auf Google oder Tripadvisor, und nach drei Tagen ohne Reaktion einmal eine
+          Erinnerung. „Vermutlich bewertet“ heißt: Sie sind auf der Bewertungsseite auf Google oder Tripadvisor getippt oder haben
+          „Ich habe bewertet“ gedrückt. Ob wirklich etwas geschrieben wurde, lässt sich nicht prüfen; schau bei Verdacht auf
+          Google und Tripadvisor nach dem Namen und hake es dann von Hand ab.
+        </p>
+        {supporter.length === 0 ? (
+          <p className="mt-3 text-leise">Noch keine Supporter-Tickets.</p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="text-xs text-leise">
+                <tr>
+                  <th className="py-1">Show</th>
+                  <th>Gast</th>
+                  <th>Mail</th>
+                  <th>Stand</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {supporter.map((s) => {
+                  const vermutlich = Boolean(s.klickAm || s.erledigtAm);
+                  const stand = s.erledigtAm
+                    ? `Abgehakt${s.erledigtVon ? ` von ${s.erledigtVon}` : ""}`
+                    : s.klickAm
+                      ? `Vermutlich bewertet (${s.klickWo === "beide" ? "Google und Tripadvisor" : s.klickWo === "tripadvisor" ? "Tripadvisor" : "Google"} angetippt)`
+                      : s.mailAm
+                        ? s.erinnertAm
+                          ? "Erinnert, noch nichts"
+                          : "Mail raus, noch nichts"
+                        : "Show noch nicht gelaufen";
+                  return (
+                    <tr key={s.id} className="border-t border-linie align-top">
+                      <td className="py-2 pr-2 text-xs text-leise">{s.datum}</td>
+                      <td className="pr-2">
+                        {s.name || "ohne Namen"}
+                        <div className="text-xs text-leise">{s.email}</div>
+                      </td>
+                      <td className="pr-2 text-xs text-leise">{s.mailAm ? vorZeit(s.mailAm.toISOString()) : "–"}</td>
+                      <td className="pr-2 text-xs" style={{ color: vermutlich ? "var(--gut)" : undefined }}>
+                        {stand}
+                      </td>
+                      <td>
+                        <form action={supporterAbhaken}>
+                          <input type="hidden" name="id" value={s.id} />
+                          <input type="hidden" name="erledigt" value={s.erledigtAm ? "nein" : "ja"} />
+                          <button className="text-xs underline" type="submit">
+                            {s.erledigtAm ? "Wieder öffnen" : "Als bewertet abhaken"}
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

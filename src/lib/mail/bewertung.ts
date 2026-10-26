@@ -256,3 +256,129 @@ function baueHtml(d: { anrede: string; wann: string; zeit: string; token: string
 </body>
 </html>`;
 }
+
+/**
+ * Die Mail an Supporter (Florian, 26.10.2026): Gäste mit einem Supporter-Ticket, einer Freikarte, deren Gegenleistung die
+ * Bewertung ist. Bei ihnen fragen wir nicht nach Sternen, sondern bitten direkt um die Bewertung auf Google oder Tripadvisor.
+ * Der Knopf führt auf die Bewertungsseite im Shop, die den Tipp auf Google oder Tripadvisor festhält.
+ *
+ * Ehrlichkeit ist Teil der Bitte: Wer ein Ticket als Gegenleistung bekommt, soll das in seiner Bewertung sagen. Das schreibt
+ * das Gesetz für bezahlte oder belohnte Bewertungen vor (§ 5b UWG), und die Plattformen verlangen es ebenso.
+ *
+ * Nach drei Tagen ohne Tipp geht einmal eine freundliche Erinnerung hinterher.
+ */
+export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heute = new Date()): Bewertungsmail {
+  const vn = vorname(buchung.name);
+  const anrede = vn ? `Hallo ${vn},` : "Hallo,";
+  const zeit = tageszeit(buchung.uhrzeit);
+  const wann = wannWarDerAbend(buchung.datum, zeit, heute);
+  const link = `${SHOP}/bewertung/${buchung.zugangToken}`;
+  const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
+
+  const betreff = erinnerung
+    ? "Kurze Erinnerung: deine Bewertung als Supporter"
+    : `Deine Bewertung als Supporter: wie war dein ${zeit} bei uns?`;
+
+  const absaetze = erinnerung
+    ? [
+        "ich wollte dich nur kurz an deine Bewertung erinnern. Du warst als Supporter bei uns, und eine ehrliche Bewertung auf Google oder Tripadvisor ist unsere kleine Gegenleistung dafür.",
+        "Es dauert keine Minute und hilft uns wirklich enorm.",
+      ]
+    : [
+        `${wann[0].toUpperCase() + wann.slice(1)} warst du als Supporter bei uns im Theater. Ich hoffe, es hat dir gefallen!`,
+        "Wie besprochen bitten wir dich als Gegenleistung um eine ehrliche Bewertung auf Google oder Tripadvisor. Viele Gäste finden uns über Bewertungen, und deine Worte helfen ihnen bei der Entscheidung.",
+        "Schreib, wie es dir wirklich gefallen hat. Wichtig: Erwähne bitte kurz, dass du das Ticket als Supporter bekommen hast. Das gehört zur Ehrlichkeit und ist für Bewertungen mit Gegenleistung so vorgeschrieben.",
+      ];
+
+  const text = [
+    anrede,
+    "",
+    ...absaetze.flatMap((a) => [a, ""]),
+    "Hier kannst du direkt bewerten (Google oder Tripadvisor zur Wahl):",
+    link,
+    "",
+    "Danke, dass du uns unterstützt!",
+    "",
+    "Florian",
+    "",
+    "--",
+    "Du erhältst diese E-Mail, weil du ein Supporter-Ticket von uns bekommen hast. Wenn du keine Hinweise dieser Art mehr",
+    "erhalten möchtest, kannst du dich hier abmelden:",
+    abmelden,
+    "",
+    "Florian Zimmer Theater GmbH",
+    "Grethe-Weiser-Str. 2/1 · 89231 Neu-Ulm",
+    "Telefon 0731 7906 110 · tickets@florianzimmer.com",
+  ].join(NL);
+
+  const serif = "'Playfair Display', Georgia, 'Times New Roman', serif";
+  const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
+  const p = (inhalt: string, extra = "") =>
+    `<p style="margin:0 0 18px;font-family:${sans};font-size:16px;line-height:1.65;color:#D8D8D8;${extra}">${inhalt}</p>`;
+
+  const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="de">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="supported-color-schemes" content="dark" />
+<title>${h(betreff)}</title>
+<style type="text/css">
+  body, table, td, p, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+  img { -ms-interpolation-mode:bicubic; border:0; outline:none; text-decoration:none; display:block; }
+  a { color:${GOLD_HELL}; }
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+  @media only screen and (max-width:480px) {
+    .rahmen { width:100% !important; }
+    .polster { padding-left:22px !important; padding-right:22px !important; }
+    .ueberschrift { font-size:26px !important; line-height:1.25 !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:${SCHWARZ};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};">
+<tr><td align="center" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};padding:28px 12px 40px;">
+  <table role="presentation" class="rahmen" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${FLAECHE}" style="width:600px;max-width:600px;background-color:${FLAECHE};">
+    <tr><td align="center" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:38px 24px 24px;">
+      <img src="${SHOP}/images/logo.png" width="180" alt="Florian Zimmer Theater" style="width:180px;max-width:70%;height:auto;margin:0 auto;" />
+      <div style="margin-top:12px;font-family:${sans};font-size:10px;letter-spacing:0.34em;text-transform:uppercase;color:${GOLD};">Home of Magic</div>
+    </td></tr>
+    <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:10px 40px 4px;">
+      <h1 class="ueberschrift" style="margin:0;font-family:${serif};font-size:30px;line-height:1.22;font-weight:400;color:${WEISS};">${erinnerung ? "Eine kleine Erinnerung" : `Danke, dass du<br />Supporter bist`}</h1>
+    </td></tr>
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
+      ${p(h(anrede), "color:" + WEISS + ";font-size:17px;")}
+      ${absaetze.map((a) => p(h(a))).join("\n      ")}
+    </td></tr>
+    <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:6px 40px 10px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+        <td align="center" bgcolor="${GOLD}" style="background-color:${GOLD};border-radius:8px;">
+          <a href="${h(link)}" style="display:inline-block;padding:15px 34px;font-family:${sans};font-size:16px;font-weight:600;color:#10140a;text-decoration:none;">Jetzt bewerten</a>
+        </td>
+      </tr></table>
+      <p style="margin:12px 0 0;font-family:${sans};font-size:12.5px;color:${LEISE};">Auf Google oder Tripadvisor, du hast die Wahl.</p>
+    </td></tr>
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 8px;">
+      ${p("Danke, dass du uns unterstützt!")}
+      <p style="margin:0 0 30px;font-family:${serif};font-size:23px;line-height:1.3;color:${GOLD_HELL};">Florian</p>
+    </td></tr>
+    <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:20px 40px 34px;border-top:1px solid #262626;">
+      <p style="margin:0 0 14px;font-family:${sans};font-size:12px;line-height:1.6;color:${LEISE};">
+        Du erhältst diese E-Mail, weil du ein Supporter-Ticket von uns bekommen hast. Wenn du keine Hinweise dieser Art mehr erhalten möchtest, kannst du dich hier
+        <a href="${h(abmelden)}" style="color:${LEISE};text-decoration:underline;">abmelden</a>.
+      </p>
+      <p style="margin:0;font-family:${sans};font-size:12px;line-height:1.7;color:${LEISE};">
+        Florian Zimmer Theater GmbH<br />
+        Grethe-Weiser-Str. 2/1 &middot; 89231 Neu-Ulm<br />
+        Telefon 0731 7906 110 &middot; <a href="mailto:tickets@florianzimmer.com" style="color:${LEISE};text-decoration:underline;">tickets@florianzimmer.com</a>
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+  return { betreff, text, html };
+}

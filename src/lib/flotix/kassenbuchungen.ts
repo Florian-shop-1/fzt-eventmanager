@@ -120,11 +120,14 @@ export async function kassenbuchungenNachtragen(datum: string): Promise<number> 
         "Freikarte von der Kasse" hätte dort nichts verloren. Woher die Zeile kommt, sagt die Herkunft "kasse".
       */
       hinweis: "",
-      herkunft: { quelle: "kasse", medium: b.freikarte ? "freikarte" : "kasse", kampagne: "", inhalt: "", landing: "" },
+      herkunft: { quelle: "kasse", medium: b.freikarte ? (/^supporter/i.test(b.freikarteGrund ?? "") ? "supporter" : "freikarte") : "kasse", kampagne: "", inhalt: "", landing: "" },
       posten,
     });
     // Bezahlt ist es, sonst stünde es nicht hier. Ohne das Häkchen gälte die Zeile als abgebrochener Warenkorb.
+    const supporter = b.freikarte && /^supporter/i.test(b.freikarteGrund ?? "");
     await db()`update shop_buchung set bestaetigt = true where cart_id = ${cartId}`;
+    // Eigene Anweisung: Fehlt die Spalte (Migration 216 noch nicht eingespielt), bleibt die Buchung trotzdem bestaetigt.
+    if (supporter) await db()`update shop_buchung set supporter = true where cart_id = ${cartId}`.catch((e) => console.warn("[kassenbuchungen] Supporter:", e));
     neu += 1;
   }
   return neu;
