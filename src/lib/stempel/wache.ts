@@ -32,7 +32,15 @@ import { antwortPersonal, postfachPersonal } from "@/lib/mail/postfaecher";
 import { db } from "@/lib/db/client";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { isoDatum } from "@/lib/zeit";
-import { einstellungLesen, meldungMerken, ohnePause, schonGemeldet, stunden, werIstDa } from "./db";
+import {
+  einstellungLesen,
+  meldungMerken,
+  ohneLangwarnung,
+  ohnePause,
+  schonGemeldet,
+  stunden,
+  werIstDa,
+} from "./db";
 
 /**
  * Nach so vielen Minuten Arbeit ohne Pause kommt die Erinnerung.
@@ -227,9 +235,25 @@ export async function langeSchichtenPruefen(): Promise<{ gemeldet: number }> {
   const e = await einstellungLesen();
   if (!e.aktiv) return { gemeldet: 0 };
   const da = await werIstDa();
+  const ausgenommen = await ohneLangwarnung();
   let gemeldet = 0;
   for (const p of da) {
-    const stundenOffen = p.minuten / 60;
+    // Wen das Büro ausgenommen hat, siehe ohneLangwarnung().
+    if (ausgenommen.has(p.benutzerId)) continue;
+    /*
+      Wer gerade Pause macht, bekommt keine Warnung.
+
+      "so wie es aussieht haben sie verlaesslich pause gestempelt. das
+      ist doch super und man braucht sie nicht mit dem hasen nerven"
+      (Florian, 24.10.2026). Eine Meldung mitten in der Pause sagt
+      genau das Falsche: Der Mitarbeiter macht ja gerade das Richtige.
+
+      Und gerechnet wird ohne die Pausen. Am 24.10.2026 ging die
+      Meldung bei Mario acht Sekunden vor seinem Pausenende raus:
+      sechs Stunden anwesend, gut fuenf gearbeitet.
+    */
+    if (p.zustand === "pause") continue;
+    const stundenOffen = p.arbeitsminuten / 60;
     if (stundenOffen < e.maxStunden) continue;
     const grundHeute = `zu_lange:${isoDatum(new Date())}`;
     if (await schonGemeldet(p.kommenId, grundHeute)) continue;

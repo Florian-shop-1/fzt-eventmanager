@@ -239,8 +239,29 @@ export async function stempelSetzen(s: {
 }
 
 /** Wer gerade eingestempelt ist, mit dem Zeitpunkt des Kommens. */
+/*
+  Anwesend seit, und davon wirklich gearbeitet.
+
+  "minuten" ist die Zeit seit dem Kommen, so wie sie die Anzeige
+  braucht: Seit wann ist jemand im Haus. "arbeitsminuten" zieht die
+  gestempelten Pausen ab.
+
+  Der Unterschied ist kein kosmetischer. Am 24.10.2026 ging die Meldung
+  "zu lange eingestempelt" bei Mario um 19:06:03 raus, acht Sekunden
+  bevor er aus seiner Pause zurueckkam: Brutto waren es sechs Stunden,
+  gearbeitet hatte er gut fuenf. Gemeldet wird deshalb nach der
+  Arbeitszeit, nicht nach der Anwesenheit.
+*/
 export async function werIstDa(): Promise<
-  Array<{ benutzerId: string; name: string; seit: string; zustand: Zustand; kommenId: string; minuten: number }>
+  Array<{
+    benutzerId: string;
+    name: string;
+    seit: string;
+    zustand: Zustand;
+    kommenId: string;
+    minuten: number;
+    arbeitsminuten: number;
+  }>
 > {
   const z = (await db()`
     with letzte as (
@@ -253,7 +274,21 @@ export async function werIstDa(): Promise<
            (select zeitpunkt from stempel k where k.benutzer_id = l.benutzer_id and k.art = 'kommen'
              order by k.zeitpunkt desc limit 1) as kommen_am,
            extract(epoch from now() - (select zeitpunkt from stempel k where k.benutzer_id = l.benutzer_id
-             and k.art = 'kommen' order by k.zeitpunkt desc limit 1)) / 60 as minuten
+             and k.art = 'kommen' order by k.zeitpunkt desc limit 1)) / 60 as minuten,
+           -- Gestempelte Pausen seit dem Kommen. Eine laufende Pause zaehlt
+           -- bis jetzt, sonst waere sie erst nach ihrem Ende zu sehen.
+           coalesce((
+             select sum(extract(epoch from
+                      coalesce((select min(e.zeitpunkt) from stempel e
+                                 where e.benutzer_id = l.benutzer_id and e.art = 'pause_ende'
+                                   and e.zeitpunkt > ps.zeitpunkt), now())
+                      - ps.zeitpunkt)) / 60
+               from stempel ps
+              where ps.benutzer_id = l.benutzer_id and ps.art = 'pause_start'
+                and ps.zeitpunkt >= (select zeitpunkt from stempel k
+                                      where k.benutzer_id = l.benutzer_id and k.art = 'kommen'
+                                      order by k.zeitpunkt desc limit 1)
+           ), 0) as pausenminuten
       from letzte l where l.art <> 'gehen'
   `) as Array<Record<string, unknown>>;
   return z.map((r) => ({
@@ -263,6 +298,10 @@ export async function werIstDa(): Promise<
     zustand: (r.art === "pause_start" ? "pause" : "arbeit") as Zustand,
     kommenId: String(r.kommen_id),
     minuten: Math.max(0, Math.round(Number(r.minuten ?? 0))),
+    arbeitsminuten: Math.max(
+      0,
+      Math.round(Number(r.minuten ?? 0) - Number(r.pausenminuten ?? 0)),
+    ),
   }));
 }
 
@@ -966,4 +1005,22 @@ function berlinZeitpunkt(tag: string, uhrzeit: string, plusTage = 0): string {
 export function stunden(minuten: number): string {
   const m = Math.max(0, Math.round(minuten));
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Wer keine Meldung über lange Schichten bekommt.
+ *
+ * "dem Ben gehen wir nicht auf den Sack. der ist immer am arbeiten und
+ * mein gott. wenn er mal länger macht ist es halt so" (Florian,
+ * 24.10.2026).
+ *
+ * Das betrifft nur die hausinterne Meldung ans Büro, dass jemand lange
+ * eingestempelt ist. Die Pausenerinnerung bleibt für alle: Sie steht im
+ * Arbeitszeitgesetz und ist nicht unsere Entscheidung.
+ */
+export async function ohneLangwarnung(): Promise<Set<string>> {
+  const z = (await db()`
+    select id from benutzer where lange_schichten_ok
+  `.catch(() => [])) as Array<{ id: string }>;
+  return new Set(z.map((r) => String(r.id)));
 }
