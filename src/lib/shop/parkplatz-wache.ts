@@ -17,9 +17,44 @@
  */
 
 import { db } from "@/lib/db/client";
-import { parkplaetzeDesTages } from "@/lib/shop/parkplaetze";
+import {
+  parkplaetzeDesTages,
+  schichtVon,
+  type Parkplatzbuchung,
+} from "@/lib/shop/parkplaetze";
 import { gedruckteSchilder } from "@/lib/shop/parkplatz-gedruckt";
-import { showtageAbHeute } from "@/lib/ditix/spielplan";
+import { showtageAbHeute, termineDesTages } from "@/lib/ditix/spielplan";
+
+/*
+  Nach welchen Schildern ueberhaupt gefragt werden darf.
+
+  Seit dem 24.10.2026 gehen die Schilder der Abendshow an einem Tag mit
+  zwei Vorstellungen erst waehrend der Mittagsshow raus, damit die
+  Plaetze bis dahin fuer alle Gaeste frei sind. Der Hase am Vorabend und
+  die Meldung am Morgen duerfen sie deshalb nicht anmahnen: Sie sind
+  nicht vergessen, sie sind noch nicht dran.
+*/
+async function schonFaellig(
+  datum: string,
+  buchungen: Parkplatzbuchung[],
+  jetzt = new Date(),
+): Promise<Parkplatzbuchung[]> {
+  const shows = await termineDesTages(datum).catch(() => []);
+  const zeiten = [...new Set(shows.map((x) => x.uhrzeit))].sort();
+  if (zeiten.length < 2) return buchungen;
+
+  // Ab dem Beginn der Mittagsshow sind auch die Abendschilder dran.
+  const heute = jetzt.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const uhr = jetzt.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const mittagLaeuft = heute === datum && uhr >= zeiten[0];
+  if (mittagLaeuft) return buchungen;
+
+  return buchungen.filter((b) => schichtVon(b.uhrzeit) === "mittag");
+}
 
 export interface Parkplatzstand {
   /** JJJJ-MM-TT des Showtags. */
@@ -52,7 +87,7 @@ export async function offeneSchilder(tageVoraus = 2): Promise<Parkplatzstand | n
     .sort();
 
   for (const datum of tage) {
-    const buchungen = await parkplaetzeDesTages(datum);
+    const buchungen = await schonFaellig(datum, await parkplaetzeDesTages(datum));
     if (buchungen.length === 0) continue;
     const gedruckt = await gedruckteSchilder(datum);
     const offen = buchungen.filter((b) => !gedruckt.has(b.orderId)).length;
@@ -70,7 +105,7 @@ export async function offeneSchilder(tageVoraus = 2): Promise<Parkplatzstand | n
  */
 export async function offeneSchilderHeute(): Promise<Parkplatzstand | null> {
   const heute = heuteBerlin();
-  const buchungen = await parkplaetzeDesTages(heute);
+  const buchungen = await schonFaellig(heute, await parkplaetzeDesTages(heute));
   if (buchungen.length === 0) return null;
   const gedruckt = await gedruckteSchilder(heute);
   const offen = buchungen.filter((b) => !gedruckt.has(b.orderId)).length;

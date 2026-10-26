@@ -1,11 +1,21 @@
 import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
-import { parkplaetzeDesTages, type Parkplatzbuchung } from "@/lib/shop/parkplaetze";
+import {
+  belegung,
+  bestueckung,
+  parkplaetzeDesTages,
+  PLAETZE_IM_HAUS,
+  schichtName,
+  schichtVon,
+  tagesbelegung,
+  type Parkplatzbuchung,
+} from "@/lib/shop/parkplaetze";
 import { findeTermin } from "@/lib/ditix/spielplan";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import Link from "next/link";
+import { Fragment } from "react";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { SofortDrucken } from "@/components/SofortDrucken";
 import { datumLang } from "@/lib/zeit";
@@ -103,6 +113,26 @@ export default async function ParkplaetzeSeite({
     noch einmal (Florian, 05.10.2026).
   */
   const gedruckt = termin ? await gedruckteSchilder(termin.datum) : new Map();
+
+  /*
+    Was von gestern noch draussen haengt.
+
+    "wichtig ist, dass z.b. wenn es keinen vip parkplatz gibt in einer
+    show, dass nicht noch zettel von gestern drin haengen" (Florian,
+    24.10.2026). Ein Schild mit fremdem Namen sperrt einen Platz, auf
+    dem heute jeder stehen duerfte. Deshalb steht hier namentlich, was
+    gestern hing und heute niemandem mehr gehoert.
+  */
+  const vortag = termin
+    ? [...termine].map((t) => t.datum).filter((d) => d < termin.datum).sort().pop() ?? null
+    : null;
+  const vortagSchilder = vortag ? await gedruckteSchilder(vortag).catch(() => new Map()) : new Map();
+  const vortagBuchungen = vortag ? await parkplaetzeDesTages(vortag).catch(() => []) : [];
+  const abzunehmen = vortagBuchungen.filter(
+    (alt) =>
+      vortagSchilder.has(alt.orderId) &&
+      !buchungen.some((heute) => heute.name.toLowerCase() === alt.name.toLowerCase()),
+  );
   const offeneBuchungen = buchungen.filter((b) => !gedruckt.has(b.orderId));
   const schonGedruckt = buchungen.length - offeneBuchungen.length;
 
@@ -145,6 +175,41 @@ export default async function ParkplaetzeSeite({
   */
   const plaetze = schilder.length;
   const gesamtPlaetze = alleSchilder.length;
+
+  /*
+    Mittags oder abends?
+
+    Das Foyer konnte an einem Tag mit zwei Shows nicht sehen, zu welcher
+    ein Platz gehoert (Florian, 24.10.2026). An einem Tag mit einer Show
+    ist die Frage keine, deshalb bleibt die Liste dort so schlicht wie
+    bisher. An einem Tag mit zwei Shows wird nach Show getrennt, mit
+    Ueberschrift, und daneben steht, wie lange das Auto steht.
+  */
+  const showsDesTages = termine.find((t) => t.ditixEventId === gewaehlt)?.shows ?? [];
+  const doppelshow = new Set(showsDesTages.map((x) => x.uhrzeit)).size > 1;
+  // Die Mittagsshow gibt die Zeit vor, zu der die Abendschilder rausgehen.
+  const ersteShow = doppelshow ? [...showsDesTages.map((x) => x.uhrzeit)].sort()[0] : "";
+
+  const gruppen = [...new Set(buchungen.map((b) => b.uhrzeit))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((uhrzeit) => {
+      const eigene = buchungen.filter((b) => b.uhrzeit === uhrzeit);
+      return {
+        uhrzeit,
+        schicht: schichtVon(uhrzeit),
+        buchungen: eigene,
+        plaetze: eigene.reduce((summe, b) => summe + b.anzahl, 0),
+      };
+    });
+
+  // Beide Shows haben Plaetze: Dann braucht das Foyer die Regel schwarz
+  // auf weiss, denn nur dann wird es eng und nur dann wird umgehaengt.
+  const beideShows =
+    gruppen.some((g) => g.schicht === "mittag") && gruppen.some((g) => g.schicht === "abend");
+  // Mittagsplaetze, die am Nachmittag wieder frei werden.
+  const werdenFrei = buchungen.filter((b) => belegung(b).freiAb);
+  // Sieben Plaetze hat das Haus. Mehr kann niemand einweisen.
+  const stand = tagesbelegung(buchungen);
   const einzeln = Boolean(nur) && plaetze > 0;
   const einzelName = einzeln ? schilder[0].name : "";
 
@@ -205,8 +270,10 @@ export default async function ParkplaetzeSeite({
               </>
             ) : schonGedruckt === 0 ? (
               <>
-                <strong>Noch kein Schild draußen.</strong> Drucken und aufstellen am besten schon am Tag
-                vor der Show.
+                <strong>Noch kein Schild draußen.</strong>{" "}
+                {doppelshow
+                  ? "Die Schilder der Mittagsshow am Tag davor, die der Abendshow erst während der Mittagsshow. Was wann drankommt, steht unten an jeder Show."
+                  : "Drucken und aufstellen am besten schon am Tag vor der Show."}
               </>
             ) : (
               <>
@@ -233,6 +300,112 @@ export default async function ParkplaetzeSeite({
             <strong>Erledigt</strong> heißt: Das Schild ist gedruckt <em>und</em> hängt draußen am Platz. Hast
             du dich verklickt, nimmst du es mit „rückgängig“ wieder zurück.
           </p>
+
+          {/*
+            Die Regel für Tage mit zwei Shows.
+
+            Sie steht nur da, wenn beide Shows Plätze haben: An jedem
+            anderen Tag wäre sie ein Absatz, den man wegliest. Hier ist sie
+            das, was der Mitarbeiter wissen muss, bevor er ein Schild
+            umhängt (Florian, 24.10.2026).
+          */}
+          {/*
+            Wann heute bestueckt wird.
+
+            Steht an jedem Tag mit zwei Shows, auch wenn nur eine der
+            beiden Plaetze hat: Der Zeitpunkt ist das, was im Foyer
+            gefehlt hat (Florian, 24.10.2026).
+          */}
+          {doppelshow && gruppen.length > 0 && (
+            <div className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+              <strong>Heute zwei Shows. So werden die Schilder aufgestellt:</strong>
+              <ul className="mt-2 space-y-1">
+                {gruppen.map((g) => {
+                  const wann = bestueckung(g.uhrzeit, ersteShow);
+                  return (
+                    <li key={g.uhrzeit || "ohne"}>
+                      <strong>
+                        {schichtName(g.schicht)} {g.uhrzeit}, {g.plaetze}{" "}
+                        {g.plaetze === 1 ? "Platz" : "Plätze"}:
+                      </strong>{" "}
+                      <span className="text-leise">{wann.satz}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-leise">
+                Hat eine Show keinen VIP-Parkplatz, steht für sie auch kein Schild draußen. Dann bitte
+                nachsehen, ob noch eins von gestern hängt, und es abnehmen.
+              </p>
+            </div>
+          )}
+
+          {stand.zuViel && (
+            <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">
+              <strong style={{ color: "var(--blocker)" }}>
+                Mehr Plätze vergeben als das Haus hat.
+              </strong>{" "}
+              Wir haben {PLAETZE_IM_HAUS} VIP-Parkplätze. Belegt sind mittags {stand.mittag}, abends{" "}
+              {stand.abend}. Bitte mit Florian oder Kevin klären, wer auf das öffentliche Parkhaus
+              nebenan ausweicht, und den Gast vorher anrufen, nicht erst am Eingang.
+            </div>
+          )}
+
+          {beideShows && (
+            <div className="rounded-lg border border-gold bg-gold-hell px-4 py-3 text-sm">
+              <strong>Heute zwei Shows, und beide haben Parkplätze.</strong>
+              <ul className="mt-2 space-y-1 text-leise">
+                <li>
+                  <strong>Ein Platz wird pro Tag nur einmal vergeben.</strong> Ein Schild, ein Name, kein
+                  Umhängen zwischen den Shows. Nur wenn die Plätze nicht reichen, wird einer
+                  weitergegeben, und zwar genau der, bei dem hier „frei ab“ steht.
+                </li>
+                <li>
+                  <strong>Mittagsshow mit Menü:</strong> Der Gast bleibt zum Essen im Haus. Das Auto steht
+                  den ganzen Tag, der Platz ist für den Abend weg.
+                </li>
+                <li>
+                  <strong>Mittagsshow ohne Menü:</strong> Der Gast fährt nach der Show heim. Der Platz wird
+                  gegen 17:30 frei, manchmal erst um 18 Uhr.
+                </li>
+                <li>
+                  <strong>Abendgäste kommen ab 17:30.</strong> Wird ein Platz erst dann frei, kann es sich
+                  überschneiden. Dann den Abendgast am Eingang abfangen und einweisen, nicht auf
+                  dem Platz warten lassen.
+                </li>
+              </ul>
+              {werdenFrei.length > 0 && (
+                <p className="mt-2">
+                  Betrifft heute:{" "}
+                  <strong>
+                    {werdenFrei.map((b) => b.name).join(", ")}
+                  </strong>{" "}
+                  — {werdenFrei.length === 1 ? "dieser Platz" : "diese Plätze"} wird gegen 17:30 frei.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/*
+        Zuerst abraeumen, dann aufstellen.
+
+        Steht bewusst ueber allem anderen und auch dann da, wenn heute
+        gar keine Plaetze gebucht sind: Genau an so einem Tag faellt
+        sonst niemandem auf, dass draussen noch die Namen von gestern
+        haengen (Florian, 24.10.2026).
+      */}
+      {abzunehmen.length > 0 && (
+        <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm print:hidden">
+          <strong style={{ color: "var(--blocker)" }}>
+            Zuerst: {abzunehmen.length === 1 ? "ein Schild" : `${abzunehmen.length} Schilder`} von{" "}
+            {datumKurz(vortag ?? "")} abnehmen.
+          </strong>{" "}
+          Draußen {abzunehmen.length === 1 ? "hängt" : "hängen"} noch{" "}
+          <strong>{abzunehmen.map((b) => b.name).join(", ")}</strong>. Diese Gäste kommen heute nicht,
+          der Platz gehört heute niemandem mehr. Ein altes Schild sperrt einen freien Platz, auf dem
+          jeder Gast stehen dürfte.
         </div>
       )}
 
@@ -296,8 +469,20 @@ export default async function ParkplaetzeSeite({
           {termin ? datumKurz(termin.datum) : "Abend"} ·{" "}
           {gesamtPlaetze === 0
             ? "keine Parkplätze gebucht"
-            : `${gesamtPlaetze} ${gesamtPlaetze === 1 ? "Platz" : "Plätze"}`}
+            : `${gesamtPlaetze} ${gesamtPlaetze === 1 ? "Platz" : "Plätze"} von ${PLAETZE_IM_HAUS}`}
         </h2>
+        {/*
+          Zwei Zahlen statt einer, denn am Nachmittag wechselt die Lage:
+          Ein Mittagsgast ohne Menü fährt heim, seiner wird wieder frei.
+        */}
+        {gesamtPlaetze > 0 && doppelshow && (
+          <p className="text-sm text-leise">
+            Mittags {stand.mittag} von {PLAETZE_IM_HAUS} belegt, abends {stand.abend}.{" "}
+            {stand.wechsel > 0
+              ? `${stand.wechsel} ${stand.wechsel === 1 ? "Platz wird" : "Plätze werden"} am Nachmittag wieder frei.`
+              : "Keiner wird zwischendurch frei."}
+          </p>
+        )}
 
         {gesamtPlaetze === 0 ? (
           <p className="mt-2 text-sm text-leise">
@@ -310,13 +495,41 @@ export default async function ParkplaetzeSeite({
               <tr>
                 <th className="pb-1 font-medium">Kunde</th>
                 <th className="w-24 pb-1 text-right font-medium">Plätze</th>
+                <th className="w-44 pb-1 font-medium">Platz belegt</th>
                 <th className="w-52 pb-1 font-medium">Hängt draußen</th>
                 <th className="w-36 pb-1 font-medium">Schild</th>
                 <th className="w-32 pb-1 font-medium"></th>
               </tr>
             </thead>
             <tbody>
-              {buchungen.map((b) => (
+              {gruppen.map((g) => (
+                <Fragment key={g.uhrzeit || "ohne"}>
+                  {/*
+                    Die Überschrift nur an Tagen mit zwei Shows. Sonst wäre
+                    sie eine Zeile, die nichts sagt.
+                  */}
+                  {doppelshow && (
+                    <tr>
+                      <td colSpan={6} className="pt-4 pb-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide">
+                          {schichtName(g.schicht)}
+                          {g.uhrzeit ? " · " + g.uhrzeit : ""}
+                        </span>{" "}
+                        <span className="text-xs text-leise">
+                          {g.plaetze} {g.plaetze === 1 ? "Platz" : "Plätze"}
+                        </span>
+                        {/*
+                          Wann diese Schilder rausgehen. Die der Abendshow erst
+                          während der Mittagsshow, damit die Plätze bis dahin
+                          für alle frei sind (Florian, 24.10.2026).
+                        */}
+                        <div className="mt-0.5 text-xs" style={{ color: "var(--gold-dunkel)" }}>
+                          Schilder {bestueckung(g.uhrzeit, ersteShow).kurz} aufstellen
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {g.buchungen.map((b) => (
                 <tr key={b.orderId + b.name} className="border-b border-linie last:border-0">
                   <td className="py-2">
                     <div className="font-medium">
@@ -353,6 +566,37 @@ export default async function ParkplaetzeSeite({
                     </div>
                   </td>
                   <td className="py-2 text-right tabular-nums">{b.anzahl}</td>
+
+                  {/*
+                    Wie lange das Auto steht.
+
+                    Mit Menü bleibt der Gast im Haus, der Platz ist für den
+                    Tag weg. Ohne Menü wird er nachmittags frei. Das ist die
+                    Auskunft, die das Foyer am Telefon braucht, deshalb steht
+                    sie in der Liste und nicht in einer Fußnote.
+                  */}
+                  <td className="py-2 text-xs">
+                    {(() => {
+                      const z = belegung(b);
+                      return (
+                        <>
+                          <div
+                            className="font-medium"
+                            style={{ color: z.freiAb ? "var(--warnung)" : undefined }}
+                          >
+                            {z.kurz}
+                          </div>
+                          <div className="text-leise">
+                            {b.menue === true
+                              ? "mit Menü"
+                              : b.menue === false
+                                ? "ohne Menü"
+                                : "Menü nicht bekannt"}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </td>
 
                   {/*
                     Erledigt, mit Namen.
@@ -444,6 +688,8 @@ export default async function ParkplaetzeSeite({
                     ) : null}
                   </td>
                 </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -463,6 +709,36 @@ export default async function ParkplaetzeSeite({
           <form action={parkplatzEintragen} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="abend" value={gewaehlt} />
             <input type="hidden" name="datum" value={termin.datum} />
+            {/*
+              Zu welcher Show, und bleibt der Gast zum Essen?
+
+              Bei einer Buchung aus dem Shop steht beides in den Daten. Von
+              Hand stand bisher nur der Tag, und genau daran ist das Foyer
+              hängengeblieben. Die Show fragen wir nur, wenn es an dem Tag
+              zwei gibt.
+            */}
+            {doppelshow ? (
+              <label className="block">
+                <span className="mb-1 block text-xs text-leise">Für welche Show</span>
+                <select name="uhrzeit" defaultValue={showsDesTages[0]?.uhrzeit ?? ""} className="w-44">
+                  {showsDesTages.map((x) => (
+                    <option key={x.uhrzeit} value={x.uhrzeit}>
+                      {schichtName(schichtVon(x.uhrzeit))} · {x.uhrzeit}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <input type="hidden" name="uhrzeit" value={termin.uhrzeit ?? ""} />
+            )}
+            <label className="block">
+              <span className="mb-1 block text-xs text-leise">Menü dazu</span>
+              <select name="menue" defaultValue="" className="w-40">
+                <option value="">weiß ich nicht</option>
+                <option value="ja">ja, isst bei uns</option>
+                <option value="nein">nein, nur Show</option>
+              </select>
+            </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Name (so steht er auf dem Schild)</span>
               <input name="name" required className="w-64" />
@@ -491,7 +767,7 @@ export default async function ParkplaetzeSeite({
       {/* Die Schilder. Am Bildschirm unsichtbar, im Druck je eine Seite. */}
       <div className="parkschilder hidden print:block">
         {schilder.map((s, i) => (
-          <Schild key={s.orderId + s.name + i} buchung={s} />
+          <Schild key={s.orderId + s.name + i} buchung={s} zeigeShow={doppelshow} />
         ))}
       </div>
     </div>
@@ -512,7 +788,14 @@ export default async function ParkplaetzeSeite({
  * Millimetern gesetzt statt in Bildschirmeinheiten: Auf Papier soll es
  * dasselbe sein wie bisher, nicht ungefähr dasselbe.
  */
-function Schild({ buchung }: { buchung: Parkplatzbuchung }) {
+function Schild({
+  buchung,
+  zeigeShow,
+}: {
+  buchung: Parkplatzbuchung;
+  /** An Tagen mit zwei Shows steht die Show mit auf dem Schild. */
+  zeigeShow: boolean;
+}) {
   return (
     <div
       className="relative overflow-hidden"
@@ -550,7 +833,16 @@ function Schild({ buchung }: { buchung: Parkplatzbuchung }) {
         className="absolute flex items-center justify-center text-center"
         style={{ left: "23.2mm", width: "250.6mm", top: "165.1mm", height: "13.2mm", fontSize: "16pt" }}
       >
+        {/*
+          An einem Tag mit einer Show steht hier das Datum, genau wie
+          bisher. Hat der Tag zwei Shows, kommt die Show dazu: Dann sieht
+          auch der Gast am Platz, dass das Schild ihm gilt, und das Foyer
+          erkennt es beim Aufstellen (Florian, 24.10.2026).
+        */}
         {datumLang(buchung.datum)}
+        {zeigeShow && buchung.uhrzeit
+          ? " · " + schichtName(schichtVon(buchung.uhrzeit)) + " " + buchung.uhrzeit
+          : ""}
       </div>
     </div>
   );

@@ -37,8 +37,20 @@ export async function parkplatzEintragen(f: FormData): Promise<void> {
   const abend = text(f, "abend");
 
   try {
+    /*
+      Menü: ja, nein, oder weiß nicht.
+
+      Das leere Feld ist nicht "nein", sondern "hat niemand gesagt". Der
+      Unterschied zählt: Ohne Menü geben wir den Platz am Nachmittag
+      weiter, bei unbekanntem Menü lassen wir ihn lieber stehen.
+    */
+    const menueFeld = text(f, "menue");
+    const menue = menueFeld === "ja" ? true : menueFeld === "nein" ? false : null;
+
     await parkplatzVonHand({
       datum: text(f, "datum"),
+      uhrzeit: text(f, "uhrzeit"),
+      menue,
       name: text(f, "name"),
       email: text(f, "email"),
       anzahl: Number(text(f, "anzahl")) || 1,

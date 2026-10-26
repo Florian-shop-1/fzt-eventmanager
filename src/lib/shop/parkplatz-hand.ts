@@ -18,6 +18,10 @@ import type { Parkplatzbuchung } from "./parkplaetze";
 export interface HandParkplatz {
   id: string;
   datum: string;
+  /** HH:MM der Show, zu der der Platz gehört. Leer: nicht angegeben. */
+  uhrzeit: string;
+  /** Menü dazu? Null: hat niemand gesagt. Siehe migrations/204. */
+  menue: boolean | null;
   name: string;
   email: string;
   anzahl: number;
@@ -44,6 +48,8 @@ function baue(r: Record<string, unknown>): HandParkplatz {
   return {
     id: String(r.id),
     datum: String(r.datum),
+    uhrzeit: String(r.uhrzeit ?? ""),
+    menue: r.menue === null || r.menue === undefined ? null : Boolean(r.menue),
     name: String(r.name),
     email: String(r.email ?? ""),
     anzahl: Number(r.anzahl ?? 1),
@@ -55,14 +61,17 @@ function baue(r: Record<string, unknown>): HandParkplatz {
 
 export async function handParkplaetzeAmTag(datum: string): Promise<HandParkplatz[]> {
   const z = (await db()`
-    select id, datum::text as datum, name, email, anzahl, notiz, erfasst_von, erstellt_am
-      from parkplatz_hand where datum = ${datum}::date order by name
+    select id, datum::text as datum, uhrzeit, menue, name, email, anzahl, notiz,
+           erfasst_von, erstellt_am
+      from parkplatz_hand where datum = ${datum}::date order by uhrzeit, name
   `) as Array<Record<string, unknown>>;
   return z.map(baue);
 }
 
 export async function parkplatzVonHand(o: {
   datum: string;
+  uhrzeit: string;
+  menue: boolean | null;
   name: string;
   email: string;
   anzahl: number;
@@ -73,9 +82,13 @@ export async function parkplatzVonHand(o: {
   if (!name) throw new Error("Ohne Namen steht nichts auf dem Schild.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(o.datum)) throw new Error("Bitte den Abend angeben.");
 
+  // Die Uhrzeit nur, wenn sie wie eine aussieht: Sonst stünde Unsinn in
+  // der Spalte, nach der die Liste die Shows trennt.
+  const uhrzeit = /^\d{1,2}:\d{2}$/.test(o.uhrzeit.trim()) ? o.uhrzeit.trim().padStart(5, "0") : "";
+
   await db()`
-    insert into parkplatz_hand (datum, name, email, anzahl, notiz, erfasst_von)
-    values (${o.datum}::date, ${name}, ${o.email.trim().slice(0, 200)},
+    insert into parkplatz_hand (datum, uhrzeit, menue, name, email, anzahl, notiz, erfasst_von)
+    values (${o.datum}::date, ${uhrzeit}, ${o.menue}, ${name}, ${o.email.trim().slice(0, 200)},
             ${Math.max(1, Math.min(20, o.anzahl))}, ${o.notiz.trim().slice(0, 300)}, ${o.erfasstVon})
   `;
 }
@@ -90,6 +103,9 @@ export async function parkplatzWeg(id: string): Promise<void> {
  * Damit die Seite und der Schilddruck nur eine Sorte Daten kennen müssen.
  * Die Kennung traegt den Zusatz "hand:", daran erkennt die Seite, dass sie
  * einen Löschknopf anbieten kann.
+ *
+ * Die Uhrzeit kommt aus dem Eintrag, wenn eine dabeisteht. Ältere Einträge
+ * haben keine, die bekommen die des Tages, so wie bisher.
  */
 export function alsBuchung(p: HandParkplatz, eventName: string, uhrzeit: string): Parkplatzbuchung {
   return {
@@ -100,8 +116,9 @@ export function alsBuchung(p: HandParkplatz, eventName: string, uhrzeit: string)
     ditixEventId: "",
     eventName,
     datum: p.datum,
-    uhrzeit,
+    uhrzeit: p.uhrzeit || uhrzeit,
     anzahl: p.anzahl,
+    menue: p.menue,
     schildUrl: null,
   };
 }
