@@ -66,6 +66,16 @@ export interface FoyerDienst {
   freigabe: Freigabe;
   freigabeVon: string | null;
   notiz: string;
+  /**
+   * Was diese Person ausser dem Foyerdienst uebernimmt.
+   *
+   * "die aushilfe geht normalerweise nach der Pause der Show. wenn eine
+   * Aushilfe aber beide shows macht, ist es ja bloed fuer sie zwischen
+   * den shows nach hause zu gehen. sie kriegt dann eine sonderaufgabe
+   * fuer die zweite haelfte der ersten show und auch danach"
+   * (Florian, 24.10.2026).
+   */
+  sonderaufgabe: string;
 }
 
 /**
@@ -259,7 +269,7 @@ export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> 
   const z = (await db()`
     select d.id, d.datum::text as datum, d.abschnitt, d.nummer, d.benutzer_id, b.name,
            coalesce(d.von, '') as von, coalesce(d.bis, '') as bis,
-           d.freigabe, d.freigabe_von, d.notiz
+           d.freigabe, d.freigabe_von, d.notiz, coalesce(d.sonderaufgabe, '') as sonderaufgabe
       from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
      where d.id = ${id}
   `) as Array<Record<string, unknown>>;
@@ -277,6 +287,7 @@ export async function foyerDienstLesen(id: string): Promise<FoyerDienst | null> 
     freigabe: (r.freigabe as Freigabe) ?? "nicht_noetig",
     freigabeVon: (r.freigabe_von as string) ?? null,
     notiz: String(r.notiz ?? ""),
+    sonderaufgabe: String(r.sonderaufgabe ?? ""),
   };
 }
 
@@ -285,7 +296,7 @@ async function diensteAb(datum: string): Promise<FoyerDienst[]> {
   const z = (await db()`
     select d.id, d.datum::text as datum, d.abschnitt, d.nummer, d.benutzer_id, b.name,
            coalesce(d.von, '') as von, coalesce(d.bis, '') as bis,
-           d.freigabe, d.freigabe_von, d.notiz
+           d.freigabe, d.freigabe_von, d.notiz, coalesce(d.sonderaufgabe, '') as sonderaufgabe
       from foyer_dienst d left join benutzer b on b.id = d.benutzer_id
      where d.datum >= ${datum}::date
      order by d.datum, d.abschnitt, d.nummer
@@ -302,6 +313,7 @@ async function diensteAb(datum: string): Promise<FoyerDienst[]> {
     freigabe: (r.freigabe as Freigabe) ?? "nicht_noetig",
     freigabeVon: (r.freigabe_von as string) ?? null,
     notiz: String(r.notiz ?? ""),
+    sonderaufgabe: String(r.sonderaufgabe ?? ""),
   }));
 }
 
@@ -332,6 +344,7 @@ function plaetzeBauen(
     freigabe: "nicht_noetig",
     freigabeVon: null,
     notiz: "",
+    sonderaufgabe: "",
   });
 
   const fest = PLAETZE.map((n) => amTag.find((d) => d.nummer === n) ?? leer(n));
@@ -500,14 +513,17 @@ export async function zeitenSetzen(o: {
   von: string;
   bis: string;
   notiz: string;
+  sonderaufgabe?: string;
   von_wem: string;
 }): Promise<void> {
   await db()`
-    insert into foyer_dienst (datum, abschnitt, nummer, von, bis, notiz, geaendert_von, geaendert_am)
+    insert into foyer_dienst (datum, abschnitt, nummer, von, bis, notiz, sonderaufgabe,
+                              geaendert_von, geaendert_am)
     values (${o.datum}::date, ${o.abschnitt ?? "ganz"}, ${o.nummer}, ${o.von}, ${o.bis}, ${o.notiz},
-            ${o.von_wem}, now())
+            ${o.sonderaufgabe ?? ""}, ${o.von_wem}, now())
     on conflict (datum, abschnitt, nummer) do update set
       von = excluded.von, bis = excluded.bis, notiz = excluded.notiz,
+      sonderaufgabe = excluded.sonderaufgabe,
       geaendert_von = excluded.geaendert_von, geaendert_am = now()
   `;
 }
@@ -551,6 +567,32 @@ export async function tagTeilen(
     update foyer_dienst set abschnitt = 'mittag', geaendert_von = ${vonWem}, geaendert_am = now()
      where datum = ${datum}::date and abschnitt = 'ganz'
   `;
+
+  /*
+    Der Abend startet nicht leer.
+
+    Frueher schon: Die Teilung schob alle in den Mittag, und abends
+    stand niemand mehr da. Im Foyer sah das aus, als waere der Plan
+    verschwunden. "wenn wir die show spielen und sie nicht abgesagt
+    wurde, dann brauchen wir leute" (Florian, 24.10.2026).
+
+    Deshalb stehen dieselben Leute zunaechst in beiden Haelften, mit
+    den Abendzeiten. Wer wirklich nur mittags arbeitet, wird abends
+    auf "offen" gesetzt: Jemanden herausnehmen ist schnell, jemanden
+    suchen, der im Plan fehlt, dauert.
+  */
+  for (const d of vorhanden) {
+    const z = zeiten.abend[Math.min(d.nummer, zeiten.abend.length) - 1];
+    await db()`
+      insert into foyer_dienst (datum, abschnitt, nummer, benutzer_id, von, bis, freigabe,
+                                geaendert_von, geaendert_am)
+      select ${datum}::date, 'abend', ${d.nummer}, benutzer_id,
+             ${z?.von ?? null}, ${z?.bis ?? null}, freigabe, ${vonWem}, now()
+        from foyer_dienst
+       where datum = ${datum}::date and abschnitt = 'mittag' and nummer = ${d.nummer}
+      on conflict (datum, abschnitt, nummer) do nothing
+    `;
+  }
 
   // Die Mittagszeiten setzen, aber nur dort, wo noch der alte
   // Tagesvorschlag steht: Von Hand gesetzte Zeiten bleiben stehen.

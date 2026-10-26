@@ -430,9 +430,10 @@ export async function zeiten(f: FormData): Promise<void> {
     von: text(f, "von", 5),
     bis: text(f, "bis", 5),
     notiz: text(f, "notiz"),
+    sonderaufgabe: text(f, "sonderaufgabe"),
     von_wem: b.name,
   });
-  zurueck("Zeiten gespeichert.");
+  zurueck("Gespeichert.");
 }
 
 /** Wer fest angestellt ist, legt nur das Büro fest. */

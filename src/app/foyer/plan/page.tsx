@@ -273,6 +273,43 @@ export default async function FoyerPlanSeite({
                     </form>
                   )}
 
+                  {/*
+                    Wer beide Shows macht, braucht eine Aufgabe dazwischen.
+
+                    Die Aushilfe geht sonst nach der Pause der ersten Show.
+                    Arbeitet sie auch abends, waere es bloed, zwischendurch
+                    heimzufahren: Sie bekommt eine Sonderaufgabe fuer die
+                    zweite Haelfte und die Zeit danach (Florian, 24.10.2026).
+                    Der Hinweis steht nur, solange noch keine eingetragen ist.
+                  */}
+                  {(() => {
+                    const mittag = t.bloecke.find((x) => x.abschnitt === "mittag");
+                    const abend = t.bloecke.find((x) => x.abschnitt === "abend");
+                    if (!mittag || !abend) return null;
+                    const beide = mittag.dienste.filter(
+                      (d) =>
+                        d.benutzerId &&
+                        abend.dienste.some((a) => a.benutzerId === d.benutzerId) &&
+                        !d.sonderaufgabe,
+                    );
+                    if (beide.length === 0) return null;
+                    const namen = beide
+                      .map((d) => leute.find((p) => p.id === d.benutzerId)?.name ?? "")
+                      .filter(Boolean)
+                      .join(", ");
+                    return (
+                      <p
+                        className="mt-2 rounded-lg border px-3 py-2 text-sm"
+                        style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+                      >
+                        <strong>{namen}</strong>{" "}
+                        {beide.length === 1 ? "macht" : "machen"} beide Shows und bleibt dazwischen da.
+                        Bitte unten eine <strong>Sonderaufgabe</strong> für die zweite Hälfte der
+                        Mittagsshow und die Zeit danach eintragen. Das darf auch jeder für sich selbst.
+                      </p>
+                    );
+                  })()}
+
                   {t.bloecke.map((blk) => (
                     <div key={blk.abschnitt} className={blk.titel ? "mt-3" : ""}>
                       {blk.titel && (
@@ -330,7 +367,7 @@ export default async function FoyerPlanSeite({
 
                       <details className="mt-2 text-sm">
                         <summary className="cursor-pointer text-leise underline">
-                          Zeiten oder Notiz ändern{blk.titel ? ` (${blk.titel})` : ""}
+                          Zeiten, Notiz oder Sonderaufgabe ändern{blk.titel ? ` (${blk.titel})` : ""}
                         </summary>
                         {blk.dienste.filter((d, i) => i < 2 || d.benutzerId).map((d) => (
                           <form key={d.nummer} action={zeiten} className="mt-2 flex flex-wrap items-end gap-2">
@@ -349,6 +386,22 @@ export default async function FoyerPlanSeite({
                             <label className="block min-w-[12rem] flex-1">
                               <span className="mb-1 block text-xs text-leise">Notiz</span>
                               <input name="notiz" defaultValue={d.notiz} maxLength={300} placeholder="zum Beispiel Pause während der Nachmittagsshow" />
+                            </label>
+                            {/*
+                              Die Sonderaufgabe steht neben der Notiz, nicht darin.
+
+                              Wer beide Shows macht, geht zwischendurch nicht heim.
+                              Dann braucht er etwas zu tun, und das soll man sehen,
+                              ohne die Zeilen aufzuklappen (Florian, 24.10.2026).
+                            */}
+                            <label className="block min-w-[14rem] flex-1">
+                              <span className="mb-1 block text-xs text-leise">Sonderaufgabe</span>
+                              <input
+                                name="sonderaufgabe"
+                                defaultValue={d.sonderaufgabe}
+                                maxLength={300}
+                                placeholder="zum Beispiel Gläser polieren, Theke auffüllen"
+                              />
                             </label>
                             <button type="submit" className="rounded-md border border-linie px-3 py-1.5">
                               Speichern
@@ -456,6 +509,14 @@ function PlatzZeile({
       )}
 
       {d.notiz && <span className="text-leise">· {d.notiz}</span>}
+      {d.sonderaufgabe && (
+        <span
+          className="rounded px-1.5 py-0.5 text-xs"
+          style={{ background: "var(--gold-hell)" }}
+        >
+          Sonderaufgabe: {d.sonderaufgabe}
+        </span>
+      )}
     </li>
   );
 }
