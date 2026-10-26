@@ -46,8 +46,16 @@ export function AnmeldeFormular({ weiter }: { weiter: string }) {
         {laeuft ? "einen Moment..." : "Anmelden"}
       </button>
 
+      {/*
+        Seit dem 25.10.2026 hilft man sich selbst: Mail eintragen,
+        Link bekommen, neues Passwort setzen. Fuer die Tablets im
+        Foyer und hinter der Buehne bleibt es beim Buero, die haben
+        kein eigenes Postfach.
+      */}
       <p className="text-center text-xs text-leise">
-        Passwort vergessen? Florian kann ein neues vergeben.
+        <a href="/passwort-vergessen" className="underline">
+          Passwort vergessen?
+        </a>
       </p>
     </form>
   );

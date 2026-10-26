@@ -140,6 +140,24 @@ const OHNE_ANMELDUNG = [
     selbst und zeigt ohne ihn nichts.
   */
   "/putzen",
+  /*
+    Passwort vergessen.
+
+    Muss offen sein, sonst schickt der Proxy genau den zum Anmelden,
+    der sich nicht anmelden kann (Florian, 25.10.2026). Geschuetzt
+    ist der Weg durch den Link aus der Mail: Er gilt eine Stunde und
+    genau einmal.
+  */
+  "/passwort-vergessen",
+  "/passwort-neu",
+  /*
+    Kontakte in die Magic News eintragen, von ausserhalb.
+
+    Prueft selbst den Schluessel MAIL_SENDE_SCHLUESSEL, genau wie
+    der Mailversand nebenan, und laesst ohne ihn nichts durch
+    (Florian, 26.10.2026).
+  */
+  "/api/brevo",
 ];
 
 /**
