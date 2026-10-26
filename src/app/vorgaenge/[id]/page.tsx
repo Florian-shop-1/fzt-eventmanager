@@ -32,6 +32,8 @@ import type { Buchungsgruppe, MenueVariante } from "@/lib/domain/types";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { auslastung, empfehlung, optionen } from "@/lib/flotix/option";
 import { optionFreigeben, optionLaengerHalten, plaetzeOptionieren } from "./optionen";
+import { holeSaalplanFlotix } from "@/lib/ditix/saalplan";
+import { PlaetzeWaehlen } from "@/components/PlaetzeWaehlen";
 
 const MENUEVARIANTEN: Array<{ wert: MenueVariante; label: string }> = [
   { wert: "classic", label: "Classic" },
@@ -97,6 +99,29 @@ export default async function VorgangSeite({
     vorgangFlotixId ? auslastung(vorgangFlotixId).catch(() => null) : Promise.resolve(null),
   ]);
   const meineOption = laufendeOptionen.find((o) => o.vorgang === vorgang.nummer) ?? null;
+
+  /*
+    Der Saalplan zum Aussuchen.
+
+    "wichtig ist, dass kevin auch gleich entscheiden kann wo die sitzen
+    sollen" (Florian, 26.10.2026). Geladen nur, wenn jemand auch
+    optionieren darf und ein Abend feststeht: Sonst holen wir einen
+    ganzen Saalplan fuer nichts.
+  */
+  const saalplan =
+    darfOptionieren && vorgangFlotixId
+      ? await holeSaalplanFlotix(vorgangFlotixId).catch(() => null)
+      : null;
+  const plaetzeZurWahl = (saalplan?.sitze ?? []).map((s) => ({
+    reihe: s.reihe,
+    platz: s.name,
+    kategorie: s.kategorie ?? "",
+    x: s.x,
+    y: s.y,
+    status: s.status,
+    // Was fuer genau diesen Vorgang schon gehalten wird.
+    meins: Boolean(s.sperrgrund && s.sperrgrund.includes(vorgang.nummer)),
+  }));
   const rat = empfehlung(
     auslastungDesAbends,
     angebote[0]?.gueltigBis ? new Date(angebote[0].gueltigBis) : null,
@@ -504,6 +529,20 @@ export default async function VorgangSeite({
                         Plätze optionieren
                       </button>
                       <span className="w-full text-xs text-leise">{rat.grund}</span>
+
+                      {plaetzeZurWahl.length > 0 && (
+                        <details className="w-full">
+                          <summary className="cursor-pointer text-sm underline">
+                            Wo sollen die Gäste sitzen?
+                          </summary>
+                          <div className="mt-2">
+                            <PlaetzeWaehlen
+                              plaetze={plaetzeZurWahl}
+                              vorschlag={personen || Number((vorgang.personenUngefaehr ?? "").replace(/\D/g, "")) || 0}
+                            />
+                          </div>
+                        </details>
+                      )}
                     </form>
                   )}
                 </div>

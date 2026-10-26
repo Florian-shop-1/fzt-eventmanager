@@ -51,9 +51,29 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
     zurueck(vorgangId, "Erst den Abend festlegen, dann lassen sich Plätze optionieren.");
   }
 
-  const anzahl = Math.max(1, Math.min(400, zahl(formData, "anzahl")));
   const tage = Math.max(1, Math.min(HOECHSTENS_TAGE, zahl(formData, "tage") || 3));
   const bis = new Date(Date.now() + tage * 24 * 60 * 60 * 1000);
+
+  /*
+    Die angeklickten Plaetze, als "Reihe|Platz" durch Komma getrennt.
+
+    Hat Kevin welche ausgesucht, gelten genau die. Sonst zaehlt die
+    Anzahl, und FloTix nimmt die besten freien von vorne
+    (Florian, 26.10.2026).
+  */
+  const gewaehlt = String(formData.get("plaetze") ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 400)
+    .map((x) => {
+      const [reihe, platz] = x.split("|");
+      return { reihe: (reihe ?? "").trim(), platz: (platz ?? "").trim() };
+    })
+    .filter((x) => x.reihe && x.platz);
+
+  const anzahl =
+    gewaehlt.length > 0 ? gewaehlt.length : Math.max(1, Math.min(400, zahl(formData, "anzahl")));
 
   try {
     const e = await optionSetzen({
@@ -62,6 +82,7 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
       firma: daten.firma,
       vorgang: daten.nummer,
       bis,
+      plaetze: gewaehlt.length > 0 ? gewaehlt : undefined,
     });
     const bisText = bis.toLocaleDateString("de-DE");
     if (e.fehlende > 0) {

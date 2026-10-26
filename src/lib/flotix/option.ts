@@ -79,6 +79,8 @@ export async function optionSetzen(o: {
   firma: string;
   vorgang: string;
   bis: Date;
+  /** Ausgesuchte Plaetze. Ohne sie nimmt FloTix die besten freien. */
+  plaetze?: Array<{ reihe: string; platz: string }>;
 }): Promise<{ gesetzt: number; fehlende: number; plaetze: Optionsplatz[] }> {
   return tuer("aktion=option-setzen", { ...o, bis: o.bis.toISOString() });
 }
