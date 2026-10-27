@@ -81,6 +81,13 @@ const NAMEN: Record<string, string> = {
   radio7: "florianzimmer.com eingegeben",
   swp: "Zeitungsanzeige (SWP)",
   regiotv: "RegioTV",
+  /*
+    Das Stadtportal der Stadt Ulm. Unsere Termine stehen dort im
+    Veranstaltungskalender LEO, und jeder Link von dort traegt
+    utm_source=ulm.de (Florian, 27.10.2026: "dass wir spaeter auslesen
+    koennen ob sales darueber kamen").
+  */
+  "ulm.de": "Stadtportal Ulm (LEO)",
   bruecke: "Brückenbanner",
   eurowings: "Eurowings-Magazin",
   brevo: "Newsletter",
