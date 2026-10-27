@@ -10,9 +10,12 @@ import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
-import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { AllergienKasten } from "@/components/AllergienKasten";
+import { planeAbend } from "@/lib/seating/abend";
+import { sitzplaetzeAusPlan } from "@/lib/seating/plaetze";
+import { menueMix } from "@/components/Unvertraeglich";
 import type { MenueVariante } from "@/lib/domain/types";
 
 export const metadata = { title: "Küche | FZT Eventmanager" };
@@ -32,7 +35,6 @@ export default async function KuecheSeite({
 }) {
   const { abend, monat, meldung } = await searchParams;
   const benutzer = await angemeldeterBenutzer();
-  const kaufmaennisch = benutzer ? darfKaufmaennisches(benutzer.rolle) : false;
   // Streichen und korrigieren duerfen nur Florian und Kevin.
   const darfAendern = darfEinladen(benutzer);
   const termine = await alleShowtage();
@@ -43,6 +45,22 @@ export default async function KuecheSeite({
     monat,
   });
   const blatt = gewaehlt ? await holeKuechenblatt(gewaehlt) : null;
+
+  /*
+    Wo die Gaeste sitzen, nur fuer den Allergiekasten.
+
+    Die Kueche richtet den Teller fuer einen Tisch an, nicht fuer eine
+    Bestellnummer. Steht "Loge 3" dabei, muss niemand das Funktionsheet
+    danebenlegen. Faellt der Plan aus, bleibt der Kasten ohne Tisch
+    stehen: Die Allergie selbst ist wichtiger als der Platz.
+  */
+  const plaetze = gewaehlt
+    ? await planeAbend(gewaehlt)
+        .then(({ kopf, gruppen, varianten }) =>
+          sitzplaetzeAusPlan(kopf?.festgelegt?.plan ?? varianten[0] ?? null, gruppen.zusammenlegungen),
+        )
+        .catch(() => ({}))
+    : {};
 
   /*
     Die einzelnen Shop-Bestellungen, zum Stornieren von Hand.
@@ -108,7 +126,7 @@ export default async function KuecheSeite({
           {blatt && (
             <Blatt
               blatt={blatt}
-              kaufmaennisch={kaufmaennisch}
+              plaetze={plaetze}
               bestellungen={bestellungen}
               meldung={meldung}
               darfAendern={darfAendern}
@@ -122,13 +140,14 @@ export default async function KuecheSeite({
 
 function Blatt({
   blatt,
-  kaufmaennisch,
+  plaetze,
   bestellungen,
   meldung,
   darfAendern,
 }: {
   blatt: NonNullable<Awaited<ReturnType<typeof holeKuechenblatt>>>;
-  kaufmaennisch: boolean;
+  /** Wo welche Gruppe sitzt, für den Allergiekasten. */
+  plaetze: Record<string, string>;
   /** Streichen und korrigieren dürfen nur Florian und Kevin. */
   darfAendern: boolean;
   /** Die einzelnen Shop-Bestellungen des Abends, zum Stornieren. */
@@ -143,12 +162,15 @@ function Blatt({
       <AbendHinweise datum={blatt.datum} darfBearbeiten={false} zurueckZu="/kueche" />
 
       {/* Allergien ganz oben, rot und groß (Florian, 27.10.2026). */}
-      <AllergienKasten datum={blatt.datum} />
+      <AllergienKasten datum={blatt.datum} plaetze={plaetze} />
 
       <section className="rounded-lg border border-gold bg-gold-hell p-6">
         <div className="mb-1 text-sm text-leise">
+          {/*
+            Keine Showgästezahl mehr (Florian, 27.10.2026): "das geht die
+            küche eigentlich nix an."
+          */}
           {datumKurz(blatt.datum)} · {blatt.show}
-          {kaufmaennisch && blatt.showgaeste > 0 && ` · ${blatt.showgaeste} Showgäste im Haus`}
         </div>
         <div className="flex flex-wrap items-baseline gap-3">
           <span className="text-4xl font-semibold tabular-nums">{blatt.gesamtMenues}</span>
@@ -267,9 +289,13 @@ function Blatt({
           <h2 className="mb-3 text-sm font-semibold">Unverträglichkeiten und Sonderwünsche</h2>
           <ul className="space-y-2 text-sm">
             {blatt.unvertraeglichkeiten.map((u) => (
-              <li key={u.gruppe} className="border-l-2 pl-3" style={{ borderColor: "var(--warnung)" }}>
+              <li key={u.gruppeId} className="border-l-2 pl-3" style={{ borderColor: "var(--warnung)" }}>
                 <div className="font-medium">{u.gruppe}</div>
                 <div>{u.text}</div>
+                {/* Worauf es sich bezieht: Der Freitext gilt der Gruppe, hier steht, was sie isst. */}
+                {menueMix(u.menues) && (
+                  <div className="text-xs text-leise">Diese Gruppe isst: {menueMix(u.menues)}</div>
+                )}
               </li>
             ))}
           </ul>

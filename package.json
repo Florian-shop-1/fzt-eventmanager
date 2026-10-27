@@ -24,7 +24,7 @@
     "test:anfragen": "tsx scripts/test-anfragen.ts",
     "anfragen:import": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/anfragen-import.ts",
     "test:zahlungen": "tsx scripts/test-zahlungsabgleich.ts",
-    "test": "npm run test:sitzplan && npm run test:angebot && npm run test:datenbank && npm run test:ditix && npm run test:anfragen && npm run test:whatsapp && npm run test:zahlungen",
+    "test": "npm run test:sitzplan && npm run test:angebot && npm run test:datenbank && npm run test:ditix && npm run test:anfragen && npm run test:whatsapp && npm run test:zahlungen && npm run test:allergien",
     "db:status": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/db-status.ts",
     "lexoffice:test": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/lexoffice-test.ts",
     "test:menueliste": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-menueliste.ts",
@@ -35,6 +35,7 @@
     "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg",
     "codes:einlesen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/codes-einlesen.ts",
     "test:whatsapp": "tsx scripts/test-whatsapp.ts",
+    "test:allergien": "tsx scripts/test-allergien.ts",
     "deploy": "npx --yes vercel@54.7.1 deploy --prod --yes",
     "test:postkarten": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-postkarten.ts",
     "verteiler:pruefen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/verteiler-pruefen.ts"

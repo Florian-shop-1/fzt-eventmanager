@@ -16,7 +16,7 @@ import { Logo } from "@/components/Logo";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { ShowSchild, Tagesablauf } from "@/components/Tagesablauf";
 import { zeitpunkt } from "@/lib/zeit";
-import { angemeldeterBenutzer, darfKaufmaennisches, darfTermineAnlegen, darfEinladen} from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfTermineAnlegen, darfEinladen } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
 import { Firmenmenues } from "@/components/Firmenmenues";
 import { MenueStorno } from "@/components/MenueStorno";
@@ -27,6 +27,9 @@ import { kochtNormalerweise, menueBuchbarAmTag } from "@/lib/shop/menuepruefung"
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
 import { AllergienKasten } from "@/components/AllergienKasten";
+import { allergienFuerTag, nachGruppe } from "@/lib/flotix/allergien";
+import { sitzplaetzeAusPlan } from "@/lib/seating/plaetze";
+import { AllergieAmTisch, hinweiseAusEintraegen, menueMix, type TischHinweis } from "@/components/Unvertraeglich";
 
 export const metadata = { title: "Funktionsheet | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -47,7 +50,6 @@ export default async function FunktionsheetSeite({
   // Wie viele Karten verkauft sind, geht die Gastronomie nichts an.
   // Sie braucht Menüs, Getränke und Tische, sonst nichts.
   const benutzer = await angemeldeterBenutzer();
-  const kaufmaennisch = benutzer ? darfKaufmaennisches(benutzer.rolle) : false;
   // Jeder Spieltag bekommt ein Funktionsheet, auch ohne Menügäste:
   // Bar, Foyer und Service laufen trotzdem.
   const termine = await alleShowtage();
@@ -91,7 +93,7 @@ export default async function FunktionsheetSeite({
   // haben, die Kueche kocht aber fuer den ganzen Tag.
   const tagesDatum = termine.find((t) => t.ditixEventId === gewaehlt)?.datum ?? "";
 
-  const [blatt, { kopf, varianten }, shopHinweise] = await Promise.all([
+  const [blatt, { kopf, gruppen, varianten }, shopHinweise] = await Promise.all([
     holeKuechenblatt(gewaehlt),
     planeAbend(gewaehlt),
     tagesDatum ? buchungenFuerTag(tagesDatum) : Promise.resolve([]),
@@ -99,6 +101,39 @@ export default async function FunktionsheetSeite({
   if (!blatt || !kopf) return null;
 
   const plan = kopf.festgelegt?.plan ?? varianten[0] ?? null;
+
+  /*
+    Unvertraeglichkeiten dorthin, wo der Gast sitzt (Florian, 27.10.2026):
+    "ordne es auch dem entsprechenden menü / gast zu, so dass es immer bei
+    dem gast steht (bzw. der gruppe) ... es muss sichbar sein im
+    funktionsheet, auf welches menü sich das genau bezieht."
+
+    Zwei Quellen laufen hier zusammen: die Angaben aus dem Ticketshop, die
+    der Gast je Menue gemacht hat, und der Freitext einer Firmengruppe, der
+    fuer die ganze Runde gilt. Beide werden auf die Gruppenkennung des
+    Sitzplans gelegt und stehen damit unten in der Verteilung am Tisch.
+  */
+  const { eintraege: allergien } = await allergienFuerTag(blatt.datum);
+  const hinweiseJeGruppe = new Map<string, TischHinweis[]>();
+  for (const [gruppeId, liste] of nachGruppe(allergien, gruppen.zusammenlegungen)) {
+    hinweiseJeGruppe.set(gruppeId, hinweiseAusEintraegen(liste));
+  }
+  for (const u of blatt.unvertraeglichkeiten) {
+    /*
+      Bei einer Firmengruppe steht der Hinweis fuer die ganze Runde da,
+      nicht an einem Menue. Statt eine Zuordnung zu erfinden, die es nicht
+      gibt, steht dabei, was die Gruppe ueberhaupt isst; danach fragt die
+      Kueche dann gezielt nach.
+    */
+    const mix = menueMix(u.menues);
+    hinweiseJeGruppe.set(u.gruppeId, [
+      ...(hinweiseJeGruppe.get(u.gruppeId) ?? []),
+      { text: u.text, variante: null, stattVariante: mix ? `ganze Gruppe: ${mix}` : "ganze Gruppe" },
+    ]);
+  }
+
+  /* Wo eine Gruppe sitzt, damit der Tisch schon oben im roten Kasten steht. */
+  const plaetze = sitzplaetzeAusPlan(plan, gruppen.zusammenlegungen);
 
   // Sind an diesem Abend im Shop ueberhaupt Menues buchbar? Steht in Ditix
   // alles auf "nicht aktiv", findet ein Gast beim Nachbuchen nichts
@@ -233,12 +268,14 @@ export default async function FunktionsheetSeite({
               <div className="mt-1 text-xs">{blatt.shopFehler}</div>
             </div>
           )}
+          {/*
+            Wie viele Showtickets verkauft sind, steht hier bewusst nicht
+            mehr (Florian, 27.10.2026): "auf dem funktionsheet ist
+            ausserdem irrelevant wieviele showgäste wir haben. das geht
+            die küche eigentlich nix an."
+          */}
           <div className="mt-1 text-sm text-leise">
-            {kaufmaennisch
-              ? blatt.showgaeste > 0
-                ? `${blatt.showgaeste} verkaufte Showtickets, davon ${blatt.gesamtMenues} mit Menü`
-                : "Noch keine Tickets über den Webshop verkauft"
-              : `${blatt.gesamtMenues} ${blatt.gesamtMenues === 1 ? "Gast isst" : "Gäste essen"} bei uns`}
+            {blatt.gesamtMenues} {blatt.gesamtMenues === 1 ? "Gast isst" : "Gäste essen"} bei uns
           </div>
           {!kopf.festgelegt && blatt.gesamtMenues > 0 && (
             <div className="mt-2 text-sm" style={{ color: "var(--warnung)" }}>
@@ -265,7 +302,7 @@ export default async function FunktionsheetSeite({
 
         {/* Allergien ganz oben, rot und groß (Florian, 27.10.2026): "wir wollen nicht, dass jemand umkippt". */}
         <div className="mb-8">
-          <AllergienKasten datum={blatt.datum} />
+          <AllergienKasten datum={blatt.datum} plaetze={plaetze} />
         </div>
 
         <section className="mb-8">
@@ -365,11 +402,15 @@ export default async function FunktionsheetSeite({
             <ul className="space-y-1.5 text-sm">
               {blatt.unvertraeglichkeiten.map((u) => (
                 <li
-                  key={u.gruppe}
+                  key={u.gruppeId}
                   className="border-l-4 pl-3 py-1"
                   style={{ borderColor: "var(--warnung)" }}
                 >
                   <strong>{u.gruppe}</strong>: {u.text}
+                  {/* Der Freitext gilt der ganzen Gruppe, deshalb steht dabei, was sie isst. */}
+                  {menueMix(u.menues) && (
+                    <span className="text-leise"> (Gruppe isst {menueMix(u.menues)})</span>
+                  )}
                 </li>
               ))}
               {/* Aus dem oeffentlichen Ticketshop. Frueher landeten diese Notizen
@@ -431,6 +472,7 @@ export default async function FunktionsheetSeite({
             <Sitzverteilung
               plan={plan}
               mehrereShows={blatt.menuesJeShow.filter((m) => m.menues > 0).length > 1}
+              hinweise={hinweiseJeGruppe}
             />
           ) : (
             <p className="text-sm text-leise">Für diesen Abend liegt noch keine Verteilung vor.</p>
@@ -536,14 +578,18 @@ export default async function FunktionsheetSeite({
 function Sitzverteilung({
   plan,
   mehrereShows,
+  hinweise,
 }: {
   plan: Plan;
   /** Nur an Tagen mit zwei Shows lohnt die Kennzeichnung. */
   mehrereShows: boolean;
+  /** Unverträglichkeiten je Gruppe, damit sie am Tisch stehen und nicht nur oben. */
+  hinweise: Map<string, TischHinweis[]>;
 }) {
   const belegung = new Map<
     number,
     {
+      gruppeId: string;
       name: string;
       anteil: number;
       notstuhl: number;
@@ -568,6 +614,7 @@ function Sitzverteilung({
 
       belegung.set(nummer, {
         show: z.show,
+        gruppeId: z.gruppeId,
         name: z.gruppeName,
         anteil: hier + notstuhl,
         notstuhl,
@@ -623,6 +670,7 @@ function Sitzverteilung({
                           (reserviert)
                         </span>
                       )}
+                      <AllergieAmTisch hinweise={hinweise.get(b.gruppeId) ?? []} />
                     </>
                   ) : (
                     <span className="text-leise">frei</span>
@@ -674,6 +722,7 @@ function Sitzverteilung({
                         (reserviert)
                       </span>
                     )}
+                    <AllergieAmTisch hinweise={hinweise.get(g.gruppeId) ?? []} />
                   </td>
                   <td className="py-1.5 text-leise">{g.tischBeschreibung}</td>
                   <td className="w-24 py-1.5 text-right tabular-nums">{g.personen} Pers.</td>

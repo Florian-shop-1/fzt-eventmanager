@@ -112,7 +112,19 @@ export interface Kuechenblatt {
   firmenPersonen: number;
   /** Gruppen, bei denen Menüzahl und Personenzahl auseinanderlaufen. */
   luecken: Array<{ gruppe: string; personen: number; menues: number }>;
-  unvertraeglichkeiten: Array<{ gruppe: string; text: string }>;
+  /*
+    Die Unvertraeglichkeiten der Firmengruppen.
+
+    Mit `gruppeId` und `menues`, damit das Funktionsheet den Hinweis an
+    den Tisch der Gruppe schreiben kann und dabei steht, welche Menues
+    dort ueberhaupt auf den Tisch kommen (Florian, 27.10.2026).
+  */
+  unvertraeglichkeiten: Array<{
+    gruppeId: string;
+    gruppe: string;
+    text: string;
+    menues: Partial<Record<MenueVariante, number>>;
+  }>;
 }
 
 /** Holt alle Firmengruppen des Tages, ueber alle Vorstellungen hinweg. */
@@ -348,7 +360,12 @@ export async function holeKuechenblatt(ditixEventId: string): Promise<Kuechenbla
       .map((f) => ({ gruppe: f.gruppe, personen: f.personen, menues: f.menuesGesamt })),
     unvertraeglichkeiten: firmen
       .filter((f) => f.unvertraeglichkeiten?.trim())
-      .map((f) => ({ gruppe: f.gruppe, text: f.unvertraeglichkeiten! })),
+      .map((f) => ({
+        gruppeId: f.gruppeId,
+        gruppe: f.gruppe,
+        text: f.unvertraeglichkeiten!,
+        menues: f.menues,
+      })),
   };
 }
 
