@@ -77,8 +77,12 @@ export interface Verdacht {
   nachname: string;
   /** Warum die Adresse auffällt, in einem Satz für den Menschen. */
   grund: string;
-  /** "sicher" heißt: Brevo selbst sagt, dass sie nicht zustellbar ist. */
-  art: "sicher" | "vermutung";
+  /**
+   * "gesperrt": Brevo schickt nichts mehr dorthin, aus welchem Grund auch
+   * immer. Diese Adressen kosten uns nichts und sind keine Aufgabe.
+   * "vermutung": sieht nach einem Postfach oder einem Automaten aus.
+   */
+  art: "gesperrt" | "vermutung";
   /** Hat Brevo sie schon gesperrt? */
   gesperrt: boolean;
 }
@@ -118,11 +122,28 @@ export function verdachtVon(k: BrevoKontakt): Omit<Verdacht, "vorname" | "nachna
 
   const [vorne, hinten] = email.split("@");
 
+  /*
+    Gesperrt heisst NICHT kaputt.
+
+    Brevo setzt dieselbe Sperre in drei verschiedenen Faellen: Die Mail
+    ist hart abgeprallt (Adresse gibt es nicht), jemand hat sie als
+    Werbung gemeldet, oder jemand hat sich schlicht abgemeldet. Das
+    Letzte ist der haeufigste Fall und bedeutet nur, dass ein Mensch
+    keine Post mehr will.
+
+    Welcher Fall vorliegt, steht nicht in der Liste, sondern nur am
+    einzelnen Kontakt. Deshalb behauptet der Grund hier nichts, und
+    nachsehen kann man mit grundNachsehen (Florian, 27.10.2026:
+    "bist du dir wirklich sicher, dass knapp 10.000 adressen schrott
+    sind?").
+  */
   if (k.emailBlacklisted) {
     return {
       email,
-      grund: "Brevo hat sie gesperrt: Die Mail kam zurück oder jemand hat sich beschwert.",
-      art: "sicher",
+      grund:
+        "Brevo stellt an diese Adresse nichts mehr zu. Ob abgeprallt, beschwert oder " +
+        "abgemeldet, sagt die Liste nicht.",
+      art: "gesperrt",
       gesperrt: true,
     };
   }
@@ -172,8 +193,14 @@ export async function verdaechtige(): Promise<{ gesamt: number; treffer: Verdach
     });
   }
 
-  // Das Sichere zuerst: Dort gibt es nichts zu überlegen.
-  treffer.sort((a, b) => (a.art === b.art ? a.email.localeCompare(b.email) : a.art === "sicher" ? -1 : 1));
+  /*
+    Die Vermutungen nach vorne.
+
+    Dort ist wirklich etwas zu entscheiden. Die gesperrten Adressen
+    stehen hinten: Sie bekommen ohnehin keine Post mehr, sie aus der
+    Liste zu nehmen ist Kosmetik.
+  */
+  treffer.sort((a, b) => (a.art === b.art ? a.email.localeCompare(b.email) : a.art === "vermutung" ? -1 : 1));
   return { gesamt: kontakte.length, treffer };
 }
 
@@ -221,4 +248,59 @@ export async function entschiedene(grenze = 50): Promise<
     von: String(r.von ?? ""),
     am: new Date(r.am as string).toISOString(),
   }));
+}
+
+/**
+ * Bei einer gesperrten Adresse nachsehen, woran es wirklich liegt.
+ *
+ * Ein Aufruf je Adresse, deshalb nicht für die ganze Liste: Bei
+ * zehntausend Kontakten wären das zehntausend Anfragen. Für die eine
+ * Adresse, über die man gerade nachdenkt, reicht es.
+ *
+ * Der Unterschied ist der wichtigste auf dieser Seite:
+ *
+ *   abgeprallt  Die Adresse gibt es nicht. Weg damit.
+ *   beschwert   Jemand hat uns als Werbung gemeldet. Weg damit.
+ *   abgemeldet  Ein Mensch will keine Post mehr. Nichts tun. Brevo
+ *               schickt ohnehin nichts, und die Abmeldung muss
+ *               nachweisbar bleiben.
+ */
+export async function grundNachsehen(email: string): Promise<string> {
+  const adresse = email.trim().toLowerCase();
+  const antwort = await fetch(`${BREVO}/contacts/${encodeURIComponent(adresse)}`, {
+    headers: { "api-key": schluessel(), accept: "application/json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!antwort.ok) {
+    return `Brevo sagt zu ${adresse} nichts (${antwort.status}).`;
+  }
+
+  const c = (await antwort.json()) as {
+    emailBlacklisted?: boolean;
+    statistics?: {
+      hardBounces?: unknown[];
+      complaints?: unknown[];
+      unsubscriptions?: { userUnsubscription?: unknown[]; adminUnsubscription?: unknown[] };
+    };
+  };
+  const s = c.statistics ?? {};
+  const hart = (s.hardBounces ?? []).length;
+  const beschwerde = (s.complaints ?? []).length;
+  const abgemeldet =
+    (s.unsubscriptions?.userUnsubscription ?? []).length +
+    (s.unsubscriptions?.adminUnsubscription ?? []).length;
+
+  if (hart > 0) return `${adresse}: Die Mail ist ${hart}-mal hart abgeprallt. Die Adresse gibt es nicht.`;
+  if (beschwerde > 0) return `${adresse}: ${beschwerde}-mal als Werbung gemeldet. Besser aus dem Verteiler nehmen.`;
+  if (abgemeldet > 0) {
+    return (
+      `${adresse}: Hat sich selbst abgemeldet. Das ist keine kaputte Adresse, sondern eine ` +
+      `Entscheidung. Brevo schickt nichts mehr dorthin, und die Abmeldung soll nachweisbar bleiben. ` +
+      `Am besten behalten.`
+    );
+  }
+  if (c.emailBlacklisted) {
+    return `${adresse}: In Brevo gesperrt, aber ohne Spur im Verlauf. Grund unbekannt.`;
+  }
+  return `${adresse}: Brevo kennt keine Sperre. Sieht nach einem ganz normalen Kontakt aus.`;
 }

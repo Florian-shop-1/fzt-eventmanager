@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { brevoBereit, entschiedene, verdaechtige } from "@/lib/verteiler/aufraeumen";
 import { datumKurz } from "@/components/Status";
-import { adresseBehalten, adresseEntfernen } from "./aktionen";
+import { adresseBehalten, adresseEntfernen, adresseNachsehen } from "./aktionen";
 
 export const metadata = { title: "Verteiler aufräumen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export default async function VerteilerSeite({
   }
 
   const erledigt = await entschiedene(40);
-  const sicher = treffer.filter((t) => t.art === "sicher");
+  const gesperrt = treffer.filter((t) => t.art === "gesperrt");
   const vermutet = treffer.filter((t) => t.art === "vermutung");
 
   return (
@@ -74,24 +74,45 @@ export default async function VerteilerSeite({
       )}
 
       {gesamt > 0 && (
-        <p className="rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
-          <strong>{gesamt.toLocaleString("de-DE")} Adressen</strong> stehen in den Magic News. Davon
-          fallen <strong>{treffer.length}</strong> auf: {sicher.length} hat Brevo selbst gesperrt,{" "}
-          {vermutet.length} sehen nach einem Sammelpostfach oder einem Automaten aus. Entfernen
-          heißt: Der Kontakt bleibt in Brevo, bekommt aber keine Magic News mehr.
-        </p>
+        <div className="space-y-2 rounded-lg border border-linie bg-flaeche px-4 py-3 text-sm">
+          <p>
+            <strong>{gesamt.toLocaleString("de-DE")} Adressen</strong> stehen in den Magic News.
+            Wirklich zu entscheiden sind <strong>{vermutet.length}</strong>: Adressen, hinter denen
+            ein Sammelpostfach oder ein Automat zu vermuten ist.
+          </p>
+          <p className="text-leise">
+            Dazu kommen {gesperrt.length.toLocaleString("de-DE")} Adressen, an die Brevo schon
+            heute nichts mehr schickt. Das ist keine Aufgabe und vor allem kein Schrott: In dieser
+            Zahl stecken vor allem Menschen, die sich abgemeldet haben. Sie kosten uns keine
+            Zustellrate, weil gar nichts an sie hinausgeht.
+          </p>
+          <p className="text-leise">
+            Entfernen heißt immer: Der Kontakt bleibt in Brevo samt seiner Sperre, er steht nur
+            nicht mehr in den Magic News.
+          </p>
+        </div>
       )}
 
-      {sicher.length > 0 && (
+      {gesperrt.length > 0 && (
         <section>
           <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-leise">
-            Von Brevo gesperrt ({sicher.length})
+            Von Brevo gesperrt ({gesperrt.length})
           </h2>
           <p className="mb-3 text-sm text-leise">
-            Hier gibt es nichts zu überlegen: Diese Mails kamen zurück oder wurden als Werbung
-            gemeldet. Sie kosten uns Zustellrate, solange sie im Verteiler stehen.
+            An diese Adressen geht ohnehin nichts mehr hinaus. Brevo sperrt aus drei Gründen, und
+            die Liste verrät nicht, welcher es war: Die Mail ist abgeprallt, jemand hat uns
+            gemeldet, oder jemand hat sich abgemeldet. Der letzte Fall ist der häufigste, und da
+            gehört die Adresse genau dorthin, wo sie ist. Mit „Grund nachsehen“ fragst du für eine
+            einzelne Adresse nach.
           </p>
-          <Liste eintraege={sicher} />
+          <details>
+            <summary className="cursor-pointer text-sm text-leise">
+              Die {gesperrt.length} gesperrten Adressen anzeigen
+            </summary>
+            <div className="mt-3">
+              <Liste eintraege={gesperrt} />
+            </div>
+          </details>
         </section>
       )}
 
@@ -168,6 +189,18 @@ function Liste({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {t.art === "gesperrt" && (
+              <form action={adresseNachsehen}>
+                <input type="hidden" name="email" value={t.email} />
+                <button
+                  type="submit"
+                  className="rounded-md border border-linie px-3 py-1.5 text-sm"
+                  title="In Brevo nachsehen: abgeprallt, beschwert oder abgemeldet?"
+                >
+                  Grund nachsehen
+                </button>
+              </form>
+            )}
             <form action={adresseEntfernen}>
               <input type="hidden" name="email" value={t.email} />
               <input type="hidden" name="grund" value={t.grund} />

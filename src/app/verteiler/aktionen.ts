@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { ausVerteiler, entscheidungMerken } from "@/lib/verteiler/aufraeumen";
+import { ausVerteiler, entscheidungMerken, grundNachsehen } from "@/lib/verteiler/aufraeumen";
 
 const text = (f: FormData, k: string, max = 300) => String(f.get(k) ?? "").trim().slice(0, max);
 
@@ -35,6 +35,24 @@ export async function adresseEntfernen(f: FormData): Promise<void> {
     zurueck(fehler instanceof Error ? fehler.message : "Das hat nicht geklappt.");
   }
   zurueck(`${email} bekommt keine Magic News mehr.`);
+}
+
+/**
+ * Bei einer gesperrten Adresse nachfragen, woran es liegt.
+ *
+ * Eine Anfrage fuer eine Adresse, und die Antwort steht danach oben auf
+ * der Seite. Damit laesst sich der Unterschied klaeren, den die Liste
+ * selbst nicht kennt: abgeprallt oder abgemeldet.
+ */
+export async function adresseNachsehen(f: FormData): Promise<void> {
+  await zugang();
+  const email = text(f, "email", 160);
+  try {
+    zurueck(await grundNachsehen(email));
+  } catch (fehler) {
+    if (fehler && typeof fehler === "object" && "digest" in fehler) throw fehler;
+    zurueck(fehler instanceof Error ? fehler.message : "Brevo antwortet nicht.");
+  }
 }
 
 export async function adresseBehalten(f: FormData): Promise<void> {
