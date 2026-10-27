@@ -34,7 +34,8 @@
     "demo:angebot": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts",
     "demo:weg": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/demo-angebot.ts weg",
     "codes:einlesen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/codes-einlesen.ts",
-    "test:whatsapp": "tsx scripts/test-whatsapp.ts"
+    "test:whatsapp": "tsx scripts/test-whatsapp.ts",
+    "deploy": "npx vercel@54.7.1 deploy --prod --yes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
