@@ -114,11 +114,23 @@ export async function schlemmerEntwurfBauen(waId: string, von: string): Promise<
   }
 
   const anzahl = Math.max(1, Math.min(3, befund.bloecke ?? 1));
-  const gezogen = await codesZiehen(anzahl, letzte?.profilname?.trim() || waId);
+  /*
+    Vermerkt wird die Kennung, nicht der Name.
+
+    Bis zum 27.10.2026 stand im Versandvermerk nur der WhatsApp-Name,
+    und damit liess sich spaeter nicht beantworten, ob diese Nummer
+    schon einen Code hatte. Der Name geht weiter mit, aber als Zusatz.
+    Mit dem Jahrgang traegt FloTix gleich das Ablaufdatum des Blocks am
+    Code ein, damit er nicht gebunkert werden kann (Florian, 27.10.2026).
+  */
+  const gezogen = await codesZiehen(anzahl, waId, {
+    name: letzte?.profilname ?? null,
+    jahrgang,
+  });
 
   await entwurfSpeichern({
     waId,
-    text: antwortText({ vorname, codes: gezogen.codes }),
+    text: antwortText({ vorname, codes: gezogen.codes, jahrgang }),
     anlass: vomFoto ? "schlemmerblock-foto" : "schlemmerblock",
     codes: gezogen.codes.join(", "),
     von,

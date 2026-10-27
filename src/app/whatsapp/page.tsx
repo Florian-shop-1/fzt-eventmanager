@@ -17,6 +17,7 @@ import {
   vorfreudeJetztSchicken,
 } from "@/lib/whatsapp/aktionen";
 import { buchungZuGast } from "@/lib/shop/buchung-finden";
+import { flotixCodesAn, type CodeVersand } from "@/lib/flotix/tuer";
 import { naechsteBuchungZuNummer } from "@/lib/db/shop-buchungen";
 import { LinkKopieren } from "@/components/LinkKopieren";
 import { istEingerichtet } from "@/lib/whatsapp/senden";
@@ -697,6 +698,7 @@ async function Antwortfeld({
           <LinkKopieren link={link} />
         </div>
       )}
+      <SchonVersorgt suche={[unterhaltung.waId, unterhaltung.profilname]} />
       <Schlemmerkasten u={unterhaltung} befund={befund} entwurf={entwurf} bildDa={bildDa} />
       {fehler && (
         <p
@@ -748,6 +750,8 @@ async function Antwortfeld({
               key={unterhaltung.waId}
               name="text"
               codeAn={unterhaltung.waId}
+              codeName={unterhaltung.profilname}
+              codeJahrgang={befund.jahrgang}
               rows={5}
               platzhalter={`Antwort an ${name(unterhaltung)}`}
               standard=""
@@ -770,6 +774,102 @@ async function Antwortfeld({
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+/*
+  Wer schon einen Code hat, soll nicht unbemerkt einen zweiten bekommen.
+
+  "dass wir über die telnummer oder die emails sehen ob die nummer schon
+  versorgt wurde mit code und auch wann mit welchem block" (Florian,
+  27.10.2026).
+
+  Angezeigt wird, was in FloTix steht, samt Notiz. Geurteilt wird hier
+  nicht: Zwei Codes an dieselbe Familie können völlig in Ordnung sein,
+  zwei an denselben Block nicht. Das sieht ein Mensch in zwei Sekunden,
+  wenn die Zeilen dastehen, und gar nicht, wenn sie fehlen.
+*/
+const abgelaufen = (z: CodeVersand) => Boolean(z.gueltigBis && new Date(z.gueltigBis) < new Date());
+
+const tagAusZeit = (iso: string) =>
+  new Date(iso).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+
+/** Der Jahrgang, wie er im Vermerk steht: "Block 2025/2026". */
+function blockAusNotiz(notiz: string | null): string {
+  const t = /Block (20\d{2})\/(\d{2}|20\d{2})/.exec(notiz ?? "");
+  if (!t) return "";
+  const zweites = t[2].length === 2 ? `20${t[2]}` : t[2];
+  return `${t[1]}/${zweites}`;
+}
+
+const wegWort = (weg: string) =>
+  weg === "whatsapp"
+    ? "per WhatsApp"
+    : weg === "mail"
+      ? "per Mail"
+      : weg === "telefon"
+        ? "am Telefon"
+        : weg === "persoenlich"
+          ? "persönlich"
+          : weg;
+
+function zustand(z: CodeVersand): string {
+  if (z.eingeloest > 0) {
+    const wann = z.eingeloestAm ? ` am ${tagAusZeit(z.eingeloestAm)}` : "";
+    const wo = z.showTitel ? ` bei ${z.showTitel}` : "";
+    const nummer = z.bestellung ? `, ${z.bestellung}` : "";
+    return `eingelöst${wann}${wo}${nummer}`;
+  }
+  if (z.gesperrt) return "gesperrt";
+  const bis = z.gueltigBis;
+  if (bis && abgelaufen(z)) return `nicht eingelöst, abgelaufen am ${tagAusZeit(bis)}`;
+  return bis ? `noch nicht eingelöst, gilt bis ${tagAusZeit(bis)}` : "noch nicht eingelöst";
+}
+
+/** Welche Codes gingen schon an diesen Menschen? Nichts gefunden, nichts angezeigt. */
+async function SchonVersorgt({ suche }: { suche: Array<string | null | undefined> }) {
+  const zeilen = await flotixCodesAn(suche.filter((x): x is string => Boolean(x)));
+  if (zeilen.length === 0) return null;
+
+  const offen = zeilen.filter((z) => z.eingeloest === 0 && !z.gesperrt && !abgelaufen(z));
+
+  return (
+    <div
+      className="mb-3 space-y-1 rounded-md border px-4 py-3 text-sm"
+      style={
+        offen.length > 0
+          ? { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+          : { borderColor: "var(--linie)", background: "var(--hintergrund)" }
+      }
+    >
+      <p>
+        <strong>
+          Schon versorgt: {zeilen.length === 1 ? "ein Code" : `${zeilen.length} Codes`}.
+        </strong>{" "}
+        {offen.length > 0
+          ? `${
+              offen.length === 1 ? "Einer davon ist" : `${offen.length} davon sind`
+            } noch nicht eingelöst.`
+          : "Alles eingelöst, gesperrt oder abgelaufen."}
+      </p>
+      <ul className="space-y-0.5 text-xs text-leise">
+        {zeilen.map((z, i) => (
+          <li key={`${z.code}-${i}`} title={z.notiz ?? undefined}>
+            <span className="tabular-nums">{z.am ? tagAusZeit(z.am) : "ohne Datum"}</span>{" "}
+            <strong className="font-medium" style={{ color: "var(--text)" }}>
+              {z.code}
+            </strong>
+            {blockAusNotiz(z.notiz) ? `, Block ${blockAusNotiz(z.notiz)}` : ""}
+            {z.weg ? ` · ${wegWort(z.weg)}` : ""} · {zustand(z)}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -820,6 +920,8 @@ async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
   const menueDabei = Boolean(buchung?.posten.some((p) => p.gruppe === "menue" && p.anzahl > 0));
   // Laesst sich die hinterlassene Nummer als WhatsApp-Nummer lesen?
   const waNummer = alsWaNummer(u.telefon);
+  // Steht in der Anfrage ein Blockjahrgang? Dann gilt der gezogene Code so lange wie der Block.
+  const jahrgang = schlemmerErkennen(frage).jahrgang;
 
   // Passt ein fertiger Text zur Frage? Dann steht er gleich im Feld.
   const textvorschlaege = vorschlaege(frage, {
@@ -839,6 +941,7 @@ async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
 
   return (
     <div className="space-y-3">
+      <SchonVersorgt suche={[u.email, u.telefon, waNummer, u.profilname]} />
       {buchung && link && (
         <div className="space-y-2 rounded-md border px-4 py-3 text-sm" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
           {/*
@@ -903,6 +1006,8 @@ async function WebAntwort({ u, frage }: { u: Unterhaltung; frage: string }) {
             key={u.waId}
             name="text"
             codeAn={u.waId}
+            codeName={u.profilname}
+            codeJahrgang={jahrgang}
             rows={6}
             vorschlaege={textvorschlaege}
             standard={
@@ -949,6 +1054,8 @@ Dein Team vom Florian Zimmer Theater`
             key={u.waId}
             name="text"
             codeAn={u.waId}
+            codeName={u.profilname}
+            codeJahrgang={jahrgang}
             rows={6}
             vorschlaege={textvorschlaege}
             standard={`Hallo ${vornameVon(u.profilname)},

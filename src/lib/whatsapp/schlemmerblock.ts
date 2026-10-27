@@ -41,6 +41,41 @@ export function gueltigBis(jahrgang: number): string {
   return `${jahrgang}-12-01`;
 }
 
+/**
+ * Bis wann ein gezogener Code gelten soll, als Zeitpunkt für FloTix.
+ *
+ * "wir könnten doch in den code dann gleich das ablaufdatum mit rein
+ * machen, dass diese auch nicht gebunkert werden können" (Florian,
+ * 27.10.2026). Genau so: Der Code läuft mit dem Block ab, aus dem er
+ * stammt. Wer ihn ein Jahr liegen lässt, hätte den Abriss dazu ohnehin
+ * nicht mehr, und eine Freikarte ohne Abriss gibt es nicht.
+ *
+ * Der 1. Dezember zählt noch mit, der Code endet also in der Nacht
+ * darauf. Im Dezember gilt in Deutschland immer MEZ, deshalb 23 Uhr UTC.
+ */
+export function gueltigBisZeitpunkt(jahrgang: number): string {
+  return new Date(Date.UTC(jahrgang, 11, 1, 23, 0, 0)).toISOString();
+}
+
+/**
+ * Der späteste Block, der heute überhaupt im Umlauf sein kann.
+ *
+ * Steht der Jahrgang nicht in der Nachricht, wird trotzdem ein Datum
+ * eingetragen, sonst gilt der Code ewig. Genommen wird das großzügigste,
+ * das heute noch plausibel ist: Vor dem 1. Dezember sind das die Blöcke
+ * bis zum nächsten Jahr, danach die bis zum Jahr darauf.
+ */
+export function jahrgangImUmlauf(heute = new Date()): number {
+  const tag = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(heute);
+  const jahr = Number(tag.slice(0, 4));
+  return tag > gueltigBis(jahr) ? jahr + 2 : jahr + 1;
+}
+
+/** Der Block in der Schreibweise des Hauses: "2025/2026". */
+export function blockName(jahrgang: number): string {
+  return `${jahrgang - 1}/${jahrgang}`;
+}
+
 /** Gilt ein Block dieses Jahrgangs heute noch? */
 export function jahrgangGueltig(jahrgang: number, heute = new Date()): boolean {
   const tag = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(heute);
@@ -226,12 +261,36 @@ export function schlemmerErkennen(text: string, heute = new Date()): SchlemmerBe
   return { trifft: true, bloecke, jahrgang, fuerMenschen: "" };
 }
 
-/** Freie Codes holen. Der Weg dorthin steht in flotix/tuer.ts. */
+/**
+ * Freie Codes holen. Der Weg dorthin steht in flotix/tuer.ts.
+ *
+ * Zwei Dinge gehen mit hinaus, und beide stehen danach in FloTix:
+ *
+ * Der Vermerk, an WEN der Code ging, und zwar mit der Kennung, unter
+ * der der Mensch bei uns schreibt. Bis zum 27.10.2026 stand dort nur
+ * sein WhatsApp-Name, und damit ließ sich später nicht beantworten, ob
+ * diese Nummer schon versorgt war.
+ *
+ * Und das Ablaufdatum: Der Code gilt so lange wie der Block, aus dem er
+ * stammt, höchstens.
+ */
 export async function codesZiehen(
   anzahl: number,
   an: string,
-): Promise<{ codes: string[]; rest: number }> {
-  return flotixCodeZiehen(anzahl, an);
+  zusatz: { name?: string | null; jahrgang?: number | null } = {},
+): Promise<{ codes: string[]; rest: number; gueltigBis: string | null }> {
+  const jahrgang = zusatz.jahrgang ?? null;
+  const name = (zusatz.name ?? "").trim();
+  const notiz = [
+    `WhatsApp ${an}`,
+    name && name !== an ? `(${name})` : "",
+    jahrgang ? `Block ${blockName(jahrgang)}` : "Block unbekannt",
+  ].filter(Boolean).join(" ");
+
+  return flotixCodeZiehen(anzahl, an, {
+    notiz: notiz.slice(0, 200),
+    gueltigBis: gueltigBisZeitpunkt(jahrgang ?? jahrgangImUmlauf()),
+  });
 }
 
 function anrede(vorname: string): string {
@@ -261,7 +320,7 @@ export function nachfrageText(vorname: string): string {
 }
 
 /** Die Antwort mit Code oder Codes. */
-export function antwortText(o: { vorname: string; codes: string[] }): string {
+export function antwortText(o: { vorname: string; codes: string[]; jahrgang?: number | null }): string {
   const mehrere = o.codes.length > 1;
   /*
     Die Freikarte gibt es nur zusammen mit einer regulär gekauften
@@ -281,7 +340,7 @@ export function antwortText(o: { vorname: string; codes: string[] }): string {
     `WICHTIG: Bring bitte den Abriss aus dem Schlemmerblock am Showtag mit${mehrere ? ", für jeden Code einen" : ""}. ` +
     "Wir sammeln ihn beim Einlass ein. Ohne Abriss kommst du mit der freien Karte leider nicht " +
     "in die Show, das müssen wir streng nehmen.\n\n" +
-    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}. Einlösen lässt er sich einmal.\n\n` +
+    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}. Einlösen lässt er sich einmal${o.jahrgang ? `, und zwar bis zum 1. Dezember ${o.jahrgang}, so lange wie dein Block` : ""}.\n\n` +
     "Und wenn ihr den Abend rund machen wollt: Zu jeder Karte lässt sich unser 4-Gang-Menü für " +
     "69 Euro dazubuchen, der Welcome Drink ist dabei. Das gilt auch für die freie Karte. Es gibt " +
     "das Menü nur für Showgäste, und ihr sitzt vorher in Ruhe beisammen, ohne Restaurantwechsel."

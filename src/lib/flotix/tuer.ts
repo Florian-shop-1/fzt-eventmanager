@@ -385,14 +385,20 @@ export async function flotixVersandAbhaken(bestellnummer: string, erledigt: bool
 export async function flotixCodeZiehen(
   anzahl: number,
   an: string,
-): Promise<{ codes: string[]; rest: number }> {
+  zusatz: { notiz?: string; gueltigBis?: string | null } = {},
+): Promise<{ codes: string[]; rest: number; gueltigBis: string | null }> {
   const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
   if (!schluessel) throw new Error("FLOTIX_KEY fehlt, ohne den gibt es keine Codes.");
 
   const antwort = await fetch(`${FLOTIX_URL}/api/eventmanager?aktion=code-ziehen`, {
     method: "POST",
     headers: { "x-eventmanager-key": schluessel, "content-type": "application/json" },
-    body: JSON.stringify({ anzahl, an, notiz: `WhatsApp ${an}` }),
+    body: JSON.stringify({
+      anzahl,
+      an,
+      notiz: zusatz.notiz ?? `WhatsApp ${an}`,
+      gueltigBis: zusatz.gueltigBis ?? null,
+    }),
     cache: "no-store",
     signal: AbortSignal.timeout(15000),
   });
@@ -401,7 +407,78 @@ export async function flotixCodeZiehen(
     if (d.fehler === "keine_codes_frei") throw new Error("Es sind keine freien Codes mehr da.");
     throw new Error(`FloTix gibt keinen Code heraus (${antwort.status}).`);
   }
-  return (await antwort.json()) as { codes: string[]; rest: number };
+  return (await antwort.json()) as { codes: string[]; rest: number; gueltigBis: string | null };
+}
+
+/** Eine Zeile aus dem Versandprotokoll in FloTix. */
+export interface CodeVersand {
+  code: string;
+  /** Wann der Code herausgegeben wurde. */
+  am: string | null;
+  /** mail, telefon, persoenlich oder whatsapp. */
+  weg: string | null;
+  /** An wen, im Klartext, so wie es damals vermerkt wurde. */
+  notiz: string | null;
+  email: string | null;
+  gesperrt: boolean;
+  /** Wie oft eingelöst. Null heißt: noch nie. */
+  eingeloest: number;
+  eingeloestAm: string | null;
+  bestellung: string | null;
+  showTitel: string | null;
+  gueltigBis: string | null;
+}
+
+/**
+ * Welche Codes gingen schon an diese Nummer, diese Adresse, diesen Namen?
+ *
+ * "dass wir über die telnummer oder die emails sehen ob die nummer schon
+ * versorgt wurde mit code und auch wann mit welchem block" (Florian,
+ * 27.10.2026).
+ *
+ * Gefragt wird mit allem, was wir von dem Menschen kennen. Gefunden wird
+ * über die Mailadresse und über die Notiz am Versandvermerk, in der seit
+ * dem 27.10.2026 Kennung und Blockjahrgang stehen.
+ *
+ * Wirft nie: Ohne Auskunft fehlt nur der Hinweis, der Posteingang
+ * arbeitet weiter.
+ */
+export async function flotixCodesAn(suche: string[]): Promise<CodeVersand[]> {
+  const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
+  const begriffe = [
+    ...new Set(suche.map((x) => (x ?? "").trim()).filter((x) => x.length >= 4)),
+  ].slice(0, 5);
+  if (!flotixQuelle() || !schluessel || begriffe.length === 0) return [];
+
+  try {
+    const adresse = new URL(`${FLOTIX_URL}/api/eventmanager`);
+    adresse.searchParams.set("aktion", "codes-an");
+    for (const b of begriffe) adresse.searchParams.append("s", b);
+
+    const antwort = await fetch(adresse, {
+      headers: { "x-eventmanager-key": schluessel },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!antwort.ok) return [];
+    const d = (await antwort.json()) as { zeilen?: Array<Record<string, unknown>> };
+    return (d.zeilen ?? []).map((z) => ({
+      code: String(z.code ?? ""),
+      am: z.am ? String(z.am) : null,
+      weg: z.weg ? String(z.weg) : null,
+      notiz: z.notiz ? String(z.notiz) : null,
+      email: z.email ? String(z.email) : null,
+      gesperrt: Boolean(z.gesperrt),
+      eingeloest: Number(z.eingeloest ?? 0) || 0,
+      eingeloestAm: z.eingeloest_am ? String(z.eingeloest_am) : null,
+      bestellung: z.bestellung ? String(z.bestellung) : null,
+      showTitel: z.show_titel ? String(z.show_titel) : null,
+      gueltigBis: z.gueltig_bis ? String(z.gueltig_bis) : null,
+    }));
+  } catch (f) {
+    console.warn("[flotix] Codeauskunft nicht erreichbar:", f instanceof Error ? f.message : f);
+    return [];
+  }
 }
 
 /** Lebenszeichen, für die Einstellungsseite und den Vergleichslauf. */

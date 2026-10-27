@@ -23,6 +23,8 @@ export function Antworttext({
   rows = 4,
   platzhalter,
   codeAn = null,
+  codeName = null,
+  codeJahrgang = null,
 }: {
   /** Feldname im Formular, meist "text". */
   name: string;
@@ -36,6 +38,14 @@ export function Antworttext({
    * Steht hier nichts, gibt es den Knopf nicht.
    */
   codeAn?: string | null;
+  /** Der Name dazu, nur für den Vermerk in FloTix. */
+  codeName?: string | null;
+  /**
+   * Der Jahrgang des Blocks, wenn er in der Nachricht steht. FloTix
+   * setzt damit das Ablaufdatum am Code: Er gilt so lange wie der
+   * Block, aus dem er stammt (Florian, 27.10.2026).
+   */
+  codeJahrgang?: number | null;
 }) {
   const [text, setText] = useState(vorschlaege[0]?.text ?? standard);
   const [gewaehlt, setGewaehlt] = useState(vorschlaege.length > 0 ? 0 : -1);
@@ -57,6 +67,7 @@ export function Antworttext({
   const [zieht, setZieht] = useState(false);
   const [codefehler, setCodefehler] = useState<string | null>(null);
   const [rest, setRest] = useState<number | null>(null);
+  const [gilt, setGilt] = useState<string | null>(null);
 
   async function codeZiehen() {
     if (!codeAn || zieht) return;
@@ -66,9 +77,14 @@ export function Antworttext({
       const antwort = await fetch("/api/whatsapp/code", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ an: codeAn }),
+        body: JSON.stringify({ an: codeAn, name: codeName, jahrgang: codeJahrgang }),
       });
-      const d = (await antwort.json()) as { code?: string; rest?: number; fehler?: string };
+      const d = (await antwort.json()) as {
+        code?: string;
+        rest?: number;
+        gueltigBis?: string | null;
+        fehler?: string;
+      };
       if (!antwort.ok || !d.code) {
         setCodefehler(d.fehler ?? "Der Code ließ sich nicht ziehen.");
         return;
@@ -76,6 +92,16 @@ export function Antworttext({
       einsetzen(d.code);
       setCodes((alt) => [...alt, d.code!]);
       setRest(typeof d.rest === "number" ? d.rest : null);
+      setGilt(
+        d.gueltigBis
+          ? new Date(d.gueltigBis).toLocaleDateString("de-DE", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              timeZone: "Europe/Berlin",
+            })
+          : null,
+      );
     } catch {
       setCodefehler("FloTix war nicht erreichbar, es wurde kein Code vergeben.");
     } finally {
@@ -155,6 +181,11 @@ export function Antworttext({
             <span className="text-xs text-leise">
               {codes.length === 1 ? "1 Code" : `${codes.length} Codes`} gezogen und in FloTix
               vergeben{rest !== null ? `, ${rest} noch frei` : ""}.
+              {/*
+                Das Ablaufdatum gehört hierher, nicht nur in die Nachricht:
+                Wer den Code weitergibt, soll wissen, wie lange er trägt.
+              */}
+              {gilt ? ` Gilt bis ${gilt}.` : ""}
             </span>
           )}
         </div>
