@@ -158,6 +158,29 @@ export function PostkartenScanner() {
         später nur eine geschwärzte Fassung.
       </p>
 
+      {/*
+        Wie man eine Handschrift fotografiert, damit sie lesbar wird
+        (Florian, 27.10.2026, zur Frage nach dem Blitz). Der Blitz steht
+        bewusst nicht an erster Stelle: Auf glattem Karton wirft er einen
+        hellen Fleck mitten ins Bild, und genau dort steht oft der beste
+        Satz. Helles Zimmerlicht schlaegt den Blitz fast immer.
+      */}
+      <details className="text-xs text-leise">
+        <summary className="cursor-pointer">So werden die Karten am besten lesbar</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Helles Licht von vorne oder von der Seite, am besten Tageslicht am Fenster.</li>
+          <li>
+            Nicht über die Karte beugen: Der eigene Schatten liegt sonst genau auf der Schrift.
+          </li>
+          <li>Die Karte soll das Bild möglichst ganz ausfüllen, gerade von oben fotografiert.</li>
+          <li>
+            Blitz nur, wenn es wirklich dunkel ist, und dann schräg von der Seite. Direkt von
+            vorne macht er auf glattem Karton einen weißen Fleck, und die Stelle ist weg.
+          </li>
+          <li>Bleistift und helle Tinte: lieber zweimal fotografieren, das Lesen ist dort schwer.</li>
+        </ul>
+      </details>
+
       {liste.length > 0 && (
         <ul className="space-y-1 text-sm">
           {liste.map((e, i) => (

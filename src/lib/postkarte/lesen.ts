@@ -87,7 +87,13 @@ const SCHEMA = {
     zitat: { type: "string" },
     zusammenfassung: { type: "string" },
     stimmung: { type: "string", enum: ["begeistert", "positiv", "gemischt", "kritisch"] },
-    bewertung: { type: "integer", minimum: 1, maximum: 10 },
+    /*
+      Ohne minimum/maximum: Das Modell weist ein Schema mit Grenzen an
+      einer Zahl ab ("For 'integer' type, properties maximum, minimum
+      are not supported", 27.10.2026). Die Grenzen stehen deshalb im
+      Systemtext und werden beim Einlesen noch einmal gekappt.
+    */
+    bewertung: { type: "integer" },
     /** Ein Satz, warum diese Zahl. Steht im Eventmanager neben der Karte. */
     begruendung: { type: "string" },
     themen: {
@@ -123,10 +129,11 @@ const SCHEMA = {
             enum: ["name", "unterschrift", "adresse", "telefon", "email", "sonstiges"],
           },
           text: { type: "string" },
-          x: { type: "number", minimum: 0, maximum: 100 },
-          y: { type: "number", minimum: 0, maximum: 100 },
-          b: { type: "number", minimum: 0, maximum: 100 },
-          h: { type: "number", minimum: 0, maximum: 100 },
+          /* Prozent der Bildbreite und -höhe, siehe oben: ohne Grenzen im Schema. */
+          x: { type: "number" },
+          y: { type: "number" },
+          b: { type: "number" },
+          h: { type: "number" },
         },
       },
     },
@@ -196,7 +203,20 @@ export async function postkarteLesen(bildBase64: string, art = "image/jpeg"): Pr
     begruendung: s("begruendung"),
     themen: Array.isArray(d.themen) ? d.themen.map(String) : [],
     show: s("show"),
-    personenbezug: Array.isArray(d.personenbezug) ? (d.personenbezug as Fundstelle[]) : [],
+    /*
+      Die Rechtecke kommen in Prozent und werden hier gekappt. Ein
+      Balken, der über den Rand hinausragt, ist harmlos; einer mit
+      negativer Breite verschwindet, und dann stünde der Name wieder da.
+    */
+    personenbezug: (Array.isArray(d.personenbezug) ? (d.personenbezug as Fundstelle[]) : []).map(
+      (f) => ({
+        ...f,
+        x: Math.max(0, Math.min(100, Number(f.x) || 0)),
+        y: Math.max(0, Math.min(100, Number(f.y) || 0)),
+        b: Math.max(1, Math.min(100, Number(f.b) || 0)),
+        h: Math.max(1, Math.min(100, Number(f.h) || 0)),
+      }),
+    ),
     hinweis: s("hinweis"),
     roh: d,
   };
