@@ -219,6 +219,19 @@ export function baueVorfreudemail(
   const vn = vorname(buchung.name);
   const anrede = vn ? `Hallo ${vn},` : "Hallo,";
 
+  /*
+    Mittagsshows und Flo-Zirkus (Florian, 27.10.2026): Ein Gast las "Am Sonntag, 1. November, um 12 Uhr beginnt dein magischer
+    Abend" und hielt 12 Uhr fuer den Beginn der Show; auf dem Ticket stand 13 Uhr. Beim Flo-Zirkus ist die Zeit in der Buchung die
+    Oeffnung des Foyers, nicht der Beginn der Show. Ausserdem ist eine Show vor 17 Uhr kein "Abend". Deshalb: Beim Flo-Zirkus
+    steht, dass um die Uhrzeit das Foyer oeffnet, und bei jeder Show vor 17 Uhr ist es ein magischer Nachmittag.
+  */
+  const flo = /flo-?\s?zirkus/i.test(buchung.show);
+  const tagesZeit = buchung.uhrzeit && buchung.uhrzeit < "17:00" ? "Nachmittag" : "Abend";
+  const datumLang = tagLang(buchung.datum);
+  const hauptsatz = flo && wann
+    ? `Am ${datumLang}, um ${wann} öffnet das Foyer für deinen magischen ${tagesZeit} bei uns im Theater.`
+    : `Am ${termin} beginnt dein magischer ${tagesZeit} bei uns im Theater.`;
+
   // Was fehlt und an diesem Abend auch wirklich zu haben ist. Steuert, ob der
   // Hinweis auf die Extras und der Knopf ueberhaupt erscheinen.
   const angeboten: string[] = [];
@@ -251,8 +264,8 @@ export function baueVorfreudemail(
   const textZeilen: string[] = [
     anrede,
     "",
-    `in ${vorlaufWort()} ist es so weit: Am ${termin} beginnt dein`,
-    "magischer Abend bei uns im Theater.",
+    `in ${vorlaufWort()} ist es so weit:`,
+    hauptsatz,
   ];
 
   if (etwasOffen) {
@@ -358,6 +371,10 @@ export function baueVorfreudemail(
       anrede,
       vorlauf: vorlaufWort(),
       termin,
+      flo,
+      tagesZeit,
+      datumLang,
+      wann,
       wochentag,
       link,
       abmelden,
@@ -439,6 +456,11 @@ function baueHtml(d: {
   link: string;
   abmelden: string;
   etwasOffen: boolean;
+  /** Flo-Zirkus: Die Zeit ist die Öffnung des Foyers. */
+  flo: boolean;
+  tagesZeit: string;
+  datumLang: string;
+  wann: string;
   /** Gibt es an diesem Abend ein Menü, das der Gast noch nicht hat? */
   menueOffen: boolean;
   /** Wird vor der Show gegessen (Abendvorstellung) oder danach? */
@@ -503,7 +525,7 @@ function baueHtml(d: {
 <body style="margin:0;padding:0;background-color:${SCHWARZ};">
 <!-- Die Vorschauzeile im Posteingang. Danach Leerzeichen, damit das Programm
      nicht den Beginn des Textes anhaengt. -->
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Dein magischer Abend am ${h(d.termin)}.&#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279;</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${d.flo && d.wann ? `Das Foyer öffnet am ${h(d.datumLang)} um ${h(d.wann)}.` : `Dein magischer ${d.tagesZeit} am ${h(d.termin)}.`}&#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279; &#8199;&#65279;</div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};">
 <tr><td align="center" bgcolor="${SCHWARZ}" style="background-color:${SCHWARZ};padding:28px 12px 40px;">
@@ -545,7 +567,7 @@ function baueHtml(d: {
     <!-- Text -->
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
       ${absatz(h(d.anrede), "color:" + WEISS + ";font-size:17px;")}
-      ${absatz(`in <strong style="color:${WEISS};font-weight:600;">${h(d.vorlauf)}</strong> ist es so weit: Am <strong style="color:${WEISS};font-weight:600;">${h(d.termin)}</strong> beginnt dein magischer Abend bei uns im Theater.`)}
+      ${absatz(`in <strong style="color:${WEISS};font-weight:600;">${h(d.vorlauf)}</strong> ist es so weit: ${d.flo && d.wann ? `Am <strong style="color:${WEISS};font-weight:600;">${h(d.datumLang)}</strong>, um <strong style="color:${WEISS};font-weight:600;">${h(d.wann)}</strong> öffnet das Foyer für deinen magischen ${d.tagesZeit} bei uns im Theater.` : `Am <strong style="color:${WEISS};font-weight:600;">${h(d.termin)}</strong> beginnt dein magischer ${d.tagesZeit} bei uns im Theater.`}`)}
       ${
         d.etwasOffen
           ? absatz("Vielleicht möchtest du die Vorfreude noch ein bisschen steigern?") +
