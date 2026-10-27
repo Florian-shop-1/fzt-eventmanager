@@ -167,6 +167,13 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/foyer/plan", label: "Foyer-Dienstplan", rollen: ["chef", "team", "foyer"] },
       { href: "/parkplaetze", label: "Parkplätze", rollen: ["chef", "team", "foyer"] },
       { href: "/scanner", label: "Emoji-Scanner", rollen: ["chef", "team", "foyer"] },
+      /*
+        Die handgeschriebenen Gaestepostkarten: scannen, lesen lassen,
+        schwaerzen, auf die Gaestewand (Florian, 27.10.2026). Steht
+        neben dem Emoji-Scanner, weil es dieselbe Handbewegung ist:
+        etwas fotografieren, das ein Gast dagelassen hat.
+      */
+      { href: "/postkarten", label: "Postkarten scannen", rollen: ["chef", "team", "foyer"] },
       // Visitenkarten, die Florian persoenlich bekommt: lesen und in die
       // Magic News (Florian, 25.10.2026). Nur das Buero, denn dabei
       // entsteht ein Kontakt, den wir anschreiben.

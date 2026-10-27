@@ -45,6 +45,12 @@ const OHNE_ANMELDUNG = [
   "/ihr-angebot",
   // Einladungslink fürs Showteam: selbst eintragen, siehe app/einladung.
   "/einladung",
+  /*
+    Die Gaestewand fuer die oeffentliche Webseite. Gibt ausschliesslich
+    freigegebene und geschwaerzte Karten heraus, ohne Original, ohne
+    Namen (Florian, 27.10.2026). Siehe app/api/postkarte/wand.
+  */
+  "/api/postkarte/wand",
   "/api/shop",
   "/api/vorfreude",
   "/api/bewertung",
