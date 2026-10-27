@@ -47,13 +47,21 @@ async function verkleinern(datei: File): Promise<Blob> {
   );
 }
 
-export function PostkartenScanner({ einwilligung = false }: { einwilligung?: boolean }) {
+/*
+  Keine Frage nach der Einwilligung beim Scannen.
+
+  "wir legen gar keine aus ohne dass das geklaert ist. beim scan ist es
+  nicht mehr entscheidend. der mitarbeiter kriegt nur welche die OK
+  sind" (Florian, 27.10.2026). Die Karten im Foyer tragen den Hinweis
+  also schon, und wer im Foyer steht, soll nicht etwas bestaetigen,
+  das laengst entschieden ist.
+*/
+export function PostkartenScanner() {
   const [laeuft, setLaeuft] = useState(false);
   const [von, setVon] = useState(0);
   const [gesamt, setGesamt] = useState(0);
   const [liste, setListe] = useState<Ergebnis[]>([]);
   const feld = useRef<HTMLInputElement | null>(null);
-  const [mitEinwilligung, setMitEinwilligung] = useState(einwilligung);
 
   async function schicken(dateien: File[]) {
     setLaeuft(true);
@@ -68,7 +76,7 @@ export function PostkartenScanner({ einwilligung = false }: { einwilligung?: boo
         const klein = await verkleinern(datei);
         const form = new FormData();
         form.append("foto", new File([klein], "karte.jpg", { type: "image/jpeg" }));
-        form.append("einwilligung", mitEinwilligung ? "erteilt" : "unbekannt");
+        form.append("einwilligung", "erteilt");
 
         const antwort = await fetch("/postkarten/hochladen", { method: "POST", body: form });
         const d = (await antwort.json()) as {
@@ -136,14 +144,6 @@ export function PostkartenScanner({ einwilligung = false }: { einwilligung?: boo
           Karten fotografieren oder auswählen
         </label>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={mitEinwilligung}
-            onChange={(e) => setMitEinwilligung(e.target.checked)}
-          />
-          Auf diesen Karten steht die Einwilligung zur Veröffentlichung
-        </label>
 
         {laeuft && (
           <span className="text-sm text-leise">

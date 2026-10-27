@@ -32,7 +32,13 @@ export async function POST(request: Request) {
 
   const form = await request.formData().catch(() => null);
   const datei = form?.get("foto");
-  const einwilligung = String(form?.get("einwilligung") ?? "unbekannt");
+  /*
+    Ausgelegt werden nur Karten mit dem Hinweis auf die Veroeffentlichung.
+    "der mitarbeiter kriegt nur welche die OK sind" (Florian, 27.10.2026).
+    Deshalb gilt beim Scannen die Einwilligung als erteilt; wer eine alte
+    Karte ohne Hinweis einliest, schickt ausdruecklich "unbekannt" mit.
+  */
+  const einwilligung = String(form?.get("einwilligung") ?? "erteilt");
   if (!(datei instanceof File)) {
     return NextResponse.json({ ok: false, fehler: "Kein Foto." }, { status: 400 });
   }
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
       bildTyp: datei.type,
       befund,
       von: benutzer.name,
-      einwilligung: einwilligung === "erteilt" ? "erteilt" : "unbekannt",
+      einwilligung: einwilligung === "unbekannt" ? "unbekannt" : "erteilt",
     });
 
     return NextResponse.json({

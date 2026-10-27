@@ -26,6 +26,7 @@ import { eigeneTermine } from "@/lib/db/eigenertermin";
 import { kochtNormalerweise, menueBuchbarAmTag } from "@/lib/shop/menuepruefung";
 import type { MenueVariante } from "@/lib/domain/types";
 import type { Plan } from "@/lib/seating/types";
+import { AllergienKasten } from "@/components/AllergienKasten";
 
 export const metadata = { title: "Funktionsheet | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -261,6 +262,11 @@ export default async function FunktionsheetSeite({
           darfBearbeiten={Boolean(benutzer && ["chef", "team", "foyer"].includes(benutzer.rolle))}
           zurueckZu={`/funktionsheet?abend=${gewaehlt}`}
         />
+
+        {/* Allergien ganz oben, rot und groß (Florian, 27.10.2026): "wir wollen nicht, dass jemand umkippt". */}
+        <div className="mb-8">
+          <AllergienKasten datum={blatt.datum} />
+        </div>
 
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-leise">

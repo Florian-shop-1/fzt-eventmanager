@@ -12,6 +12,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Druckkopf } from "@/components/Druckkopf";
 import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { AbendHinweise } from "@/components/AbendHinweise";
+import { AllergienKasten } from "@/components/AllergienKasten";
 import type { MenueVariante } from "@/lib/domain/types";
 
 export const metadata = { title: "Küche | FZT Eventmanager" };
@@ -140,6 +141,9 @@ function Blatt({
   return (
     <div className="space-y-6">
       <AbendHinweise datum={blatt.datum} darfBearbeiten={false} zurueckZu="/kueche" />
+
+      {/* Allergien ganz oben, rot und groß (Florian, 27.10.2026). */}
+      <AllergienKasten datum={blatt.datum} />
 
       <section className="rounded-lg border border-gold bg-gold-hell p-6">
         <div className="mb-1 text-sm text-leise">
