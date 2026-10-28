@@ -25,7 +25,10 @@ const TELEFON = "+49 731 7906110";
 const FIRMA = "Florian Zimmer Theater GmbH";
 const STRASSE = "Grethe-Weiser-Str. 2/1";
 const ORT = "89231 Neu-Ulm";
-const SEITE = "www.florianzimmer.com";
+// Die Theateradresse, nicht florianzimmer.com: "auf
+// florianzimmertheater.de" (Florian, 28.10.2026). Dort liegt der Shop,
+// und dorthin soll ein Kunde gehen, der auf die Fusszeile klickt.
+const SEITE = "www.florianzimmertheater.de";
 
 /** Fuer Mailprogramme ohne Formatierung. */
 export const FUSSZEILE_TEXT = [

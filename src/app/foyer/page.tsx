@@ -4,6 +4,7 @@ import { alleShowtage } from "@/lib/seating/abendliste";
 import { waehleAbend } from "@/lib/seating/abendwahl";
 import { planeAbend } from "@/lib/seating/abend";
 import { holeKuechenblatt } from "@/lib/kueche/blatt";
+import { fingerfoodAmTag } from "@/lib/kueche/vormerkung";
 import { artikel } from "@/lib/domain/artikel";
 import { datumKurz } from "@/components/Status";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
@@ -58,12 +59,22 @@ export default async function FoyerSeite({
   }
 
   const benutzer = await angemeldeterBenutzer();
-  const [blatt, { kopf, gruppen, varianten }, bestellungen] = await Promise.all([
+  const [blatt, { kopf, gruppen, varianten }, bestellungen, fingerfood] = await Promise.all([
     holeKuechenblatt(gewaehlt),
     planeAbend(gewaehlt),
     // Haengt nicht am gewaehlten Abend: Eine offene Bestellung ist offen,
     // egal welches Blatt gerade angesehen wird.
     offeneBestellungen().catch(() => []),
+    /*
+      Fingerfood fuer eine Firma an diesem Abend.
+
+      "das muss bei uns im foyer serviert werden und da gibts keine
+      begrenzung nach oben. du kannst es aber gerne bei foyer /
+      stehtischen irgendwo als info unterbringen" (Florian,
+      28.10.2026). Gegen die neunzig Menues der Kueche zaehlt es
+      bewusst nicht, hier steht es nur zum Bescheidwissen.
+    */
+    fingerfoodAmTag(gewaehlt).catch(() => []),
   ]);
   if (!blatt || !kopf) return null;
 
@@ -256,6 +267,23 @@ export default async function FoyerSeite({
               hinweis="insgesamt auszugeben"
             />
           </div>
+
+          {fingerfood.length > 0 && (
+            <div
+              className="mb-4 rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+            >
+              <strong>
+                Fingerfood im Foyer:{" "}
+                {fingerfood.reduce((summe, f) => summe + f.anzahl, 0)} Portionen
+              </strong>
+              <div className="mt-1 text-xs text-leise">
+                {fingerfood.map((f) => `${f.firma} (${f.anzahl})`).join(", ")}. Serviert wird auf
+                Etageren an den Stehtischen. Das läuft nicht über die Menügrenze der Küche, nach
+                oben gibt es hier keine Begrenzung.
+              </div>
+            </div>
+          )}
 
           {zweiShows && tische.length > 0 && (
             <p className="mb-2 text-xs text-leise">

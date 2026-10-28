@@ -452,7 +452,15 @@ export async function adresseVorschlagen(vorgangId: string, formData: FormData):
 export async function kontaktAendern(vorgangId: string, formData: FormData): Promise<void> {
   await verlangeTeam();
   const kundeId = text(formData, "kundeId");
-  if (!kundeId) return;
+  // Stilles Nichtstun waere hier das Schlimmste: Wer speichert und
+  // keine Meldung bekommt, glaubt, es sei gespeichert.
+  if (!kundeId) {
+    redirect(
+      `/vorgaenge/${vorgangId}?meldung=${encodeURIComponent(
+        "Gespeichert wurde nichts, der Kunde war nicht zu erkennen. Bitte die Seite neu laden.",
+      )}`,
+    );
+  }
 
   const email = text(formData, "email").toLowerCase();
   const ansprechpartner = text(formData, "ansprechpartner");

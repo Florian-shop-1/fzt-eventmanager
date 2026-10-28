@@ -332,9 +332,18 @@ export default async function VorgangSeite({
                   <span className="mb-1 block text-xs text-leise">Telefon</span>
                   <input name="telefon" defaultValue={vorgang.kunde.telefon ?? ""} className="w-full text-sm" />
                 </label>
-                <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
-                  Speichern
-                </button>
+                {/*
+                  Der Speicherknopf faellt auf.
+
+                  "die adresse wird einfach nicht abgespeichert im
+                  angebot, wenn wir es erstellen" (Florian, 28.10.2026).
+                  Daneben stand bisher gleich gross der Knopf, der die
+                  Anschrift im Netz sucht, und der verwirft beim Laden
+                  der Seite alles, was im Formular steht. Wer das
+                  verwechselt, tippt die Adresse und sie ist weg.
+                  Deshalb: speichern ist gold, suchen ist leise.
+                */}
+                <Absendeknopf text="Anschrift speichern" laeuftText="Wird gespeichert..." betont />
                 <p className="text-xs text-leise">
                   Firma, Anschrift und Ansprechpartner stehen damit im Adressfeld des Angebots. Der
                   Kontakt geht bei jedem Speichern auch an Brevo.
@@ -355,7 +364,15 @@ export default async function VorgangSeite({
               <input type="hidden" name="firma" value={vorgang.kunde.name} />
               <input type="hidden" name="email" value={vorgang.kunde.email} />
               <input type="hidden" name="hinweis" value={vorgang.kunde.ort ?? ""} />
-              <Absendeknopf text="Anschrift online suchen" laeuftText="Wird gesucht..." />
+              <Absendeknopf
+                text="Anschrift im Netz vorschlagen"
+                laeuftText="Wird gesucht..."
+              />
+              <p className="mt-1 text-xs text-leise">
+                Sucht im Impressum der Firma und füllt das Formular darüber mit einem Vorschlag.
+                Gespeichert wird dabei nichts, und was gerade im Formular steht, geht dabei
+                verloren. Zum Sichern immer auf „Anschrift speichern“ drücken.
+              </p>
             </form>
           </Karte>
 

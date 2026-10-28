@@ -241,3 +241,64 @@ export async function vormerkungNachziehen(vorgangId: string): Promise<void> {
     console.warn("[vormerkung] Tag nicht gemeldet:", f);
   }
 }
+
+export interface FingerfoodPosten {
+  firma: string;
+  vorgangId: string;
+  nummer: string;
+  anzahl: number;
+  status: string;
+}
+
+/**
+ * Fingerfood an einem Abend, fuer das Foyer.
+ *
+ * "Fingerfood braucht nicht gegen menues laufen. das muss bei uns im
+ * foyer serviert werden und da gibts keine begrenzung nach oben. du
+ * kannst es aber gerne bei foyer / stehtischen irgendwo als info
+ * unterbringen" (Florian, 28.10.2026).
+ *
+ * Gegen die neunzig Menues der Kueche zaehlt es deshalb bewusst nicht,
+ * siehe vorgemerkteMenues. Hier geht es nur ums Bescheidwissen: Wer das
+ * Foyer stellt, soll sehen, dass an diesem Abend fuer vierzig Leute
+ * Etageren auf die Stehtische kommen.
+ *
+ * Gelesen wird aus dem juengsten nicht abgelehnten Angebot, genau wie
+ * bei den Menues: Die Zahl steht dort lange bevor jemand eine
+ * Essenswahl erfasst.
+ */
+export async function fingerfoodAmTag(datum: string): Promise<FingerfoodPosten[]> {
+  const zeilen = (await db()`
+    select vg.id::text as vorgang_id, vg.nummer, vg.status,
+           coalesce(k.name, 'Firma') as firma,
+           coalesce(ff.anzahl, 0)::int as anzahl
+      from vorgang vg
+      join vorstellung v on v.id = vg.vorstellung_id
+      left join kunde k  on k.id = vg.kunde_id
+      left join lateral (
+        select a.id from angebot a
+         where a.vorgang_id = vg.id and a.abgelehnt_am is null
+         order by a.erstellt_am desc limit 1
+      ) neuestes on true
+      left join lateral (
+        select coalesce(sum(p.menge), 0)::int as anzahl
+          from position p
+         where p.angebot_id = neuestes.id
+           and p.artikel_nummer = 'FINGERFOOD'
+           and coalesce(p.optional, false) = false
+           and p.ist_alternative_zu is null
+      ) ff on true
+     where v.datum = ${datum}::date
+       and vg.status = any(${ZAEHLT})
+       and coalesce(ff.anzahl, 0) > 0
+     order by k.name
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+
+  return zeilen.map((z) => ({
+    firma: String(z.firma),
+    vorgangId: String(z.vorgang_id),
+    nummer: String(z.nummer),
+    anzahl: Number(z.anzahl ?? 0),
+    status: String(z.status),
+  }));
+}
