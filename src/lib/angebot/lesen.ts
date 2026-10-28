@@ -26,6 +26,15 @@ export interface AngebotDetail {
   angenommenVon: string | null;
   abgelehntAm: string | null;
   ablehnungsgrund: string | null;
+  /**
+   * Wie viele Plätze dieses Angebot festhält, und bis wann.
+   *
+   * Null, solange kein Termin feststand oder FloTix gerade nicht
+   * erreichbar war. Dann steht auf der Kundenseite nichts dazu, und das
+   * ist richtig so: lieber keine Zusage als eine falsche.
+   */
+  plaetzeGehalten: number;
+  plaetzeBis: string | null;
   positionen: Position[];
   oeffnungen: Array<{ zeitpunkt: string; geraet: string | null }>;
   kunde: {
@@ -85,6 +94,8 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
     angenommenVon: (a.angenommen_von as string) ?? null,
     abgelehntAm: a.abgelehnt_am ? new Date(a.abgelehnt_am as string).toISOString() : null,
     ablehnungsgrund: (a.ablehnungsgrund as string) ?? null,
+    plaetzeGehalten: Number(a.plaetze_gehalten ?? 0),
+    plaetzeBis: a.plaetze_bis ? new Date(a.plaetze_bis as string).toISOString() : null,
     positionen: positionen.map(zuPosition),
     oeffnungen: oeffnungen.map((o) => ({
       zeitpunkt: new Date(o.zeitpunkt).toISOString(),
@@ -107,6 +118,7 @@ const KOPF_ABFRAGE = `
          to_char(a.gueltig_bis, 'YYYY-MM-DD') as gueltig_bis,
          a.einleitung, a.schlusstext, a.tracking_token, a.versendet_am,
          a.angenommen_am, a.angenommen_von, a.abgelehnt_am, a.ablehnungsgrund,
+         a.plaetze_gehalten, a.plaetze_bis,
          k.name as kunde_name, k.ansprechpartner, k.email,
          k.strasse, k.plz, k.ort,
          to_char(s.datum, 'YYYY-MM-DD') as datum, s.show

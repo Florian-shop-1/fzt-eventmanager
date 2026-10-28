@@ -227,7 +227,20 @@ export async function angebotErzeugen(
     freigegeben" (Florian, 26.10.2026). So lange wie das Angebot
     gilt, hoechstens sieben Tage.
   */
-  await optionAusAngebot(vorgangId);
+  const gehalten = await optionAusAngebot(vorgangId);
+  /*
+    Und es steht am Angebot, damit die Kundenseite es zeigen kann, ohne
+    dafür bei FloTix anzuklopfen (Florian, 28.10.2026: "dies dem kunden
+    mitgeteilt wird"). Schlägt es fehl, bleibt es bei null, und auf der
+    Seite steht dann schlicht nichts dazu.
+  */
+  if (gehalten.gesetzt > 0 && gehalten.bis) {
+    await db()`
+      update angebot
+         set plaetze_gehalten = ${gehalten.gesetzt}, plaetze_bis = ${gehalten.bis}
+       where id = ${angebotId}
+    `.catch((f) => console.warn("[angebot] Plaetze nicht vermerkt:", f));
+  }
 
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");

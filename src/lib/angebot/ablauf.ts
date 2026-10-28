@@ -50,20 +50,12 @@ export const ABLAUF: Station[] = [
   },
   {
     zeit: "22:30",
-    titel: "Ausklang an der Foyerbar",
+    titel: "Ausklang an der Magic Bar",
     text:
       "Danach bleibt Zeit. Erfahrungsgemäß der Teil des Abends, an dem am meisten geredet " +
       "wird, und der, an den sich eure Gäste am längsten erinnern.",
-    /*
-      Ein Foto von der Foyerbar selbst gibt es noch nicht (Florian,
-      28.10.2026: "ausklang an der foyerbar braucht noch ein cooles
-      Foto!"). Bis dahin steht hier der Abend vor dem Haus: Gäste in
-      Gruppen, Stehtische, die Fassade in Farbe. Es zeigt nicht die Bar,
-      aber genau das, wovon der Text spricht. Sobald ein Foto von der
-      Bar da ist, kommt es als public/bilder/ausklang-abend.jpg an diese
-      Stelle und sonst ändert sich nichts.
-    */
-    bild: "ausklang-abend.jpg",
+    // Das Foto von der Bar, von Florian selbst (28.10.2026).
+    bild: "magic-bar.jpg",
   },
 ];
 

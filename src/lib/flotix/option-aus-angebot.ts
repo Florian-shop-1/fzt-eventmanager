@@ -74,10 +74,22 @@ export async function optionAusAngebot(vorgangId: string): Promise<{
     const anzahl = d.personen > 0 ? d.personen : ungefaehr;
     if (anzahl < 1) return { ...nichts, grund: "Keine Personenzahl im Vorgang." };
 
-    // Schon optioniert? Dann nichts doppelt tun.
+    /*
+      Schon optioniert? Dann nichts doppelt tun, aber sagen, was läuft.
+
+      Wichtig für die zweite und dritte Fassung eines Angebots: Die
+      Plätze sind dann schon gehalten, und trotzdem soll auf jedem
+      dieser Angebote stehen, wie viele und bis wann (Florian,
+      28.10.2026).
+    */
     const laufende = await optionen().catch(() => []);
-    if (laufende.some((o) => o.vorgang === d.nummer)) {
-      return { ...nichts, grund: "Für diesen Vorgang sind schon Plätze optioniert." };
+    const schon = laufende.find((o) => o.vorgang === d.nummer);
+    if (schon) {
+      return {
+        gesetzt: schon.plaetze.length,
+        bis: new Date(schon.bis).toISOString(),
+        grund: "Für diesen Vorgang sind schon Plätze optioniert.",
+      };
     }
 
     const grenze = new Date(Date.now() + HOECHSTENS_TAGE * 24 * 60 * 60 * 1000);

@@ -9,6 +9,7 @@ import { datumMitWochentag } from "@/lib/zeit";
 import { Logo } from "@/components/Logo";
 import { Bild } from "@/components/Bild";
 import { DruckKnopf } from "@/components/DruckKnopf";
+import { Restzeit } from "@/components/Restzeit";
 import { angebotAblehnen, angebotAnnehmen } from "./actions";
 
 /**
@@ -61,6 +62,28 @@ export default async function KundenAngebot({
   const summe = angebotssumme(angebot.positionen);
   const haupt = angebot.positionen.filter((p) => !p.istAlternativeZu);
   const abgelaufen = new Date(angebot.gueltigBis) < new Date(new Date().toDateString());
+
+  /*
+    Sind für dieses Angebot Plätze festgehalten, und laufen sie noch?
+
+    Abgelaufenes wird nicht mehr erwähnt: Dann sind die Plätze längst
+    zurück im Verkauf, und ein "reserviert bis gestern" wäre schlicht
+    falsch (Florian, 28.10.2026).
+  */
+  const gehalten =
+    angebot.plaetzeGehalten > 0 &&
+    angebot.plaetzeBis !== null &&
+    new Date(angebot.plaetzeBis) > new Date();
+  const haltedatum = angebot.plaetzeBis
+    ? new Date(angebot.plaetzeBis).toLocaleString("de-DE", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Berlin",
+      }) + " Uhr"
+    : "";
   const anrede = angebot.kunde.ansprechpartner || angebot.kunde.name;
   const gruss = einleitungOhneAblauf(angebot.einleitung);
 
@@ -79,6 +102,8 @@ export default async function KundenAngebot({
     gebucht ist (Florian, 05.10.2026).
   */
   const mitMenue = !angebot.positionen.some((p) => p.artikelNummer === "FINGERFOOD");
+  /* Steht die LED-Fassade im Angebot, fest oder als Wahlmöglichkeit? */
+  const mitFassade = angebot.positionen.some((p) => p.artikelNummer === "LEDFASSADE");
 
   return (
     <div className={`${anzeige.variable} angebot-druck`}>
@@ -238,9 +263,9 @@ export default async function KundenAngebot({
                     auseinandergerissen wird.
                   </p>
                   <p className="mt-3">
-                    Eure Loge gehört an diesem Abend euch allein. Wir setzen niemand Fremdes
-                    dazu. Gegessen wird dort, wo später auch die Show läuft, ihr müsst den Platz
-                    also zwischendurch nicht wechseln.
+                    Eure Loge gehört an diesem Abend euch allein, wir setzen niemand Fremdes dazu.
+                    Für die Show geht es gemeinsam in den Saal: Jeder von euch hat dort seinen
+                    eigenen Sitzplatz, und nach der Show ist die Loge wieder eure.
                   </p>
                 </>
               ) : (
@@ -259,6 +284,40 @@ export default async function KundenAngebot({
             </div>
           </div>
         </section>
+
+        {/*
+          Euer Logo auf der Fassade.
+
+          "pack auf jeden fall auch ins angebot rein die LED fassade. da
+          nimmst du das foto, wo ich vor dem gebäude stehe" (Florian,
+          28.10.2026). Steht da, sobald die Fassade im Angebot steht,
+          fest oder als Wahlmöglichkeit. Die Zahlen dazu stehen unten in
+          der Tabelle, hier geht es um das Bild im Kopf.
+        */}
+        {mitFassade && (
+          <section>
+            <Ueberschrift oben="Eure Marke" unten="Das Logo auf unserer LED-Fassade" />
+            <div className="mt-8 overflow-hidden rounded-lg border border-linie bg-flaeche">
+              <Bild
+                datei="led-fassade.jpg"
+                alt="Die LED-Fassade des Florian Zimmer Theaters mit einem Firmenlogo"
+                hoehe="h-80"
+              />
+              <div className="p-6 text-sm leading-relaxed text-leise">
+                <p>
+                  Unsere Fassade ist über zwanzig Meter breit und von der Straße aus kaum zu
+                  übersehen. Euer Logo läuft dort an eurem Abend, sichtbar für alle, die kommen,
+                  und für jeden, der vorbeifährt. Das Foto davon macht in der Regel jemand aus
+                  eurer Gruppe, bevor der erste Gang auf dem Tisch steht.
+                </p>
+                <p className="mt-3">
+                  Wir brauchen dafür nur eure Bilddatei als JPG oder PNG, spätestens eine Woche
+                  vorher. Alles Weitere machen wir.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Die Zahlen */}
         <section>
@@ -365,10 +424,31 @@ export default async function KundenAngebot({
             <h2 className="text-3xl font-light" style={SCHRIFT_ANZEIGE}>
               Sollen wir den Abend für euch reservieren?
             </h2>
-            <p className="mx-auto mt-3 max-w-md text-sm text-white/70">
-              Mit eurer Zusage halten wir die Plätze fest. Verbindlich wird die Buchung mit dem
-              Zahlungseingang, danach melden wir uns mit allen Einzelheiten.
-            </p>
+            {/*
+              Stehen die Plätze schon, sagen wir das hier (Florian,
+              28.10.2026). Nicht als Werbebanner, sondern als Satz: Wir
+              halten sie, und zwar bis dann. Die Restzeit steht klein
+              daneben; ein Countdown auf die Sekunde wäre ein
+              Verkaufstrick und passt nicht zu einem Angebot an eine
+              Firma.
+            */}
+            {gehalten ? (
+              <p className="mx-auto mt-3 max-w-md text-sm text-white/70">
+                {angebot.plaetzeGehalten}{" "}
+                {angebot.plaetzeGehalten === 1 ? "Platz ist" : "Plätze sind"} für euch
+                reserviert, bis zum {haltedatum}.{" "}
+                <span className="text-white/45">
+                  <Restzeit bis={angebot.plaetzeBis!} />
+                </span>{" "}
+                Danach gehen sie zurück in den freien Verkauf. Verbindlich wird die Buchung mit dem
+                Zahlungseingang, danach melden wir uns mit allen Einzelheiten.
+              </p>
+            ) : (
+              <p className="mx-auto mt-3 max-w-md text-sm text-white/70">
+                Mit eurer Zusage halten wir die Plätze fest. Verbindlich wird die Buchung mit dem
+                Zahlungseingang, danach melden wir uns mit allen Einzelheiten.
+              </p>
+            )}
 
             <form
               action={angebotAnnehmen.bind(null, token)}
@@ -376,10 +456,19 @@ export default async function KundenAngebot({
             >
               <label className="min-w-48 flex-1 text-left">
                 <span className="mb-1 block text-xs text-white/60">Dein Name</span>
+                {/*
+                  Vorbelegt mit dem, den wir kennen (Florian,
+                  28.10.2026: "hier dann gleich den namen übernehmen").
+                  Wer zusagt, soll nicht abtippen müssen, was im Angebot
+                  ohnehin oben steht. Überschreiben geht trotzdem: Oft
+                  sagt jemand anderes zu als der, mit dem wir gesprochen
+                  haben.
+                */}
                 <input
                   type="text"
                   name="name"
                   required
+                  defaultValue={angebot.kunde.ansprechpartner ?? ""}
                   placeholder="Vor- und Nachname"
                   className="text-text"
                 />
