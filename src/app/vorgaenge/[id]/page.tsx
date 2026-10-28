@@ -12,7 +12,6 @@ import {
   terminSetzen,
   ausnahmeSetzen,
   gruppeEntfernen,
-  gruppeHinzufuegen,
   gruppePersonenSetzen,
   notizHinzufuegen,
   menueSetzen,
@@ -195,12 +194,163 @@ export default async function VorgangSeite({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <Karte titel="Gruppen und Teilnehmerzahl">
+          {/*
+            Die Anschrift steht ganz oben.
+
+            "Als erstes würden wir gerne mal die Adresse der Firma
+            eingeben (zieh sie dir wenn du sie hast)" (Florian,
+            28.10.2026). Sie ist das Erste, was am Telefon gefragt wird,
+            und sie steht im Adressfeld des Angebots: Fehlt sie, kann
+            nichts rausgehen. Deshalb nicht mehr in der Spalte rechts,
+            sondern als erste Karte, und der Aufklapper geht von selbst
+            auf, solange kein Ort eingetragen ist.
+          */}
+          <Karte titel="Firma und Anschrift">
+            <dl className="space-y-2 text-sm">
+              <Zeile bezeichnung="Firma" wert={vorgang.kunde.name} />
+              <Zeile
+                bezeichnung="Anschrift"
+                wert={
+                  vorgang.kunde.ort
+                    ? [vorgang.kunde.strasse, [vorgang.kunde.plz, vorgang.kunde.ort].filter(Boolean).join(" ")]
+                        .filter(Boolean)
+                        .join(", ")
+                    : null
+                }
+              />
+              <Zeile bezeichnung="Ansprechpartner" wert={vorgang.kunde.ansprechpartner} />
+              <Zeile bezeichnung="E-Mail" wert={vorgang.kunde.email} />
+              <Zeile bezeichnung="Telefon" wert={vorgang.kunde.telefon} />
+            </dl>
+
+            {!vorgang.kunde.ort && (
+              <p
+                className="mt-3 rounded border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+              >
+                Noch keine Anschrift hinterlegt. Sie steht im Adressfeld des Angebots, ohne sie
+                kann keins rausgehen. Unten eintragen, oder online suchen lassen und prüfen.
+              </p>
+            )}
+
+            {/*
+              Adresse aendern, ohne in die Datenbank zu muessen.
+
+              Dieselbe Adresse bekommt das Angebot. Ein Tippfehler darin
+              fiel bisher erst auf, wenn nichts zurueckkam
+              (Kevin, 14.10.2026). Wird sie geaendert, geht der Kontakt
+              auch neu zu Brevo.
+            */}
+            <details className="mt-3" open={!vorgang.kunde.ort || Boolean(adressvorschlag)}>
+              <summary className="cursor-pointer text-xs text-leise">
+                Anschrift und Kontakt eingeben oder ändern
+              </summary>
+              <form action={kontaktAendern.bind(null, vorgang.id)} className="mt-2 space-y-2">
+                <input type="hidden" name="kundeId" value={vorgang.kunde.id} />
+                {adressvorschlag && (
+                  <p
+                    className="rounded border px-2 py-1 text-xs"
+                    style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+                  >
+                    Vorschlag aus dem Netz, bitte prüfen: {adressvorschlag.strasse},{" "}
+                    {adressvorschlag.plz} {adressvorschlag.ort}
+                    {adressvorschlag.quelle && (
+                      <span className="block text-leise">Quelle: {adressvorschlag.quelle}</span>
+                    )}
+                  </p>
+                )}
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Firma</span>
+                  <input
+                    name="firma"
+                    defaultValue={adressvorschlag?.firma ?? vorgang.kunde.name}
+                    className="w-full text-sm"
+                  />
+                </label>
+                {/*
+                  Die Anschrift steht im Adressfeld des Angebots. Fehlt
+                  sie, klappt dieser Bereich von selbst auf, damit sie
+                  nicht vergessen wird (Florian, 15.10.2026).
+                */}
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Straße und Hausnummer</span>
+                  <input
+                    name="strasse"
+                    defaultValue={adressvorschlag?.strasse ?? vorgang.kunde.strasse ?? ""}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <div className="grid gap-2 sm:grid-cols-[6rem_1fr]">
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">PLZ</span>
+                    <input
+                      name="plz"
+                      defaultValue={adressvorschlag?.plz ?? vorgang.kunde.plz ?? ""}
+                      maxLength={10}
+                      className="w-full text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Ort</span>
+                    <input
+                      name="ort"
+                      defaultValue={adressvorschlag?.ort ?? vorgang.kunde.ort ?? ""}
+                      className="w-full text-sm"
+                    />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">E-Mail</span>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={vorgang.kunde.email}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Ansprechpartner</span>
+                  <input
+                    name="ansprechpartner"
+                    defaultValue={vorgang.kunde.ansprechpartner ?? ""}
+                    className="w-full text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-leise">Telefon</span>
+                  <input name="telefon" defaultValue={vorgang.kunde.telefon ?? ""} className="w-full text-sm" />
+                </label>
+                <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
+                  Speichern
+                </button>
+                <p className="text-xs text-leise">
+                  Firma, Anschrift und Ansprechpartner stehen damit im Adressfeld des Angebots. Der
+                  Kontakt geht bei jedem Speichern auch an Brevo.
+                </p>
+              </form>
+
+            </details>
+
+            {/*
+              Die Anschrift im Netz suchen, gleich sichtbar statt im
+              Aufklapper: "zieh sie dir wenn du sie hast" (Florian,
+              28.10.2026). Gespeichert wird nichts, der Vorschlag fuellt
+              nur das Formular darueber, und ein Mensch drueckt auf
+              Speichern. Eine geratene Anschrift auf einem Angebot faellt
+              dem Kunden auf, und zwar dann, wenn es unangenehm ist.
+            */}
+            <form action={adresseVorschlagen.bind(null, vorgang.id)} className="mt-3">
+              <input type="hidden" name="firma" value={vorgang.kunde.name} />
+              <input type="hidden" name="email" value={vorgang.kunde.email} />
+              <input type="hidden" name="hinweis" value={vorgang.kunde.ort ?? ""} />
+              <Absendeknopf text="Anschrift online suchen" laeuftText="Wird gesucht..." />
+            </form>
+          </Karte>
+
+          <Karte titel="Teilnehmerzahl">
             <p className="mb-3 text-xs text-leise">
-              Wer zusammen sitzen will, ist eine Gruppe. Bei einer Firma mit mehreren Abteilungen,
-              die getrennt sitzen möchten, lohnt sich eine Aufteilung. Hier steht auch die Zahl der
-              Teilnehmer: Die Summe aller Gruppen geht ins Angebot, in den Sitzplan und auf das
-              Küchenblatt.
+              Wie viele kommen. Die Zahl geht ins Angebot, in den Sitzplan und auf das Küchenblatt
+              und lässt sich bis zuletzt ändern.
             </p>
             <div className="space-y-3">
               {vorgang.gruppen.map((g) => (
@@ -251,25 +401,14 @@ export default async function VorgangSeite({
               ))}
             </div>
 
-            <form
-              action={gruppeHinzufuegen.bind(null, vorgang.id)}
-              className="mt-4 flex flex-wrap items-end gap-2 border-t border-linie pt-4"
-            >
-              <label className="flex-1">
-                <span className="mb-1 block text-xs text-leise">Weitere Gruppe</span>
-                <input type="text" name="name" placeholder="z.B. Abteilung Vertrieb" />
-              </label>
-              <label className="w-24">
-                <span className="mb-1 block text-xs text-leise">Personen</span>
-                <input type="number" name="personen" min={1} defaultValue={2} />
-              </label>
-              <button
-                type="submit"
-                className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
-              >
-                Hinzufügen
-              </button>
-            </form>
+            {/*
+              Kein Feld mehr fuer eine weitere Gruppe.
+
+              "weitere Gruppe brauche wir nicht. es geht um ein angebot
+              immer fuer eine Firma" (Florian, 28.10.2026). Was schon
+              geteilt ist, bleibt stehen und laesst sich weiter aendern;
+              neu geteilt wird hier nichts mehr.
+            */}
           </Karte>
 
           <AngebotBereich
@@ -590,124 +729,6 @@ export default async function VorgangSeite({
               />
             </Karte>
           )}
-
-          <Karte titel="Kontakt">
-            <dl className="space-y-2 text-sm">
-              <Zeile bezeichnung="Firma" wert={vorgang.kunde.name} />
-              <Zeile bezeichnung="Ansprechpartner" wert={vorgang.kunde.ansprechpartner} />
-              <Zeile bezeichnung="E-Mail" wert={vorgang.kunde.email} />
-              <Zeile bezeichnung="Telefon" wert={vorgang.kunde.telefon} />
-            </dl>
-
-            {/*
-              Adresse aendern, ohne in die Datenbank zu muessen.
-
-              Dieselbe Adresse bekommt das Angebot. Ein Tippfehler darin
-              fiel bisher erst auf, wenn nichts zurueckkam
-              (Kevin, 14.10.2026). Wird sie geaendert, geht der Kontakt
-              auch neu zu Brevo.
-            */}
-            <details className="mt-3" open={!vorgang.kunde.ort || Boolean(adressvorschlag)}>
-              <summary className="cursor-pointer text-xs text-leise">
-                Kontakt und Anschrift ändern
-              </summary>
-              <form action={kontaktAendern.bind(null, vorgang.id)} className="mt-2 space-y-2">
-                <input type="hidden" name="kundeId" value={vorgang.kunde.id} />
-                {adressvorschlag && (
-                  <p
-                    className="rounded border px-2 py-1 text-xs"
-                    style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
-                  >
-                    Vorschlag aus dem Netz, bitte prüfen: {adressvorschlag.strasse},{" "}
-                    {adressvorschlag.plz} {adressvorschlag.ort}
-                    {adressvorschlag.quelle && (
-                      <span className="block text-leise">Quelle: {adressvorschlag.quelle}</span>
-                    )}
-                  </p>
-                )}
-                <label className="block">
-                  <span className="mb-1 block text-xs text-leise">Firma</span>
-                  <input
-                    name="firma"
-                    defaultValue={adressvorschlag?.firma ?? vorgang.kunde.name}
-                    className="w-full text-sm"
-                  />
-                </label>
-                {/*
-                  Die Anschrift steht im Adressfeld des Angebots. Fehlt
-                  sie, klappt dieser Bereich von selbst auf, damit sie
-                  nicht vergessen wird (Florian, 15.10.2026).
-                */}
-                <label className="block">
-                  <span className="mb-1 block text-xs text-leise">Straße und Hausnummer</span>
-                  <input
-                    name="strasse"
-                    defaultValue={adressvorschlag?.strasse ?? vorgang.kunde.strasse ?? ""}
-                    className="w-full text-sm"
-                  />
-                </label>
-                <div className="grid gap-2 sm:grid-cols-[6rem_1fr]">
-                  <label className="block">
-                    <span className="mb-1 block text-xs text-leise">PLZ</span>
-                    <input
-                      name="plz"
-                      defaultValue={adressvorschlag?.plz ?? vorgang.kunde.plz ?? ""}
-                      maxLength={10}
-                      className="w-full text-sm"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs text-leise">Ort</span>
-                    <input
-                      name="ort"
-                      defaultValue={adressvorschlag?.ort ?? vorgang.kunde.ort ?? ""}
-                      className="w-full text-sm"
-                    />
-                  </label>
-                </div>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-leise">E-Mail</span>
-                  <input
-                    name="email"
-                    type="email"
-                    defaultValue={vorgang.kunde.email}
-                    className="w-full text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-leise">Ansprechpartner</span>
-                  <input
-                    name="ansprechpartner"
-                    defaultValue={vorgang.kunde.ansprechpartner ?? ""}
-                    className="w-full text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-leise">Telefon</span>
-                  <input name="telefon" defaultValue={vorgang.kunde.telefon ?? ""} className="w-full text-sm" />
-                </label>
-                <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm">
-                  Speichern
-                </button>
-                <p className="text-xs text-leise">
-                  Firma, Anschrift und Ansprechpartner stehen damit im Adressfeld des Angebots. Der
-                  Kontakt geht bei jedem Speichern auch an Brevo.
-                </p>
-              </form>
-
-              {/*
-                Die Anschrift im Netz suchen. Gespeichert wird nichts,
-                der Vorschlag fuellt nur das Formular oben
-                (Florian, 15.10.2026).
-              */}
-              <form action={adresseVorschlagen.bind(null, vorgang.id)} className="mt-2">
-                <input type="hidden" name="firma" value={vorgang.kunde.name} />
-                <input type="hidden" name="email" value={vorgang.kunde.email} />
-                <input type="hidden" name="hinweis" value={vorgang.kunde.ort ?? ""} />
-                <Absendeknopf text="Anschrift online suchen" laeuftText="Wird gesucht..." />
-              </form>
-            </details>
-          </Karte>
 
           <Karte titel="Aufgaben">
             {vorgang.aufgaben.length === 0 ? (
