@@ -589,7 +589,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
   const grossH = 128;
   const paare: Array<[string, string, string]> = [
     ["show.jpg", "ULMfassbar by Florian Zimmer", "Große Zauberkunst, live und hautnah."],
-    ["loge.jpg", "Beste Plätze", "Eigener Tisch, freier Blick zur Bühne."],
+    ["loge-tisch.jpg", "Beste Plätze", "Eigener Tisch in der Loge, sieben Meter zur Bühne."],
   ];
   for (let i = 0; i < paare.length; i++) {
     const x = LINKS + i * (grossB + 12);

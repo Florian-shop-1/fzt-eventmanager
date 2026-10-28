@@ -249,8 +249,8 @@ export default async function KundenAngebot({
           />
           <div className="mt-8 overflow-hidden rounded-lg border border-linie bg-flaeche">
             <Bild
-              datei="magicuisine-hero.jpg"
-              alt="Die Magicuisine mit ihren Tischen"
+              datei={inLoge ? "loge-tisch.jpg" : "magicuisine-hero.jpg"}
+              alt={inLoge ? "Eine Loge mit langem Tisch, Gaeste stossen an" : "Die Magicuisine mit ihren Tischen"}
               hoehe="h-72"
             />
             <div className="p-6 text-sm leading-relaxed text-leise">

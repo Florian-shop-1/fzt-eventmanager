@@ -8,16 +8,16 @@ diesem Ordner lagen, von eurer Website:
    17:20 Empfang         magic-dinner-neu2.webp   Gäste am Tisch, lachend
    17:50 Menü            classic.webp             angerichteter Hauptgang
    20:00 Show            loge.jpg                 Bühne mit rotem Vorhang
-   22:30 Foyerbar        foyerbar.jpg             FEHLT NOCH
-   Abschnitt "Euer Platz" magicuisine-hero.jpg    Restaurant mit Tischen
+   22:30 Magic Bar       magic-bar.jpg            die Bar am Abend
+   Abschnitt "Euer Platz" loge-tisch.jpg          Loge mit langem Tisch
+                          magicuisine-hero.jpg    Eventgalerie, falls keine Loge
+   Abschnitt "Eure Marke" led-fassade.jpg         Florian vor der LED-Fassade
 
-Zwei Hinweise dazu:
+Ein Hinweis dazu:
 
    loge.jpg heißt zwar so, zeigt aber die Bühne und nicht eine Loge.
-   Deshalb steht sie beim Abschnitt "Die Show".
-
-   Ein Foto von der Foyerbar gibt es noch nicht. Diese Stelle bleibt
-   dunkel, bis eines da ist. Kaputt sieht nichts aus, es fehlt nur.
+   Deshalb steht sie beim Abschnitt "Die Show". Die echte Loge ist
+   loge-tisch.jpg (von Florian am 28.10.2026 geliefert).
 
 
 WIE DU EIN BILD AUSTAUSCHST
