@@ -8,6 +8,7 @@ import {
 import { kapazitaet } from "@/lib/domain/venue";
 import { datumKurz } from "@/components/Status";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
+import { gesperrteEssplaetze, type TagesSperre } from "@/lib/db/essplatz";
 
 export const metadata = { title: "Belegung | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -25,6 +26,18 @@ export default async function BelegungSeite() {
   } catch (e) {
     fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }
+
+  /*
+    Was fuer Firmen am Tisch blockiert ist, aber noch nicht gebucht.
+
+    Diese Plaetze sind nicht belegt und nicht frei: Sie gehoeren fuer
+    ein paar Tage einer Firma, die noch ueberlegt (Florian, 28.10.2026).
+    Wer hier auf einen Abend schaut, muss sie sehen, sonst verspricht er
+    sie ein zweites Mal.
+  */
+  const sperren = new Map<string, TagesSperre>(
+    (await gesperrteEssplaetze().catch(() => [])).map((t) => [t.tag, t]),
+  );
 
   // Gezeigt wird die ganze Saison, auch Abende ohne Buchung: Es geht
   // hier nicht nur darum, wo es eng wird, sondern auch darum, wo noch
@@ -132,6 +145,7 @@ export default async function BelegungSeite() {
                   schluessel={m.schluessel}
                   abende={m.abende}
                   darfVorgaenge={darfVorgaenge}
+                  sperren={sperren}
                 />
               ))}
             </tbody>
@@ -148,10 +162,12 @@ function MonatsBlock({
   schluessel,
   abende,
   darfVorgaenge,
+  sperren,
 }: {
   schluessel: string;
   abende: AbendBelegung[];
   darfVorgaenge: boolean;
+  sperren: Map<string, TagesSperre>;
 }) {
   const menues = abende.reduce((s, a) => s + a.belegt, 0);
   const mitGaesten = abende.filter((a) => a.belegt > 0).length;
@@ -172,7 +188,12 @@ function MonatsBlock({
         </th>
       </tr>
       {abende.map((a) => (
-        <AbendZeile key={a.ditixEventId} a={a} darfVorgaenge={darfVorgaenge} />
+        <AbendZeile
+          key={a.ditixEventId}
+          a={a}
+          darfVorgaenge={darfVorgaenge}
+          sperre={sperren.get(a.datum) ?? null}
+        />
       ))}
     </>
   );
@@ -188,7 +209,15 @@ function monatsname(schluessel: string): string {
   });
 }
 
-function AbendZeile({ a, darfVorgaenge }: { a: AbendBelegung; darfVorgaenge: boolean }) {
+function AbendZeile({
+  a,
+  darfVorgaenge,
+  sperre,
+}: {
+  a: AbendBelegung;
+  darfVorgaenge: boolean;
+  sperre: TagesSperre | null;
+}) {
   const stil = AMPEL_TEXT[a.ampel];
   const leer = a.belegt === 0;
 
@@ -199,6 +228,17 @@ function AbendZeile({ a, darfVorgaenge }: { a: AbendBelegung; darfVorgaenge: boo
         <div className="text-xs text-leise">
           {a.uhrzeit} Uhr · {a.name}
         </div>
+        {sperre && (sperre.logen > 0 || sperre.eventgalerie > 0) && (
+          <div className="mt-1 text-xs" style={{ color: "var(--warnung)" }}>
+            blockiert:{" "}
+            {[
+              sperre.logen > 0 ? `${sperre.logen} in der Loge` : "",
+              sperre.eventgalerie > 0 ? `${sperre.eventgalerie} auf der Eventgalerie` : "",
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </div>
+        )}
         {a.vorgaenge.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {a.vorgaenge.map((v) => {

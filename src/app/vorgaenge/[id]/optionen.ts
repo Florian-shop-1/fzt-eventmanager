@@ -3,8 +3,13 @@
 /**
  * Plätze für eine Firmenanfrage blockieren, verlängern, freigeben.
  *
- * Gehalten werden sie in FloTix, dort stehen die Plätze. Hier steht nur
- * die Entscheidung: wie viele und wie lange.
+ * Zwei verschiedene Plätze, zwei verschiedene Orte. Der Showplatz liegt
+ * in FloTix: Golden Seats, Kat. 1 bis 3, VIP-Empore. Der Platz am Tisch
+ * liegt hier, denn Loge und Eventgalerie kennt FloTix nicht
+ * (siehe lib/db/essplatz.ts).
+ *
+ * Beides hängt am selben Knopf und an derselben Frist, damit niemand
+ * das eine blockiert und das andere vergisst.
  */
 
 import { revalidatePath } from "next/cache";
@@ -13,6 +18,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db/client";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { optionAufheben, optionSetzen, optionVerlaengern, HOECHSTENS_TAGE } from "@/lib/flotix/option";
+import { BEREICH_NAME, sperreAufheben, sperreSetzen, type Essbereich } from "@/lib/db/essplatz";
 
 const zahl = (f: FormData, k: string) => Math.round(Number(String(f.get(k) ?? "")) || 0);
 
@@ -75,6 +81,34 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
   const anzahl =
     gewaehlt.length > 0 ? gewaehlt.length : Math.max(1, Math.min(400, zahl(formData, "anzahl")));
 
+  /*
+    Der Platz am Tisch, falls Kevin einen Bereich gewählt hat.
+
+    "du musst auch Plätze auf eventgalerie oder loge blockieren können.
+    auch wenn nicht feststeht wieviele menüs das sind" (Florian,
+    28.10.2026). Ohne eigene Zahl gilt dieselbe Anzahl wie bei den
+    Showplätzen: Wer kommt, sitzt auch am Tisch.
+  */
+  const roherBereich = String(formData.get("essbereich") ?? "").trim();
+  const essbereich: Essbereich | null =
+    roherBereich === "logen" || roherBereich === "eventgalerie" ? roherBereich : null;
+  const essplaetze = Math.max(0, Math.min(400, zahl(formData, "essplaetze"))) || anzahl;
+
+  let essText = "";
+  if (essbereich) {
+    const benutzer = await angemeldeterBenutzer();
+    await sperreSetzen({
+      vorgangId,
+      bereich: essbereich,
+      plaetze: essplaetze,
+      bis,
+      von: benutzer?.name ?? "",
+    });
+    essText = ` Dazu ${essplaetze} Plätze ${
+      essbereich === "logen" ? "in der Loge" : "auf der Eventgalerie"
+    }.`;
+  }
+
   try {
     const e = await optionSetzen({
       vorstellungId: daten.vorstellung_id,
@@ -88,10 +122,10 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
     if (e.fehlende > 0) {
       zurueck(
         vorgangId,
-        `${e.gesetzt} Plätze blockiert bis ${bisText}. ${e.fehlende} waren nicht mehr frei.`,
+        `${e.gesetzt} Plätze blockiert bis ${bisText}. ${e.fehlende} waren nicht mehr frei.${essText}`,
       );
     }
-    zurueck(vorgangId, `${e.gesetzt} Plätze blockiert bis ${bisText}.`);
+    zurueck(vorgangId, `${e.gesetzt} Plätze blockiert bis ${bisText}.${essText}`);
   } catch (f) {
     if (f && typeof f === "object" && "digest" in f) throw f;
     zurueck(vorgangId, f instanceof Error ? f.message : "Das Blockieren hat nicht geklappt.");
@@ -122,9 +156,46 @@ export async function optionFreigeben(vorgangId: string): Promise<void> {
 
   try {
     const e = await optionAufheben(daten.nummer);
-    zurueck(vorgangId, `${e.freigegeben} Plätze sind wieder frei.`);
+    // Der Tisch geht mit: Wer die Showplätze freigibt, hält niemandem
+    // mehr einen Platz in der Loge frei.
+    await sperreAufheben(vorgangId);
+    zurueck(vorgangId, `${e.freigegeben} Plätze sind wieder frei, auch die am Tisch.`);
   } catch (f) {
     if (f && typeof f === "object" && "digest" in f) throw f;
     zurueck(vorgangId, f instanceof Error ? f.message : "Das Freigeben hat nicht geklappt.");
   }
+}
+
+/**
+ * Nur die Plaetze am Tisch, ohne Showplaetze.
+ *
+ * Es gibt Abende, an denen die Showplaetze laengst stehen und sich nur
+ * die Zahl am Tisch aendert, etwa wenn zehn Leute mehr mitessen.
+ */
+export async function essplaetzeBlockieren(vorgangId: string, formData: FormData): Promise<void> {
+  const benutzer = await zugang();
+  const roh = String(formData.get("essbereich") ?? "").trim();
+  if (roh !== "logen" && roh !== "eventgalerie") {
+    zurueck(vorgangId, "Bitte Loge oder Eventgalerie wählen.");
+  }
+  const bereich = roh as Essbereich;
+  const plaetze = Math.max(1, Math.min(400, zahl(formData, "essplaetze")));
+  const tage = Math.max(1, Math.min(HOECHSTENS_TAGE, zahl(formData, "tage") || 3));
+  const bis = new Date(Date.now() + tage * 24 * 60 * 60 * 1000);
+
+  await sperreSetzen({ vorgangId, bereich, plaetze, bis, von: benutzer.name });
+  zurueck(
+    vorgangId,
+    `${plaetze} Plätze ${BEREICH_NAME[bereich] === "Loge" ? "in der Loge" : "auf der Eventgalerie"} blockiert bis ${bis.toLocaleDateString("de-DE")}.`,
+  );
+}
+
+/** Einen einzelnen Bereich wieder freigeben. */
+export async function essplaetzeFreigeben(
+  vorgangId: string,
+  bereich: Essbereich,
+): Promise<void> {
+  await zugang();
+  await sperreAufheben(vorgangId, bereich);
+  zurueck(vorgangId, `Die Plätze ${bereich === "logen" ? "in der Loge" : "auf der Eventgalerie"} sind wieder frei.`);
 }

@@ -30,7 +30,14 @@ import { artikelDerGruppe } from "@/lib/domain/artikel";
 import type { Buchungsgruppe, MenueVariante } from "@/lib/domain/types";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { auslastung, empfehlung, optionen } from "@/lib/flotix/option";
-import { optionFreigeben, optionLaengerHalten, plaetzeOptionieren } from "./optionen";
+import {
+  essplaetzeBlockieren,
+  essplaetzeFreigeben,
+  optionFreigeben,
+  optionLaengerHalten,
+  plaetzeOptionieren,
+} from "./optionen";
+import { sperrenZuVorgang, type Essplatzsperre } from "@/lib/db/essplatz";
 import { holeSaalplanFlotix } from "@/lib/ditix/saalplan";
 import { PlaetzeWaehlen } from "@/components/PlaetzeWaehlen";
 
@@ -98,6 +105,11 @@ export default async function VorgangSeite({
     vorgangFlotixId ? auslastung(vorgangFlotixId).catch(() => null) : Promise.resolve(null),
   ]);
   const meineOption = laufendeOptionen.find((o) => o.vorgang === vorgang.nummer) ?? null;
+  /*
+    Die Plätze am Tisch. Sie liegen nicht in FloTix, sondern bei uns:
+    Loge und Eventgalerie sind Essplätze, keine Showplätze.
+  */
+  const essSperren = darfOptionieren ? await sperrenZuVorgang(vorgang.id).catch(() => []) : [];
 
   /*
     Der Saalplan zum Aussuchen.
@@ -587,11 +599,32 @@ export default async function VorgangSeite({
               {darfOptionieren && (
                 <div
                   className="mt-3 rounded-md border px-3 py-2 text-sm"
-                  style={{
-                    borderColor: meineOption ? "var(--gold)" : "var(--linie)",
-                    background: meineOption ? "var(--gold-hell)" : "transparent",
-                  }}
+                  style={
+                    meineOption || essSperren.length > 0
+                      ? { borderColor: "var(--gold)", background: "var(--gold-hell)" }
+                      : angebote.length > 0
+                        ? { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+                        : { borderColor: "var(--linie)", background: "transparent" }
+                  }
                 >
+                  {/*
+                    Der deutliche Hinweis (Florian, 28.10.2026): "es ist
+                    besser dass kevin klicken muss, wenn plätze für die
+                    firma blockiert werden sollen (bitte deutlich
+                    anzeigen)".
+
+                    Von allein blockiert der Eventmanager nichts, das
+                    ist Absicht: Nicht jede Anfrage verdient gehaltene
+                    Plätze. Aber sobald ein Angebot draussen ist und
+                    noch nichts gehalten wird, steht es hier in Orange,
+                    damit es niemand übersieht.
+                  */}
+                  {!meineOption && essSperren.length === 0 && angebote.length > 0 && (
+                    <p className="mb-2 font-medium" style={{ color: "var(--warnung)" }}>
+                      Für diese Firma ist noch nichts blockiert. Das Angebot ist draussen,
+                      die Plätze sind weiter im freien Verkauf.
+                    </p>
+                  )}
                   {meineOption ? (
                     <>
                       <strong>
@@ -606,6 +639,12 @@ export default async function VorgangSeite({
                           .join(" · ")}
                         {meineOption.plaetze.length > 12 ? " und weitere" : ""}
                       </div>
+                      <EssplatzStand
+                        sperren={essSperren}
+                        vorgangId={vorgang.id}
+                        tage={rat.tage}
+                        nachtragen
+                      />
                       <div className="mt-2 flex flex-wrap items-end gap-2">
                         <form action={optionLaengerHalten.bind(null, vorgang.id)}>
                           <label className="text-xs text-leise">
@@ -635,6 +674,8 @@ export default async function VorgangSeite({
                       </div>
                     </>
                   ) : (
+                    <>
+                    <EssplatzStand sperren={essSperren} vorgangId={vorgang.id} tage={rat.tage} />
                     <form
                       action={plaetzeOptionieren.bind(null, vorgang.id)}
                       className="flex flex-wrap items-end gap-2"
@@ -661,9 +702,40 @@ export default async function VorgangSeite({
                           className="w-16"
                         />
                       </label>
+                      {/*
+                        Wo sie essen. FloTix kennt nur Showplätze, der
+                        Tisch liegt bei uns (Florian, 28.10.2026):
+                        "du musst auch Plätze auf eventgalerie oder loge
+                        blockieren können. auch wenn nicht feststeht
+                        wieviele menüs das sind".
+
+                        Ohne eigene Zahl gilt dieselbe Anzahl wie bei
+                        den Showplätzen. Die Menüwahl braucht es dafür
+                        nicht: Wer am Tisch sitzt, isst.
+                      */}
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-leise">Platz am Tisch</span>
+                        <select name="essbereich" defaultValue="" className="text-sm">
+                          <option value="">nicht blockieren</option>
+                          <option value="eventgalerie">Eventgalerie</option>
+                          <option value="logen">Loge</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-leise">davon am Tisch</span>
+                        <input
+                          type="number"
+                          name="essplaetze"
+                          min={0}
+                          max={400}
+                          placeholder="wie oben"
+                          className="w-24"
+                        />
+                      </label>
+
                       <button
                         type="submit"
-                        className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm"
+                        className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
                       >
                         Plätze blockieren
                       </button>
@@ -683,6 +755,7 @@ export default async function VorgangSeite({
                         </details>
                       )}
                     </form>
+                    </>
                   )}
                 </div>
               )}
@@ -1287,6 +1360,79 @@ function Zeile({ bezeichnung, wert }: { bezeichnung: string; wert: string | null
     <div className="flex justify-between gap-3">
       <dt className="text-leise">{bezeichnung}</dt>
       <dd className="text-right">{wert || <span className="text-leise">nicht erfasst</span>}</dd>
+    </div>
+  );
+}
+
+/**
+ * Was am Tisch gehalten wird, Loge und Eventgalerie getrennt.
+ *
+ * Steht direkt neben den Showplätzen, weil beides zusammengehört: Wer
+ * kommt, braucht einen Platz im Saal und einen am Tisch. Nur sind es
+ * zwei verschiedene Töpfe, und der zweite war bisher gar nicht
+ * blockierbar (Florian, 28.10.2026).
+ */
+function EssplatzStand({
+  sperren,
+  vorgangId,
+  tage,
+  nachtragen = false,
+}: {
+  sperren: Essplatzsperre[];
+  vorgangId: string;
+  /** Vorschlag für die Frist, dieselbe wie bei den Showplätzen. */
+  tage: number;
+  /** Zeigt das kurze Formular zum Nachtragen, wenn die Showplätze schon stehen. */
+  nachtragen?: boolean;
+}) {
+  if (sperren.length === 0 && !nachtragen) return null;
+  return (
+    <div className="mt-2 space-y-1">
+      {sperren.map((sp) => (
+        <div key={sp.id} className="flex flex-wrap items-center gap-2 text-xs">
+          <span>
+            <strong>{sp.plaetze}</strong>{" "}
+            {sp.plaetze === 1 ? "Platz" : "Plätze"}{" "}
+            {sp.bereich === "logen" ? "in der Loge" : "auf der Eventgalerie"} blockiert, bis{" "}
+            {new Date(sp.bis).toLocaleDateString("de-DE")}
+          </span>
+          <form action={essplaetzeFreigeben.bind(null, vorgangId, sp.bereich)}>
+            <button type="submit" className="text-leise underline">
+              freigeben
+            </button>
+          </form>
+        </div>
+      ))}
+
+      {/*
+        Nachtragen, wenn die Showplätze schon stehen. Kommt oft vor:
+        Erst wird der Saal gesichert, später erzählt die Firma, dass
+        alle mitessen.
+      */}
+      {nachtragen && (
+        <form
+          action={essplaetzeBlockieren.bind(null, vorgangId)}
+          className="flex flex-wrap items-end gap-2 pt-1"
+        >
+          <select name="essbereich" defaultValue="eventgalerie" className="text-xs">
+            <option value="eventgalerie">Eventgalerie</option>
+            <option value="logen">Loge</option>
+          </select>
+          <input
+            type="number"
+            name="essplaetze"
+            min={1}
+            max={400}
+            placeholder="Plätze"
+            className="w-20 text-xs"
+            required
+          />
+          <input type="hidden" name="tage" value={tage} />
+          <button type="submit" className="rounded-md border border-linie px-2 py-1 text-xs">
+            Tisch blockieren
+          </button>
+        </form>
+      )}
     </div>
   );
 }

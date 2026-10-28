@@ -75,7 +75,8 @@ export async function vorgemerkteMenues(abDatum?: string): Promise<Vormerktag[]>
              select coalesce(sum((wert)::int), 0)
                from jsonb_each_text(g.menues) as m(schluessel, wert)
            )), 0)::int as menues,
-           coalesce(max(ang.menues), 0)::int as menues_angebot
+           coalesce(max(ang.menues), 0)::int as menues_angebot,
+           coalesce(max(tisch.plaetze), 0)::int as plaetze_am_tisch
       from vorgang vg
       join vorstellung v on v.id = vg.vorstellung_id
       left join kunde k on k.id = vg.kunde_id
@@ -105,6 +106,19 @@ export async function vorgemerkteMenues(abDatum?: string): Promise<Vormerktag[]>
            and coalesce(p.optional, false) = false
            and p.ist_alternative_zu is null
       ) ang on true
+      /*
+        Was am Tisch blockiert ist.
+
+        "auch wenn nicht feststeht wieviele menues das sind" (Florian,
+        28.10.2026): Wer vierzig Plaetze in der Loge oder auf der
+        Eventgalerie blockiert, braucht vierzig Essen, auch wenn noch
+        niemand weiss, wer Classic und wer Veggy nimmt.
+      */
+      left join lateral (
+        select coalesce(sum(e.plaetze), 0)::int as plaetze
+          from essplatz_sperre e
+         where e.vorgang_id = vg.id and e.bis > now()
+      ) tisch on true
      where v.datum >= ${ab}::date
        and vg.status = any(${[...ZAEHLT, ...NOCH_OFFEN]})
      group by v.datum, vg.id, vg.nummer, vg.status, k.name
@@ -118,12 +132,15 @@ export async function vorgemerkteMenues(abDatum?: string): Promise<Vormerktag[]>
 
       Steht die Wahl schon je Gast, ist sie genauer: Dort stecken auch
       Nachmeldungen und Absagen drin. Steht sie noch nicht, gilt das
-      Angebot. Erst wenn beides nichts hergibt, ist an dem Abend
-      wirklich kein Essen vorgesehen, zum Beispiel bei einer Buchung
-      nur fuer die Show.
+      Angebot, und wenn auch das nichts hergibt, die am Tisch
+      blockierten Plaetze. Erst wenn alle drei leer sind, ist an dem
+      Abend wirklich kein Essen vorgesehen, zum Beispiel bei einer
+      Buchung nur fuer die Show.
     */
     const ausWahl = Number(z.menues ?? 0);
-    const menues = ausWahl > 0 ? ausWahl : Number(z.menues_angebot ?? 0);
+    const ausAngebot = Number(z.menues_angebot ?? 0);
+    const amTisch = Number(z.plaetze_am_tisch ?? 0);
+    const menues = ausWahl > 0 ? ausWahl : ausAngebot > 0 ? ausAngebot : amTisch;
     if (menues <= 0) continue;
 
     const tag = String(z.tag);
