@@ -48,11 +48,16 @@ const ZUSATZARTIKEL = [
   ...artikelDerGruppe("sonstiges"),
 ];
 
-/** Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt. */
+/**
+ * Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt.
+ *
+ * Geduzt wie alles, was beim Kunden landet (Florian, 28.10.2026):
+ * "eigentlich ist ansprache bei uns immer per du".
+ */
 const LED_TEXT =
-  "Die LED-Fassade buchen Sie als eigenständige Werbeleistung mit eigenem Gegenwert. "
-  + "Da wir Sie an diesem Abend ohnehin als Werbepartner begrüßen, kalkulieren wir das "
-  + "Eventpaket mit unserem Partnerpreis, sodass Sie bei 110 Euro brutto je Person bleiben.";
+  "Die LED-Fassade bucht ihr als eigenständige Werbeleistung mit eigenem Gegenwert. "
+  + "Da wir euch an diesem Abend ohnehin als Werbepartner begrüßen, kalkulieren wir das "
+  + "Eventpaket mit unserem Partnerpreis, sodass ihr bei 110 Euro brutto je Person bleibt.";
 
 /** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
 const ARTEN = [
@@ -130,10 +135,22 @@ export function AngebotBereich({
   */
   const [essplatz, setEssplatz] = useState<"automatisch" | "galerie" | "loge">("automatisch");
   const [logeDazu, setLogeDazu] = useState(false);
-  /* Getränkepauschale und Fassade als Wahlmöglichkeit (Florian, 28.10.2026). */
-  const [getraenkeOptional, setGetraenkeOptional] = useState(false);
+  /*
+    Je Leistung: gar nicht, fest drin, oder drin und optional.
+
+    "ich will dass es drin ist im angebot / ich will dass es drin ist,
+    aber optional. optional ist immer in klammern dann beim kunden auf
+    dem angebot" (Florian, 28.10.2026). Steht hier als eine Liste von
+    Artikelnummern, damit dieselbe Entscheidung für jede Leistung gilt.
+  */
+  const [nurOptional, setNurOptional] = useState<string[]>([]);
   const [mitFassade, setMitFassade] = useState(false);
   const [fassadeStunden, setFassadeStunden] = useState(1);
+  const istOptional = (nummer: string) => nurOptional.includes(nummer);
+  const setzeOptional = (nummer: string, an: boolean) =>
+    setNurOptional((bisher) =>
+      an ? [...new Set([...bisher, nummer])] : bisher.filter((n) => n !== nummer),
+    );
 
   // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
   const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
@@ -363,28 +380,15 @@ export function AngebotBereich({
             )}
           </p>
 
-          <label className="block">
+          <div>
             <span className="mb-1 block text-xs text-leise">Getränkepauschale</span>
-            <Getraenkewahl gewaehlt={getraenke} setzen={setGetraenke} />
-          </label>
-
-          {getraenke.length > 0 && (
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
-                checked={getraenkeOptional}
-                onChange={(e) => setGetraenkeOptional(e.target.checked)}
-              />
-              <span>
-                Getränkepauschale nur als Wahlmöglichkeit anbieten
-                <span className="block text-xs text-leise">
-                  Preis in Klammern, nicht in der Summe. Der Kunde sagt Bescheid, wenn er sie
-                  dazunehmen möchte.
-                </span>
-              </span>
-            </label>
-          )}
+            <Getraenkewahl
+              gewaehlt={getraenke}
+              setzen={setGetraenke}
+              istOptional={istOptional}
+              setzeOptional={setzeOptional}
+            />
+          </div>
 
           {/*
             Das Logo auf der LED-Aussenfassade.
@@ -405,14 +409,17 @@ export function AngebotBereich({
                 Logo auf der LED-Außenfassade anbieten
                 <span className="block text-xs text-leise">
                   {eur(artikel("LEDFASSADE").bruttoCent)} je Stunde zuzüglich 19 Prozent
-                  Umsatzsteuer. Steht als Wahlmöglichkeit im Angebot, in Klammern und nicht in der
-                  Summe.
+                  Umsatzsteuer.
                 </span>
               </span>
             </label>
 
             {mitFassade && (
               <div className="mt-3 space-y-2 border-t border-linie pt-3">
+                <DrinSchalter
+                  optional={istOptional("LEDFASSADE")}
+                  setzen={(an) => setzeOptional("LEDFASSADE", an)}
+                />
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="number"
@@ -479,15 +486,23 @@ export function AngebotBereich({
             </label>
           )}
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-[var(--gold-dunkel)]"
-              checked={mitEmpfang}
-              onChange={(e) => setMitEmpfang(e.target.checked)}
-            />
-            Magicuvée-Empfang berechnen
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--gold-dunkel)]"
+                checked={mitEmpfang}
+                onChange={(e) => setMitEmpfang(e.target.checked)}
+              />
+              Magicuvée-Empfang berechnen
+            </label>
+            {mitEmpfang && (
+              <DrinSchalter
+                optional={istOptional("EMPFANG")}
+                setzen={(an) => setzeOptional("EMPFANG", an)}
+              />
+            )}
+          </div>
 
           <button
             disabled={laeuft}
@@ -512,7 +527,7 @@ export function AngebotBereich({
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
-                  getraenkeOptional: getraenkeOptional && getraenke.length > 0,
+                  optionalePositionen: nurOptional,
                   mitFassade,
                   fassadeStunden,
                   essplatz,
@@ -880,8 +895,13 @@ function AngebotKarte({
         </button>
 
         <a
+          /*
+            Derselbe Betreff wie beim Versand von hier aus. Vorher stand
+            im Outlook-Weg "Ihr Angebot für Ihren Abend", im Text darunter
+            aber das Du. Das fiel sofort auf (Florian, 28.10.2026).
+          */
           href={`mailto:${encodeURIComponent(kundeEmail)}?subject=${encodeURIComponent(
-            `Ihr Angebot ${angebot.nummer} für Ihren Abend im Florian Zimmer Theater`,
+            betreff,
           )}&body=${encodeURIComponent(mailtext)}`}
           className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-xs font-medium text-gold-dunkel hover:bg-gold hover:text-white"
         >
@@ -979,34 +999,89 @@ function ZustandsAnzeige({ angebot }: { angebot: AngebotDetail }) {
  * ist mit den Softdrinks versorgt, alle anderen mit beidem. Im Angebot
  * werden daraus zwei getrennte Positionen.
  */
+/**
+ * Fest drin oder nur als Wahlmöglichkeit.
+ *
+ * "ich will dass es drin ist im angebot / ich will dass es drin ist,
+ * aber optional. optional ist immer in klammern dann beim kunden auf dem
+ * angebot" (Florian, 28.10.2026).
+ *
+ * Zwei Knöpfe nebeneinander statt eines Hakens: Ein Haken namens
+ * "optional" lässt offen, was der andere Zustand eigentlich heisst.
+ * Hier steht beides da, und man sieht auf einen Blick, was der Kunde
+ * später liest.
+ */
+function DrinSchalter({
+  optional,
+  setzen,
+}: {
+  optional: boolean;
+  setzen: (optional: boolean) => void;
+}) {
+  const knopf = (an: boolean, text: string, titel: string) => (
+    <button
+      type="button"
+      onClick={() => setzen(an)}
+      title={titel}
+      className="rounded-md border px-2 py-0.5 text-xs"
+      style={
+        optional === an
+          ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
+          : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+      }
+    >
+      {text}
+    </button>
+  );
+
+  return (
+    <span className="inline-flex gap-1">
+      {knopf(false, "fest drin", "Zählt zur Summe des Angebots.")}
+      {knopf(true, "optional", "Steht beim Kunden in Klammern und zählt nicht zur Summe.")}
+    </span>
+  );
+}
+
 function Getraenkewahl({
   gewaehlt,
   setzen,
+  istOptional,
+  setzeOptional,
 }: {
   gewaehlt: string[];
   setzen: (nummern: string[]) => void;
+  istOptional: (nummer: string) => boolean;
+  setzeOptional: (nummer: string, optional: boolean) => void;
 }) {
   return (
     <div className="space-y-1.5">
       {GETRAENKE.map((g) => {
         const an = gewaehlt.includes(g.nummer);
         return (
-          <label key={g.nummer} className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={an}
-              onChange={() =>
-                setzen(
-                  an ? gewaehlt.filter((n) => n !== g.nummer) : [...gewaehlt, g.nummer],
-                )
-              }
-              className="mt-0.5 h-auto w-auto"
-            />
-            <span>
-              {g.bezeichnung}
-              <span className="text-leise"> ({eur(g.bruttoCent)})</span>
-            </span>
-          </label>
+          <div key={g.nummer} className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={an}
+                onChange={() =>
+                  setzen(
+                    an ? gewaehlt.filter((n) => n !== g.nummer) : [...gewaehlt, g.nummer],
+                  )
+                }
+                className="mt-0.5 h-auto w-auto"
+              />
+              <span>
+                {g.bezeichnung}
+                <span className="text-leise"> ({eur(g.bruttoCent)})</span>
+              </span>
+            </label>
+            {an && (
+              <DrinSchalter
+                optional={istOptional(g.nummer)}
+                setzen={(o) => setzeOptional(g.nummer, o)}
+              />
+            )}
+          </div>
         );
       })}
       {gewaehlt.length === 0 && (

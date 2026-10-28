@@ -30,21 +30,46 @@ function entschaerfen(text: string): string {
  * stehen, für Programme, die kein HTML zeigen.
  */
 export function alsHtml(text: string, link?: string): string {
-  const absaetze = entschaerfen(text)
+  const sicher = link ? entschaerfen(link.trim()) : "";
+
+  /*
+    Die nackte Adresse fliegt aus der Fassung mit Formatierung raus.
+
+    "ich würde dem gast auch nicht so einen langen link zeigen in der
+    mail" (Florian, 28.10.2026). Recht hat er: Eine Zeile wie
+    .../ihr-angebot/wb94Lbt9SC9xv9UykjjKt9ic3xyl4Ngj sieht nach
+    Maschine aus, nicht nach Einladung. Stattdessen steht dort der
+    Knopf. Im reinen Text bleibt die Adresse stehen, denn dort ist sie
+    der einzige Weg zum Angebot.
+
+    Die Leerzeile, die dabei entsteht, wird gleich mit eingezogen.
+  */
+  const zeilen = entschaerfen(text)
     .split(/\r?\n/)
+    .filter((zeile) => !sicher || zeile.trim() !== sicher);
+
+  const absaetze: string[] = [];
+  for (const zeile of zeilen) {
+    const leer = zeile.trim() === "";
+    if (leer && absaetze.length > 0 && absaetze[absaetze.length - 1].trim() === "") continue;
+    absaetze.push(zeile);
+  }
+
+  const koerper = absaetze
     .map((zeile) =>
       zeile.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:#8a6a1f">${u}</a>`),
     )
-    .join("<br>");
+    .join("<br>")
+    .replace(/(<br>)+$/, "");
 
   const knopf = link
-    ? `<p style="margin:28px 0 0"><a href="${entschaerfen(link)}" ` +
+    ? `<p style="margin:28px 0 0"><a href="${sicher}" ` +
       `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
       `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen und zusagen</a></p>`
     : "";
 
   return (
     `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a">` +
-    `<p style="margin:0">${absaetze}</p>${knopf}</div>`
+    `<p style="margin:0">${koerper}</p>${knopf}</div>`
   );
 }

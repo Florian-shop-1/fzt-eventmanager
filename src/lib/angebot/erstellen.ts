@@ -142,13 +142,21 @@ export interface AngebotsOptionen {
    */
   logeDazu?: boolean;
   /**
-   * Die Getränkepauschale nur als Wahlmöglichkeit anbieten.
+   * Welche Leistungen nur als Wahlmöglichkeit dastehen sollen.
    *
-   * "Getränkeflatrate soll optional angeboten werden können (dann auch
-   * der preis wieder in klammern)" (Florian, 28.10.2026). Dann steht sie
-   * grau im Angebot und zählt nicht zur Summe.
+   * Artikelnummern. Was hier steht, steht im Angebot grau, mit Preis in
+   * Klammern, und zählt nicht zur Summe.
+   *
+   * "gut ist so ein button bei den getränkeflats oder was auch immer
+   * menü, stehtisch: ich will dass es drin ist im angebot / ich will
+   * dass es drin ist, aber optional. optional ist immer in klammern dann
+   * beim kunden auf dem angebot" (Florian, 28.10.2026).
+   *
+   * Bewusst eine Liste von Artikelnummern und kein Haken je Leistung: So
+   * gilt dieselbe Entscheidung für alles, was ein Angebot hergibt, ohne
+   * dass für jede neue Leistung wieder ein eigenes Feld dazukommt.
    */
-  getraenkeOptional?: boolean;
+  optionalePositionen?: string[];
   /**
    * Das Firmenlogo auf der LED-Außenfassade mit anbieten.
    *
@@ -418,11 +426,7 @@ export function erzeugePositionen(
 
   // 4. Getränkepauschale
   for (const pauschale of optionen.getraenkepauschalen) {
-    positionen.push({
-      ...zuPosition(preise, pauschale, gesamt),
-      // Optional heisst: grau, Preis in Klammern, nicht in der Summe.
-      optional: optionen.getraenkeOptional || undefined,
-    });
+    positionen.push(zuPosition(preise, pauschale, gesamt));
   }
 
   /*
@@ -435,7 +439,7 @@ export function erzeugePositionen(
   */
   if (optionen.mitFassade) {
     const stunden = Math.max(1, Math.round(optionen.fassadeStunden ?? 1));
-    positionen.push({ ...zuPosition(preise, "LEDFASSADE", stunden), optional: true });
+    positionen.push(zuPosition(preise, "LEDFASSADE", stunden));
   }
 
   // 6. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
@@ -469,7 +473,18 @@ export function erzeugePositionen(
     }
   }
 
-  return positionen;
+  /*
+    Zum Schluss: Was nur als Wahlmöglichkeit dastehen soll, wird grau.
+
+    An einer Stelle für alle Leistungen, statt an jeder einzelnen. Eine
+    Alternative ist ohnehin schon eine Wahlmöglichkeit und bleibt, wie
+    sie ist; sonst stünde sie zweimal in Klammern.
+  */
+  const nurAngeboten = new Set(optionen.optionalePositionen ?? []);
+  if (nurAngeboten.size === 0) return positionen;
+  return positionen.map((p) =>
+    nurAngeboten.has(p.artikelNummer) && !p.istAlternativeZu ? { ...p, optional: true } : p,
+  );
 }
 
 /**
