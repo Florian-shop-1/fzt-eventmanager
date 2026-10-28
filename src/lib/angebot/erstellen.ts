@@ -189,6 +189,18 @@ export interface AngebotsOptionen {
    * nur Bruttobeträge.
    */
   preise?: Map<string, number>;
+  /**
+   * Preise, die fuer dieses eine Angebot von Hand gesetzt wurden.
+   *
+   * "bitte die 350 eur pro stunde LED Fassade aenderbar machen.
+   * grundsaetzlich ist auch gut, wenn preise bei uns aenderbar sind"
+   * (Florian, 28.10.2026).
+   *
+   * Artikelnummer zu Bruttocent. Geht allem vor: dem Artikelstamm und
+   * den Abendpreisen aus dem Ticketshop. Zusammengefuehrt wird beim
+   * Speichern, siehe angebot/speichern.ts.
+   */
+  eigenePreise?: Record<string, number>;
 }
 
 export const STANDARD_ANGEBOTSOPTIONEN: AngebotsOptionen = {

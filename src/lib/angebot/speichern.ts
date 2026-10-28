@@ -35,7 +35,6 @@ import {
 import type { Variante } from "./ablaufplan";
 import type { Vorgang } from "@/lib/domain/vorgang";
 import { vormerkungNachziehen } from "@/lib/kueche/vormerkung";
-import { optionAusAngebot } from "@/lib/flotix/option-aus-angebot";
 
 async function verlangeTeam(): Promise<string> {
   const benutzer = await angemeldeterBenutzer();
@@ -133,6 +132,22 @@ export async function angebotErzeugen(
     }
   }
 
+  /*
+    Von Hand gesetzte Preise gehen allem vor.
+
+    Sie kommen zuletzt dazu, damit sie weder der Artikelstamm noch die
+    Abendpreise aus dem Ticketshop ueberschreiben koennen. Eine Null
+    oder etwas Unsinniges wird dabei verworfen: Lieber der Listenpreis
+    als ein Angebot ueber null Euro.
+  */
+  const vonHand = Object.entries(optionen.eigenePreise ?? {}).filter(
+    ([, cent]) => Number.isFinite(cent) && cent > 0,
+  );
+  if (vonHand.length > 0) {
+    preise = new Map(preise ?? []);
+    for (const [nummer, cent] of vonHand) preise.set(nummer, Math.round(cent));
+  }
+
   const positionen = erzeugePositionen(fuerRechnung, plan, { ...optionen, preise });
   const nummer = await naechsteNummer();
   const jetzt = new Date();
@@ -220,27 +235,21 @@ export async function angebotErzeugen(
   await vormerkungNachziehen(vorgangId);
 
   /*
-    Und die Plaetze werden festgehalten.
+    Plaetze blockiert hier bewusst niemand mehr.
 
-    "kevin erstellt ein angebot, der eventmanager blockiert dann die
-    plaetze, und wenn das angebot ablaeuft werden sie automatisch
-    freigegeben" (Florian, 26.10.2026). So lange wie das Angebot
-    gilt, hoechstens sieben Tage.
+    Bis zum 28.10.2026 geschah das von selbst, sobald ein Angebot
+    entstand. "es ist besser dass kevin klicken muss, wenn plaetze fuer
+    die firma blockiert werden sollen (bitte deutlich anzeigen)"
+    (Florian, 28.10.2026).
+
+    Der Grund ist der Alltag: Kevin baut oft drei Fassungen desselben
+    Abends, und jede haette Plaetze gehalten. Nicht jede Anfrage
+    verdient gehaltene Plaetze, und ein voller Samstag schon gar nicht.
+    Im Vorgang steht jetzt orange, dass nichts blockiert ist, solange
+    ein Angebot draussen ist und niemand geklickt hat. Beim Blockieren
+    wird es am juengsten Angebot vermerkt, damit die Kundenseite es
+    zeigen kann (siehe vorgaenge/[id]/optionen.ts).
   */
-  const gehalten = await optionAusAngebot(vorgangId);
-  /*
-    Und es steht am Angebot, damit die Kundenseite es zeigen kann, ohne
-    dafür bei FloTix anzuklopfen (Florian, 28.10.2026: "dies dem kunden
-    mitgeteilt wird"). Schlägt es fehl, bleibt es bei null, und auf der
-    Seite steht dann schlicht nichts dazu.
-  */
-  if (gehalten.gesetzt > 0 && gehalten.bis) {
-    await db()`
-      update angebot
-         set plaetze_gehalten = ${gehalten.gesetzt}, plaetze_bis = ${gehalten.bis}
-       where id = ${angebotId}
-    `.catch((f) => console.warn("[angebot] Plaetze nicht vermerkt:", f));
-  }
 
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");
@@ -259,12 +268,16 @@ export async function angeboteErzeugen(
   vorgangId: string,
   basis: AngebotsOptionen,
   varianten: Variante[],
-): Promise<{ anzahl: number }> {
+): Promise<{ anzahl: number; ids: string[] }> {
   const liste = varianten.length > 0 ? varianten : [basis.variante ?? "menue"];
+  const ids: string[] = [];
   for (const variante of liste) {
-    await angebotErzeugen(vorgangId, { ...basis, variante });
+    const { angebotId } = await angebotErzeugen(vorgangId, { ...basis, variante });
+    ids.push(angebotId);
   }
-  return { anzahl: liste.length };
+  // Die Kennungen gehen zurueck, damit die Seite danach genau das
+  // frische Angebot zeigen kann (Florian, 28.10.2026).
+  return { anzahl: liste.length, ids };
 }
 
 /** Markiert ein Angebot als verschickt. */

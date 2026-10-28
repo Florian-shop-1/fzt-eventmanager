@@ -30,6 +30,31 @@ async function zugang() {
   return b;
 }
 
+/**
+ * Vermerkt die blockierten Plaetze am juengsten offenen Angebot.
+ *
+ * Die Kundenseite liest sie von dort, damit sie dafuer nicht bei FloTix
+ * anklopfen muss. Seit dem 28.10.2026 blockiert das Erstellen eines
+ * Angebots nichts mehr von selbst, also wird es hier nachgetragen.
+ */
+async function amAngebotVermerken(
+  vorgangId: string,
+  plaetze: number,
+  bis: Date | null,
+): Promise<void> {
+  await db()`
+    update angebot
+       set plaetze_gehalten = ${plaetze},
+           plaetze_bis = ${bis ? bis.toISOString() : null}
+     where id = (
+       select a.id from angebot a
+        where a.vorgang_id = ${vorgangId}::uuid
+          and a.abgelehnt_am is null and a.angenommen_am is null
+        order by a.erstellt_am desc limit 1
+     )
+  `.catch((f) => console.warn("[option] Plaetze nicht am Angebot vermerkt:", f));
+}
+
 function zurueck(vorgangId: string, meldung: string): never {
   revalidatePath(`/vorgaenge/${vorgangId}`);
   redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent(meldung)}`);
@@ -118,6 +143,7 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
       bis,
       plaetze: gewaehlt.length > 0 ? gewaehlt : undefined,
     });
+    await amAngebotVermerken(vorgangId, e.gesetzt, bis);
     const bisText = bis.toLocaleDateString("de-DE");
     if (e.fehlende > 0) {
       zurueck(
@@ -141,8 +167,9 @@ export async function optionLaengerHalten(vorgangId: string, formData: FormData)
   const bis = new Date(Date.now() + tage * 24 * 60 * 60 * 1000);
 
   try {
-    await optionVerlaengern(daten.nummer, bis);
-    zurueck(vorgangId, `Option verlängert bis ${bis.toLocaleDateString("de-DE")}.`);
+    const e = await optionVerlaengern(daten.nummer, bis);
+    await amAngebotVermerken(vorgangId, e.plaetze, bis);
+    zurueck(vorgangId, `Blockierung verlängert bis ${bis.toLocaleDateString("de-DE")}.`);
   } catch (f) {
     if (f && typeof f === "object" && "digest" in f) throw f;
     zurueck(vorgangId, f instanceof Error ? f.message : "Das Verlängern hat nicht geklappt.");
@@ -156,6 +183,7 @@ export async function optionFreigeben(vorgangId: string): Promise<void> {
 
   try {
     const e = await optionAufheben(daten.nummer);
+    await amAngebotVermerken(vorgangId, 0, null);
     // Der Tisch geht mit: Wer die Showplätze freigibt, hält niemandem
     // mehr einen Platz in der Loge frei.
     await sperreAufheben(vorgangId);

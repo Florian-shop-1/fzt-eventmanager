@@ -10,7 +10,7 @@
  * keine Zahlen liefern. Ein Klick auf den Link ist eindeutig.
  */
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   angeboteErzeugen,
@@ -155,6 +155,14 @@ export function AngebotBereich({
   const [nurOptional, setNurOptional] = useState<string[]>([]);
   const [mitFassade, setMitFassade] = useState(false);
   const [fassadeStunden, setFassadeStunden] = useState(1);
+  /*
+    Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
+    28.10.2026): "bitte die 350 eur pro stunde LED Fassade aenderbar
+    machen". Vorbelegt mit dem Listenpreis, leer heisst Listenpreis.
+  */
+  const [fassadePreis, setFassadePreis] = useState(
+    (artikel("LEDFASSADE").bruttoCent / 100).toFixed(2).replace(".", ","),
+  );
   const istOptional = (nummer: string) => nurOptional.includes(nummer);
   const setzeOptional = (nummer: string, an: boolean) =>
     setNurOptional((bisher) =>
@@ -163,6 +171,37 @@ export function AngebotBereich({
 
   // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
   const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
+  const fassadeCent = Math.round((Number(fassadePreis.replace(",", ".")) || 0) * 100);
+  /** Der Preis, der am Ende gilt: der getippte, sonst der aus der Liste. */
+  const fassadeGilt = fassadeCent > 0 ? fassadeCent : artikel("LEDFASSADE").bruttoCent;
+
+  /*
+    Nach dem Erstellen das frische Angebot zeigen.
+
+    "wenn man auf Angebot erstellen klickt, dann sollte das angebot
+    direkt darunter sichtbar auftauchen. man checkt ja gar nicht sonst,
+    ob es geklappt hat" (Florian, 28.10.2026).
+
+    Die Liste steht ueber dem Baukasten, und wer unten auf den Knopf
+    drueckt, sieht sie nicht. Deshalb springt die Seite danach selbst
+    zum neuen Angebot und hebt es kurz hervor. Erkannt wird es daran,
+    dass ein Angebot mehr da ist als vorher: Die Serveraktion liefert
+    die Kennung nicht zurueck, der Stapel kommt frisch vom Server.
+  */
+  const [frisch, setFrisch] = useState<string | null>(null);
+  const gesprungen = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!frisch || gesprungen.current === frisch) return;
+    gesprungen.current = frisch;
+    document
+      .getElementById(`angebot-${frisch}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Die Hervorhebung wieder abnehmen, sonst leuchtet sie fuer immer
+    // und sagt beim naechsten Blick nichts mehr.
+    const uhr = setTimeout(() => setFrisch(null), 6000);
+    return () => clearTimeout(uhr);
+  }, [frisch]);
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-5">
@@ -180,6 +219,7 @@ export function AngebotBereich({
               appUrl={appUrl}
               kundeEmail={kundeEmail}
               ansprechpartner={ansprechpartner}
+              frisch={a.id === frisch}
             />
           ))}
         </div>
@@ -432,23 +472,35 @@ export function AngebotBereich({
                   optional={istOptional("LEDFASSADE")}
                   setzen={(an) => setzeOptional("LEDFASSADE", an)}
                 />
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={fassadeStunden}
-                    onChange={(e) => setFassadeStunden(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
-                  />
-                  <span>
-                    {fassadeStunden === 1 ? "Stunde" : "Stunden"} bespielen
-                    <span className="text-leise">
-                      {" "}
-                      ({eur(artikel("LEDFASSADE").bruttoCent * fassadeStunden)} brutto)
-                    </span>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={fassadeStunden}
+                      onChange={(e) => setFassadeStunden(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                    />
+                    <span>{fassadeStunden === 1 ? "Stunde" : "Stunden"} bespielen</span>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Preis je Stunde €</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={fassadePreis}
+                      onChange={(e) => setFassadePreis(e.target.value)}
+                      className="w-24 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                    />
+                  </label>
+                  <span className="pb-1 text-sm text-leise">
+                    = {eur(fassadeGilt * fassadeStunden)} brutto
+                    {fassadeCent > 0 && fassadeCent !== artikel("LEDFASSADE").bruttoCent && (
+                      <> statt der üblichen {eur(artikel("LEDFASSADE").bruttoCent * fassadeStunden)}</>
+                    )}
                   </span>
-                </label>
+                </div>
                 <p className="text-xs text-leise">
                   Unter dem Angebot steht dann, was eine Werbepartnerschaft bedeutet: dass
                   Werbe- und Veranstaltungsleistungen getrennt ausgewiesen und abgerechnet werden,
@@ -518,9 +570,9 @@ export function AngebotBereich({
 
           <button
             disabled={laeuft}
-            onClick={() =>
-              starte(() =>
-                void angeboteErzeugen(
+            onClick={() => {
+              starte(async () => {
+                const ergebnis = await angeboteErzeugen(
                   vorgangId,
                   {
                   art,
@@ -543,6 +595,10 @@ export function AngebotBereich({
                   optionalePositionen: nurOptional,
                   mitFassade,
                   fassadeStunden,
+                  // Von Hand gesetzte Preise. Weitere Artikel lassen sich
+                  // hier genauso dazunehmen, ohne dass der Rest etwas
+                  // davon merken muss.
+                  eigenePreise: fassadeCent > 0 ? { LEDFASSADE: fassadeCent } : undefined,
                   essplatz,
                   logeDazu: logeDazu && essplatz !== "loge",
                   mitEmpfang,
@@ -551,9 +607,10 @@ export function AngebotBereich({
                   mitUnterbelegung: art === "einzelplaetze",
                   },
                   fassungen,
-                ),
-              )
-            }
+                );
+                setFrisch(ergebnis.ids[0] ?? null);
+              });
+            }}
             className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-dunkel disabled:opacity-50"
           >
             {laeuft
@@ -581,12 +638,15 @@ function AngebotKarte({
   appUrl,
   kundeEmail,
   ansprechpartner,
+  frisch = false,
 }: {
   angebot: AngebotDetail;
   vorgangId: string;
   appUrl: string;
   kundeEmail: string;
   ansprechpartner: string | null;
+  /** Gerade eben entstanden: kurz hervorheben. */
+  frisch?: boolean;
 }) {
   const [laeuft, starte] = useTransition();
   const [kopiert, setKopiert] = useState<"" | "link" | "mail">("");
@@ -663,7 +723,21 @@ function AngebotKarte({
   }
 
   return (
-    <div className="rounded-md border border-linie p-4">
+    <div
+      id={`angebot-${angebot.id}`}
+      className="scroll-mt-4 rounded-md border p-4 transition-colors"
+      style={
+        frisch
+          ? { borderColor: "var(--gut)", background: "var(--gut-hell)" }
+          : { borderColor: "var(--linie)" }
+      }
+    >
+      {frisch && (
+        <p className="mb-2 text-sm font-medium" style={{ color: "var(--gut)" }}>
+          Gerade erstellt. Plätze sind noch nicht blockiert, das machst du oben im
+          Kasten Termin.
+        </p>
+      )}
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <span className="font-medium">{angebot.nummer}</span>
