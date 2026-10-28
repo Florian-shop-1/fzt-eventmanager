@@ -15,8 +15,15 @@ export const STANDARD_TICKET = "TK2";
  * Alternativpositionen, die im Angebot unter der Hauptposition erscheinen.
  * So kann der Kunde die Kategorie selbst wählen, genau wie in den
  * Musterangeboten AG-0826-1167 und AG-0826-1168.
+ *
+ * Kat. 3 steht bewusst nicht dabei (Florian, 28.10.2026): "wir möchten Kat 2
+ * bieten wir immer als erstes an, und die anderen Kat. (ausser 3) optional
+ * anbieten". Kat. 3 ist die letzte Reihe. Sie einer Firma als Wahlmöglichkeit
+ * hinzuschreiben lädt dazu ein, das Angebot nach unten zu verhandeln, und das
+ * ist nicht das, was wir anbieten wollen. Wer sie trotzdem braucht, trägt sie
+ * oben bei den Stückzahlen ein; dann steht sie als echte Position da.
  */
-export const TICKET_ALTERNATIVEN = ["TK1", "TGS", "TK3"];
+export const TICKET_ALTERNATIVEN = ["TGS", "TK1"];
 
 /** Frist, bis zu der ein Angebot gilt: sieben Tage, wie in den Musterangeboten. */
 export const ANGEBOT_GUELTIG_TAGE = 7;

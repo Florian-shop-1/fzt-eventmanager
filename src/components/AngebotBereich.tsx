@@ -123,6 +123,13 @@ export function AngebotBereich({
   );
   const [getraenke, setGetraenke] = useState<string[]>([]);
   const [mitEmpfang, setMitEmpfang] = useState(false);
+  /*
+    Wo gegessen wird, und ob die Loge als Wahlmoeglichkeit mitlaeuft
+    (Florian, 28.10.2026). Platz im Saal und Platz am Tisch sind zwei
+    verschiedene Dinge: Aus der Loge sieht man die Show nicht.
+  */
+  const [essplatz, setEssplatz] = useState<"automatisch" | "galerie" | "loge">("automatisch");
+  const [logeDazu, setLogeDazu] = useState(false);
 
   // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
   const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
@@ -357,6 +364,45 @@ export function AngebotBereich({
             <Getraenkewahl gewaehlt={getraenke} setzen={setGetraenke} />
           </label>
 
+          {/*
+            Wo gegessen wird. Steht neben den Ticketkategorien, weil es
+            dieselbe Frage von der anderen Seite ist: Die Kategorie sagt,
+            wo der Gast die Show sieht, das hier sagt, wo er isst.
+          */}
+          <label className="block">
+            <span className="mb-1 block text-xs text-leise">Wo gegessen wird</span>
+            <select
+              value={essplatz}
+              onChange={(e) => setEssplatz(e.target.value as typeof essplatz)}
+            >
+              <option value="automatisch">Wie im Sitzplan hinterlegt</option>
+              <option value="galerie">Alle auf der Eventgalerie</option>
+              <option value="loge">Alle in einer Loge</option>
+            </select>
+            <span className="mt-1 block text-xs text-leise">
+              Der Platz am Tisch hat mit der Ticketkategorie nichts zu tun: Aus der Loge sieht man
+              die Show nicht, jeder Logengast hat zusätzlich seinen Sitzplatz im Saal. So lässt
+              sich auch anbieten, in den Golden Seats zu sitzen und in der Loge zu essen.
+            </span>
+          </label>
+
+          {essplatz !== "loge" && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
+                checked={logeDazu}
+                onChange={(e) => setLogeDazu(e.target.checked)}
+              />
+              <span>
+                Loge zusätzlich als Wahlmöglichkeit anbieten
+                <span className="block text-xs text-leise">
+                  Steht im Angebot unter dem Menü, mit Preis in Klammern und nicht in der Summe.
+                </span>
+              </span>
+            </label>
+          )}
+
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -390,6 +436,8 @@ export function AngebotBereich({
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
+                  essplatz,
+                  logeDazu: logeDazu && essplatz !== "loge",
                   mitEmpfang,
                   // Bei einer Exklusivbuchung ist der ganze Saal bezahlt,
                   // leere Logenplaetze werden nicht noch einmal berechnet.
@@ -980,7 +1028,7 @@ function Kategorienwahl({
             )}
             {benutzte > 1 && " · mehrere Kategorien, alle zählen zur Summe"}
             {benutzte === 1 &&
-              " · die anderen Kategorien stehen als Wahlmöglichkeit darunter"}
+              " · Golden Seats und Kat. 1 stehen als Wahlmöglichkeit darunter, in Klammern und nicht in der Summe"}
           </>
         )}
       </p>

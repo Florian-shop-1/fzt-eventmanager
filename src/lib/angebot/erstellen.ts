@@ -115,6 +115,32 @@ export interface AngebotsOptionen {
    * beliebteste Kombination. Jede wird zu einer eigenen Position.
    */
   getraenkepauschalen: string[];
+  /**
+   * Wo gegessen wird: auf der Eventgalerie oder in einer Loge.
+   *
+   * "Plätze auf der VIP-Empore, VIP-Empore oder Logenplatz zum essen soll
+   * auch getrennt angeboten werden können. also z.B. sitzen in den golden
+   * seats, essen in loge" (Florian, 28.10.2026).
+   *
+   * Platz im Saal und Platz am Tisch sind im Haus zwei verschiedene Dinge:
+   * Aus der Loge sieht man die Show nicht, jeder Logengast hat zusätzlich
+   * ein Showticket (siehe domain/venue.ts). Im Angebot hing der Essplatz
+   * bisher am Sitzplan, und der steht beim Anbieten meist noch gar nicht
+   * fest. Deshalb hier als eigene Wahl:
+   *
+   *   automatisch  wie bisher aus dem Sitzplan
+   *   galerie      alle essen auf der Eventgalerie
+   *   loge         alle essen in einer Loge
+   */
+  essplatz?: "automatisch" | "galerie" | "loge";
+  /**
+   * Die Loge zusätzlich als Wahlmöglichkeit anbieten.
+   *
+   * "Loge soll man optional mit anbieten können" (Florian, 28.10.2026).
+   * Dann steht unter dem Menü auf der Eventgalerie dasselbe Menü in der
+   * Loge, mit Preis in Klammern und nicht in der Summe.
+   */
+  logeDazu?: boolean;
   /** Magicuvée-Empfang auf der Eventgalerie mit anbieten. */
   mitEmpfang: boolean;
   /** Nicht belegte Logenplätze in Rechnung stellen. */
@@ -254,14 +280,23 @@ export function erzeugePositionen(
   const tickets = variante ? mitShow(variante) && !exklusivVariante : true;
   const gruppenIds = new Set(vorgang.gruppen.map((g) => g.id));
 
-  // Wie viele der Gäste sitzen in einer Loge? Nur die bekommen das
-  // teurere Logenmenü.
-  const inLoge = plan
+  const gesamt = vorgang.gruppen.reduce((s, g) => s + g.personen, 0);
+
+  /*
+    Wer isst wo? Nur Logengäste bekommen das teurere Logenmenü.
+
+    Steht im Angebot eine Wahl, gilt die. Ohne Wahl kommt es wie bisher
+    aus dem Sitzplan, und ohne Sitzplan isst niemand in der Loge. Beim
+    Anbieten steht der Sitzplan meist noch gar nicht fest, deshalb muss
+    man es hier sagen können (Florian, 28.10.2026).
+  */
+  const ausPlan = plan
     ? plan.logen
         .filter((z) => gruppenIds.has(z.gruppeId))
         .reduce((s, z) => s + z.personen, 0)
     : 0;
-  const gesamt = vorgang.gruppen.reduce((s, g) => s + g.personen, 0);
+  const essplatz = optionen.essplatz ?? "automatisch";
+  const inLoge = essplatz === "loge" ? gesamt : essplatz === "galerie" ? 0 : ausPlan;
   const inGalerie = gesamt - inLoge;
 
   // 1. Was auf den Tisch kommt
@@ -272,11 +307,21 @@ export function erzeugePositionen(
     // Unterscheidung zwischen Loge und Galerie.
     if (gesamt > 0) positionen.push(zuPosition(preise, "FINGERFOOD", gesamt));
   } else {
-    if (inGalerie > 0) {
-      positionen.push(zuPosition(preise, "4GANG", inGalerie));
-    }
+    const aufGalerie = inGalerie > 0 ? zuPosition(preise, "4GANG", inGalerie) : null;
+    if (aufGalerie) positionen.push(aufGalerie);
     if (inLoge > 0) {
       positionen.push(zuPosition(preise, "4GANGLOGE", inLoge));
+    }
+    /*
+      Die Loge als Wahlmöglichkeit unter dem Menü auf der Eventgalerie:
+      grau, Preis in Klammern, nicht in der Summe. Wer schon in der Loge
+      isst, bekommt sie nicht noch einmal angeboten.
+    */
+    if (optionen.logeDazu && aufGalerie) {
+      positionen.push({
+        ...zuPosition(preise, "4GANGLOGE", inGalerie),
+        istAlternativeZu: aufGalerie.id,
+      });
     }
   }
 
