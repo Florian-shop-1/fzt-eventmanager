@@ -116,6 +116,15 @@ export interface AngebotsOptionen {
    */
   getraenkepauschalen: string[];
   /**
+   * Wie viele Flats je Pauschale, falls nicht fuer alle dieselbe.
+   *
+   * "wenn kinder dabei sind brauchen wir eine moeglichkeit, z.b. bei 12
+   * teilnehmern 10 bier wein flat und 2 softdrink flat" (Florian,
+   * 28.10.2026). Genau dafuer: Artikelnummer zu Anzahl. Was hier nicht
+   * steht, gilt wie bisher fuer alle Teilnehmer.
+   */
+  getraenkeMengen?: Record<string, number>;
+  /**
    * Wo gegessen wird: auf der Eventgalerie oder in einer Loge.
    *
    * "Plätze auf der VIP-Empore, VIP-Empore oder Logenplatz zum essen soll
@@ -252,19 +261,19 @@ export function einleitungstext(
 
 /** Die Bedingungen, die in beiden Musterangeboten unten stehen. */
 export const SCHLUSSTEXT = [
-  "Wir freuen uns darauf, euren Abend bei uns zu einem unvergesslichen Erlebnis zu machen.",
+  "Wir freuen uns darauf, Ihren Abend bei uns zu einem unvergesslichen Erlebnis zu machen.",
   "",
-  "Bitte beachtet: Die Reservierung bleibt bis zum Zahlungseingang unverbindlich. Erst mit " +
-    "dem vollständigen Zahlungseingang gilt eure Buchung als fest bestätigt.",
+  "Bitte beachten Sie: Die Reservierung bleibt bis zum Zahlungseingang unverbindlich. Erst mit " +
+    "dem vollständigen Zahlungseingang gilt Ihre Buchung als fest bestätigt.",
   "",
   "Alle aufgeführten Preise verstehen sich als Bruttopreise inklusive der gesetzlichen Mehrwertsteuer.",
   "",
-  "Für eure kulinarische Begleitung bitten wir euch, uns spätestens 7 Tage vor der Veranstaltung " +
-    "eure Menüwahl (Fleisch, Fisch oder Vegan) sowie mögliche Allergien oder Unverträglichkeiten " +
-    "mitzuteilen. Unser Küchenteam geht selbstverständlich individuell auf eure Wünsche ein.",
+  "Für Ihre kulinarische Begleitung bitten wir Sie, uns spätestens 7 Tage vor der Veranstaltung " +
+    "Ihre Menüwahl (Fleisch, Fisch oder Vegan) sowie mögliche Allergien oder Unverträglichkeiten " +
+    "mitzuteilen. Unser Küchenteam geht selbstverständlich individuell auf Ihre Wünsche ein.",
   "",
   "Gerne berücksichtigen wir auch kurzfristige Ergänzungen oder besondere Arrangements, stets im " +
-    "Rahmen der Verfügbarkeit, damit euer Abend perfekt wird.",
+    "Rahmen der Verfügbarkeit, damit Ihr Abend perfekt wird.",
 ].join("\n");
 
 /**
@@ -280,18 +289,18 @@ export const SCHLUSSTEXT = [
 export const WERBUNG_TEXT = [
   "Werbepartnerschaft und vereinbarte Partnerkonditionen",
   "",
-  "Die Werbeleistungen umfassen die Präsentation eures Unternehmenslogos auf der großflächigen " +
+  "Die Werbeleistungen umfassen die Präsentation Ihres Unternehmenslogos auf der großflächigen " +
     "LED-Außenfassade des Florian Zimmer Theaters sowie gegebenenfalls weitere ausdrücklich " +
     "vereinbarte Werbe- und Brandingmaßnahmen, beispielsweise an den Sitzplätzen im Theater. Art, " +
     "Umfang und Ausstrahlungszeitraum ergeben sich aus den Angebotspositionen.",
   "",
-  "Im Zusammenhang mit der Werbepartnerschaft räumen wir euch die individuell vereinbarten " +
+  "Im Zusammenhang mit der Werbepartnerschaft räumen wir Ihnen die individuell vereinbarten " +
     "Partnerkonditionen für ausgewählte Showtickets und gastronomische Leistungen ein.",
   "",
   "Werbeleistungen und Veranstaltungsleistungen werden gesondert ausgewiesen und abgerechnet. Der " +
     "Vertrag über die Werbeleistung kommt mit vollständigem Eingang des Rechnungsbetrags zustande.",
   "",
-  "Bitte übermittelt uns euer Logo spätestens eine Woche vor der Werbemaßnahme als JPG- oder " +
+  "Bitte übermitteln Sie uns Ihr Logo spätestens eine Woche vor der Werbemaßnahme als JPG- oder " +
     "PNG-Datei.",
 ].join(String.fromCharCode(10));
 
@@ -424,9 +433,19 @@ export function erzeugePositionen(
     positionen.push(zuPosition(preise, "EMPFANG", gesamt));
   }
 
-  // 4. Getränkepauschale
+  /*
+    4. Getraenkepauschalen.
+
+    Die Menge kann je Pauschale abweichen: Bei zwoelf Teilnehmern zehn
+    Bier- und Weinflats und zwei Softdrinkflats, wenn Kinder dabei sind.
+    Ohne Angabe gilt sie fuer alle. Eine Null laesst die Zeile weg,
+    sonst stuende im Angebot eine Pauschale fuer niemanden.
+  */
   for (const pauschale of optionen.getraenkepauschalen) {
-    positionen.push(zuPosition(preise, pauschale, gesamt));
+    const wunsch = optionen.getraenkeMengen?.[pauschale];
+    const menge = wunsch === undefined ? gesamt : Math.max(0, Math.round(wunsch));
+    if (menge === 0) continue;
+    positionen.push(zuPosition(preise, pauschale, menge));
   }
 
   /*
@@ -461,7 +480,7 @@ export function erzeugePositionen(
         artikelNummer: "EXKLLOGE",
         bezeichnung: "Exklusivnutzung Loge",
         beschreibung:
-          "Für die exklusive Nutzung eurer Loge halten wir die nicht belegten Plätze für euch " +
+          "Für die exklusive Nutzung Ihrer Loge halten wir die nicht belegten Plätze für Sie " +
           "frei. Diese können an dem Abend nicht anderweitig vergeben werden.",
         menge: blockiert,
         einheit: "Stück",

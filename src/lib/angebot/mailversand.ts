@@ -22,6 +22,7 @@ import { angebotsPdf } from "./pdf";
 import { pdfDatenAusAngebot, pdfDateiname } from "./pdfdaten";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 import { alsHtml } from "@/lib/mail/html";
+import { FUSSZEILE_TEXT, fusszeileHtml } from "@/lib/mail/fusszeile";
 
 /** Aus welchem Postfach Angebote hinausgehen (Florian, 05.10.2026). */
 const ANGEBOT_ABSENDER = "kevin.steele@florianzimmer.com";
@@ -93,11 +94,26 @@ export async function angebotPerMail(
     */
     const basis = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
     const link = `${basis}/ihr-angebot/${angebot.trackingToken}`;
+    /*
+      Die Fusszeile haengt der Eventmanager an, nicht Kevin.
+
+      "bitte bei der mail einen schoenen footer" (Florian, 28.10.2026).
+      Im Textfeld steht nur der Brief: So kann die Unterschrift nicht
+      halb geloescht werden, und die beiden Bewertungslinks sind in
+      jeder Mail dieselben.
+    */
     await mailVerschicken({
       an,
       betreff,
-      text,
-      html: alsHtml(text, link),
+      text: text + FUSSZEILE_TEXT,
+      html: alsHtml(text, {
+        link,
+        fuss: fusszeileHtml(),
+        nebenlink: {
+          href: `${link}#aenderung`,
+          text: "Passt etwas noch nicht? Änderungswunsch schicken",
+        },
+      }),
       anhaenge,
       absender: ANGEBOT_ABSENDER,
     });

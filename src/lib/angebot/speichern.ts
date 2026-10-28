@@ -152,7 +152,7 @@ export async function angebotErzeugen(
       `Die Preise entsprechen einer Vorstellung am ${preisHerkunft.datum
         .split("-")
         .reverse()
-        .join(".")}. An anderen Wochentagen koennen sie abweichen; wir halten sie fuer euch fest, sobald der Termin steht.`,
+        .join(".")}. An anderen Wochentagen koennen sie abweichen; wir halten sie fuer Sie fest, sobald der Termin steht.`,
     );
   }
   if (optionen.mitFassade) schlussteile.push(WERBUNG_TEXT);

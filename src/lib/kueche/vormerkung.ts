@@ -74,11 +74,37 @@ export async function vorgemerkteMenues(abDatum?: string): Promise<Vormerktag[]>
            coalesce(sum((
              select coalesce(sum((wert)::int), 0)
                from jsonb_each_text(g.menues) as m(schluessel, wert)
-           )), 0)::int as menues
+           )), 0)::int as menues,
+           coalesce(max(ang.menues), 0)::int as menues_angebot
       from vorgang vg
       join vorstellung v on v.id = vg.vorstellung_id
       left join kunde k on k.id = vg.kunde_id
       left join gruppe g on g.vorgang_id = vg.id
+      /*
+        Was im juengsten Angebot an Menues steht.
+
+        Die Menuewahl je Gast traegt das Buero erst kurz vor dem Abend
+        ein, das Angebot steht Wochen vorher. Ohne diesen Weg bleibt die
+        Kueche bis zuletzt blind, und der Shop verkauft denselben Abend
+        weiter voll (Florian, 28.10.2026: "dort sollten doch die tickets
+        und menues vorgemerkt werden").
+
+        Abgelehnte Angebote zaehlen nicht, optionale Zeilen und
+        Alternativen auch nicht: Der Kunde hat sie nicht bestellt.
+      */
+      left join lateral (
+        select a.id from angebot a
+         where a.vorgang_id = vg.id and a.abgelehnt_am is null
+         order by a.erstellt_am desc limit 1
+      ) neuestes on true
+      left join lateral (
+        select coalesce(sum(p.menge), 0)::int as menues
+          from position p
+         where p.angebot_id = neuestes.id
+           and p.artikel_nummer in ('4GANG', '4GANGLOGE')
+           and coalesce(p.optional, false) = false
+           and p.ist_alternative_zu is null
+      ) ang on true
      where v.datum >= ${ab}::date
        and vg.status = any(${[...ZAEHLT, ...NOCH_OFFEN]})
      group by v.datum, vg.id, vg.nummer, vg.status, k.name
@@ -87,7 +113,17 @@ export async function vorgemerkteMenues(abDatum?: string): Promise<Vormerktag[]>
 
   const nachTag = new Map<string, Vormerktag>();
   for (const z of zeilen) {
-    const menues = Number(z.menues ?? 0);
+    /*
+      Die erfasste Menuewahl geht vor, das Angebot springt ein.
+
+      Steht die Wahl schon je Gast, ist sie genauer: Dort stecken auch
+      Nachmeldungen und Absagen drin. Steht sie noch nicht, gilt das
+      Angebot. Erst wenn beides nichts hergibt, ist an dem Abend
+      wirklich kein Essen vorgesehen, zum Beispiel bei einer Buchung
+      nur fuer die Show.
+    */
+    const ausWahl = Number(z.menues ?? 0);
+    const menues = ausWahl > 0 ? ausWahl : Number(z.menues_angebot ?? 0);
     if (menues <= 0) continue;
 
     const tag = String(z.tag);

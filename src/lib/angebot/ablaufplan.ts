@@ -85,7 +85,7 @@ export function mitEssen(v: Variante): boolean {
 const EMPFANG: Station = {
   zeit: "17:30",
   titel: "Magicuvée-Empfang auf der Eventgalerie",
-  text: "Eure Gäste kommen an und bekommen ein Glas Magicuvée in die Hand. Zeit zum Ankommen.",
+  text: "Ihre Gäste kommen an und bekommen ein Glas Magicuvée in die Hand. Zeit zum Ankommen.",
 };
 
 const MENUE: Station = {
@@ -93,13 +93,13 @@ const MENUE: Station = {
   titel: "4-Gang-Menü by Osman Kavak",
   text:
     "Magicuisine, zur Forelle. Classic, Vegan oder Sea, gerne angepasst an besondere Wünsche. "
-    + "Serviert auf der Eventgalerie, oder soweit verfügbar in eurer Loge im Showroom.",
+    + "Serviert auf der Eventgalerie, oder soweit verfügbar in Ihrer Loge im Showroom.",
 };
 
 const AUSKLANG: Station = {
   zeit: "22:30",
   titel: "Ausklang an der Magic Bar",
-  text: "Danach bleibt Zeit. Der Teil des Abends, an den sich eure Gäste am längsten erinnern.",
+  text: "Danach bleibt Zeit. Der Teil des Abends, an den sich Ihre Gäste am längsten erinnern.",
 };
 
 const FINGERFOOD: Station = {
@@ -138,9 +138,9 @@ export function ablaufFuer(o: {
       { ...MENUE, zeit: o.tageszeit === "nachmittag" ? "15:00" : "18:00" },
       {
         zeit: o.tageszeit === "nachmittag" ? "18:00" : "21:00",
-        titel: "Das Haus gehört euch",
+        titel: "Das Haus gehört Ihnen",
         text:
-          "Showroom, Eventgalerie und Foyer stehen allein für euch bereit, mit unserer Technik "
+          "Showroom, Eventgalerie und Foyer stehen allein für Sie bereit, mit unserer Technik "
           + "und unserem Team. Was ihr daraus macht, entscheidet ihr.",
       },
       AUSKLANG,
@@ -215,7 +215,7 @@ export function wochentagName(nummer: number): string {
  * Die Überschrift über dem Ablauf.
  *
  * Steht ein Termin fest, nennt sie das Datum. Sonst den Wochentag:
- * "Euer Event an einem Donnerstag". So sieht der Kunde, worauf sich der
+ * "Ihr Event an einem Donnerstag". So sieht der Kunde, worauf sich der
  * Preis bezieht, denn donnerstags und sonntags ist es günstiger als am
  * Wochenende (Florian, 15.10.2026).
  */
@@ -226,7 +226,7 @@ export function ablaufUeberschrift(o: {
 }): string {
   if (o.datum) {
     const d = new Date(`${o.datum}T12:00:00Z`);
-    return `Euer Event am ${wochentagName(d.getUTCDay())}, dem ${o.datum
+    return `Ihr Event am ${wochentagName(d.getUTCDay())}, dem ${o.datum
       .split("-")
       .reverse()
       .join(".")}, im Florian Zimmer Theater`;
@@ -235,5 +235,5 @@ export function ablaufUeberschrift(o: {
   const wann = [tag ? `an einem ${tag}` : "", o.zeitraum ? o.zeitraum.trim() : ""]
     .filter(Boolean)
     .join(" ");
-  return `Euer Event ${wann || "im Florian Zimmer Theater"}`.trim();
+  return `Ihr Event ${wann || "im Florian Zimmer Theater"}`.trim();
 }

@@ -29,7 +29,18 @@ function entschaerfen(text: string): string {
  * zum Angebot zusätzlich als Knopf. Der reine Text bleibt daneben
  * stehen, für Programme, die kein HTML zeigen.
  */
-export function alsHtml(text: string, link?: string): string {
+export function alsHtml(
+  text: string,
+  o: {
+    /** Das Angebot. Wird zum schwarzen Knopf. */
+    link?: string;
+    /** Die Fusszeile unter der Mail, fertiges HTML. */
+    fuss?: string;
+    /** Ein zweiter, leiser Weg daneben, etwa der Aenderungswunsch. */
+    nebenlink?: { href: string; text: string };
+  } = {},
+): string {
+  const { link, fuss, nebenlink } = o;
   const sicher = link ? entschaerfen(link.trim()) : "";
 
   /*
@@ -68,8 +79,19 @@ export function alsHtml(text: string, link?: string): string {
       `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen und zusagen</a></p>`
     : "";
 
+  /*
+    Daneben der zweite Weg (Florian, 28.10.2026): "soll er auch gleich
+    was klicken koennen dafuer in der mail". Bewusst leiser gesetzt als
+    der Knopf, denn die Zusage bleibt das Ziel. Aber sichtbar, sonst
+    landet ein Aenderungswunsch als Absage bei uns.
+  */
+  const neben = nebenlink
+    ? `<p style="margin:10px 0 0;font-size:13px"><a href="${entschaerfen(nebenlink.href)}" ` +
+      `style="color:#6b6457">${entschaerfen(nebenlink.text)}</a></p>`
+    : "";
+
   return (
     `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a">` +
-    `<p style="margin:0">${koerper}</p>${knopf}</div>`
+    `<p style="margin:0">${koerper}</p>${knopf}${neben}${fuss ?? ""}</div>`
   );
 }

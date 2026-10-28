@@ -10,7 +10,7 @@ import { Logo } from "@/components/Logo";
 import { Bild } from "@/components/Bild";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Restzeit } from "@/components/Restzeit";
-import { angebotAblehnen, angebotAnnehmen } from "./actions";
+import { aenderungWuenschen, angebotAblehnen, angebotAnnehmen } from "./actions";
 
 /**
  * Eine Schrift mit Charakter, nur für diese Seite.
@@ -29,7 +29,7 @@ const anzeige = Cormorant_Garamond({
 
 const SCHRIFT_ANZEIGE = { fontFamily: "var(--font-anzeige), Georgia, serif" } as const;
 
-export const metadata = { title: "Euer Angebot | Florian Zimmer Theater" };
+export const metadata = { title: "Ihr Angebot | Florian Zimmer Theater" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -127,7 +127,7 @@ export default async function KundenAngebot({
             className="mt-14 text-sm uppercase tracking-[0.35em]"
             style={{ color: "var(--gold)" }}
           >
-            Euer Firmenevent
+            Ihr Firmenevent
           </p>
           <h1 className="mt-4 text-4xl font-light sm:text-6xl" style={SCHRIFT_ANZEIGE}>
             {angebot.kunde.name}
@@ -135,7 +135,7 @@ export default async function KundenAngebot({
           <p className="mt-5 text-lg text-white/70" style={SCHRIFT_ANZEIGE}>
             {angebot.vorstellung
               ? `${datumMitWochentag(angebot.vorstellung.datum)} · ${angebot.vorstellung.show}`
-              : "Termin nach euren Wünschen"}
+              : "Termin nach Ihren Wünschen"}
           </p>
         </div>
       </header>
@@ -147,7 +147,7 @@ export default async function KundenAngebot({
             style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
           >
             <div className="text-2xl" style={{ ...SCHRIFT_ANZEIGE, color: "var(--gut)" }}>
-              Vielen Dank, wir haben eure Zusage.
+              Vielen Dank, wir haben Ihre Zusage.
             </div>
             <p className="mt-2 text-sm text-leise">
               Angenommen von {angebot.angenommenVon}. Wir melden uns mit allen weiteren Schritten.
@@ -160,15 +160,15 @@ export default async function KundenAngebot({
             className="rounded-lg border px-4 py-3 text-sm"
             style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
           >
-            Dieses Angebot ist am {datumMitWochentag(angebot.gueltigBis)} abgelaufen. Meldet
-            euch gern bei uns, wir prüfen die Verfügbarkeit erneut.
+            Dieses Angebot ist am {datumMitWochentag(angebot.gueltigBis)} abgelaufen. Melden
+            Sie sich gern bei uns, wir prüfen die Verfügbarkeit erneut.
           </div>
         )}
 
         {/* Ansprache */}
         <section className="text-center">
           <p className="text-lg text-leise" style={SCHRIFT_ANZEIGE}>
-            Hallo {anrede},
+            Guten Tag {anrede},
           </p>
           {gruss && (
             <p
@@ -218,7 +218,7 @@ export default async function KundenAngebot({
         {/* Das Essen, Gang für Gang */}
         {mitMenue && (
           <section>
-            <Ueberschrift oben="Euer Menü" unten="Vier Gänge, frisch im Haus gekocht" />
+            <Ueberschrift oben="Ihr Menü" unten="Vier Gänge, frisch im Haus gekocht" />
             <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {[
                 ["suppe.webp", "Der Auftakt"],
@@ -235,8 +235,8 @@ export default async function KundenAngebot({
               ))}
             </div>
             <p className="mt-4 text-sm leading-relaxed text-leise">
-              Jeder an eurem Tisch wählt sein Menü selbst, auch vegetarisch oder ohne Fleisch und Fisch.
-              Was jemand nicht verträgt, sagt ihr uns vorher, dann kocht die Küche dafür.
+              Jeder an Ihrem Tisch wählt sein Menü selbst, auch vegetarisch oder ohne Fleisch und Fisch.
+              Was jemand nicht verträgt, sagen Sie uns vorher, dann kocht die Küche dafür.
             </p>
           </section>
         )}
@@ -244,8 +244,8 @@ export default async function KundenAngebot({
         {/* Der Platz im Saal */}
         <section>
           <Ueberschrift
-            oben="Euer Platz"
-            unten={inLoge ? "Eine Loge für euch allein" : "Euer Tisch auf der Eventgalerie"}
+            oben="Ihr Platz"
+            unten={inLoge ? "Eine Loge für Sie allein" : "Ihr Tisch auf der Eventgalerie"}
           />
           <div className="mt-8 overflow-hidden rounded-lg border border-linie bg-flaeche">
             <Bild
@@ -259,11 +259,11 @@ export default async function KundenAngebot({
                   <p>
                     Im Showroom gibt es fünf Logen, jede mit einem langen Tisch für zehn bis zwölf
                     Personen. Zwischen den Logen hängen Vorhänge, die sich öffnen lassen: So wird
-                    aus zwei Logen ein Tisch für vierundzwanzig, ohne dass eure Gruppe
+                    aus zwei Logen ein Tisch für vierundzwanzig, ohne dass Ihre Gruppe
                     auseinandergerissen wird.
                   </p>
                   <p className="mt-3">
-                    Eure Loge gehört an diesem Abend euch allein, wir setzen niemand Fremdes dazu.
+                    Ihre Loge gehört an diesem Abend Ihnen allein, wir setzen niemand Fremdes dazu.
                   </p>
                   {/*
                     Der eigentliche Reiz der Loge (Florian, 28.10.2026):
@@ -273,20 +273,20 @@ export default async function KundenAngebot({
                     blick zur bühne mit einem abstand von nur 7 metern."
                   */}
                   <p className="mt-3">
-                    Für die Show sind es ein paar Schritte: Direkt vor euren Logen liegt die
-                    VIP-Empore, und von dort schaut ihr zu. Sieben Meter bis zur Bühne, nichts
-                    dazwischen, der beste Blick im Haus. Danach ist die Loge wieder eure.
+                    Für die Show sind es ein paar Schritte: Direkt vor Ihren Logen liegt die
+                    VIP-Empore, und von dort schauen Sie zu. Sieben Meter bis zur Bühne, nichts
+                    dazwischen, der beste Blick im Haus. Danach ist die Loge wieder Ihre.
                   </p>
                 </>
               ) : (
                 <>
                   <p>
-                    Für eine Gruppe eurer Größe ist die Eventgalerie der schönere Platz: eigene
-                    Tische, direkt über dem Geschehen, mit freiem Blick zur Bühne. Ihr sitzt
+                    Für eine Gruppe Ihrer Größe ist die Eventgalerie der schönere Platz: eigene
+                    Tische, direkt über dem Geschehen, mit freiem Blick zur Bühne. Sie sitzen
                     zusammen an einem Tisch, nicht verteilt.
                   </p>
                   <p className="mt-3">
-                    Wollt ihr lieber eine eigene Loge im Showroom, sagt uns Bescheid. Eine Loge
+                    Möchten Sie lieber eine eigene Loge im Showroom, sagen Sie uns Bescheid. Eine Loge
                     fasst zehn bis zwölf Personen und wird als Ganzes vergeben.
                   </p>
                 </>
@@ -296,7 +296,7 @@ export default async function KundenAngebot({
         </section>
 
         {/*
-          Euer Logo auf der Fassade.
+          Ihr Logo auf der Fassade.
 
           "pack auf jeden fall auch ins angebot rein die LED fassade. da
           nimmst du das foto, wo ich vor dem gebäude stehe" (Florian,
@@ -306,7 +306,7 @@ export default async function KundenAngebot({
         */}
         {mitFassade && (
           <section>
-            <Ueberschrift oben="Eure Marke" unten="Das Logo auf unserer LED-Fassade" />
+            <Ueberschrift oben="Ihre Marke" unten="Das Logo auf unserer LED-Fassade" />
             <div className="mt-8 overflow-hidden rounded-lg border border-linie bg-flaeche">
               <Bild
                 datei="led-fassade.jpg"
@@ -316,12 +316,12 @@ export default async function KundenAngebot({
               <div className="p-6 text-sm leading-relaxed text-leise">
                 <p>
                   Unsere Fassade ist über zwanzig Meter breit und von der Straße aus kaum zu
-                  übersehen. Euer Logo läuft dort an eurem Abend, sichtbar für alle, die kommen,
+                  übersehen. Ihr Logo läuft dort an Ihrem Abend, sichtbar für alle, die kommen,
                   und für jeden, der vorbeifährt. Das Foto davon macht in der Regel jemand aus
-                  eurer Gruppe, bevor der erste Gang auf dem Tisch steht.
+                  Ihrer Gruppe, bevor der erste Gang auf dem Tisch steht.
                 </p>
                 <p className="mt-3">
-                  Wir brauchen dafür nur eure Bilddatei als JPG oder PNG, spätestens eine Woche
+                  Wir brauchen dafür nur Ihre Bilddatei als JPG oder PNG, spätestens eine Woche
                   vorher. Alles Weitere machen wir.
                 </p>
               </div>
@@ -331,7 +331,7 @@ export default async function KundenAngebot({
 
         {/* Die Zahlen */}
         <section>
-          <Ueberschrift oben="Euer Angebot" unten={`${angebot.nummer}`} />
+          <Ueberschrift oben="Ihr Angebot" unten={`${angebot.nummer}`} />
 
           <div className="mt-8 rounded-lg border border-linie bg-flaeche p-6 sm:p-8">
             <div className="overflow-x-auto">
@@ -407,8 +407,8 @@ export default async function KundenAngebot({
 
             {haupt.some((p) => p.artikelNummer.startsWith("TK") || p.artikelNummer === "TGS") && (
               <p className="mt-4 text-xs text-leise">
-                Bei den Showtickets könnt ihr zwischen den aufgeführten Kategorien wählen. Sagt
-                uns einfach, welche ihr möchtet.
+                Bei den Showtickets können Sie zwischen den aufgeführten Kategorien wählen. Sagen
+                Sie uns einfach, welche Sie möchten.
               </p>
             )}
 
@@ -432,7 +432,7 @@ export default async function KundenAngebot({
             style={{ background: "#17140f" }}
           >
             <h2 className="text-3xl font-light" style={SCHRIFT_ANZEIGE}>
-              Sollen wir den Abend für euch reservieren?
+              Sollen wir den Abend für Sie reservieren?
             </h2>
             {/*
               Stehen die Plätze schon, sagen wir das hier (Florian,
@@ -445,7 +445,7 @@ export default async function KundenAngebot({
             {gehalten ? (
               <p className="mx-auto mt-3 max-w-md text-sm text-white/70">
                 {angebot.plaetzeGehalten}{" "}
-                {angebot.plaetzeGehalten === 1 ? "Platz ist" : "Plätze sind"} für euch
+                {angebot.plaetzeGehalten === 1 ? "Platz ist" : "Plätze sind"} für Sie
                 reserviert, bis zum {haltedatum}.{" "}
                 <span className="text-white/45">
                   <Restzeit bis={angebot.plaetzeBis!} />
@@ -455,7 +455,7 @@ export default async function KundenAngebot({
               </p>
             ) : (
               <p className="mx-auto mt-3 max-w-md text-sm text-white/70">
-                Mit eurer Zusage halten wir die Plätze fest. Verbindlich wird die Buchung mit dem
+                Mit Ihrer Zusage halten wir die Plätze fest. Verbindlich wird die Buchung mit dem
                 Zahlungseingang, danach melden wir uns mit allen Einzelheiten.
               </p>
             )}
@@ -465,7 +465,7 @@ export default async function KundenAngebot({
               className="mx-auto mt-7 flex max-w-md flex-wrap items-end justify-center gap-3"
             >
               <label className="min-w-48 flex-1 text-left">
-                <span className="mb-1 block text-xs text-white/60">Dein Name</span>
+                <span className="mb-1 block text-xs text-white/60">Ihr Name</span>
                 {/*
                   Vorbelegt mit dem, den wir kennen (Florian,
                   28.10.2026: "hier dann gleich den namen übernehmen").
@@ -492,28 +492,85 @@ export default async function KundenAngebot({
               </button>
             </form>
 
-            <details className="mx-auto mt-6 max-w-md text-left">
-              <summary className="cursor-pointer text-center text-xs text-white/50">
-                Passt so nicht? Kurz Bescheid geben
-              </summary>
-              <form
-                action={angebotAblehnen.bind(null, token)}
-                className="mt-3 flex flex-wrap gap-2"
-              >
-                <input
-                  type="text"
-                  name="grund"
-                  placeholder="Was passt nicht? Termin, Preis, Personenzahl?"
-                  className="min-w-48 flex-1 text-text"
-                />
-                <button
-                  type="submit"
-                  className="rounded-md border border-white/30 px-4 py-2 text-sm text-white/80"
+            {/*
+              Zwischen Zusage und Absage liegt der haeufigste Fall
+              (Florian, 28.10.2026): Es passt fast. Wer dafuer bisher
+              "Passt so nicht" anklicken musste, hat bei uns abgesagt,
+              obwohl er kaufen wollte, und die blockierten Plaetze waren
+              weg. Deshalb steht der Aenderungswunsch jetzt vorn und die
+              Absage leise darunter.
+
+              Die Kennung aenderung ist die Sprungmarke aus der Mail.
+            */}
+            <div id="aenderung" className="mx-auto mt-8 max-w-md scroll-mt-8 text-left">
+              {angebot.aenderungWunsch ? (
+                <div className="rounded-md border border-white/20 bg-white/5 px-4 py-3 text-sm text-white/80">
+                  <strong className="font-medium text-white">
+                    Ihr Änderungswunsch ist bei uns.
+                  </strong>
+                  <p className="mt-1 text-xs text-white/55">
+                    Wir melden uns mit einer angepassten Fassung. Bis dahin bleiben die
+                    Plätze für Sie stehen.
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-white/45">
+                    {angebot.aenderungWunsch}
+                  </p>
+                </div>
+              ) : (
+                <details className="rounded-md border border-white/15 px-4 py-3">
+                  <summary className="cursor-pointer text-sm text-white/80">
+                    Passt fast? Änderungswunsch schicken
+                  </summary>
+                  <p className="mt-2 text-xs text-white/50">
+                    Anderer Termin, mehr oder weniger Personen, eine andere Kategorie:
+                    Schreiben Sie kurz, was anders sein soll. Wir melden uns mit einer neuen
+                    Fassung, und die reservierten Plätze bleiben dabei für Sie stehen.
+                  </p>
+                  <form
+                    action={aenderungWuenschen.bind(null, token)}
+                    className="mt-3 space-y-2"
+                  >
+                    <textarea
+                      name="wunsch"
+                      rows={3}
+                      required
+                      placeholder="Zum Beispiel: Wir wären 45 Personen statt 30, und ein Freitag wäre uns lieber."
+                      className="w-full text-text"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md px-4 py-2 text-sm font-medium text-white"
+                      style={{ background: "var(--gold)" }}
+                    >
+                      Änderungswunsch senden
+                    </button>
+                  </form>
+                </details>
+              )}
+
+              <details className="mt-3">
+                <summary className="cursor-pointer text-center text-xs text-white/40">
+                  Passt gar nicht? Kurz absagen
+                </summary>
+                <form
+                  action={angebotAblehnen.bind(null, token)}
+                  className="mt-3 flex flex-wrap gap-2"
                 >
-                  Absenden
-                </button>
-              </form>
-            </details>
+                  <input
+                    type="text"
+                    name="grund"
+                    placeholder="Was passt nicht? Termin, Preis, Personenzahl?"
+                    className="min-w-48 flex-1 text-text"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-white/30 px-4 py-2 text-sm text-white/80"
+                  >
+                    Absenden
+                  </button>
+                </form>
+              </details>
+            </div>
           </section>
         )}
 

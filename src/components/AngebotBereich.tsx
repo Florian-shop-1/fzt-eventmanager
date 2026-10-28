@@ -29,6 +29,7 @@ import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
 import { artikel, artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
 import type { AngebotDetail } from "@/lib/angebot/lesen";
+import { FUSSZEILE_TEXT } from "@/lib/mail/fusszeile";
 
 const TICKETS = artikelDerGruppe("ticket");
 const GETRAENKE = artikelDerGruppe("getraenke");
@@ -51,13 +52,14 @@ const ZUSATZARTIKEL = [
 /**
  * Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt.
  *
- * Geduzt wie alles, was beim Kunden landet (Florian, 28.10.2026):
- * "eigentlich ist ansprache bei uns immer per du".
+ * Gesiezt wie alles, was bei einer Firma landet (Florian, 28.10.2026):
+ * "bitte umstellen auf sie, kevin findet das besser". Im Haus und im
+ * Shop wird weiter geduzt, nur das Geschaeftliche nicht.
  */
 const LED_TEXT =
-  "Die LED-Fassade bucht ihr als eigenständige Werbeleistung mit eigenem Gegenwert. "
-  + "Da wir euch an diesem Abend ohnehin als Werbepartner begrüßen, kalkulieren wir das "
-  + "Eventpaket mit unserem Partnerpreis, sodass ihr bei 110 Euro brutto je Person bleibt.";
+  "Die LED-Fassade buchen Sie als eigenständige Werbeleistung mit eigenem Gegenwert. "
+  + "Da wir Sie an diesem Abend ohnehin als Werbepartner begrüßen, kalkulieren wir das "
+  + "Eventpaket mit unserem Partnerpreis, sodass Sie bei 110 Euro brutto je Person bleiben.";
 
 /** Die drei Arten eines Angebots, wie sie in der Auswahl stehen. */
 const ARTEN = [
@@ -127,6 +129,13 @@ export function AngebotBereich({
     terminZeit && terminZeit < "17:00" ? "nachmittag" : "abend",
   );
   const [getraenke, setGetraenke] = useState<string[]>([]);
+  /*
+    Wie viele Flats je Pauschale (Florian, 28.10.2026): "wenn kinder
+    dabei sind brauchen wir eine moeglichkeit, z.b. bei 12 teilnehmern
+    10 bier wein flat und 2 softdrink flat". Steht hier nichts, gilt die
+    Pauschale wie bisher fuer alle Teilnehmer.
+  */
+  const [getraenkeMengen, setGetraenkeMengen] = useState<Record<string, number>>({});
   const [mitEmpfang, setMitEmpfang] = useState(false);
   /*
     Wo gegessen wird, und ob die Loge als Wahlmoeglichkeit mitlaeuft
@@ -176,7 +185,7 @@ export function AngebotBereich({
         </div>
       )}
 
-      <details className="border-t border-linie pt-4">
+      <details id="angebot-bauen" className="scroll-mt-4 border-t border-linie pt-4">
         <summary className="cursor-pointer text-sm font-medium">
           {angebote.length === 0 ? "Angebot erstellen" : "Weiteres Angebot erstellen"}
         </summary>
@@ -385,6 +394,9 @@ export function AngebotBereich({
             <Getraenkewahl
               gewaehlt={getraenke}
               setzen={setGetraenke}
+              mengen={getraenkeMengen}
+              setzeMengen={setGetraenkeMengen}
+              personen={personen}
               istOptional={istOptional}
               setzeOptional={setzeOptional}
             />
@@ -527,6 +539,7 @@ export function AngebotBereich({
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
+                  getraenkeMengen,
                   optionalePositionen: nurOptional,
                   mitFassade,
                   fassadeStunden,
@@ -581,19 +594,38 @@ function AngebotKarte({
   const link = `${appUrl}/ihr-angebot/${angebot.trackingToken}`;
   const summe = angebotssumme(angebot.positionen);
 
-  // Geduzt, wie im Angebot selbst. Zwei verschiedene Anreden in Mail und
-  // Angebot fielen sofort auf.
+  /*
+    Gesiezt, wie das Angebot selbst.
+
+    Im Haus wird geduzt, im Gespraech mit Firmen nicht: "bitte umstellen
+    auf sie, kevin findet das besser" (Florian, 28.10.2026). Mail,
+    Angebotsseite und PDF ziehen dabei gemeinsam um, zwei verschiedene
+    Anreden nebeneinander fielen sofort auf.
+
+    Die Unterschrift fehlt hier mit Absicht, die haengt der Versand als
+    Fusszeile an, siehe lib/mail/fusszeile.ts.
+  */
   const mailtext = [
-    ansprechpartner ? `Hallo ${ansprechpartner},` : "Hallo,",
+    ansprechpartner ? `Guten Tag ${ansprechpartner},` : "Guten Tag,",
     "",
-    "vielen Dank für euer Interesse an einem Abend im Florian Zimmer Theater.",
+    "vielen Dank für Ihr Interesse an einem Abend im Florian Zimmer Theater.",
     "",
-    "Euer persönliches Angebot hängt an dieser Mail als PDF.",
+    "Ihr persönliches Angebot hängt an dieser Mail als PDF.",
     "",
-    "Online ansehen und mit einem Klick zusagen könnt ihr es hier:",
+    "Online ansehen und mit einem Klick zusagen können Sie es hier:",
     link,
     "",
     `Das Angebot gilt bis zum ${new Date(angebot.gueltigBis).toLocaleDateString("de-DE")}.`,
+    "",
+    /*
+      Der dritte Weg neben zusagen und absagen (Florian, 28.10.2026):
+      "soll er auch gleich was klicken koennen dafuer in der mail".
+      Steht bewusst vor dem freundlichen Schluss, damit es nicht
+      untergeht.
+    */
+    "Passt etwas noch nicht? Gleich unter dem Angebot können Sie uns Ihren Änderungswunsch " +
+      "schicken, dann melden wir uns mit einer angepassten Fassung. Die reservierten Plätze " +
+      "bleiben dabei für Sie stehen.",
     "",
     /*
       Der freundliche Schluss (Florian, 28.10.2026): "schreib in der mail
@@ -601,21 +633,27 @@ function AngebotKarte({
       Angebot bekommt, hat fast immer noch eine Frage, und die soll er
       stellen, statt die Mail liegen zu lassen.
     */
-    "Und falls noch etwas offen ist: Meldet euch jederzeit, eine Mail oder ein kurzer Anruf " +
+    "Und falls noch etwas offen ist: Melden Sie sich jederzeit, eine Mail oder ein kurzer Anruf " +
       "unter 0731 7906110 genügt. Wir gehen das gerne gemeinsam durch und passen das Angebot an, " +
-      "bis es für euch passt.",
+      "bis es für Sie passt.",
     "",
-    "Wir freuen uns auf euch.",
+    "Wir freuen uns auf Sie.",
     "",
     "Herzliche Grüße",
-    "Florian Zimmer Theater",
   ].join(UMBRUCH);
 
-  const betreff = `Euer Angebot ${angebot.nummer} für den Abend im Florian Zimmer Theater`;
+  const betreff = `Ihr Angebot ${angebot.nummer} für den Abend im Florian Zimmer Theater`;
+
+  /*
+    Fuer die beiden Wege nach draussen, Zwischenablage und Outlook,
+    gehoert die Fusszeile mit in den Text. Beim Versand von hier aus
+    haengt sie der Server an, deshalb steht sie nicht im Textfeld.
+  */
+  const mailtextKomplett = mailtext + FUSSZEILE_TEXT;
 
   async function kopiere(was: "link" | "mail") {
     try {
-      await navigator.clipboard.writeText(was === "link" ? link : mailtext);
+      await navigator.clipboard.writeText(was === "link" ? link : mailtextKomplett);
       setKopiert(was);
       setTimeout(() => setKopiert(""), 2500);
     } catch {
@@ -633,6 +671,8 @@ function AngebotKarte({
         </div>
         <ZustandsAnzeige angebot={angebot} />
       </div>
+
+      <AenderungsWunsch angebot={angebot} />
 
       <details className="mb-3">
         <summary className="cursor-pointer text-xs text-leise">
@@ -874,7 +914,8 @@ function AngebotKarte({
           <p className="text-xs text-leise">
             Geht von kevin.steele@florianzimmer.com hinaus und steht danach dort unter Gesendete
             Elemente. Antworten des Kunden landen bei Kevin. Das Angebot wird gleichzeitig als
-            versendet vermerkt.
+            versendet vermerkt. Unterschrift, Bewertungslinks und Anschrift hängen wir
+            automatisch darunter, die müssen hier nicht hinein.
           </p>
         </form>
       </details>
@@ -902,7 +943,7 @@ function AngebotKarte({
           */
           href={`mailto:${encodeURIComponent(kundeEmail)}?subject=${encodeURIComponent(
             betreff,
-          )}&body=${encodeURIComponent(mailtext)}`}
+          )}&body=${encodeURIComponent(mailtextKomplett)}`}
           className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-xs font-medium text-gold-dunkel hover:bg-gold hover:text-white"
         >
           In Outlook öffnen
@@ -947,6 +988,59 @@ function AngebotKarte({
             ))}
           </ul>
         </details>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Der Aenderungswunsch des Kunden und der Weg zur neuen Fassung.
+ *
+ * "Angebot anpassen sollte in der naehe der Zeile sein, wo man die
+ * schritte sieht" (Florian, 28.10.2026). Also direkt unter der Zeile,
+ * die sagt, wo das Angebot steht.
+ *
+ * Angepasst wird nicht das alte Angebot, sondern es entsteht eine neue
+ * Fassung mit eigener Nummer. Das alte bleibt stehen: Was beim Kunden
+ * liegt, darf sich nicht nachtraeglich aendern, und bei einer
+ * Rueckfrage muss nachvollziehbar sein, was er damals gesehen hat.
+ */
+function AenderungsWunsch({ angebot }: { angebot: AngebotDetail }) {
+  const offen = Boolean(angebot.versendetAm) && !angebot.angenommenAm && !angebot.abgelehntAm;
+  if (!angebot.aenderungWunsch && !offen) return null;
+
+  function zumBaukasten() {
+    const kasten = document.getElementById("angebot-bauen");
+    if (!(kasten instanceof HTMLDetailsElement)) return;
+    kasten.open = true;
+    kasten.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className="mb-3">
+      {angebot.aenderungWunsch && (
+        <div
+          className="mb-2 rounded-md border px-3 py-2 text-xs"
+          style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+        >
+          <strong>
+            Änderungswunsch vom Kunden
+            {angebot.aenderungAm &&
+              `, ${new Date(angebot.aenderungAm).toLocaleDateString("de-DE")}`}
+            :
+          </strong>
+          <p className="mt-1 whitespace-pre-wrap">{angebot.aenderungWunsch}</p>
+        </div>
+      )}
+      {offen && (
+        <button
+          type="button"
+          onClick={zumBaukasten}
+          className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-xs font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+          title="Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer, dieses Angebot bleibt erhalten."
+        >
+          Angebot anpassen
+        </button>
       )}
     </div>
   );
@@ -1045,14 +1139,43 @@ function DrinSchalter({
 function Getraenkewahl({
   gewaehlt,
   setzen,
+  mengen,
+  setzeMengen,
+  personen,
   istOptional,
   setzeOptional,
 }: {
   gewaehlt: string[];
   setzen: (nummern: string[]) => void;
+  mengen: Record<string, number>;
+  setzeMengen: (m: Record<string, number>) => void;
+  personen: number;
   istOptional: (nummer: string) => boolean;
   setzeOptional: (nummer: string, optional: boolean) => void;
 }) {
+  /*
+    Die Anzahl haengt am Haken: Wer eine Pauschale anhakt, bekommt sie
+    zunaechst fuer alle. Erst wer etwas anderes eintraegt, weicht ab.
+    Beim Abhaken verschwindet die Zahl wieder, sonst stuende sie beim
+    naechsten Anhaken still auf einem alten Wert.
+  */
+  function umschalten(nummer: string, an: boolean) {
+    if (an) {
+      setzen(gewaehlt.filter((n) => n !== nummer));
+      const rest = { ...mengen };
+      delete rest[nummer];
+      setzeMengen(rest);
+    } else {
+      setzen([...gewaehlt, nummer]);
+      setzeMengen({ ...mengen, [nummer]: personen });
+    }
+  }
+
+  const verteilt = GETRAENKE.filter((g) => gewaehlt.includes(g.nummer)).reduce(
+    (summe, g) => summe + (mengen[g.nummer] ?? personen),
+    0,
+  );
+
   return (
     <div className="space-y-1.5">
       {GETRAENKE.map((g) => {
@@ -1063,11 +1186,7 @@ function Getraenkewahl({
               <input
                 type="checkbox"
                 checked={an}
-                onChange={() =>
-                  setzen(
-                    an ? gewaehlt.filter((n) => n !== g.nummer) : [...gewaehlt, g.nummer],
-                  )
-                }
+                onChange={() => umschalten(g.nummer, an)}
                 className="mt-0.5 h-auto w-auto"
               />
               <span>
@@ -1076,16 +1195,53 @@ function Getraenkewahl({
               </span>
             </label>
             {an && (
-              <DrinSchalter
-                optional={istOptional(g.nummer)}
-                setzen={(o) => setzeOptional(g.nummer, o)}
-              />
+              <>
+                <label className="flex items-center gap-1 text-xs text-leise">
+                  <input
+                    type="number"
+                    min={0}
+                    value={mengen[g.nummer] ?? personen}
+                    onChange={(e) =>
+                      setzeMengen({
+                        ...mengen,
+                        [g.nummer]: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    className="w-16 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                  />
+                  mal
+                </label>
+                <DrinSchalter
+                  optional={istOptional(g.nummer)}
+                  setzen={(o) => setzeOptional(g.nummer, o)}
+                />
+              </>
             )}
           </div>
         );
       })}
-      {gewaehlt.length === 0 && (
+
+      {gewaehlt.length === 0 ? (
         <p className="text-xs text-leise">Keine Pauschale, Getränke werden einzeln abgerechnet.</p>
+      ) : (
+        /*
+          Die Kontrollzeile. Zehn Bier- und Weinflats plus zwei
+          Softdrinkflats bei zwoelf Teilnehmern soll aufgehen, und wenn
+          nicht, faellt es hier auf und nicht erst im PDF. Mehr als eine
+          Flat je Gast ist trotzdem erlaubt: Softdrink zusammen mit Bier
+          und Wein ist die haeufigste Buchung.
+        */
+        <p className="pt-1 text-xs text-leise">
+          {verteilt} {verteilt === 1 ? "Pauschale" : "Pauschalen"} bei {personen}{" "}
+          {personen === 1 ? "Teilnehmer" : "Teilnehmern"}
+          {verteilt < personen && (
+            <span style={{ color: "var(--warnung)" }}>
+              {" "}
+              · {personen - verteilt} {personen - verteilt === 1 ? "Gast geht" : "Gäste gehen"} leer
+              aus
+            </span>
+          )}
+        </p>
       )}
     </div>
   );
@@ -1119,7 +1275,7 @@ function Exklusivhinweis({
     <div className="rounded-md border border-linie bg-hintergrund p-3 text-xs">
       <p className="font-medium">{artikel.bezeichnung}</p>
       <p className="mt-1 text-leise">
-        Keine Ticketkategorien und keine Sitzplatzwahl: Der Saal gehört an diesem Abend nur euch.
+        Keine Ticketkategorien und keine Sitzplatzwahl: Der Saal gehört an diesem Abend nur Ihnen.
         Im Angebot steht eine Zeile über {eur(gilt)}
         {preisCent > 0 && <> statt der üblichen {eur(artikel.bruttoCent)}</>}.
       </p>

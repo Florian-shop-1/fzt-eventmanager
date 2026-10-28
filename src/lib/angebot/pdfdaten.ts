@@ -183,7 +183,7 @@ async function probeFingerfood(): Promise<AngebotsPdfDaten> {
   const proGast = Math.round(summe.bruttoCent / personen) / 100;
 
   const einleitung = [
-    `Ihr wollt einen Abend, der hängen bleibt, und dabei auf euer Budget achten. Das geht: ` +
+    `Sie wollen einen Abend, der hängen bleibt, und dabei auf Ihr Budget achten. Das geht: ` +
       `Diese Fassung kommt auf ${proGast.toLocaleString("de-DE", { minimumFractionDigits: 2 })} Euro ` +
       "pro Gast, mit Umtrunk, Fingerfood aus unserer Küche und der ganzen Show.",
     "",
@@ -192,7 +192,7 @@ async function probeFingerfood(): Promise<AngebotsPdfDaten> {
     "",
     "17:50 UHR",
     "Fingerfood by Osman Kavak auf unserer Eventgalerie. Herzhafte und süße Kleinigkeiten " +
-      "auf Etageren zum Teilen, in Ruhe und im Stehen, so wie ihr mögt.",
+      "auf Etageren zum Teilen, in Ruhe und im Stehen, so wie Sie mögen.",
     "",
     "20:00 UHR",
     'Das Highlight des Abends, die Magieshow "ULMfassbar by Florian Zimmer", live, hautnah und ' +
@@ -243,18 +243,18 @@ export async function probeAngebot(
   const heute = new Date();
   const in7 = new Date(heute.getTime() + 7 * 86400_000);
   const einleitung = [
-    "Euer Event bei uns, ein Erlebnis für alle Sinne.",
+    "Ihr Event bei uns, ein Erlebnis für alle Sinne.",
     "",
     "17:20 UHR",
     "Magicuvée-Empfang auf unserer Eventgalerie",
     "",
     "17:50 UHR",
     "4-Gang-Menü (Classic, Sea oder Veggy, gerne angepasst an besondere Wünsche) auf unserer " +
-      "Eventgalerie, oder soweit verfügbar geselliges Beisammensein in eurer stilvollen Loge im Showroom.",
+      "Eventgalerie, oder soweit verfügbar geselliges Beisammensein in Ihrer stilvollen Loge im Showroom.",
     "",
     "20:00 UHR",
     'Das Highlight des Abends, die Magieshow "ULMfassbar by Florian Zimmer", live und hautnah von ' +
-      "der VIP-Empore aus, unmittelbar vor euren Logen: sieben Meter bis zur Bühne, der beste " +
+      "der VIP-Empore aus, unmittelbar vor Ihren Logen: sieben Meter bis zur Bühne, der beste " +
       "Blick im Haus.",
     "",
     "22:30 UHR",
@@ -289,7 +289,7 @@ export async function probeAngebot(
         artikelNummer: "4GANG",
         bezeichnung: "Magic Menü by Osman Kavak (Classic, Sea oder Veggy)",
         beschreibung:
-          "Vier Gänge Fine Dining inklusive Welcome-Drink, serviert an eurem Tisch.",
+          "Vier Gänge Fine Dining inklusive Welcome-Drink, serviert an Ihrem Tisch.",
         menge: 130,
         einheit: "Stück",
         einzelBruttoCent: 6900,
@@ -346,8 +346,8 @@ export async function probeAngebot(
         artikelNummer: "LEDFASSADE",
         bezeichnung: "Bespielen der LED-Fassade",
         beschreibung:
-          "Beeindruckendes Branding und unvergessliche Fotos: Auf Wunsch erstrahlt euer Firmenlogo " +
-          "oder eure persönliche Botschaft auf unserer funkelnden LED-Fassade.",
+          "Beeindruckendes Branding und unvergessliche Fotos: Auf Wunsch erstrahlt Ihr Firmenlogo " +
+          "oder Ihre persönliche Botschaft auf unserer funkelnden LED-Fassade.",
         menge: 1,
         einheit: "Stunde",
         einzelBruttoCent: 35000,

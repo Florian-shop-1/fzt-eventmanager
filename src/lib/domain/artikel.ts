@@ -69,7 +69,7 @@ export const ARTIKEL: Artikel[] = [
     nummer: "4GANGLOGE",
     bezeichnung: "Magic Menü by Osman Kavak, serviert in der Loge",
     beschreibung:
-      "Vier Gänge Fine Dining inklusive Welcome-Drink, serviert an eurem Tisch in der Loge.",
+      "Vier Gänge Fine Dining inklusive Welcome-Drink, serviert an Ihrem Tisch in der Loge.",
     einheit: "Stück",
     bruttoCent: 7900,
     ust: 0.07,

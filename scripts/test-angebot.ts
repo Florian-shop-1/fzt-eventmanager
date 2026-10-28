@@ -161,5 +161,71 @@ console.log("\n=== Neu: 8 Personen in einer Loge, 2 Plätze blockiert ===");
   }
 }
 
+// -- Getraenkeflats in unterschiedlicher Anzahl --
+//
+// "wenn kinder dabei sind brauchen wir eine moeglichkeit, z.b. bei 12
+// teilnehmern 10 bier wein flat und 2 softdrink flat" (Florian,
+// 28.10.2026). Geprueft wird beides: dass die Mengen durchkommen und
+// dass eine Pauschale ohne Angabe weiterhin fuer alle gilt.
+console.log("\n=== 12 Teilnehmer, 10 Bier- und Weinflats, 2 Softdrinkflats ===");
+{
+  const positionen = erzeugePositionen(vorgang("Kinder dabei GmbH", 12), null, {
+    ticket: "TK2",
+    ticketRabatt: 0,
+    getraenkepauschalen: ["FLATBIERWEIN", "FLATSOFT"],
+    getraenkeMengen: { FLATBIERWEIN: 10, FLATSOFT: 2 },
+    mitEmpfang: false,
+    mitUnterbelegung: false,
+  });
+
+  const bierwein = positionen.find((x) => x.artikelNummer === "FLATBIERWEIN");
+  const soft = positionen.find((x) => x.artikelNummer === "FLATSOFT");
+  for (const x of [bierwein, soft]) {
+    if (x) console.log(`  ${x.menge}x ${x.bezeichnung} = ${eur(positionsSumme(x))}`);
+  }
+  if (bierwein?.menge !== 10 || soft?.menge !== 2) {
+    console.log("  ABWEICHUNG: Die Anzahl je Pauschale kommt nicht durch");
+    fehler++;
+  } else {
+    console.log("  stimmt: 10 Bier- und Weinflats, 2 Softdrinkflats");
+  }
+}
+
+console.log("\n=== Pauschale ohne Angabe gilt weiter fuer alle ===");
+{
+  const positionen = erzeugePositionen(vorgang("Ohne Angabe GmbH", 12), null, {
+    ticket: "TK2",
+    ticketRabatt: 0,
+    getraenkepauschalen: ["FLATSOFT"],
+    mitEmpfang: false,
+    mitUnterbelegung: false,
+  });
+  const soft = positionen.find((x) => x.artikelNummer === "FLATSOFT");
+  if (soft?.menge !== 12) {
+    console.log("  ABWEICHUNG: Ohne Angabe muessten es 12 sein, es sind " + soft?.menge);
+    fehler++;
+  } else {
+    console.log("  stimmt: 12 Softdrinkflats");
+  }
+}
+
+console.log("\n=== Null Flats lassen die Zeile weg ===");
+{
+  const positionen = erzeugePositionen(vorgang("Null GmbH", 12), null, {
+    ticket: "TK2",
+    ticketRabatt: 0,
+    getraenkepauschalen: ["FLATSOFT"],
+    getraenkeMengen: { FLATSOFT: 0 },
+    mitEmpfang: false,
+    mitUnterbelegung: false,
+  });
+  if (positionen.some((x) => x.artikelNummer === "FLATSOFT")) {
+    console.log("  ABWEICHUNG: Eine Pauschale fuer niemanden steht im Angebot");
+    fehler++;
+  } else {
+    console.log("  stimmt: keine Zeile");
+  }
+}
+
 console.log("\n" + (fehler === 0 ? "Alle Prüfungen bestanden." : `${fehler} Abweichung(en).`));
 process.exit(fehler === 0 ? 0 : 1);

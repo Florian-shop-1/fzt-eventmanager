@@ -25,7 +25,7 @@ export const ABLAUF: Station[] = [
     zeit: "17:20",
     titel: "Empfang auf der Eventgalerie",
     text:
-      "Eure Gäste kommen an und bekommen ein Glas Magicuvée in die Hand. Zeit zum Ankommen, " +
+      "Ihre Gäste kommen an und bekommen ein Glas Magicuvée in die Hand. Zeit zum Ankommen, " +
       "zum Reden, zum Umschauen. Der Abend beginnt ohne Hektik.",
     bild: "magic-dinner-neu2.webp",
   },
@@ -33,16 +33,16 @@ export const ABLAUF: Station[] = [
     zeit: "17:50",
     titel: "Vier Gänge aus der Magicuisine",
     text:
-      "Serviert wird an eurem Tisch, Gang für Gang. Classic, Sea oder Veggy, jeder Gast " +
+      "Serviert wird an Ihrem Tisch, Gang für Gang. Classic, Sea oder Veggy, jeder Gast " +
       "wählt für sich. Allergien und Unverträglichkeiten berücksichtigt unsere Küche " +
-      "selbstverständlich, sagt uns einfach vorher Bescheid.",
+      "selbstverständlich, sagen Sie uns einfach vorher Bescheid.",
     bild: "classic.webp",
   },
   {
     zeit: "20:00",
     titel: "Die Show",
     text:
-      "Das Licht geht aus, und für zwei Stunden ist eure Gruppe mittendrin. Große Illusionen " +
+      "Das Licht geht aus, und für zwei Stunden ist Ihre Gruppe mittendrin. Große Illusionen " +
       "und Momente so nah, dass niemand mehr erklären kann, was er gerade gesehen hat.",
     // Trotz des Dateinamens zeigt loge.jpg die Bühne mit Publikum,
     // nicht eine Loge. Hier ist sie genau richtig.
@@ -53,7 +53,7 @@ export const ABLAUF: Station[] = [
     titel: "Ausklang an der Magic Bar",
     text:
       "Danach bleibt Zeit. Erfahrungsgemäß der Teil des Abends, an dem am meisten geredet " +
-      "wird, und der, an den sich eure Gäste am längsten erinnern.",
+      "wird, und der, an den sich Ihre Gäste am längsten erinnern.",
     // Das Foto von der Bar, von Florian selbst (28.10.2026).
     bild: "magic-bar.jpg",
   },

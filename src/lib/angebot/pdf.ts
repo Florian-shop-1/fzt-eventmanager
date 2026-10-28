@@ -344,7 +344,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
   // Überschrift und Einleitung
   schreib(
-    d.vorstellung ? `Euer Event am ${datumLang(d.vorstellung.datum)}` : "Euer Event im Florian Zimmer Theater",
+    d.vorstellung ? `Ihr Event am ${datumLang(d.vorstellung.datum)}` : "Ihr Event im Florian Zimmer Theater",
     LINKS, y, 16, fett,
   );
   y -= 8;
@@ -361,7 +361,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
   if (d.ablauf.length > 0) {
     y -= 14;
     platz(40);
-    schreib("So läuft euer Abend", LINKS, y, 12, fett);
+    schreib("So läuft Ihr Abend", LINKS, y, 12, fett);
     y -= 18;
 
     for (const punkt of d.ablauf) {
@@ -542,7 +542,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
      ------------------------------------------------------------------ */
   neueSeite();
   y = HOEHE - 90;
-  schreib("Darauf könnt ihr euch freuen", LINKS, y, 16, fett);
+  schreib("Darauf dürfen Sie sich freuen", LINKS, y, 16, fett);
   y -= 8;
   s.drawRectangle({ x: LINKS, y: y - 4, width: 44, height: 2.5, color: GOLD });
   y -= 26;
@@ -551,11 +551,11 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
   for (const zeile of umbrechen(
     mitMenuebildern
-      ? "Erst wird gegessen, dann gestaunt. Unsere Küche kocht frisch im Haus, serviert wird an eurem " +
-          "Tisch, und wenn das Licht ausgeht, sitzt ihr so nah an der Zauberei, dass ihr die Karten atmen hört."
+      ? "Erst wird gegessen, dann gestaunt. Unsere Küche kocht frisch im Haus, serviert wird an Ihrem " +
+          "Tisch, und wenn das Licht ausgeht, sitzen Sie so nah an der Zauberei, dass Sie die Karten atmen hören."
       : "Erst wird geredet und geknabbert, dann gestaunt. Das Fingerfood kommt frisch aus unserer Küche " +
-          "auf die Eventgalerie, und wenn das Licht ausgeht, sitzt ihr so nah an der Zauberei, dass ihr " +
-          "die Karten atmen hört.",
+          "auf die Eventgalerie, und wenn das Licht ausgeht, sitzen Sie so nah an der Zauberei, dass Sie " +
+          "die Karten atmen hören.",
     normal, 10, RECHTS - LINKS,
   )) {
     schreib(zeile, LINKS, y, 10, normal, GRAU);
@@ -599,7 +599,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
   }
   y -= grossH + 52;
 
-  mittig("Wir freuen uns auf euch.", y, 13, kursiv, GOLD);
+  mittig("Wir freuen uns auf Sie.", y, 13, kursiv, GOLD);
   y -= 8;
 
   // Die eigene Unterschrift darunter. Ein Angebot ueber zwanzigtausend
