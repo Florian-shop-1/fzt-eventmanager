@@ -1,5 +1,10 @@
 /**
- * Plätze für eine Firmenanfrage optionieren.
+ * Plätze für eine Firmenanfrage blockieren.
+ *
+ * Im Haus heißt das blockieren, nicht optionieren: "bitte für kevin
+ * nicht optionierte plätze nennen, sondern blockierte" (Florian,
+ * 28.10.2026). In der Tür zu FloTix heißt es weiterhin Option, deshalb
+ * stehen die Namen im Code so. Alles, was jemand liest, sagt blockiert.
  *
  * "wenn der kunde noch zeit braucht, sollte man auch plätze blockieren
  * können ... option so lange wie das angebot gültig ist, höchstens 7

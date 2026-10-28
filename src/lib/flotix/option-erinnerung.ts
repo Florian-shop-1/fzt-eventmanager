@@ -1,5 +1,5 @@
 /**
- * Die Option läuft morgen aus. Ruf an.
+ * Die blockierten Plätze laufen morgen aus. Ruf an.
  *
  * "ja auch zu der mail, dass die option ausläuft. er soll dann anrufen
  * und soll nochmal verlängern können" (Florian, 26.10.2026).
@@ -59,7 +59,7 @@ export async function optionenErinnern(): Promise<{ gemeldet: number }> {
 
     const abend = `${new Date(o.beginn).toLocaleDateString("de-DE")}, ${o.show}`;
     const text = [
-      `Die optionierten Plätze für ${o.firma} laufen morgen aus.`,
+      `Die blockierten Plätze für ${o.firma} laufen morgen aus.`,
       "",
       `Abend: ${abend}`,
       `Plätze: ${o.plaetze.length}`,
@@ -84,7 +84,7 @@ export async function optionenErinnern(): Promise<{ gemeldet: number }> {
         an,
         absender: postfachPersonal(),
         antwortAn: antwortPersonal(),
-        betreff: `Option läuft morgen aus: ${o.firma} (${o.plaetze.length} Plätze)`,
+        betreff: `Blockierte Plätze laufen morgen aus: ${o.firma} (${o.plaetze.length} Plätze)`,
         text,
       }).catch((f) => console.error("[option] Erinnerung an", an, "fehlgeschlagen:", f));
     }

@@ -36,6 +36,7 @@ import { vorschlaege } from "@/lib/whatsapp/vorschlag";
 import { schlemmerErkennen, VIELE_BLOECKE } from "@/lib/whatsapp/schlemmerblock";
 import { entwurfLesen, type WaEntwurf } from "@/lib/db/whatsapp-entwurf";
 import { Antworttext } from "@/components/Antworttext";
+import { angebotsKunden, angebotZu, type Angebotskunde, type Angebotsstand } from "@/lib/db/angebotskunden";
 
 export const metadata = { title: "WhatsApp | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -75,6 +76,9 @@ export default async function WhatsAppSeite({
   if (gewaehlt) await alsGelesenMarkieren(gewaehlt, benutzer.name);
 
   const unterhaltungen = await holeUnterhaltungen(gesucht);
+  // Welche dieser Leute schon ein Angebot von uns haben. Eine Abfrage fuer
+  // die ganze Liste, nicht eine je Zeile.
+  const angebote = await angebotsKunden();
   const aktuell = unterhaltungen.find((u) => u.waId === gewaehlt) ?? null;
   const verlauf = aktuell ? await holeVerlauf(aktuell.waId) : [];
   const eingerichtet = istEingerichtet();
@@ -105,10 +109,21 @@ export default async function WhatsAppSeite({
       <Warnung unterhaltungen={unterhaltungen} />
 
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
-        <Liste unterhaltungen={unterhaltungen} gewaehlt={gewaehlt} versteckt={Boolean(aktuell)} gesucht={gesucht} />
+        <Liste
+          unterhaltungen={unterhaltungen}
+          gewaehlt={gewaehlt}
+          versteckt={Boolean(aktuell)}
+          gesucht={gesucht}
+          angebote={angebote}
+        />
 
         {aktuell ? (
-          <Verlauf unterhaltung={aktuell} verlauf={verlauf} fehler={fehler ?? null} />
+          <Verlauf
+            unterhaltung={aktuell}
+            verlauf={verlauf}
+            fehler={fehler ?? null}
+            angebot={angebotZu(angebote, aktuell)}
+          />
         ) : (
           <div className="hidden rounded-lg border border-dashed border-linie p-10 text-center text-sm text-leise md:block">
             {unterhaltungen.length === 0
@@ -162,6 +177,77 @@ function Kanal({ kanal }: { kanal: Unterhaltung["kanal"] }) {
     >
       {f.text}
     </span>
+  );
+}
+
+/**
+ * "Angebot raus" neben dem Namen.
+ *
+ * Steht bewusst gefuellt da und nicht blass wie das Kanal-Kennzeichen:
+ * Wer die Liste ueberfliegt, soll diese eine Zeile zuerst sehen. Hier
+ * wartet jemand, dem wir schon einen Preis genannt haben.
+ */
+const ANGEBOT_FARBE: Record<Angebotsstand, { grund: string; schrift: string; text: string; titel: string }> = {
+  offen: {
+    grund: "var(--gold-dunkel)",
+    schrift: "#fff",
+    text: "Angebot raus",
+    titel: "Diesem Kunden haben wir ein Angebot geschickt, es ist noch offen",
+  },
+  angenommen: {
+    grund: "var(--gut)",
+    schrift: "#fff",
+    text: "gebucht",
+    titel: "Dieser Kunde hat unser Angebot angenommen",
+  },
+  abgelehnt: {
+    grund: "#e8e4dc",
+    schrift: "#6b6457",
+    text: "Angebot abgelehnt",
+    titel: "Dieser Kunde hat unser Angebot abgelehnt",
+  },
+  abgelaufen: {
+    grund: "#e8e4dc",
+    schrift: "#6b6457",
+    text: "Angebot abgelaufen",
+    titel: "Das Angebot an diesen Kunden ist abgelaufen",
+  },
+};
+
+function Angebotsmarke({ angebot }: { angebot: Angebotskunde | null }) {
+  if (!angebot) return null;
+  const f = ANGEBOT_FARBE[angebot.stand];
+  return (
+    <span
+      className="ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide"
+      style={{ background: f.grund, color: f.schrift }}
+      title={`${f.titel}: ${angebot.kundenname}, Angebot ${angebot.angebotNummer}`}
+    >
+      {f.text}
+    </span>
+  );
+}
+
+/** Die Zeile im Kopf des Verlaufs, mit dem Weg in den Vorgang. */
+function AngebotsHinweis({ angebot }: { angebot: Angebotskunde | null }) {
+  if (!angebot) return null;
+  const f = ANGEBOT_FARBE[angebot.stand];
+  const wann = new Date(angebot.versendetAm).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return (
+    <div
+      className="border-b border-linie px-4 py-2 text-sm"
+      style={{ background: "var(--gold-hell)" }}
+    >
+      <strong>{f.text}.</strong> Am {wann} ging Angebot {angebot.angebotNummer} an{" "}
+      {angebot.kundenname}.{" "}
+      <Link href={`/vorgaenge/${angebot.vorgangId}`} className="underline">
+        Vorgang {angebot.vorgangNummer} ansehen
+      </Link>
+    </div>
   );
 }
 
@@ -269,12 +355,14 @@ function Liste({
   gewaehlt,
   versteckt,
   gesucht,
+  angebote,
 }: {
   unterhaltungen: Unterhaltung[];
   gewaehlt: string | null;
   /** Auf dem Handy weicht die Liste dem Verlauf. */
   versteckt: boolean;
   gesucht: string;
+  angebote: Map<string, Angebotskunde>;
 }) {
   return (
     <div className={versteckt ? "hidden md:block" : ""}>
@@ -328,6 +416,7 @@ function Liste({
             <span className={`truncate ${u.ungelesen ? "font-semibold" : ""}`}>
               {name(u)}
               <Kanal kanal={u.kanal} />
+              <Angebotsmarke angebot={angebotZu(angebote, u)} />
             </span>
             <span className="shrink-0 text-xs text-leise">
               {u.letzteNachrichtAm ? vorZeit(u.letzteNachrichtAm) : ""}
@@ -362,10 +451,12 @@ async function Verlauf({
   unterhaltung,
   verlauf,
   fehler,
+  angebot,
 }: {
   unterhaltung: Unterhaltung;
   verlauf: Nachricht[];
   fehler: string | null;
+  angebot: Angebotskunde | null;
 }) {
   // Neueste unten. Umgekehrt in einen umgekehrten Stapel gelegt, damit der
   // Verlauf ohne Skript am unteren Ende beginnt.
@@ -380,6 +471,7 @@ async function Verlauf({
           </Link>
           <span className="font-semibold">{name(unterhaltung)}</span>
           <Kanal kanal={unterhaltung.kanal} />
+          <Angebotsmarke angebot={angebot} />
           {unterhaltung.kanal !== "whatsapp" ? null : istNummer(unterhaltung.waId) ? (
             <a
               href={`https://wa.me/${unterhaltung.waId}`}
@@ -416,6 +508,8 @@ async function Verlauf({
           )}
         </div>
       </header>
+
+      <AngebotsHinweis angebot={angebot} />
 
       {unterhaltung.kanal === "whatsapp" ? (
         <p className="border-b border-linie bg-hintergrund px-4 py-2 text-sm text-leise">

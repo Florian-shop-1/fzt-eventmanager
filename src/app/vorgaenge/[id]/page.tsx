@@ -87,7 +87,7 @@ export default async function VorgangSeite({
   const darfOptionieren = Boolean(ich && darfKaufmaennisches(ich.rolle));
 
   /*
-    Optionierte Plätze, falls welche gehalten werden.
+    Blockierte Plätze, falls welche gehalten werden.
 
     Die Plätze liegen in FloTix, hier steht nur, was daraus folgt.
     Fällt FloTix aus, fehlt der Kasten, der Rest der Seite bleibt
@@ -596,7 +596,7 @@ export default async function VorgangSeite({
                     <>
                       <strong>
                         {meineOption.plaetze.length}{" "}
-                        {meineOption.plaetze.length === 1 ? "Platz ist" : "Plätze sind"} optioniert,
+                        {meineOption.plaetze.length === 1 ? "Platz ist" : "Plätze sind"} blockiert,
                         bis {new Date(meineOption.bis).toLocaleDateString("de-DE")}.
                       </strong>
                       <div className="mt-1 text-xs text-leise">
@@ -665,7 +665,7 @@ export default async function VorgangSeite({
                         type="submit"
                         className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm"
                       >
-                        Plätze optionieren
+                        Plätze blockieren
                       </button>
                       <span className="w-full text-xs text-leise">{rat.grund}</span>
 

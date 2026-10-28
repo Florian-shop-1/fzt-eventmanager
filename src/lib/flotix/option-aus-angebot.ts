@@ -88,7 +88,7 @@ export async function optionAusAngebot(vorgangId: string): Promise<{
       return {
         gesetzt: schon.plaetze.length,
         bis: new Date(schon.bis).toISOString(),
-        grund: "Für diesen Vorgang sind schon Plätze optioniert.",
+        grund: "Für diesen Vorgang sind schon Plätze blockiert.",
       };
     }
 

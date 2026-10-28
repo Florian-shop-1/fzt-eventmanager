@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Plätze für eine Firmenanfrage optionieren, verlängern, freigeben.
+ * Plätze für eine Firmenanfrage blockieren, verlängern, freigeben.
  *
  * Gehalten werden sie in FloTix, dort stehen die Plätze. Hier steht nur
  * die Entscheidung: wie viele und wie lange.
@@ -19,7 +19,7 @@ const zahl = (f: FormData, k: string) => Math.round(Number(String(f.get(k) ?? ""
 async function zugang() {
   const b = await angemeldeterBenutzer();
   if (!b || !darfKaufmaennisches(b.rolle)) {
-    throw new Error("Plätze optionieren dürfen nur Florian und das Büro.");
+    throw new Error("Plätze blockieren dürfen nur Florian und das Büro.");
   }
   return b;
 }
@@ -48,7 +48,7 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
   const daten = await vorgangsdaten(vorgangId);
   if (!daten) zurueck(vorgangId, "Diesen Vorgang gibt es nicht mehr.");
   if (!daten.vorstellung_id) {
-    zurueck(vorgangId, "Erst den Abend festlegen, dann lassen sich Plätze optionieren.");
+    zurueck(vorgangId, "Erst den Abend festlegen, dann lassen sich Plätze blockieren.");
   }
 
   const tage = Math.max(1, Math.min(HOECHSTENS_TAGE, zahl(formData, "tage") || 3));
@@ -88,13 +88,13 @@ export async function plaetzeOptionieren(vorgangId: string, formData: FormData):
     if (e.fehlende > 0) {
       zurueck(
         vorgangId,
-        `${e.gesetzt} Plätze optioniert bis ${bisText}. ${e.fehlende} waren nicht mehr frei.`,
+        `${e.gesetzt} Plätze blockiert bis ${bisText}. ${e.fehlende} waren nicht mehr frei.`,
       );
     }
-    zurueck(vorgangId, `${e.gesetzt} Plätze optioniert bis ${bisText}.`);
+    zurueck(vorgangId, `${e.gesetzt} Plätze blockiert bis ${bisText}.`);
   } catch (f) {
     if (f && typeof f === "object" && "digest" in f) throw f;
-    zurueck(vorgangId, f instanceof Error ? f.message : "Die Option hat nicht geklappt.");
+    zurueck(vorgangId, f instanceof Error ? f.message : "Das Blockieren hat nicht geklappt.");
   }
 }
 
