@@ -88,6 +88,18 @@ const NAMEN: Record<string, string> = {
     koennen ob sales darueber kamen").
   */
   "ulm.de": "Stadtportal Ulm (LEO)",
+  /*
+    Dieselbe Zeile, wenn der Gast ohne getaggten Link kommt.
+
+    Der Shop erkennt den Verweis von veranstaltungen.ulm.de inzwischen
+    selbst und meldet dafuer schon ulm.de (attribution.ts, PORTALE).
+    Die Rohnamen bleiben hier stehen, damit Besuche, die vorher
+    eingegangen sind, lesbar bleiben und nicht als eigener Kanal
+    auftauchen.
+  */
+  "veranstaltungen.ulm.de": "Stadtportal Ulm (LEO)",
+  "leoonline.ulm.de": "Stadtportal Ulm (LEO)",
+  "neu-ulm.de": "Stadtportal Neu-Ulm",
   bruecke: "Brückenbanner",
   eurowings: "Eurowings-Magazin",
   brevo: "Newsletter",
