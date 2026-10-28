@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
-import { leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
+import { redirect } from "next/navigation";
+import { ABGEHAKT, holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
+import { altbestandAbhaken, leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
+import { anfragenStand } from "@/lib/db/anfragen";
 import { vorZeit } from "@/components/Status";
 import { leitfadenFuer } from "@/lib/shop/anfrage-leitfaden";
 
@@ -25,9 +27,9 @@ export const dynamic = "force-dynamic";
 export default async function LeadsSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ lage?: string; lead?: string }>;
+  searchParams: Promise<{ lage?: string; lead?: string; abgehakt?: string }>;
 }) {
-  const { lage, lead: gesuchterLead } = await searchParams;
+  const { lage, lead: gesuchterLead, abgehakt } = await searchParams;
 
   let leads: Lead[] = [];
   let fehler: string | null = null;
@@ -40,6 +42,12 @@ export default async function LeadsSeite({
   }
 
   const staende = await leadStaende();
+  /*
+    Wie viele Anfragen niemand angefasst hat, und wie viele davon von vor
+    heute sind. Letztere kann der Knopf unten in einem Rutsch abhaken
+    (Florian, 28.10.2026).
+  */
+  const stand = await anfragenStand().catch(() => ({ neu: 0, altbestand: 0, neueste: null }));
 
   // Unser Stand hat Vorrang vor dem aus der Tabelle.
   const angereichert = leads.map((l) => {
@@ -98,6 +106,56 @@ export default async function LeadsSeite({
         </div>
       ) : (
         <>
+          {abgehakt !== undefined && (
+            <p
+              className="rounded-lg border px-4 py-3 text-sm"
+              style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+            >
+              {abgehakt === "1"
+                ? "Eine Altanfrage wurde abgehakt."
+                : `${abgehakt} Altanfragen wurden abgehakt.`}{" "}
+              Sie stehen jetzt unter „Erledigt“ und sind nicht gelöscht. Wer eine davon doch noch
+              bearbeiten will, setzt den Stand an ihrer Karte wieder um.
+            </p>
+          )}
+
+          {/*
+            Der Knopf für den Altbestand.
+
+            Er erscheint nur, solange es etwas abzuhaken gibt, und er
+            steht hinter einem Aufklapper: Das ist eine Massenänderung,
+            die soll niemand im Vorbeigehen anklicken.
+          */}
+          {stand.altbestand > 0 && (
+            <details className="rounded-lg border border-linie px-4 py-3 text-sm">
+              <summary className="cursor-pointer">
+                <strong>{stand.altbestand}</strong>{" "}
+                {stand.altbestand === 1 ? "Anfrage von früher hat" : "Anfragen von früher haben"} noch
+                keinen Stand. In einem Rutsch abhaken?
+              </summary>
+              <p className="mt-3 max-w-prose text-leise">
+                Abgehakt wird nur, was noch auf „Anfrage eingegangen“ steht und vor heute
+                hereingekommen ist. Was heute kommt, bleibt stehen. Die Anfragen bekommen den Stand
+                „{ABGEHAKT}“, rutschen damit unter „Erledigt“ und verschwinden aus der roten
+                Zahl am Menü. Gelöscht wird nichts.
+              </p>
+              <form
+                action={async () => {
+                  "use server";
+                  const anzahl = await altbestandAbhaken();
+                  redirect(`/leads?abgehakt=${anzahl}`);
+                }}
+              >
+                <button
+                  type="submit"
+                  className="mt-3 rounded-md border border-linie px-3 py-1.5 hover:bg-gold-hell"
+                >
+                  {stand.altbestand} {stand.altbestand === 1 ? "Anfrage" : "Anfragen"} abhaken
+                </button>
+              </form>
+            </details>
+          )}
+
           <section className="flex flex-wrap gap-4">
             <Kachel zahl={offen.length} was="offen" hinweis="warten auf Antwort" betont />
             <Kachel zahl={gewonnen.length} was="gewonnen" hinweis="daraus wurde ein Event" />

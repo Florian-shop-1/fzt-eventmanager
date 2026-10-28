@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { db } from "./client";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { flotixVersandAbhaken, KENNZEICHEN } from "@/lib/flotix/tuer";
+import { ABGEHAKT } from "@/lib/shop/leads";
 import { revalidateTag } from "next/cache";
 
 /**
@@ -266,6 +267,46 @@ export async function leadSpeichern(schluessel: string, formData: FormData): Pro
   // Störungsmeldungen liegen in derselben Tabelle und teilen sich diesen
   // Stand, also muss ihre Seite ebenfalls neu gerechnet werden.
   revalidatePath("/stoerungen");
+}
+
+/**
+ * Den Altbestand in einem Rutsch abhaken (Florian, 28.10.2026).
+ *
+ * Anlass: Von 240 Anfragen hatten nur 21 je einen Stand, 43 standen noch auf "Anfrage eingegangen". Die meisten
+ * davon sind längst per Mail erledigt, nur hat das niemand eingetragen. Stünde die rote Zahl am Menü dauerhaft auf
+ * 43, gewöhnt man sich daran, und dann nützt sie nichts mehr.
+ *
+ * Betroffen ist ausschliesslich, was
+ *   - noch auf "Anfrage eingegangen" steht, also von niemandem angefasst wurde, und
+ *   - vor dem heutigen Tag eingegangen ist.
+ *
+ * Was heute hereinkommt, bleibt also stehen, auch wenn jemand den Knopf am Abend drückt. Gelöscht wird nichts: Die
+ * Anfrage bleibt mit allem, was sie mitbringt, in der Liste, bekommt nur einen Stand und rutscht damit unter
+ * "Erledigt". Wer sie doch noch bearbeiten will, setzt den Stand an der Karte wieder um.
+ *
+ * Gibt zurück, wie viele es waren.
+ */
+export async function altbestandAbhaken(): Promise<number> {
+  const name = await verlangeBuero();
+
+  const zeilen = (await db()`
+    insert into lead_stand (schluessel, status, geaendert_von)
+    select a.schluessel, ${ABGEHAKT}, ${name}
+      from anfrage a
+      left join lead_stand s on s.schluessel = a.schluessel
+     where coalesce(nullif(s.status, ''), a.status) = 'Anfrage eingegangen'
+       and a.typ !~* 'st(ö|oe)rung'
+       and a.eingang_am < date_trunc('day', now() at time zone 'Europe/Berlin') at time zone 'Europe/Berlin'
+    on conflict (schluessel) do update
+       set status = excluded.status,
+           geaendert_am = now(),
+           geaendert_von = excluded.geaendert_von
+    returning schluessel
+  `) as Array<{ schluessel: string }>;
+
+  revalidatePath("/leads");
+  revalidatePath("/", "layout");
+  return zeilen.length;
 }
 
 /**

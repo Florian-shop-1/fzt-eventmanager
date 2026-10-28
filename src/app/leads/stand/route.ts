@@ -12,7 +12,7 @@ import { anfragenStand } from "@/lib/db/anfragen";
 
 export const dynamic = "force-dynamic";
 
-const LEER = { neu: 0, neueste: null };
+const LEER = { neu: 0, altbestand: 0, neueste: null };
 
 export async function GET() {
   const benutzer = await angemeldeterBenutzer();

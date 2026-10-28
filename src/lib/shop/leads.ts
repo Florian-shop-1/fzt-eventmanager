@@ -39,6 +39,17 @@ export const LEAD_STATUS = [
 export type LeadStatus = (typeof LEAD_STATUS)[number] | string;
 
 /**
+ * Was auf einer Altanfrage steht, die in einem Rutsch abgehakt wurde.
+ *
+ * Bewusst kein "Verloren" und kein "Abgelehnt" (Florian, 28.10.2026): Bei diesen Anfragen weiß niemand mehr, was
+ * aus ihnen geworden ist. Viele wurden damals per Mail erledigt, ohne dass hier je ein Stand gesetzt wurde. Das
+ * ehrlich hinzuschreiben ist besser, als eine Entscheidung zu behaupten, die es nie gab.
+ *
+ * Steht bewusst nicht in LEAD_STATUS: Von Hand soll das niemand auswählen, es entsteht nur über den Knopf.
+ */
+export const ABGEHAKT = "Altbestand abgehakt";
+
+/**
  * Störungsmeldungen aus dem Shop.
  *
  * Seit dem Vorfall vom 4. September hat der Shop einen Notausgang: Laesst
@@ -66,7 +77,7 @@ export const STOERUNG_STATUS = ["Neu", "Zurückgerufen", "Erledigt"] as const;
 /** Wie eine Anfrage einzuordnen ist: offen, gewonnen oder erledigt. */
 export function lageDesLeads(status: string): "offen" | "gewonnen" | "erledigt" {
   if (/gewonnen/i.test(status)) return "gewonnen";
-  if (/verloren|abgelehnt|passt nicht/i.test(status)) return "erledigt";
+  if (/verloren|abgelehnt|passt nicht|abgehakt/i.test(status)) return "erledigt";
   return "offen";
 }
 

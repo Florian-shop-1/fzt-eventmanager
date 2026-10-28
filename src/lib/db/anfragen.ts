@@ -213,23 +213,27 @@ export async function anfragenAusDatenbank(gegeben?: Abfrage): Promise<Lead[]> {
  */
 export interface AnfragenStand {
   neu: number;
+  /** Davon von vor heute: Das sind die, die der Knopf auf /leads abhaken würde. */
+  altbestand: number;
   neueste: { schluessel: string; name: string; typ: string; eingang: string } | null;
 }
 
 export async function anfragenStand(gegeben?: Abfrage): Promise<AnfragenStand> {
   const sql = await abfrage(gegeben);
   const zeilen = (await sql`
-    select a.schluessel, a.name, a.typ, a.eingang
+    select a.schluessel, a.name, a.typ, a.eingang,
+           a.eingang_am < date_trunc('day', now() at time zone 'Europe/Berlin') at time zone 'Europe/Berlin' as alt
       from anfrage a
       left join lead_stand s on s.schluessel = a.schluessel
      where coalesce(nullif(s.status, ''), a.status) = 'Anfrage eingegangen'
        and a.typ !~* 'st(ö|oe)rung'
      order by a.eingang_am desc
-  `) as Array<Record<string, string>>;
+  `) as Array<Record<string, string> & { alt: boolean }>;
 
   const erste = zeilen[0];
   return {
     neu: zeilen.length,
+    altbestand: zeilen.filter((z) => z.alt).length,
     neueste: erste
       ? {
           schluessel: erste.schluessel,
