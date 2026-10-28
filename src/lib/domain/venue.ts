@@ -39,6 +39,13 @@ export interface Tisch {
  *
  * Wichtig: Aus der Loge sieht man die Show nicht. Jeder Logengast
  * bekommt zusaetzlich ein Showticket (Empore oder Golden Seats).
+ *
+ * Und genau das ist kein Nachteil, sondern der Reiz (Florian,
+ * 28.10.2026): "der gag ist bei der Loge, dass man idR in der Loge ist
+ * und dann die show von der vip empore anschaut. diese ist unmittelbar
+ * vor den Logen. man hat besten blick zur bühne mit einem abstand von
+ * nur 7 metern." Wer eine Loge anbietet, soll das dazusagen, sonst
+ * klingt der Platzwechsel nach Umstand statt nach bestem Platz im Haus.
  */
 export const LOGEN: Loge[] = [
   { id: "loge-1", nummer: 1, name: "Loge 1", plaetze: 10, proSeite: 5, stirnseitePlaetze: 1 },

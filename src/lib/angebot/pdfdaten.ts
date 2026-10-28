@@ -253,11 +253,12 @@ export async function probeAngebot(
       "Eventgalerie, oder soweit verfügbar geselliges Beisammensein in eurer stilvollen Loge im Showroom.",
     "",
     "20:00 UHR",
-    'Das Highlight des Abends, die Magieshow "ULMfassbar by Florian Zimmer", live, hautnah und mit ' +
-      "bestem Blick zur Bühne auf den VIP-Plätzen der Empore.",
+    'Das Highlight des Abends, die Magieshow "ULMfassbar by Florian Zimmer", live und hautnah von ' +
+      "der VIP-Empore aus, unmittelbar vor euren Logen: sieben Meter bis zur Bühne, der beste " +
+      "Blick im Haus.",
     "",
     "22:30 UHR",
-    "Ausklang an der Foyerbar",
+    "Ausklang an der Magic Bar",
   ].join("\n");
 
   const zerlegt = ablaufAusText(einleitung);

@@ -264,8 +264,18 @@ export default async function KundenAngebot({
                   </p>
                   <p className="mt-3">
                     Eure Loge gehört an diesem Abend euch allein, wir setzen niemand Fremdes dazu.
-                    Für die Show geht es gemeinsam in den Saal: Jeder von euch hat dort seinen
-                    eigenen Sitzplatz, und nach der Show ist die Loge wieder eure.
+                  </p>
+                  {/*
+                    Der eigentliche Reiz der Loge (Florian, 28.10.2026):
+                    "der gag ist bei der Loge, dass man idR in der Loge
+                    ist und dann die show von der vip empore anschaut.
+                    diese ist unmittelbar vor den Logen. man hat besten
+                    blick zur bühne mit einem abstand von nur 7 metern."
+                  */}
+                  <p className="mt-3">
+                    Für die Show sind es ein paar Schritte: Direkt vor euren Logen liegt die
+                    VIP-Empore, und von dort schaut ihr zu. Sieben Meter bis zur Bühne, nichts
+                    dazwischen, der beste Blick im Haus. Danach ist die Loge wieder eure.
                   </p>
                 </>
               ) : (
