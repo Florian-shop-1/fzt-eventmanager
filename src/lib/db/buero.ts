@@ -389,7 +389,19 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
   try {
     const { adresseSuchen, firmendomain } = await import("@/lib/shop/firmenadresse");
     if (email && firmendomain(email)) {
-      const gefunden = await adresseSuchen({ firma: kundenname, email });
+      /*
+        Die Suche bekommt eine Frist.
+
+        Sie sucht im Netz und braucht mal zwei Sekunden, mal eine Minute.
+        Dauerte sie zu lange, wurde die ganze Funktion abgeschnitten, und
+        beim Klick auf "Vorgang anlegen" passierte sichtbar nichts
+        (Florian, 28.10.2026). Der Vorgang ist die Hauptsache, die
+        Anschrift ist Beiwerk: Wer zu spaet kommt, kommt eben nicht mit.
+      */
+      const gefunden = await Promise.race([
+        adresseSuchen({ firma: kundenname, email }),
+        new Promise<null>((fertig) => setTimeout(() => fertig(null), 12_000)),
+      ]);
       if (gefunden) {
         /*
           Der Name aus dem Impressum gilt nur, wenn er nach Firma

@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { Absendeknopf } from "@/components/Absendeknopf";
 import { anfrageAufnehmen } from "@/lib/db/aktionen";
 import { kommendeTermine, terminBeschriftung, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 
 export const metadata = { title: "Anfrage aufnehmen | FZT Eventmanager" };
+/*
+  Das Anlegen spricht mit dem Ticketshop und darf dafür Zeit haben. Ohne
+  diese Zeile schneidet Vercel die Funktion nach der Voreinstellung ab,
+  und beim Klick passiert sichtbar nichts (Florian, 28.10.2026).
+*/
+export const maxDuration = 60;
 
 const QUELLEN = ["Meta-Lead", "Webshop-Formular", "Telefon", "E-Mail", "Empfehlung", "Sonstiges"];
 
@@ -166,12 +173,7 @@ function Formular({
         </fieldset>
 
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gold-dunkel"
-          >
-            Vorgang anlegen
-          </button>
+          <Absendeknopf text="Vorgang anlegen" laeuftText="Wird angelegt..." betont />
           <Link href="/vorgaenge" className="text-sm text-leise hover:text-text">
             Abbrechen
           </Link>

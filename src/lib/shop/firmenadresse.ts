@@ -16,6 +16,17 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const MODELL = "claude-opus-5";
 
+/**
+ * Wie lange die Suche hoechstens laufen darf.
+ *
+ * Sie sucht im Netz, und das dauert mal zwei Sekunden und mal eine
+ * Minute. Ohne Frist haengt der Aufruf, bis die Funktion bei Vercel
+ * abgeschnitten wird, und dann passiert beim Klick sichtbar gar nichts
+ * (Florian, 28.10.2026: "bei vorgang anlegen passiert schon wieder
+ * nix"). Lieber ohne Anschrift weiter als gar nicht.
+ */
+const FRIST_MS = 30_000;
+
 export interface Adressvorschlag {
   firma: string;
   strasse: string;
@@ -69,7 +80,7 @@ export async function adresseSuchen(o: {
   // Ohne Firmennamen und ohne eigene Domain gibt es nichts zu suchen.
   if (o.firma.trim().length < 3 && !domain) return null;
 
-  const antwort = await new Anthropic().messages.create({
+  const antwort = await new Anthropic({ timeout: FRIST_MS, maxRetries: 0 }).messages.create({
     model: MODELL,
     max_tokens: 1500,
     tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],

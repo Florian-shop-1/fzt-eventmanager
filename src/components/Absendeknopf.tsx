@@ -16,10 +16,13 @@ export function Absendeknopf({
   text,
   laeuftText,
   deaktiviert,
+  betont = false,
 }: {
   text: string;
   laeuftText: string;
   deaktiviert?: boolean;
+  /** Der eine Knopf, um den es auf der Seite geht: gefüllt statt hell. */
+  betont?: boolean;
 }) {
   const { pending } = useFormStatus();
 
@@ -27,7 +30,11 @@ export function Absendeknopf({
     <button
       type="submit"
       disabled={pending || deaktiviert}
-      className="rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      className={`rounded-md border border-gold px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+        betont
+          ? "bg-gold text-white hover:bg-gold-dunkel"
+          : "bg-gold-hell text-gold-dunkel hover:bg-gold hover:text-white"
+      }`}
     >
       {pending ? laeuftText : text}
     </button>

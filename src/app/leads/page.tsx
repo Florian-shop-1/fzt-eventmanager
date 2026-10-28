@@ -3,11 +3,20 @@ import { redirect } from "next/navigation";
 import { ABGEHAKT, holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
 import { altbestandAbhaken, leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
 import { anfragenStand } from "@/lib/db/anfragen";
+import { Absendeknopf } from "@/components/Absendeknopf";
 import { vorZeit } from "@/components/Status";
 import { leitfadenFuer } from "@/lib/shop/anfrage-leitfaden";
 
 export const metadata = { title: "Anfragen | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
+/*
+  Aus einer Anfrage einen Vorgang zu machen schlägt nebenbei die
+  Firmenanschrift im Netz nach. Das darf dauern. Ohne diese Zeile
+  schneidet Vercel die Funktion nach der Voreinstellung ab, und beim
+  Klick auf "Vorgang anlegen" passiert sichtbar nichts (Florian,
+  28.10.2026). Die Suche selbst hat zusätzlich eine eigene Frist.
+*/
+export const maxDuration = 60;
 
 /**
  * Anfragen aus Meta und dem Webshop.
@@ -343,12 +352,7 @@ function Karte({ lead, stand }: { lead: Lead; stand: LeadStand | undefined }) {
               <input type="hidden" name="anfragetyp" value={lead.anfragetyp} />
               {/* Die Anmerkung des Kunden landet als Notiz im Vorgang. */}
               <input type="hidden" name="kommentar" value={lead.kommentar} />
-              <button
-                type="submit"
-                className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-              >
-                Vorgang anlegen
-              </button>
+              <Absendeknopf text="Vorgang anlegen" laeuftText="Wird angelegt..." />
             </form>
           )}
         </div>
