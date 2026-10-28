@@ -25,6 +25,37 @@ function schluessel(): string {
   return s;
 }
 
+/**
+ * Die Merkmale fuer die Anschrift in Brevo anlegen, falls es sie nicht gibt.
+ *
+ * "check bitte mal, ob es die adresse verlaesslich uebernimmt ins
+ * angebot und in brevo" (Florian, 28.10.2026). Ins Brevo ging sie
+ * bisher gar nicht: Dort standen nur Name, Telefon und Herkunft.
+ *
+ * Brevo lehnt Merkmale ab, die im Konto nicht angelegt sind, und dann
+ * waere der ganze Kontakt abgelehnt worden. Deshalb werden sie vorher
+ * angelegt. Gibt es sie schon, antwortet Brevo mit einem Fehler, der
+ * hier richtig ist und verworfen wird. Gemacht wird das einmal je
+ * Programmlauf.
+ */
+let merkmaleGeprueft = false;
+async function merkmaleSicherstellen(): Promise<void> {
+  if (merkmaleGeprueft) return;
+  merkmaleGeprueft = true;
+  for (const name of ["FIRMA", "STRASSE", "PLZ", "ORT"]) {
+    await fetch(`${BREVO}/contacts/attributes/normal/${name}`, {
+      method: "POST",
+      headers: {
+        "api-key": schluessel(),
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({ type: "text" }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => undefined);
+  }
+}
+
 export interface BrevoListe {
   id: number;
   name: string;
@@ -349,6 +380,10 @@ export async function kundeNachBrevo(o: {
   email: string;
   ansprechpartner?: string;
   telefon?: string;
+  /** Die Anschrift, soweit sie im Vorgang steht. */
+  strasse?: string;
+  plz?: string;
+  ort?: string;
 }): Promise<string> {
   const email = (o.email ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "keine brauchbare Mailadresse, nichts an Brevo";
@@ -360,6 +395,7 @@ export async function kundeNachBrevo(o: {
   const teile = person.split(/\s+/).filter(Boolean);
 
   try {
+    await merkmaleSicherstellen();
     const antwort = await fetch(`${BREVO}/contacts/import`, {
       method: "POST",
       headers: {
@@ -379,6 +415,12 @@ export async function kundeNachBrevo(o: {
               NACHNAME: teile.length > 1 ? teile.slice(1).join(" ") : o.name.trim(),
               SMS: o.telefon?.trim() || undefined,
               HERKUNFT: "Rechnung",
+              FIRMA: o.name.trim() || undefined,
+              // Leere Felder bleiben weg, sonst loescht ein leerer Wert
+              // in Brevo, was dort vielleicht schon richtig steht.
+              STRASSE: o.strasse?.trim() || undefined,
+              PLZ: o.plz?.trim() || undefined,
+              ORT: o.ort?.trim() || undefined,
             },
           },
         ],

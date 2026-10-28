@@ -670,22 +670,24 @@ function AngebotKarte({
     "",
     "vielen Dank für Ihr Interesse an einem Abend im Florian Zimmer Theater.",
     "",
-    "Ihr persönliches Angebot hängt an dieser Mail als PDF.",
-    "",
-    "Online ansehen und mit einem Klick zusagen können Sie es hier:",
+    /*
+      Kein Versprechen mehr, dass ein PDF anhaengt.
+
+      "das angebot haengt nicht als pdf. also bitte schreiben: einfach
+      auf den link klicken" (Florian, 28.10.2026). Das PDF geht mit,
+      wenn es sich erzeugen laesst, aber darauf ist kein Verlass, und
+      eine Mail, die einen Anhang ankuendigt, der fehlt, laesst den
+      Kunden suchen.
+
+      Ausserdem stand hier vorher ein Satz, der auf "hier:" endete und
+      die nackte Adresse darunter. In der Fassung mit Formatierung
+      faellt die Adresse weg, und der Satz hing in der Luft.
+    */
+    "Ihr persönliches Angebot liegt für Sie bereit. Ein Klick genügt: Dort sehen Sie alles " +
+      "im Überblick und können direkt zusagen oder es ausdrucken.",
     link,
     "",
     `Das Angebot gilt bis zum ${new Date(angebot.gueltigBis).toLocaleDateString("de-DE")}.`,
-    "",
-    /*
-      Der dritte Weg neben zusagen und absagen (Florian, 28.10.2026):
-      "soll er auch gleich was klicken koennen dafuer in der mail".
-      Steht bewusst vor dem freundlichen Schluss, damit es nicht
-      untergeht.
-    */
-    "Passt etwas noch nicht? Gleich unter dem Angebot können Sie uns Ihren Änderungswunsch " +
-      "schicken, dann melden wir uns mit einer angepassten Fassung. Die reservierten Plätze " +
-      "bleiben dabei für Sie stehen.",
     "",
     /*
       Der freundliche Schluss (Florian, 28.10.2026): "schreib in der mail
@@ -693,6 +695,10 @@ function AngebotKarte({
       Angebot bekommt, hat fast immer noch eine Frage, und die soll er
       stellen, statt die Mail liegen zu lassen.
     */
+    "Passt noch nicht alles? Schreiben Sie uns gern Ihren Änderungswunsch, direkt im Angebot " +
+      "oder als Antwort auf diese Mail. Ob anderer Termin, mehr oder weniger Personen oder eine " +
+      "andere Kategorie: Wir besprechen das in Ruhe und schicken Ihnen eine angepasste Fassung.",
+    "",
     "Und falls noch etwas offen ist: Melden Sie sich jederzeit, eine Mail oder ein kurzer Anruf " +
       "unter 0731 7906110 genügt. Wir gehen das gerne gemeinsam durch und passen das Angebot an, " +
       "bis es für Sie passt.",

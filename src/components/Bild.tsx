@@ -24,13 +24,23 @@ export function Bild({
   alt,
   className,
   hoehe = "h-64",
+  ganz = false,
 }: {
   /** Dateiname unter /bilder, zum Beispiel "loge.jpg". */
   datei: string;
   alt: string;
   className?: string;
-  /** Tailwind-Höhenklasse des Rahmens. */
+  /** Tailwind-Höhenklasse des Rahmens. Ohne Wirkung, wenn ganz gesetzt ist. */
   hoehe?: string;
+  /**
+   * Das ganze Foto zeigen, statt einen Ausschnitt zu füllen.
+   *
+   * "hier das ganze foto zeigen, man sieht weder mich, noch das logo
+   * auf dem gebäude" (Florian, 28.10.2026). Bei einem festen Rahmen
+   * schneidet der Ausschnitt oben und unten weg, und gerade bei einem
+   * Bild, das etwas zeigen soll, ist das genau das Falsche.
+   */
+  ganz?: boolean;
 }) {
   const [zustand, setZustand] = useState<Zustand>("laedt");
   const quelle = `/bilder/${datei}`;
@@ -45,6 +55,25 @@ export function Bild({
       abgebrochen = true;
     };
   }, [quelle]);
+
+  if (ganz) {
+    return (
+      <div className={`relative overflow-hidden ${className ?? ""}`}>
+        {zustand === "da" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={quelle} alt={alt} className="block h-auto w-full" />
+        ) : (
+          // Platzhalter in derselben Breite, solange das Foto fehlt.
+          <div
+            className="h-56 w-full"
+            style={{
+              background: "linear-gradient(135deg, #26211a 0%, #17140f 60%, #2a2419 100%)",
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

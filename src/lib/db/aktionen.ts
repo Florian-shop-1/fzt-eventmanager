@@ -499,6 +499,10 @@ export async function kontaktAendern(vorgangId: string, formData: FormData): Pro
       email,
       ansprechpartner,
       telefon,
+      // Die Anschrift geht mit, sie stand in Brevo bisher nirgends.
+      strasse,
+      plz,
+      ort,
     }).catch(() => "Brevo nicht erreicht");
     hinweis = `Kontakt gespeichert. Brevo: ${ergebnis}.`;
   }

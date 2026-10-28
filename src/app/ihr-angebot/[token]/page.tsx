@@ -311,7 +311,7 @@ export default async function KundenAngebot({
               <Bild
                 datei="led-fassade.jpg"
                 alt="Die LED-Fassade des Florian Zimmer Theaters mit einem Firmenlogo"
-                hoehe="h-80"
+                ganz
               />
               <div className="p-6 text-sm leading-relaxed text-leise">
                 <p>

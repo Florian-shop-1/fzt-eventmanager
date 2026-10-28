@@ -411,10 +411,26 @@ export async function leadZuVorgang(schluessel: string, formData: FormData): Pro
         const nachFirma = /\b(gmbh|mbh|ag|kg|ohg|ug|gbr|se)\b|\be\. ?[kv]\./i;
         const firmenname = nachFirma.test(gefunden.firma) ? gefunden.firma : kundenname;
 
+        /*
+          Nur fuellen, nie ueberschreiben.
+
+          "kevin hatte eine anschrift eingegeben, ist dann spaeter
+          wieder in den vorgang und sie war weg" (Florian, 28.10.2026).
+          Bis hierher schrieb die Suche ihren Fund ueber alles, was
+          schon dastand, auch ueber eine von Hand eingetippte Anschrift.
+          Legt jemand spaeter einen zweiten Vorgang fuer dieselbe Firma
+          an, lief die Suche erneut und raeumte die gute Adresse weg.
+
+          Deshalb schreibt coalesce(nullif(...)) nur dort, wo noch
+          nichts steht, und ein leerer Fund aendert ebenfalls nichts.
+        */
         await db()`
           update kunde
-             set name = ${firmenname}, strasse = ${gefunden.strasse}, plz = ${gefunden.plz},
-                 ort = ${gefunden.ort}, geaendert_am = now()
+             set name    = ${firmenname},
+                 strasse = coalesce(nullif(strasse, ''), nullif(${gefunden.strasse}, '')),
+                 plz     = coalesce(nullif(plz, ''), nullif(${gefunden.plz}, '')),
+                 ort     = coalesce(nullif(ort, ''), nullif(${gefunden.ort}, '')),
+                 geaendert_am = now()
            where id = ${kundeId}
         `;
         adressnotiz = `Anschrift automatisch gefunden: ${gefunden.strasse}, ${gefunden.plz} ${gefunden.ort}. Quelle: ${gefunden.quelle || "Impressum"}. Bitte pruefen.`;
