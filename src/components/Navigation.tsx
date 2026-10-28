@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { AnfragenMarke, useNeueAnfragen } from "@/components/AnfragenMarke";
+
 /**
  * Die Reiter oben: Show, Shop, Events, Foyer, Magicuisine, Sonstiges.
  *
@@ -28,11 +30,22 @@ export interface NaviGruppe {
 /** Ab wie vielen Punkten es sich lohnt, sie wegzusortieren. */
 const AB_HIER_REITER = 7;
 
+/** Die Seite, an der das rote Zeichen hängt. */
+const ANFRAGEN = "/leads";
+
 export function Navigation({ gruppen }: { gruppen: NaviGruppe[] }) {
   const pfad = usePathname() ?? "/";
   const [offenerReiter, setOffenerReiter] = useState<string | null>(null);
   const alle = gruppen.flatMap((g) => g.punkte);
   const hier = (href: string) => pfad === href || pfad.startsWith(`${href}/`);
+  /*
+    Das Zeichen sitzt an zwei Stellen: am Reiter EVENTS und am Punkt
+    Anfragen darunter (Florian, 28.10.2026). Nur am Punkt genügt nicht,
+    denn der steckt im zugeklappten Menü, und genau dort sieht ihn
+    niemand. Gefragt wird nur, wenn die Person die Anfragen überhaupt
+    sehen darf.
+  */
+  const neueAnfragen = useNeueAnfragen(alle.some((p) => p.href === ANFRAGEN));
 
   if (alle.length < AB_HIER_REITER) {
     return (
@@ -45,6 +58,7 @@ export function Navigation({ gruppen }: { gruppen: NaviGruppe[] }) {
             style={hier(p.href) ? { background: "var(--gold-hell)", color: "var(--text)" } : { color: "var(--text-leise)" }}
           >
             {p.label}
+            {p.href === ANFRAGEN && <AnfragenMarke zahl={neueAnfragen} />}
           </Link>
         ))}
       </>
@@ -81,6 +95,9 @@ export function Navigation({ gruppen }: { gruppen: NaviGruppe[] }) {
               aria-expanded={auf}
             >
               {g.titel}
+              {g.punkte.some((p) => p.href === ANFRAGEN) && (
+                <AnfragenMarke zahl={neueAnfragen} schwebend />
+              )}
             </button>
 
             {auf && (
@@ -100,6 +117,7 @@ export function Navigation({ gruppen }: { gruppen: NaviGruppe[] }) {
                       style={hier(p.href) ? { background: "var(--gold-hell)", fontWeight: 600 } : undefined}
                     >
                       {p.label}
+                      {p.href === ANFRAGEN && <AnfragenMarke zahl={neueAnfragen} />}
                     </Link>
                   ))}
                 </div>

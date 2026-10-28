@@ -138,12 +138,18 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
     titel: "Events",
     punkte: [
       /*
-        Ganz oben, weil es der erste Gedanke ist: Wer auf Events klickt,
-        will oft einen Abend aufmachen, den es im Ticketshop nicht gibt
-        (Florian, 28.09.2026). Wer ihn anlegen darf, prüft die Seite.
+        Die Anfragen stehen ganz oben (Florian, 28.10.2026): "mach mal
+        Anfragen ganz nach oben". Daran hängt das Geschäft, und jede
+        Stunde, die eine Anfrage liegen bleibt, kostet. Am Reiter EVENTS
+        und an diesem Punkt steht die Zahl der unbearbeiteten Anfragen,
+        siehe components/AnfragenMarke.tsx.
+
+        Vorher stand hier "Termin anlegen", weil es der erste Gedanke
+        beim Klick auf Events sei (Florian, 28.09.2026). Das Anlegen
+        bleibt gleich darunter.
       */
-      { href: "/termin-anlegen", label: "Termin anlegen", rollen: ["chef", "team"] },
       { href: "/leads", label: "Anfragen", rollen: ["chef", "team"] },
+      { href: "/termin-anlegen", label: "Termin anlegen", rollen: ["chef", "team"] },
       { href: "/vorgaenge", label: "Vorgänge", rollen: ["chef", "team"] },
       { href: "/angebot", label: "Angebot", rollen: ["chef", "team"] },
     ],

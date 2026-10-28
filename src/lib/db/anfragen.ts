@@ -197,6 +197,51 @@ export async function anfragenAusDatenbank(gegeben?: Abfrage): Promise<Lead[]> {
 }
 
 /**
+ * Wie viele Anfragen noch niemand angefasst hat, und welche zuletzt kam.
+ *
+ * Für das rote Zeichen in der Navigation (Florian, 28.10.2026): "immer wenn eine neue kommt, dann muss da ein
+ * zeichen dran sein wie bei whats app. für uns sehr wichtig."
+ *
+ * Neu heißt: Der Stand steht noch auf "Anfrage eingegangen". Das Zeichen verschwindet also nicht schon dadurch,
+ * dass jemand die Liste aufmacht, sondern erst, wenn jemand die Anfrage angefasst hat, und dann für alle. Eine
+ * Anfrage, die nur angeschaut und wieder zugeklappt wurde, bleibt sichtbar liegen.
+ *
+ * Unser eigener Stand hat Vorrang vor dem der Anfrage selbst, genau wie auf der Seite /leads.
+ *
+ * Störungsmeldungen aus dem Shop laufen durch dieselbe Tabelle, gehören aber nicht in den Vertrieb und zählen
+ * deshalb hier nicht mit (siehe istStoerung in lib/shop/leads.ts).
+ */
+export interface AnfragenStand {
+  neu: number;
+  neueste: { schluessel: string; name: string; typ: string; eingang: string } | null;
+}
+
+export async function anfragenStand(gegeben?: Abfrage): Promise<AnfragenStand> {
+  const sql = await abfrage(gegeben);
+  const zeilen = (await sql`
+    select a.schluessel, a.name, a.typ, a.eingang
+      from anfrage a
+      left join lead_stand s on s.schluessel = a.schluessel
+     where coalesce(nullif(s.status, ''), a.status) = 'Anfrage eingegangen'
+       and a.typ !~* 'st(ö|oe)rung'
+     order by a.eingang_am desc
+  `) as Array<Record<string, string>>;
+
+  const erste = zeilen[0];
+  return {
+    neu: zeilen.length,
+    neueste: erste
+      ? {
+          schluessel: erste.schluessel,
+          name: nameOrdentlich(erste.name) || "ohne Namen",
+          typ: erste.typ ?? "",
+          eingang: erste.eingang ?? "",
+        }
+      : null,
+  };
+}
+
+/**
  * Den Bestand aus der Google-Tabelle einmalig übernehmen (scripts/anfragen-import.ts).
  * Gleicher Schlüssel wie bisher, deshalb gelten Bearbeitungsstand und „gemeldet“ weiter.
  * Was schon da ist, bleibt unverändert.
