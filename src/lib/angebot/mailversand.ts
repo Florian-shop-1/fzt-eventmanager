@@ -21,6 +21,7 @@ import { mailVerschicken } from "@/lib/mail/versand";
 import { angebotsPdf } from "./pdf";
 import { pdfDatenAusAngebot, pdfDateiname } from "./pdfdaten";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { alsHtml } from "@/lib/mail/html";
 
 /** Aus welchem Postfach Angebote hinausgehen (Florian, 05.10.2026). */
 const ANGEBOT_ABSENDER = "kevin.steele@florianzimmer.com";
@@ -90,7 +91,16 @@ export async function angebotPerMail(
       mit den Firmen, also soll die Antwort des Kunden auch bei ihm
       landen und nicht im Ticketpostfach.
     */
-    await mailVerschicken({ an, betreff, text, anhaenge, absender: ANGEBOT_ABSENDER });
+    const basis = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
+    const link = `${basis}/ihr-angebot/${angebot.trackingToken}`;
+    await mailVerschicken({
+      an,
+      betreff,
+      text,
+      html: alsHtml(text, link),
+      anhaenge,
+      absender: ANGEBOT_ABSENDER,
+    });
 
     // Erst nach dem erfolgreichen Versand vermerken. Andersherum stünde
     // "versendet" auch dann da, wenn die Mail nie rausging.

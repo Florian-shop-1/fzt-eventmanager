@@ -25,6 +25,7 @@ import { planeAbend } from "@/lib/seating/abend";
 import { abendpreise } from "@/lib/ditix/preise";
 import {
   SCHLUSSTEXT,
+  WERBUNG_TEXT,
   angebotsnummer,
   einleitungstext,
   erzeugePositionen,
@@ -136,6 +137,27 @@ export async function angebotErzeugen(
   const nummer = await naechsteNummer();
   const jetzt = new Date();
 
+  /*
+    Der Schlusstext, Stück für Stück.
+
+    Zu den Bedingungen kommt der Hinweis auf den Preisstand, falls die
+    Preise von einem anderen Abend stammen, und die Werbepartnerschaft,
+    falls das Logo auf der Fassade mit angeboten wird (Florian,
+    28.10.2026).
+  */
+  const ABSATZ = String.fromCharCode(10) + String.fromCharCode(10);
+  const schlussteile = [SCHLUSSTEXT];
+  if (preisHerkunft) {
+    schlussteile.push(
+      `Die Preise entsprechen einer Vorstellung am ${preisHerkunft.datum
+        .split("-")
+        .reverse()
+        .join(".")}. An anderen Wochentagen koennen sie abweichen; wir halten sie fuer euch fest, sobald der Termin steht.`,
+    );
+  }
+  if (optionen.mitFassade) schlussteile.push(WERBUNG_TEXT);
+  const schlusstext = schlussteile.join(ABSATZ);
+
   const angelegt = (await db()`
     insert into angebot (vorgang_id, nummer, gueltig_bis, einleitung, schlusstext, tracking_token)
     values (${vorgangId}, ${nummer}, ${gueltigBis(jetzt)},
@@ -146,13 +168,7 @@ export async function angebotErzeugen(
               wochentag: optionen.wochentag,
               zeitraum: optionen.zeitraum,
               terminSteht: Boolean(vorgang.vorstellung?.datum) && optionen.wochentag == null,
-            })}, ${
-              preisHerkunft
-                ? `${SCHLUSSTEXT}${String.fromCharCode(10)}${String.fromCharCode(10)}Die Preise entsprechen einer Vorstellung am ${
-                    preisHerkunft.datum.split("-").reverse().join(".")
-                  }. An anderen Wochentagen koennen sie abweichen; wir halten sie fuer euch fest, sobald der Termin steht.`
-                : SCHLUSSTEXT
-            },
+            })}, ${schlusstext},
             ${randomBytes(24).toString("base64url")})
     returning id
   `) as Array<{ id: string }>;

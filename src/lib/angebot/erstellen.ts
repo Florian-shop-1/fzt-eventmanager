@@ -141,6 +141,24 @@ export interface AngebotsOptionen {
    * Loge, mit Preis in Klammern und nicht in der Summe.
    */
   logeDazu?: boolean;
+  /**
+   * Die Getränkepauschale nur als Wahlmöglichkeit anbieten.
+   *
+   * "Getränkeflatrate soll optional angeboten werden können (dann auch
+   * der preis wieder in klammern)" (Florian, 28.10.2026). Dann steht sie
+   * grau im Angebot und zählt nicht zur Summe.
+   */
+  getraenkeOptional?: boolean;
+  /**
+   * Das Firmenlogo auf der LED-Außenfassade mit anbieten.
+   *
+   * "im Angebot muss man auch anklicken können Logo auf der Fassade.
+   * optional" (Florian, 28.10.2026). Steht als optionale Position da,
+   * und unten im Angebot steht, was eine Werbepartnerschaft bedeutet.
+   */
+  mitFassade?: boolean;
+  /** Wie viele Stunden die Fassade bespielt wird. Ohne Angabe eine. */
+  fassadeStunden?: number;
   /** Magicuvée-Empfang auf der Eventgalerie mit anbieten. */
   mitEmpfang: boolean;
   /** Nicht belegte Logenplätze in Rechnung stellen. */
@@ -240,6 +258,34 @@ export const SCHLUSSTEXT = [
   "Gerne berücksichtigen wir auch kurzfristige Ergänzungen oder besondere Arrangements, stets im " +
     "Rahmen der Verfügbarkeit, damit euer Abend perfekt wird.",
 ].join("\n");
+
+/**
+ * Was eine Werbepartnerschaft bedeutet. Steht unter dem Angebot, sobald
+ * das Logo auf der Fassade mit angeboten wird (Florian, 28.10.2026).
+ *
+ * Nach seinem Text für die Rechnung, aber in der Sprache eines Angebots:
+ * Dort stehen Sätze wie "diese Rechnung stellt ein verbindliches Angebot
+ * dar" naturgemäß noch nicht. Was bleibt, ist das Wesentliche: was
+ * gezeigt wird, dass Werbung und Veranstaltung getrennt abgerechnet
+ * werden, und bis wann wir das Logo brauchen.
+ */
+export const WERBUNG_TEXT = [
+  "Werbepartnerschaft und vereinbarte Partnerkonditionen",
+  "",
+  "Die Werbeleistungen umfassen die Präsentation eures Unternehmenslogos auf der großflächigen " +
+    "LED-Außenfassade des Florian Zimmer Theaters sowie gegebenenfalls weitere ausdrücklich " +
+    "vereinbarte Werbe- und Brandingmaßnahmen, beispielsweise an den Sitzplätzen im Theater. Art, " +
+    "Umfang und Ausstrahlungszeitraum ergeben sich aus den Angebotspositionen.",
+  "",
+  "Im Zusammenhang mit der Werbepartnerschaft räumen wir euch die individuell vereinbarten " +
+    "Partnerkonditionen für ausgewählte Showtickets und gastronomische Leistungen ein.",
+  "",
+  "Werbeleistungen und Veranstaltungsleistungen werden gesondert ausgewiesen und abgerechnet. Der " +
+    "Vertrag über die Werbeleistung kommt mit vollständigem Eingang des Rechnungsbetrags zustande.",
+  "",
+  "Bitte übermittelt uns euer Logo spätestens eine Woche vor der Werbemaßnahme als JPG- oder " +
+    "PNG-Datei.",
+].join(String.fromCharCode(10));
 
 let laufendeNummer = 0;
 
@@ -372,10 +418,27 @@ export function erzeugePositionen(
 
   // 4. Getränkepauschale
   for (const pauschale of optionen.getraenkepauschalen) {
-    positionen.push(zuPosition(preise, pauschale, gesamt));
+    positionen.push({
+      ...zuPosition(preise, pauschale, gesamt),
+      // Optional heisst: grau, Preis in Klammern, nicht in der Summe.
+      optional: optionen.getraenkeOptional || undefined,
+    });
   }
 
-  // 5. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
+  /*
+    5. Das Logo auf der LED-Außenfassade.
+
+    Immer optional: Das ist eine Werbepartnerschaft und keine
+    Veranstaltungsleistung. Sie wird getrennt ausgewiesen und
+    abgerechnet, und deshalb steht sie mit Preis in Klammern da, bis
+    der Kunde sie dazunimmt (Florian, 28.10.2026).
+  */
+  if (optionen.mitFassade) {
+    const stunden = Math.max(1, Math.round(optionen.fassadeStunden ?? 1));
+    positionen.push({ ...zuPosition(preise, "LEDFASSADE", stunden), optional: true });
+  }
+
+  // 6. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
   //    Bei einer Exklusivbuchung nie: Der Saal ist komplett bezahlt.
   if (optionen.mitUnterbelegung && !exklusiv && plan) {
     const blockiert = plan.logen

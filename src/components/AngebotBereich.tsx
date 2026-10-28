@@ -27,7 +27,7 @@ import { angebotPerMail } from "@/lib/angebot/mailversand";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
-import { artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
+import { artikel, artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
 import type { AngebotDetail } from "@/lib/angebot/lesen";
 
 const TICKETS = artikelDerGruppe("ticket");
@@ -130,6 +130,10 @@ export function AngebotBereich({
   */
   const [essplatz, setEssplatz] = useState<"automatisch" | "galerie" | "loge">("automatisch");
   const [logeDazu, setLogeDazu] = useState(false);
+  /* Getränkepauschale und Fassade als Wahlmöglichkeit (Florian, 28.10.2026). */
+  const [getraenkeOptional, setGetraenkeOptional] = useState(false);
+  const [mitFassade, setMitFassade] = useState(false);
+  const [fassadeStunden, setFassadeStunden] = useState(1);
 
   // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
   const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
@@ -364,6 +368,78 @@ export function AngebotBereich({
             <Getraenkewahl gewaehlt={getraenke} setzen={setGetraenke} />
           </label>
 
+          {getraenke.length > 0 && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
+                checked={getraenkeOptional}
+                onChange={(e) => setGetraenkeOptional(e.target.checked)}
+              />
+              <span>
+                Getränkepauschale nur als Wahlmöglichkeit anbieten
+                <span className="block text-xs text-leise">
+                  Preis in Klammern, nicht in der Summe. Der Kunde sagt Bescheid, wenn er sie
+                  dazunehmen möchte.
+                </span>
+              </span>
+            </label>
+          )}
+
+          {/*
+            Das Logo auf der LED-Aussenfassade.
+
+            Immer eine Wahlmoeglichkeit: Das ist eine Werbepartnerschaft
+            und keine Veranstaltungsleistung, sie wird getrennt
+            ausgewiesen und abgerechnet (Florian, 28.10.2026).
+          */}
+          <div className="rounded-md border border-linie p-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
+                checked={mitFassade}
+                onChange={(e) => setMitFassade(e.target.checked)}
+              />
+              <span>
+                Logo auf der LED-Außenfassade anbieten
+                <span className="block text-xs text-leise">
+                  {eur(artikel("LEDFASSADE").bruttoCent)} je Stunde zuzüglich 19 Prozent
+                  Umsatzsteuer. Steht als Wahlmöglichkeit im Angebot, in Klammern und nicht in der
+                  Summe.
+                </span>
+              </span>
+            </label>
+
+            {mitFassade && (
+              <div className="mt-3 space-y-2 border-t border-linie pt-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={fassadeStunden}
+                    onChange={(e) => setFassadeStunden(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                  />
+                  <span>
+                    {fassadeStunden === 1 ? "Stunde" : "Stunden"} bespielen
+                    <span className="text-leise">
+                      {" "}
+                      ({eur(artikel("LEDFASSADE").bruttoCent * fassadeStunden)} brutto)
+                    </span>
+                  </span>
+                </label>
+                <p className="text-xs text-leise">
+                  Unter dem Angebot steht dann, was eine Werbepartnerschaft bedeutet: dass
+                  Werbe- und Veranstaltungsleistungen getrennt ausgewiesen und abgerechnet werden,
+                  welche Partnerkonditionen daran hängen und dass wir das Logo spätestens eine
+                  Woche vorher als JPG oder PNG brauchen.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/*
             Wo gegessen wird. Steht neben den Ticketkategorien, weil es
             dieselbe Frage von der anderen Seite ist: Die Kategorie sagt,
@@ -436,6 +512,9 @@ export function AngebotBereich({
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
+                  getraenkeOptional: getraenkeOptional && getraenke.length > 0,
+                  mitFassade,
+                  fassadeStunden,
                   essplatz,
                   logeDazu: logeDazu && essplatz !== "loge",
                   mitEmpfang,
@@ -501,7 +580,17 @@ function AngebotKarte({
     "",
     `Das Angebot gilt bis zum ${new Date(angebot.gueltigBis).toLocaleDateString("de-DE")}.`,
     "",
-    "Bei Fragen sind wir gerne für euch da.",
+    /*
+      Der freundliche Schluss (Florian, 28.10.2026): "schreib in der mail
+      an den kunden auch nette. können sich jederzeit melden." Wer ein
+      Angebot bekommt, hat fast immer noch eine Frage, und die soll er
+      stellen, statt die Mail liegen zu lassen.
+    */
+    "Und falls noch etwas offen ist: Meldet euch jederzeit, eine Mail oder ein kurzer Anruf " +
+      "unter 0731 7906110 genügt. Wir gehen das gerne gemeinsam durch und passen das Angebot an, " +
+      "bis es für euch passt.",
+    "",
+    "Wir freuen uns auf euch.",
     "",
     "Herzliche Grüße",
     "Florian Zimmer Theater",
