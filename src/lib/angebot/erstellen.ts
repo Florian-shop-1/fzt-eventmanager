@@ -6,11 +6,12 @@
  * Alternativpositionen, damit der Kunde die Kategorie selbst wählen kann.
  */
 
-import { artikel, artikelDerGruppe } from "@/lib/domain/artikel";
+import { artikel, artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
 import {
   ANGEBOT_GUELTIG_TAGE,
   STANDARD_TICKET,
   TICKET_ALTERNATIVEN,
+  eur,
   mitRabatt,
   steueranteil,
 } from "@/lib/domain/pricing";
@@ -416,11 +417,41 @@ export function erzeugePositionen(
   if (!tickets && !exklusiv) {
     // Exklusiv ohne Show: weder Tickets noch Saalpauschale für die Show.
   } else if (exklusiv) {
-    // Eine Zeile fuer das ganze Haus. Keine Kategorien, keine
-    // Wahlmoeglichkeiten, nichts zum Aussuchen.
-    positionen.push(
-      zuPosition(preise, EXKLUSIVARTIKEL[art as "theater" | "parkett"], 1, 0, ticketpreis),
+    /*
+      Eine Zeile fuer das ganze Haus, aber mit offener Rechnung.
+
+      "bei der Exklusivbuchung soll aufgeschluesselt sein, wie wir auf
+      den Betrag kommen. IdR zahlen sie jeden sitzplatz (entweder 99
+      eur pro platz egal wo) oder alternativ die einzelnen kategorien.
+      sie zahlen also auch fuer leere plaetze. gastro wird immer pro
+      kopf wer tatsaechlich da ist berechnet" (Florian, 28.10.2026).
+
+      Deshalb steht unter der Zeile, aus wie vielen Plaetzen zu welchem
+      Preis sich die Summe ergibt, und der Satz zu den leeren Plaetzen
+      und zum Essen. Gerechnet wird aus dem Preis, der wirklich gilt,
+      damit die Aufschluesselung auch bei einem ausgehandelten Betrag
+      stimmt.
+    */
+    const exklusivZeile = zuPosition(
+      preise,
+      EXKLUSIVARTIKEL[art as "theater" | "parkett"],
+      1,
+      0,
+      ticketpreis,
     );
+    const plaetze =
+      art === "theater" ? THEATER_SITZPLAETZE.gesamt : THEATER_SITZPLAETZE.parkett;
+    const jePlatz = plaetze > 0 ? Math.round(exklusivZeile.einzelBruttoCent / plaetze) : 0;
+    const hausText = art === "theater" ? "Das ganze Haus" : "Das komplette Parkett";
+    exklusivZeile.beschreibung = [
+      `${hausText} gehört an diesem Abend Ihnen: ${plaetze} Sitzplätze zu ` +
+        `${eur(jePlatz)} je Platz.`,
+      "Berechnet werden alle Plätze, auch die frei bleiben. Dafür gibt es weder " +
+        "Kategorien noch Sitzplatzwahl, Sie verteilen Ihre Gäste selbst.",
+      "Essen und Getränke kommen pro Kopf dazu und werden nach den Gästen " +
+        "abgerechnet, die wirklich da sind.",
+    ].join(String.fromCharCode(10));
+    positionen.push(exklusivZeile);
   } else if (gewaehlt.length > 1) {
     for (const k of gewaehlt) {
       positionen.push(

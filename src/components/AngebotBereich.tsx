@@ -112,7 +112,21 @@ export function AngebotBereich({
     "gib die Moeglichkeit auch fuer Exklusivevent, da ist dann kein
     Ticket oder Sitzplatzwahl erforderlich" (Florian, 15.10.2026).
   */
-  const [art, setArt] = useState<"einzelplaetze" | "theater" | "parkett">("einzelplaetze");
+  /*
+    Die Arten, die der Kunde bekommen soll. Mehrere sind erlaubt, und
+    jede wird ein eigenes Angebot mit eigener Nummer, eigenem Link und
+    eigenem PDF (Florian, 28.10.2026): "es soll aber, wenn der kunde
+    verschiedene angebote bekommen soll, auch einfach zwei links /
+    zwei pdfs usw. sein".
+
+    Vorher war es eine einzige Auswahl, und wer die Exklusivbuchung
+    anklickte, bekam sie in derselben Liste wie das Menue.
+  */
+  const [arten, setArten] = useState<Array<"einzelplaetze" | "theater" | "parkett">>([
+    "einzelplaetze",
+  ]);
+  /** Die erste gewaehlte Art steuert die Vorschau und die Felder darunter. */
+  const art = arten[0] ?? "einzelplaetze";
   /*
     Welche Fassungen der Kunde bekommen soll.
 
@@ -353,24 +367,52 @@ export function AngebotBereich({
               })}
             </div>
             <p className="mt-2 text-xs text-leise">
-              {fassungen.length > 1
-                ? `Es entstehen ${fassungen.length} Angebote nebeneinander, jedes mit eigener Nummer und eigenem Link.`
+              {fassungen.length * arten.length > 1
+                ? `Es entstehen ${fassungen.length * arten.length} Angebote nebeneinander, jedes mit eigener Nummer, eigenem Link und eigenem PDF.`
                 : "Mehrere ankreuzen heißt: Der Kunde bekommt mehrere Angebote zur Auswahl."}
             </p>
           </div>
 
-          <label className="block">
+          <div>
             <span className="mb-1 block text-xs text-leise">
-              Exklusivbuchung: welcher Teil des Hauses
+              Was angeboten wird. Jede Zeile wird ein eigenes Angebot.
             </span>
-            <select value={art} onChange={(e) => setArt(e.target.value as typeof art)}>
-              {ARTEN.map((a) => (
-                <option key={a.wert} value={a.wert}>
-                  {a.text}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="space-y-1">
+              {ARTEN.map((a) => {
+                const an = arten.includes(a.wert);
+                return (
+                  <label key={a.wert} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={an}
+                      onChange={() =>
+                        setArten((bisher) => {
+                          const neu = an
+                            ? bisher.filter((x) => x !== a.wert)
+                            : [...bisher, a.wert];
+                          // Ganz ohne Art laesst sich nichts bauen.
+                          return neu.length > 0 ? neu : bisher;
+                        })
+                      }
+                      className="mt-0.5 h-auto w-auto"
+                    />
+                    <span>
+                      {a.text}
+                      {a.plaetze > 0 && (
+                        <span className="text-leise"> ({a.plaetze} Plätze)</span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {arten.length > 1 && (
+              <p className="mt-1 text-xs text-leise">
+                Die Felder darunter gelten für alle. Angezeigt wird die Vorschau für
+                „{ARTEN.find((a) => a.wert === art)?.text}“.
+              </p>
+            )}
+          </div>
 
           {art === "einzelplaetze" ? (
             <div>
@@ -607,6 +649,7 @@ export function AngebotBereich({
                   mitUnterbelegung: art === "einzelplaetze",
                   },
                   fassungen,
+                  arten,
                 );
                 setFrisch(ergebnis.ids[0] ?? null);
               });
@@ -615,8 +658,8 @@ export function AngebotBereich({
           >
             {laeuft
               ? "wird erstellt..."
-              : fassungen.length > 1
-                ? `${fassungen.length} Angebote erstellen`
+              : fassungen.length * arten.length > 1
+                ? `${fassungen.length * arten.length} Angebote erstellen`
                 : "Angebot erstellen"}
           </button>
 

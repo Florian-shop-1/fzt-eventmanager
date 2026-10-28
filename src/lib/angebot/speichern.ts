@@ -268,16 +268,32 @@ export async function angeboteErzeugen(
   vorgangId: string,
   basis: AngebotsOptionen,
   varianten: Variante[],
+  /**
+   * Die Angebotsarten, je eine ein eigenes Angebot.
+   *
+   * "es soll aber, wenn der kunde verschiedene angebote bekommen soll,
+   * auch einfach zwei links / zwei pdfs usw. sein. Angebot 1 z.b. nur
+   * Show, Angebot 2 mit Menue, oder Angebot 3 Exklusivbuchung"
+   * (Florian, 28.10.2026).
+   *
+   * Vorher war die Art eine einzige Entscheidung fuer alle Fassungen,
+   * und die Exklusivbuchung landete in derselben Liste wie das Menue.
+   * Ohne Angabe bleibt es bei der Art aus der Vorlage.
+   */
+  arten?: Array<AngebotsOptionen["art"]>,
 ): Promise<{ anzahl: number; ids: string[] }> {
   const liste = varianten.length > 0 ? varianten : [basis.variante ?? "menue"];
+  const artenListe = arten && arten.length > 0 ? arten : [basis.art];
   const ids: string[] = [];
-  for (const variante of liste) {
-    const { angebotId } = await angebotErzeugen(vorgangId, { ...basis, variante });
-    ids.push(angebotId);
+  for (const art of artenListe) {
+    for (const variante of liste) {
+      const { angebotId } = await angebotErzeugen(vorgangId, { ...basis, art, variante });
+      ids.push(angebotId);
+    }
   }
   // Die Kennungen gehen zurueck, damit die Seite danach genau das
   // frische Angebot zeigen kann (Florian, 28.10.2026).
-  return { anzahl: liste.length, ids };
+  return { anzahl: ids.length, ids };
 }
 
 /** Markiert ein Angebot als verschickt. */
