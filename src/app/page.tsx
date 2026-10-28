@@ -211,8 +211,17 @@ export default async function Startseite({
             Küchenblatt und Funktionsheet mit Menüzahlen je Variante, Unverträglichkeiten,
             Logen und Tischen, alles zum Ausdrucken.
           </Stand>
-          <Stand titel="Ditix">
-            Firmentickets automatisch einbuchen, sobald der Zugang vom Entwicklerteam da ist.
+          {/*
+            Ditix stand hier bis zuletzt als geplant: Firmentickets
+            einbuchen, sobald der Zugang kommt. Der Zugang kommt nicht
+            mehr. "ditix nutzen wir nicht mehr, mit flotix haben wir die
+            anbindung bereits realisiert" (Florian, 28.10.2026).
+          */}
+          <Stand fertig titel="FloTix angebunden">
+            Spielplan, Preise und Saalplan kommen direkt aus FloTix. Plätze lassen sich für
+            eine Firma blockieren und laufen von selbst wieder aus, und die Menüs eines
+            Angebots sind für die Küche vorgemerkt, damit der Shop denselben Abend nicht
+            doppelt verkauft.
           </Stand>
         </div>
       </section>

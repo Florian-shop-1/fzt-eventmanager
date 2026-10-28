@@ -109,9 +109,9 @@ export default async function BelegungSeite() {
             ))}
           </ul>
           <p className="mt-3 text-sm text-leise">
-            Wird ein Abend zu voll, hilft nur eines: die Menü-Artikel für diese
-            Vorstellung im Ditix-Backend abschalten. Ein Kontingent kennt der
-            Shop nicht.
+            Wird ein Abend zu voll, pausiert FloTix den Menüverkauf dieses Tages von
+            selbst und zeigt im Shop die Warteliste. Von Hand geht es im FloTix-Backend
+            über denselben Schalter.
           </p>
         </section>
       )}
@@ -129,7 +129,7 @@ export default async function BelegungSeite() {
             <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
               <tr>
                 <th className="px-4 py-2 font-medium">Abend</th>
-                <th className="px-4 py-2 text-right font-medium">aus Ditix</th>
+                <th className="px-4 py-2 text-right font-medium">aus dem Shop</th>
                 <th className="px-4 py-2 text-right font-medium">
                   aus Vorgängen
                 </th>
@@ -304,14 +304,16 @@ function ZahlenErklaerung() {
       <h2 className="mb-2 font-semibold">Woher die Zahlen kommen</h2>
       <ul className="space-y-1.5 text-leise">
         <li>
-          <strong className="text-text">aus Ditix</strong>: Menüs aus der
-          Menüliste des Shops. Das ist die führende Zahl.
+          <strong className="text-text">aus dem Shop</strong>: Menüs aus der
+          Menüliste von FloTix, also alles, was Gäste gebucht haben. Das ist die
+          führende Zahl.
         </li>
         <li>
-          <strong className="text-text">aus Vorgängen</strong>: Firmenevents,
-          die hier erfasst, aber in Ditix noch nicht eingebucht sind. Steht dort
-          eine Zahl, fehlt sie in Ditix noch. Sobald Kevin sie einbucht, wandert
-          sie nach links.
+          <strong className="text-text">aus Vorgängen</strong>: Firmenevents, die hier
+          erfasst, aber im Shop noch nicht gebucht sind. Für die Küche sind sie trotzdem
+          reserviert: Der Eventmanager meldet die Menüs eines Angebots an FloTix, und der
+          Shop verkauft an dem Tag entsprechend weniger. Sobald die Firma gebucht hat,
+          wandert die Zahl nach links.
         </li>
         <li>
           Ist bei einem Vorgang noch keine Menüwahl erfasst, zählt die
