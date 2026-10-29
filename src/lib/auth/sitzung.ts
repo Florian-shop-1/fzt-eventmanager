@@ -510,6 +510,12 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       // Glücks-Moji-Karten scannen und prüfen.
       pfad.startsWith("/scanner") ||
       pfad.startsWith("/einlassliste") ||
+      /*
+        Der Weg zum Ticketscanner bei FloTix (Florian, 29.10.2026). Die
+        Seite selbst zeigt nur einen Knopf; gescannt wird drueben, mit
+        einem eigenen Zugang, der dort sonst nichts sieht.
+      */
+      pfad.startsWith("/ticketscan") ||
       // Geschenke fuer Gaeste, deren Buchung erst abgebrochen war: Die
       // gibt das Foyer an der Magic-Bar aus (Florian, 23.09.2026).
       pfad.startsWith("/geschenke") ||
@@ -564,6 +570,7 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       pfad.startsWith("/kueche") ||
       pfad.startsWith("/sitzplan") ||
       pfad.startsWith("/einlassliste") ||
+      pfad.startsWith("/ticketscan") ||
       // Die Belegung ist für die Küche eine Vorschau: Sie zeigt, wie viele
       // Menüs an den kommenden Abenden zu erwarten sind. Preise stehen dort
       // ohnehin keine.

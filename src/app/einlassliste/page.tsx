@@ -102,7 +102,20 @@ export default async function EinlasslisteSeite({
             Nach Namen sortiert, zum Abhaken an der Tür. Ohne Preise.
           </p>
         </div>
-        <DruckKnopf text="Einlassliste drucken" hinweis="Eine Seite, zum Abhaken." />
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            An der Tuer steht die Liste offen, und daneben wird gescannt
+            (Florian, 29.10.2026). Deshalb der kurze Weg von hier.
+          */}
+          <Link
+            href="/ticketscan"
+            className="rounded-md px-3 py-2 text-sm font-semibold"
+            style={{ background: "var(--gold)", color: "#fff" }}
+          >
+            Tickets scannen
+          </Link>
+          <DruckKnopf text="Einlassliste drucken" hinweis="Eine Seite, zum Abhaken." />
+        </div>
       </header>
 
       <AbendAuswahl

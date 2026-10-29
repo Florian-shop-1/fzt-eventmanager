@@ -106,6 +106,12 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/upgrades", label: "Upgrades", rollen: ["chef", "team", "showteam", "foyer"] },
       { href: "/sitzplan", label: "Sitzplan", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/einlassliste", label: "Einlassliste", rollen: ["chef", "team", "gastro", "foyer"] },
+      /*
+        Von hier an den Ticketscanner (Florian, 29.10.2026). Gescannt wird
+        bei FloTix, die Seite ist nur die Tuer dahin: "der soll sonst
+        nichts im backend sehen können.. nur die scans bei flotix machen".
+      */
+      { href: "/ticketscan", label: "Tickets scannen", rollen: ["chef", "team", "gastro", "foyer"] },
       { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
       { href: "/hoerezu", label: "🎤 Höre zu", rollen: ["chef", "team", "showteam"] },
       { href: "/tipps?bereich=show", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam"] },
