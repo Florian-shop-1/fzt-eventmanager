@@ -1220,8 +1220,26 @@ function AngebotKarte({
  * Rueckfrage muss nachvollziehbar sein, was er damals gesehen hat.
  */
 function AenderungsWunsch({ angebot }: { angebot: AngebotDetail }) {
-  const offen = Boolean(angebot.versendetAm) && !angebot.angenommenAm && !angebot.abgelehntAm;
+  /*
+    "wenn man bei vorgang drin ist, muss es den button 'angebot ändern'
+    geben" (Florian, 29.10.2026).
+
+    Vorher stand er nur an einem Angebot, das schon beim Kunden liegt.
+    Genau da braucht man ihn am seltensten: Die meisten Aenderungen
+    passieren vorher, beim Durchsehen. Man baut ein Angebot, sieht die
+    Vorschau, und merkt, dass das Menue fehlt. Dann stand man ohne
+    Knopf da.
+
+    Jetzt steht er an jedem Angebot, das noch offen ist. Weg ist er
+    erst, wenn der Kunde zugesagt oder abgesagt hat: Was entschieden
+    ist, wird nicht mehr umgebaut, dafuer gibt es ein neues Angebot
+    von vorn.
+  */
+  const offen = !angebot.angenommenAm && !angebot.abgelehntAm;
   if (!angebot.aenderungWunsch && !offen) return null;
+
+  // Noch nicht verschickt: Dann darf die alte Fassung hinterher weg.
+  const schonDraussen = Boolean(angebot.versendetAm);
 
   function zumBaukasten() {
     const kasten = document.getElementById("angebot-bauen");
@@ -1251,9 +1269,13 @@ function AenderungsWunsch({ angebot }: { angebot: AngebotDetail }) {
           type="button"
           onClick={zumBaukasten}
           className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-xs font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-          title="Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer, dieses Angebot bleibt erhalten."
+          title={
+            schonDraussen
+              ? "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot liegt beim Kunden und bleibt deshalb erhalten."
+              : "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot ist noch nicht verschickt, du kannst es danach löschen."
+          }
         >
-          Angebot anpassen
+          Angebot ändern
         </button>
       )}
     </div>
