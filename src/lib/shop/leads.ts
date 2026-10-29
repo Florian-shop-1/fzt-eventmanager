@@ -68,6 +68,37 @@ export function istStoerung(l: Lead): boolean {
   return STOERUNG.test(l.anfragetyp);
 }
 
+/*
+  Barrierefreie Plaetze laufen durch dieselbe Tabelle.
+
+  Der Knopf steht im Buchungsfenster bei der Platzwahl: Wer einen
+  barrierefreien Platz braucht, kann ihn nicht selbst im Saalplan
+  waehlen und fragt deshalb an. Das ist ein Gast, der ein Ticket
+  kaufen will, kein Firmenevent.
+
+  "anfragen für barrierefreiheit sollten nicht bei den events landen"
+  (Florian, 29.10.2026). Sie verstopfen die Vertriebsliste und bringen
+  den Gespraechsleitfaden fuers Firmengeschaeft mit, der hier nichts zu
+  suchen hat: Niemand fragt einen Rollstuhlfahrer, ob er exklusiv das
+  ganze Haus mieten moechte.
+
+  Gemeldet werden sie weiterhin per Mail, sobald sie hereinkommen,
+  siehe lib/shop/lead-meldung.ts. Das ist ab jetzt der einzige Weg, auf
+  dem jemand davon erfaehrt, deshalb darf diese Meldung nicht
+  wegfallen.
+*/
+const BARRIEREFREI = /barrierefrei/i;
+
+/** Ist das die Anfrage nach einem barrierefreien Platz? */
+export function istBarrierefrei(l: Lead): boolean {
+  return BARRIEREFREI.test(l.anfragetyp);
+}
+
+/** Gehoert die Anfrage in den Vertrieb, also auf die Leads-Seite? */
+export function istVertrieb(l: Lead): boolean {
+  return !istStoerung(l) && !istBarrierefrei(l);
+}
+
 /**
  * Stationen einer Stoerungsmeldung. Kurz gehalten: Es geht nur darum,
  * ob jemand zurueckgerufen hat.

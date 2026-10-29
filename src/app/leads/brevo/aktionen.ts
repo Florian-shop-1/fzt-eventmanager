@@ -12,7 +12,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { holeLeads, istStoerung } from "@/lib/shop/leads";
+import { holeLeads, istVertrieb } from "@/lib/shop/leads";
 import {
   bekannteAdressen,
   dateiUebertragen,
@@ -44,7 +44,7 @@ function zurueck(meldung: string, listeId: string): never {
  * nicht für Werbung gemeldet. Sonst entscheidet die Auswahl.
  */
 async function auswahl(nur: string) {
-  const alle = (await holeLeads()).filter((l) => !istStoerung(l));
+  const alle = (await holeLeads()).filter(istVertrieb);
   if (nur === "gewonnen") return alle.filter((l) => /gewonnen/i.test(l.status));
   if (nur === "offen") return alle.filter((l) => /eingegangen|kontakt|erreichbar|angebot/i.test(l.status));
   return alle;

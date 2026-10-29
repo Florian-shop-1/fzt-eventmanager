@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ABGEHAKT, holeLeads, istStoerung, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
+import { ABGEHAKT, holeLeads, istVertrieb, lageDesLeads, LEAD_STATUS, type Lead } from "@/lib/shop/leads";
 import { altbestandAbhaken, leadSpeichern, leadStaende, leadZuVorgang, type LeadStand } from "@/lib/db/buero";
 import { anfragenStand } from "@/lib/db/anfragen";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -43,9 +43,11 @@ export default async function LeadsSeite({
   let leads: Lead[] = [];
   let fehler: string | null = null;
   try {
-    // Störungsmeldungen laufen über denselben Weg herein, gehören aber
-    // nicht in den Vertrieb. Sie haben eine eigene Seite.
-    leads = (await holeLeads()).filter((l) => !istStoerung(l));
+    // Störungsmeldungen und Anfragen nach barrierefreien Plätzen laufen
+    // über denselben Weg herein, gehören aber nicht in den Vertrieb.
+    // Störungen haben eine eigene Seite, barrierefreie Plätze meldet die
+    // Mail ans Team (siehe istVertrieb in lib/shop/leads.ts).
+    leads = (await holeLeads()).filter(istVertrieb);
   } catch (e) {
     fehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }

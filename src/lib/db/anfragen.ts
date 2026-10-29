@@ -209,7 +209,9 @@ export async function anfragenAusDatenbank(gegeben?: Abfrage): Promise<Lead[]> {
  * Unser eigener Stand hat Vorrang vor dem der Anfrage selbst, genau wie auf der Seite /leads.
  *
  * Störungsmeldungen aus dem Shop laufen durch dieselbe Tabelle, gehören aber nicht in den Vertrieb und zählen
- * deshalb hier nicht mit (siehe istStoerung in lib/shop/leads.ts).
+ * deshalb hier nicht mit (siehe istStoerung in lib/shop/leads.ts). Dasselbe gilt für Anfragen nach einem
+ * barrierefreien Platz: Sie stehen seit dem 29.10.2026 nicht mehr auf /leads, also darf das Zeichen auch nicht
+ * mehr auf sie zeigen. Sonst meldet es offene Anfragen, und die Liste ist leer.
  */
 export interface AnfragenStand {
   neu: number;
@@ -227,6 +229,7 @@ export async function anfragenStand(gegeben?: Abfrage): Promise<AnfragenStand> {
       left join lead_stand s on s.schluessel = a.schluessel
      where coalesce(nullif(s.status, ''), a.status) = 'Anfrage eingegangen'
        and a.typ !~* 'st(ö|oe)rung'
+       and a.typ !~* 'barrierefrei'
      order by a.eingang_am desc
   `) as Array<Record<string, string> & { alt: boolean }>;
 
