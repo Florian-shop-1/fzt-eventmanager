@@ -56,7 +56,14 @@ const FARBE: Record<string, { rand: string; flaeche: string; zeichen: string }> 
 function art(d: Antwort): "ok" | "achtung" | "fehler" {
   if (d.ergebnis === "ok") return d.achtung ? "achtung" : "ok";
   if (d.ergebnis === "falsche_vorstellung" || d.ergebnis === "falsche_station") return "achtung";
-  return "fehler";
+  /*
+    Ein unbekannter Code ist nicht immer eine Absage: Tickets aus dem
+    alten Shop kennt FloTix nicht, und die gelten trotzdem. FloTix setzt
+    in diesem Fall "achtung", und dann steht hier orange statt rot
+    (Florian, 29.10.2026: "zeig das an und der muss die einfach mit
+    seinen augen checken wie bisher").
+  */
+  return d.achtung ? "achtung" : "fehler";
 }
 
 function zeit(iso: string): string {
