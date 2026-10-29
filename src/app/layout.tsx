@@ -111,7 +111,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
         bei FloTix, die Seite ist nur die Tuer dahin: "der soll sonst
         nichts im backend sehen können.. nur die scans bei flotix machen".
       */
-      { href: "/ticketscan", label: "Tickets scannen", rollen: ["chef", "team", "gastro", "foyer"] },
+      { href: "/ticketscan", label: "Tickets scannen", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
       { href: "/gaesteliste", label: "Gästeliste", rollen: ["chef", "team"] },
       { href: "/hoerezu", label: "🎤 Höre zu", rollen: ["chef", "team", "showteam"] },
       { href: "/tipps?bereich=show", label: "Tipps & Tricks", rollen: ["chef", "team", "showteam"] },

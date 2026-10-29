@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * mit dem gemeinsamen Schlüssel weiter. Der Schlüssel bleibt auf dem
  * Server, im Handy landet er nie.
  */
-const DARF = ["chef", "team", "gastro", "foyer"];
+const DARF = ["chef", "team", "gastro", "foyer", "showteam"];
 
 async function wer() {
   const b = await angemeldeterBenutzer();

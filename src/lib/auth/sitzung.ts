@@ -556,6 +556,12 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
         die am Abend arbeiten, also muessen sie auch hinkommen.
       */
       pfad.startsWith("/showcheck") ||
+      /*
+        Scannen darf das Showteam auch (Florian, 29.10.2026). Am Einlass
+        hilft mit, wer gerade Zeit hat, und wer eine Schlange aufloesen
+        soll, darf nicht an der Berechtigung haengen bleiben.
+      */
+      pfad.startsWith("/ticketscan") ||
       pfad.startsWith("/konto") ||
       pfad.startsWith("/geheimhaltung")
     );
