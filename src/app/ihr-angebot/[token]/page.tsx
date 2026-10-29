@@ -11,6 +11,7 @@ import { Bild } from "@/components/Bild";
 import { DruckKnopf } from "@/components/DruckKnopf";
 import { Restzeit } from "@/components/Restzeit";
 import { aenderungWuenschen, angebotAblehnen, angebotAnnehmen } from "./actions";
+import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
 
 /**
  * Eine Schrift mit Charakter, nur für diese Seite.
@@ -45,10 +46,32 @@ export const dynamic = "force-dynamic";
  */
 export default async function KundenAngebot({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ vorschau?: string }>;
 }) {
   const { token } = await params;
+
+  /*
+    Vorschau fuers Buero.
+
+    "mit einer blossen auflistung kann man sich den abend nicht so toll
+    vorstellen" (Florian, 29.10.2026). Richtig, der Abend mit Bildern
+    steht auf dieser Seite und nicht im PDF. Deshalb schaut das Buero
+    jetzt hier hinein statt in die Zahlenliste.
+
+    Zwei Dinge muessen dabei anders sein als beim Kunden. Der Besuch
+    darf nicht als Oeffnung gezaehlt werden, sonst steht in der
+    Oeffnungsliste ein Kunde, der nie da war. Und die Knoepfe zum
+    Zusagen, Absagen und Aendern bleiben weg: Ein Fehlklick im Buero
+    wuerde das Angebot im Namen des Kunden annehmen.
+
+    Beides gilt nur fuer angemeldete Mitarbeiter. Ein Kunde hat keine
+    Sitzung, fuer ihn aendert der Anhang an der Adresse nichts.
+  */
+  const vorschau =
+    (await searchParams).vorschau === "1" && Boolean(await angemeldeterBenutzer());
 
   // Grobe Geräteangabe für die Öffnungsliste. Bewusst nur "Handy" oder
   // "Rechner", keine IP-Adresse und keine Kennung, die den Kunden über
@@ -56,7 +79,7 @@ export default async function KundenAngebot({
   const kennung = (await headers()).get("user-agent") ?? "";
   const geraet = /Mobile|Android|iPhone|iPad/i.test(kennung) ? "Handy" : "Rechner";
 
-  const angebot = await holeAngebotFuerKunden(token, geraet);
+  const angebot = await holeAngebotFuerKunden(token, geraet, !vorschau);
   if (!angebot) notFound();
 
   const summe = angebotssumme(angebot.positionen);
@@ -426,7 +449,14 @@ export default async function KundenAngebot({
         </section>
 
         {/* Die Zusage */}
-        {!angebot.angenommenAm && (
+        {!angebot.angenommenAm && vorschau && (
+          <section className="rounded-lg border border-dashed border-linie px-6 py-8 text-center text-sm text-leise">
+            Vorschau fuer das Buero. Hier stehen beim Kunden die Knoepfe zum Zusagen,
+            Aendern und Absagen. Dieser Besuch zaehlt nicht als Oeffnung.
+          </section>
+        )}
+
+        {!angebot.angenommenAm && !vorschau && (
           <section
             className="zusage-block rounded-lg px-6 py-10 text-center text-white sm:px-10"
             style={{ background: "#17140f" }}

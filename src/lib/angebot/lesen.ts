@@ -167,6 +167,14 @@ export async function angeboteZumVorgang(vorgangId: string): Promise<AngebotDeta
 export async function holeAngebotFuerKunden(
   token: string,
   geraet: string | null,
+  /**
+   * Den Besuch mitzaehlen.
+   *
+   * Falsch, wenn das Buero die Seite zur Vorschau oeffnet: Sonst steht
+   * in der Oeffnungsliste ein Kunde, der nie da war, und Kevin ruft an,
+   * weil er glaubt, jemand lese gerade (Florian, 29.10.2026).
+   */
+  protokollieren = true,
 ): Promise<AngebotDetail | null> {
   const zeilen = (await db().query(KOPF_ABFRAGE + " where a.tracking_token = $1", [
     token,
@@ -181,7 +189,7 @@ export async function holeAngebotFuerKunden(
   const geradeEben =
     letzte && Date.now() - new Date(letzte.zeitpunkt).getTime() < 10 * 60 * 1000;
 
-  if (!geradeEben) {
+  if (protokollieren && !geradeEben) {
     await db()`
       insert into oeffnung (angebot_id, geraet) values (${angebot.id}, ${geraet})
     `;

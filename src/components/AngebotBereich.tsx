@@ -740,11 +740,17 @@ function AngebotKarte({
   /*
     Das Angebot hier auf der Seite ansehen, ohne Tab zu wechseln.
 
-    "dass man nochmal drueber gucken kann vor dem versand an den kunden"
-    (Florian, 29.10.2026). Gezeigt wird das PDF ueber `?id=`, also der
-    Weg fuers Buero: Der zaehlt nicht als Oeffnung durch den Kunden. Der
-    Kundenlink wuerde das tun, und dann staende in der Oeffnungsliste
-    ein Besuch, den es nie gab.
+    Gezeigt wird die Kundenseite, nicht das PDF. "beim Angebot kommt
+    nicht mehr dieser schoene Ablauf mit den Fotos... mit einer blossen
+    auflistung kann man sich den abend nicht so toll vorstellen"
+    (Florian, 29.10.2026). Der Abend mit Bildern, Zeitachse und Menue
+    steht nur auf der Webseite; das PDF ist die nuechterne Fassung fuer
+    die Ablage. Wer prueft, ob ein Angebot ueberzeugt, muss das sehen,
+    was der Kunde sieht.
+
+    `?vorschau=1` haelt zwei Dinge auseinander: Der Besuch zaehlt nicht
+    als Oeffnung, und die Knoepfe zum Zusagen und Absagen fehlen. Beides
+    greift nur bei angemeldeten Mitarbeitern.
 
     `stand` steigt bei jedem Aufklappen und haengt am Rahmen. Wer eine
     Position geaendert hat, sieht beim naechsten Aufklappen die neue
@@ -1022,6 +1028,13 @@ function AngebotKarte({
         selbst ansehen ist die beste Kontrolle (Florian, 25.09.2026).
       */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/*
+          Ein Knopf statt dreier. "wir wollen einfach einfach einfach"
+          (Florian, 29.10.2026). Ansehen und Aendern gehoeren zusammen:
+          Man sieht sich das Angebot an und merkt dabei, dass etwas
+          fehlt. Also fuehrt derselbe Knopf hin, und die Wege zum
+          Aendern, zum eigenen Tab und zum PDF stehen in der Vorschau.
+        */}
         <button
           type="button"
           onClick={() => {
@@ -1030,17 +1043,8 @@ function AngebotKarte({
           }}
           className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
         >
-          {vorschau ? "Vorschau schließen" : "Angebot hier ansehen"}
+          {vorschau ? "Vorschau schließen" : "Ansehen / Ändern"}
         </button>
-
-        <a
-          href={`/api/angebot/pdf?id=${angebot.id}`}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-hintergrund"
-        >
-          in eigenem Tab öffnen
-        </a>
 
         {/*
           Der Schritt danach: Man ist sich einig, die Rechnung geht raus.
@@ -1061,25 +1065,49 @@ function AngebotKarte({
         </form>
       </div>
 
-      {/*
-        "lass einfach die einzelnen seiten weg, dann ist das pdf zum
-        scrollen groesser und man kann es besser lesen" (Florian,
-        29.10.2026). Gemeint ist die Seitenleiste mit den Vorschaubildern,
-        die der Browser von sich aus aufklappt und die ein Drittel der
-        Breite frisst.
-
-        `#toolbar=0` nimmt Leiste und Vorschaubilder weg, `view=FitH`
-        legt die Seite auf die volle Breite. Gescrollt wird weiterhin
-        normal. Wer Zoom, Drucken oder Herunterladen braucht, nimmt
-        daneben den eigenen Tab.
-      */}
       {vorschau && (
-        <iframe
-          key={stand}
-          src={`/api/angebot/pdf?id=${angebot.id}&stand=${stand}#toolbar=0&view=FitH`}
-          title={`Angebot ${angebot.nummer}`}
-          className="mb-3 h-[85vh] w-full rounded-md border border-linie bg-white"
-        />
+        <div className="mb-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {!angebot.angenommenAm && !angebot.abgelehntAm && (
+              <button
+                type="button"
+                onClick={zumBaukasten}
+                className="rounded-md border border-gold bg-gold px-3 py-1.5 text-sm font-medium text-white hover:bg-gold-dunkel"
+                title={
+                  angebot.versendetAm
+                    ? "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot liegt beim Kunden und bleibt deshalb erhalten."
+                    : "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot ist noch nicht verschickt, du kannst es danach löschen."
+                }
+              >
+                Angebot ändern
+              </button>
+            )}
+            <a
+              href={link}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-hintergrund"
+              title="Öffnet den echten Kundenlink. Achtung: Das zählt als Öffnung durch den Kunden."
+            >
+              Kundenlink öffnen
+            </a>
+            <a
+              href={`/api/angebot/pdf?id=${angebot.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-hintergrund"
+            >
+              als PDF
+            </a>
+          </div>
+
+          <iframe
+            key={stand}
+            src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}`}
+            title={`Angebot ${angebot.nummer}`}
+            className="h-[85vh] w-full rounded-md border border-linie bg-white"
+          />
+        </div>
       )}
 
       {/*
@@ -1208,7 +1236,20 @@ function AngebotKarte({
 }
 
 /**
- * Der Aenderungswunsch des Kunden und der Weg zur neuen Fassung.
+ * Oeffnet den Baukasten weiter unten und springt hin.
+ *
+ * Steht auf Modulebene, weil der Knopf dazu in der Vorschau sitzt und
+ * der Hinweis auf den Kundenwunsch an einer anderen Stelle der Karte.
+ */
+function zumBaukasten(): void {
+  const kasten = document.getElementById("angebot-bauen");
+  if (!(kasten instanceof HTMLDetailsElement)) return;
+  kasten.open = true;
+  kasten.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Der Aenderungswunsch des Kunden.
  *
  * "Angebot anpassen sollte in der naehe der Zeile sein, wo man die
  * schritte sieht" (Florian, 28.10.2026). Also direkt unter der Zeile,
@@ -1235,18 +1276,7 @@ function AenderungsWunsch({ angebot }: { angebot: AngebotDetail }) {
     ist, wird nicht mehr umgebaut, dafuer gibt es ein neues Angebot
     von vorn.
   */
-  const offen = !angebot.angenommenAm && !angebot.abgelehntAm;
-  if (!angebot.aenderungWunsch && !offen) return null;
-
-  // Noch nicht verschickt: Dann darf die alte Fassung hinterher weg.
-  const schonDraussen = Boolean(angebot.versendetAm);
-
-  function zumBaukasten() {
-    const kasten = document.getElementById("angebot-bauen");
-    if (!(kasten instanceof HTMLDetailsElement)) return;
-    kasten.open = true;
-    kasten.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  if (!angebot.aenderungWunsch) return null;
 
   return (
     <div className="mb-3">
@@ -1263,20 +1293,6 @@ function AenderungsWunsch({ angebot }: { angebot: AngebotDetail }) {
           </strong>
           <p className="mt-1 whitespace-pre-wrap">{angebot.aenderungWunsch}</p>
         </div>
-      )}
-      {offen && (
-        <button
-          type="button"
-          onClick={zumBaukasten}
-          className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-xs font-medium text-gold-dunkel hover:bg-gold hover:text-white"
-          title={
-            schonDraussen
-              ? "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot liegt beim Kunden und bleibt deshalb erhalten."
-              : "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot ist noch nicht verschickt, du kannst es danach löschen."
-          }
-        >
-          Angebot ändern
-        </button>
       )}
     </div>
   );
