@@ -1164,7 +1164,8 @@ function Gutschein({ sendung, stand }: { sendung: Sendung; stand: VersandStand |
             style={{ marginTop: "9mm", fontSize: widmungsgroesse(g.text) }}
           >
             {g.fuer && <div>Für {g.fuer}</div>}
-            {g.text && <div style={{ marginTop: "2mm" }}>„{g.text}“</div>}
+            {/* Ohne Anführungszeichen und mit den Zeilenumbrüchen des Gastes: so, wie er es eingegeben hat (Florian, 29.10.2026). */}
+            {g.text && <div style={{ marginTop: "2mm", whiteSpace: "pre-line" }}>{g.text}</div>}
             {g.von && <div style={{ marginTop: "2mm" }}>Von {g.von}</div>}
           </div>
         )}
