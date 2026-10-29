@@ -317,15 +317,28 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
   );
   y -= 16;
 
+  /*
+    Im Angebot steht nur, an wen es geht: Firma und Ansprechpartner.
+
+    "die adresse des kunden ist im angebot nicht richtig dargestellt.
+    uns reicht der name der firma im angebot. ist auch cooler"
+    (Florian, 29.10.2026). Stimmt auch sachlich: Ein Angebot ist kein
+    Brief, der in einen Umschlag kommt, es geht als Link und als PDF
+    per Mail. Strasse und Ort braucht erst die Rechnung, und dort
+    stehen sie weiterhin (lib/rechnung/pdf-event.ts). Dass hier weniger
+    steht, hat also keine Folgen fuers Finanzamt.
+
+    Umbrochen wird ueber hoechstens zwei Zeilen, und nur bis zu den
+    Eckdaten rechts (x 372). Ein langer Firmenname lief vorher einfach
+    weiter und schob sich quer durch "Angebotsnr." und "Datum".
+  */
   const anschriftOben = y;
-  schreib(d.kunde.name, LINKS, y, 11, fett);
-  y -= 14;
-  if (d.kunde.ansprechpartner) { schreib(d.kunde.ansprechpartner, LINKS, y, 10.5); y -= 13; }
-  if (d.kunde.strasse) { schreib(d.kunde.strasse, LINKS, y, 10.5); y -= 13; }
-  if (d.kunde.plz || d.kunde.ort) {
-    schreib(`${d.kunde.plz ?? ""} ${d.kunde.ort ?? ""}`.trim(), LINKS, y, 10.5);
-    y -= 13;
+  const NAMENSBREITE = 372 - LINKS - 14;
+  for (const zeile of umbrechen(d.kunde.name, fett, 11, NAMENSBREITE).slice(0, 2)) {
+    schreib(zeile, LINKS, y, 11, fett);
+    y -= 14;
   }
+  if (d.kunde.ansprechpartner) { schreib(d.kunde.ansprechpartner, LINKS, y, 10.5); y -= 13; }
 
   // Eckdaten rechts, auf Höhe der Anschrift.
   let yr = anschriftOben;
