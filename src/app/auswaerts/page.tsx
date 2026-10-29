@@ -7,6 +7,7 @@ import {
   fremdtermine,
   kollisionen,
 } from "@/lib/personal/fremdtermin";
+import { kalenderSchluessel } from "@/lib/personal/kalenderfeed";
 
 export const metadata = { title: "Auswärts | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -45,6 +46,8 @@ export default async function AuswaertsSeite() {
   ]);
 
   const monate = [...new Set(termine.map((t) => t.datum.slice(0, 7)))];
+  const schluessel = kalenderSchluessel();
+  const kalenderLink = schluessel ? `https://eventmanager.florianzimmertheater.de/api/kalender/${schluessel}.ics` : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -86,6 +89,23 @@ export default async function AuswaertsSeite() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {/* Der Kalender zum Abonnieren: Neue und abgesagte Vorstellungen laufen von allein hinein. */}
+      <section className="rounded-lg border border-linie bg-flaeche p-5">
+        <h2 className="font-semibold">Kalender in Outlook abonnieren</h2>
+        {kalenderLink ? (
+          <>
+            <p className="mt-1 text-sm text-leise">
+              Alle Vorstellungen und alle Termine im Theater Ulm, Kollisionen mit „⚠ KOLLISION“. Outlook holt sich die Adresse
+              regelmäßig neu: Neue Shows kommen von allein hinein, abgesagte verschwinden. Outlook im Web: Kalender hinzufügen,
+              Aus dem Internet abonnieren. Die Adresse ist geheim, bitte nicht weitergeben.
+            </p>
+            <input readOnly value={kalenderLink} className="mt-3 w-full rounded border border-linie bg-transparent px-3 py-2 text-xs" />
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-leise">Dafür fehlt auf dem Server CRON_SECRET.</p>
         )}
       </section>
 

@@ -87,6 +87,8 @@ const OHNE_ANMELDUNG = [
   "/api/flotix/rechnung-storno",
   "/api/flotix/rechnung-status",
   "/api/flotix/bank",
+  // Abonnierbarer Kalender fuer Outlook, prueft selbst den geheimen Schluessel in der Adresse.
+  "/api/kalender",
   /*
     Anfragen von der Website und aus Meta-Leadformularen (ueber Make), seit
     20.10.2026 direkt hierher statt in die Google-Tabelle. Die Route prueft
