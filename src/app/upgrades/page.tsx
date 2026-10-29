@@ -254,16 +254,7 @@ export default async function UpgradeSeite({
         </div>
       </header>
 
-      {/*
-        Scannen und umsetzen gehoeren zusammen.
 
-        "vielleicht macht es mehr sinn im eventmanager den scanner direkt
-        bei upgrades zu platzieren.. dass sie nicht zwischen zwei
-        fenstern hin und her hüpfen?" (Florian, 29.10.2026). Wer am
-        Einlass einen Gast scannt, der nach vorn soll, hat den Plan dann
-        gleich darunter. Die Kamera startet erst beim Aufklappen.
-      */}
-      <ScannerKlappe />
 
       {testModus && (
         <div
@@ -395,6 +386,18 @@ export default async function UpgradeSeite({
           eintragenLink={darfEintragen ? `/gaesteliste?v=${vorstellung.ditixEventId}` : null}
         />
       )}
+
+      {/*
+        Scannen und umsetzen gehoeren zusammen, und zwar genau hier.
+
+        "wenn es ein upgrade vorschlägt, dass dann gleich in dem saalplan
+        da angezeigt wird, zb. aufleuchtet" (Florian, 29.10.2026). Der
+        Scanner steht deshalb direkt ueber dem Plan: Wer einen Gast
+        scannt, der nach vorn soll, sieht den Platz unmittelbar darunter
+        aufleuchten, ohne zu scrollen und ohne Fensterwechsel. Die
+        Kamera startet erst beim Aufklappen.
+      */}
+      {plan && rat && vorstellung && <ScannerKlappe />}
 
       {plan && rat && vorstellung && (
         <UpgradeTafel

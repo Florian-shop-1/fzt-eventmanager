@@ -21,9 +21,10 @@
  * In Ditix wird nichts geändert, das hier ist unsere Notiz für den Abend.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanHase } from "@/components/ScanHase";
+import { UPGRADE_EREIGNIS } from "@/components/TicketScanner";
 
 export interface TafelSitz {
   id: number;
@@ -571,6 +572,38 @@ export function UpgradeTafel({
     }
     return m;
   }, [gruppen]);
+
+  /*
+    Welche Gruppe gerade gescannt wurde.
+
+    "wenn es ein upgrade vorschlägt, dass dann gleich in dem saalplan da
+    angezeigt wird, zb. aufleuchtet. es muss intuitiv funktionieren"
+    (Florian, 29.10.2026). Der Scanner darüber ruft in den Raum, hier
+    wird zugehört: siehe UPGRADE_EREIGNIS in components/TicketScanner.
+
+    Das Leuchten hört nach einer halben Minute von selbst auf. Wer den
+    Gast gesetzt hat, ist dann längst weiter, und ein Plan, auf dem
+    etwas blinkt, das niemanden mehr angeht, wäre schlimmer als keiner.
+  */
+  const [gescannt, setGescannt] = useState<Set<string>>(() => new Set());
+  const tafelFeld = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const hoeren = (e: Event) => {
+      const wunsch = (e as CustomEvent<{ buchstaben?: string[] }>).detail?.buchstaben ?? [];
+      if (wunsch.length === 0) return;
+      setGescannt(new Set(wunsch));
+      tafelFeld.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+    window.addEventListener(UPGRADE_EREIGNIS, hoeren);
+    return () => window.removeEventListener(UPGRADE_EREIGNIS, hoeren);
+  }, []);
+
+  useEffect(() => {
+    if (gescannt.size === 0) return;
+    const uhr = setTimeout(() => setGescannt(new Set()), 30000);
+    return () => clearTimeout(uhr);
+  }, [gescannt]);
 
   const buchstabeVon = useMemo(() => {
     const m = new Map<string, string>();
@@ -1293,13 +1326,27 @@ export function UpgradeTafel({
         </div>
       )}
 
-      <figure className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
+      <figure ref={tafelFeld} className="overflow-x-auto rounded-lg border border-linie bg-flaeche p-3">
         <svg
           viewBox={masse.viewBox}
           className="mx-auto block h-auto w-full select-none"
           role="img"
           aria-label="Saalplan zum Umsetzen"
         >
+          {/*
+            Der Puls für eine gerade gescannte Gruppe.
+
+            Eine Animation im SVG statt einer Klasse von aussen: Die
+            Plaetze sind gezeichnete Rechtecke, und sie sollen nur
+            heller und dunkler werden, nicht springen. Wer Bewegung
+            abgestellt hat, bekommt den Rahmen trotzdem, nur eben
+            ruhig.
+          */}
+          <style>{`
+            @keyframes fzt-puls { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+            .fzt-puls { animation: fzt-puls 1.1s ease-in-out infinite }
+            @media (prefers-reduced-motion: reduce) { .fzt-puls { animation: none } }
+          `}</style>
           <rect
             x={masse.links - KANTE}
             y={masse.oben - KANTE / 2 - 50}
@@ -1443,6 +1490,16 @@ export function UpgradeTafel({
                   Boolean(start) ||
                   Boolean(vorlage);
                 const hervorgehoben = modus === "umsetzen" && empfohlen;
+                /*
+                  Gerade gescannt: Dieser Platz gehört zu der Gruppe,
+                  die eben vor der Kamera stand. Alter und neuer Platz
+                  leuchten, damit man in einem Blick sieht, von wo nach
+                  wo (Florian, 29.10.2026).
+                */
+                const geleuchtet =
+                  gescannt.size > 0 &&
+                  Boolean(eigner) &&
+                  gescannt.has(buchstabeVon.get(eigner!) ?? "");
 
                 return (
                   <g
@@ -1476,6 +1533,21 @@ export function UpgradeTafel({
                       strokeWidth={hervorgehoben || inDerHandHier ? 2.4 : vorlage || heimatUmsetzung ? 1.8 : 1}
                       strokeDasharray={(vorlage || (heimat && heimatUmsetzung)) && !hervorgehoben ? "4 2" : undefined}
                     />
+                    {/* Der Ring um einen gerade gescannten Platz. */}
+                    {geleuchtet && (
+                      <rect
+                        className="fzt-puls"
+                        x={s.x - KANTE / 2 - 2.5}
+                        y={s.y - KANTE / 2 - 2.5}
+                        width={KANTE + 5}
+                        height={KANTE + 5}
+                        rx={5}
+                        fill="none"
+                        stroke="var(--warnung)"
+                        strokeWidth={2.2}
+                        pointerEvents="none"
+                      />
+                    )}
                     <text
                       x={s.x}
                       y={s.y + 3.2}

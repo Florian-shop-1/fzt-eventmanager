@@ -99,6 +99,36 @@ function melden(gut: boolean): void {
   }
 }
 
+/**
+ * Dem Saalplan sagen, welche Gruppe gerade gescannt wurde.
+ *
+ * "wenn es ein upgrade vorschlägt, dass dann gleich in dem saalplan da
+ * angezeigt wird, zb. aufleuchtet. es muss intuitiv funktionieren"
+ * (Florian, 29.10.2026).
+ *
+ * Scanner und Saalplan sind zwei Bausteine nebeneinander, und keiner
+ * gehoert dem anderen. Statt beide unter einen gemeinsamen Zustand zu
+ * zwingen, ruft der Scanner in den Raum, und wer zuhoert, reagiert:
+ * Steht der Saalplan auf der Seite, laesst er die Plaetze aufleuchten,
+ * steht er nicht da, passiert nichts.
+ *
+ * Die Buchstaben stehen in den Upgrade-Zeilen, die FloTix schickt
+ * ("Umzug A: 4 Gaeste von ... nach ..."). Sie kommen aus derselben
+ * Rechnung wie die Buchstaben im Plan, es ist also wirklich dieselbe
+ * Gruppe.
+ */
+export const UPGRADE_EREIGNIS = "fzt-upgrade-gescannt";
+
+function upgradeMelden(d: Antwort): void {
+  const buchstaben = (d.upgrade?.zeilen ?? [])
+    .map((z) => /^Umzug ([A-Z])/.exec(z)?.[1])
+    .filter((b): b is string => Boolean(b));
+  if (buchstaben.length === 0) return;
+  window.dispatchEvent(
+    new CustomEvent(UPGRADE_EREIGNIS, { detail: { buchstaben, gast: d.gast } }),
+  );
+}
+
 function leereAntwort(titel: string, zeile: string): Antwort {
   return {
     ergebnis: "unbekannt",
@@ -191,6 +221,7 @@ export function TicketScanner() {
       }
       setErgebnis(d);
       melden(art(d) === "ok");
+      upgradeMelden(d);
     } catch {
       setErgebnis(leereAntwort("Keine Verbindung", "Der Scan kam nicht durch. Noch einmal versuchen."));
       melden(false);
