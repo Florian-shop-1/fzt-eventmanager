@@ -71,6 +71,24 @@ export function jahrgangImUmlauf(heute = new Date()): number {
   return tag > gueltigBis(jahr) ? jahr + 2 : jahr + 1;
 }
 
+/**
+ * Muss nach dem Jahrgang gefragt werden?
+ *
+ * "beim schlemmerblock /whats app brauchst du nicht nach dem jahrgang
+ * fragen. erst nach dem 1.12. machen wir das" (Florian, 29.10.2026).
+ *
+ * Bis zum 1. Dezember gelten beide Blöcke, die im Umlauf sind: Der alte
+ * läuft genau an diesem Tag ab, der neue erst ein Jahr später. Die
+ * Frage hätte also keine Folge, sie kostet nur einen Gang hin und her,
+ * bevor der Gast seinen Code hat. Ab dem 2. Dezember ist sie wieder
+ * nötig, denn dann ist der alte Block ungültig und eine Freikarte
+ * darauf wäre verschenkt.
+ */
+export function jahrgangNachfragen(heute = new Date()): boolean {
+  const tag = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(heute);
+  return tag > gueltigBis(Number(tag.slice(0, 4)));
+}
+
 /** Der Block in der Schreibweise des Hauses: "2025/2026". */
 export function blockName(jahrgang: number): string {
   return `${jahrgang - 1}/${jahrgang}`;
@@ -340,9 +358,15 @@ export function antwortText(o: { vorname: string; codes: string[]; jahrgang?: nu
     `WICHTIG: Bring bitte den Abriss aus dem Schlemmerblock am Showtag mit${mehrere ? ", für jeden Code einen" : ""}. ` +
     "Wir sammeln ihn beim Einlass ein. Ohne Abriss kommst du mit der freien Karte leider nicht " +
     "in die Show, das müssen wir streng nehmen.\n\n" +
-    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}. Einlösen lässt er sich einmal${o.jahrgang ? `, und zwar bis zum 1. Dezember ${o.jahrgang}, so lange wie dein Block` : ""}.\n\n` +
+    `Gut zu wissen: Der Block gilt bei ${GILT_BEI}, nicht ${GILT_NICHT_BEI}. Einlösen lässt er sich einmal${o.jahrgang ? `, und zwar bis zum 1. Dezember ${o.jahrgang}, so lange wie dein Block` : ", so lange wie dein Block gilt"}.\n\n` +
     "Und wenn ihr den Abend rund machen wollt: Zu jeder Karte lässt sich unser 4-Gang-Menü für " +
-    "69 Euro dazubuchen, der Welcome Drink ist dabei. Das gilt auch für die freie Karte. Es gibt " +
-    "das Menü nur für Showgäste, und ihr sitzt vorher in Ruhe beisammen, ohne Restaurantwechsel."
+    "69 Euro dazubuchen, der Welcome Drink ist dabei. Das gilt auch für die freie Karte. " +
+    /*
+      "menüs können sie sich dazu buchen, ala carte bieten wir nicht mehr
+      an" (Florian, 29.10.2026). Das gehört in den Text, sonst kommt als
+      Nächstes die Frage nach der Speisekarte.
+    */
+    "Eine Speisekarte haben wir nicht mehr, es gibt nur dieses Menü und nur für Showgäste. Dafür " +
+    "sitzt ihr vorher in Ruhe beisammen, ohne Restaurantwechsel."
   );
 }

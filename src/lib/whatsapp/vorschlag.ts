@@ -131,8 +131,10 @@ const BAUSTEINE: Baustein[] = [
     fertigen Entwurf nicht sah, verschickte ihn so. Den Code zieht
     jetzt der Eventmanager selbst, sobald die Nachricht eingeht
     (siehe whatsapp/schlemmerlauf.ts). Dieser Baustein ist nur noch
-    der Rueckfall, wenn das nicht geklappt hat, und fragt dann nach
-    dem Jahrgang: Das ist immer richtig und braucht keinen Code.
+    der Rueckfall, wenn das nicht geklappt hat. Nach dem Jahrgang fragt
+    er nicht mehr: Bis zum 1. Dezember gelten beide Bloecke, die Frage
+    kostet nur einen Gang hin und her (Florian, 29.10.2026). Er sagt
+    stattdessen, dass der Code gleich kommt, und nennt die Regeln.
   */
   {
     titel: "Schlemmerblock",
@@ -142,14 +144,14 @@ const BAUSTEINE: Baustein[] = [
         d.vorname,
         "schön, dass du deinen Schlemmerblock bei uns einlösen möchtest. Eine Karte derselben " +
           "Kategorie ist damit für dich frei.\n\n" +
-          "Eine Frage vorweg, damit ich dir den richtigen Code schicken kann: Von wann ist dein " +
-          "Block, 2025/2026 oder 2026/2027? Du kannst mir auch einfach ein Foto vom Umschlag " +
-          "schicken, dann sehe ich es selbst.\n\n" +
+          "Deinen Code schicke ich dir gleich hinterher. Such dir dann im Shop deine Plätze aus " +
+          "und gib ihn im letzten Schritt vor dem Bezahlen ein.\n\n" +
           "Der Block gilt bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an Feiertagen und " +
           "nicht bei Sonderveranstaltungen. Bitte bring ihn am Showtag mit, der Abriss wird " +
           "eingesammelt.\n\n" +
           "Wenn ihr dazu essen möchtet: Zu jeder Karte lässt sich unser 4-Gang-Menü für 69 Euro " +
-          "dazubuchen, Welcome Drink inklusive, auch zur freien Karte.",
+          "dazubuchen, Welcome Drink inklusive, auch zur freien Karte. Eine Speisekarte haben wir " +
+          "nicht mehr, es gibt nur dieses Menü und nur für Showgäste.",
       ),
   },
   {

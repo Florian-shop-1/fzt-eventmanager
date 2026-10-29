@@ -27,6 +27,7 @@ import {
   antwortText,
   codesZiehen,
   jahrgangGueltig,
+  jahrgangNachfragen,
   nachfrageText,
   schlemmerErkennen,
 } from "@/lib/whatsapp/schlemmerblock";
@@ -97,7 +98,15 @@ export async function schlemmerEntwurfBauen(waId: string, von: string): Promise<
     };
   }
 
-  if (jahrgang === null) {
+  /*
+    Ohne Jahrgang wird nur dann nachgefragt, wenn es darauf ankommt.
+
+    "brauchst du nicht nach dem jahrgang fragen. erst nach dem 1.12.
+    machen wir das" (Florian, 29.10.2026). Bis dahin gelten beide
+    Blöcke, die Antwort änderte also nichts am Code. Siehe
+    jahrgangNachfragen in whatsapp/schlemmerblock.ts.
+  */
+  if (jahrgang === null && jahrgangNachfragen()) {
     await entwurfSpeichern({
       waId,
       text: nachfrageText(vorname),
