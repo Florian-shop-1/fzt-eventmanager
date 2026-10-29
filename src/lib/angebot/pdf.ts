@@ -527,14 +527,29 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
     y -= 13;
   }
 
-  /* Der Zusageknopf. */
+  /*
+    Der Zusageknopf.
+
+    "der schwarze kasten wirkt zu gedrungen, er ist zu nah dran am
+    restlichen text" (Florian, 29.10.2026). Der Kasten ist das Ende des
+    Angebots und der einzige Platz, an dem der Kunde etwas tun soll.
+    Eine schwarze Flaeche, die am Fliesstext klebt, liest sich wie eine
+    weitere Zeile und nicht wie ein Knopf.
+
+    Deshalb drei Dinge: ein deutlicher Abstand nach oben, damit er fuer
+    sich steht, mehr Luft im Kasten selbst, und mehr Platz zwischen
+    Zeile und Adresse. Die Masse sind so gewaehlt, dass oben und unten
+    gleich viel Rand bleibt (rund 14 Punkt): Schrift sitzt sonst
+    sichtbar schief in der Flaeche, auch wenn niemand sagen kann, woran
+    es liegt.
+  */
   if (d.link) {
-    platz(64);
-    y -= 12;
-    s.drawRectangle({ x: LINKS, y: y - 26, width: RECHTS - LINKS, height: 48, color: SCHWARZ });
-    schreib("Zusagen, Rückfragen stellen oder etwas ändern", LINKS + 16, y + 6, 10.5, fett, WEISS);
-    schreib(d.link, LINKS + 16, y - 8, 8, normal, GOLD);
-    y -= 40;
+    platz(96);
+    y -= 30;
+    s.drawRectangle({ x: LINKS, y: y - 28, width: RECHTS - LINKS, height: 56, color: SCHWARZ });
+    schreib("Zusagen, Rückfragen stellen oder etwas ändern", LINKS + 22, y + 6, 10.5, fett, WEISS);
+    schreib(d.link, LINKS + 22, y - 12, 8, normal, GOLD);
+    y -= 44;
   }
 
   /* ------------------------------------------------------------------
@@ -640,7 +655,7 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
   seiten.forEach((seite, i) => {
     seite.drawLine({ start: { x: LINKS, y: 96 }, end: { x: RECHTS, y: 96 }, thickness: 0.5, color: LINIE });
-    let yy = 86;
+    const yy = 86;
     const spalte = (werte: string[], x: number) => {
       let yyy = yy;
       for (const zeile of werte) {

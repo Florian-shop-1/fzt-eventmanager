@@ -1061,12 +1061,24 @@ function AngebotKarte({
         </form>
       </div>
 
+      {/*
+        "lass einfach die einzelnen seiten weg, dann ist das pdf zum
+        scrollen groesser und man kann es besser lesen" (Florian,
+        29.10.2026). Gemeint ist die Seitenleiste mit den Vorschaubildern,
+        die der Browser von sich aus aufklappt und die ein Drittel der
+        Breite frisst.
+
+        `#toolbar=0` nimmt Leiste und Vorschaubilder weg, `view=FitH`
+        legt die Seite auf die volle Breite. Gescrollt wird weiterhin
+        normal. Wer Zoom, Drucken oder Herunterladen braucht, nimmt
+        daneben den eigenen Tab.
+      */}
       {vorschau && (
         <iframe
           key={stand}
-          src={`/api/angebot/pdf?id=${angebot.id}&stand=${stand}`}
+          src={`/api/angebot/pdf?id=${angebot.id}&stand=${stand}#toolbar=0&view=FitH`}
           title={`Angebot ${angebot.nummer}`}
-          className="mb-3 h-[70vh] w-full rounded-md border border-linie bg-white"
+          className="mb-3 h-[85vh] w-full rounded-md border border-linie bg-white"
         />
       )}
 
