@@ -94,6 +94,15 @@ export function istBarrierefrei(l: Lead): boolean {
   return BARRIEREFREI.test(l.anfragetyp);
 }
 
+/**
+ * Stationen einer Anfrage nach einem barrierefreien Platz.
+ *
+ * Kurz gehalten wie bei den Stoerungen: Es geht nur darum, ob der Platz
+ * steht. Dazwischen liegt der Anruf, bei dem geklaert wird, welcher
+ * Platz passt und wie viele Begleitpersonen mitkommen.
+ */
+export const BARRIEREFREI_STATUS = ["Neu", "Platz reserviert", "Erledigt"] as const;
+
 /** Gehoert die Anfrage in den Vertrieb, also auf die Leads-Seite? */
 export function istVertrieb(l: Lead): boolean {
   return !istStoerung(l) && !istBarrierefrei(l);

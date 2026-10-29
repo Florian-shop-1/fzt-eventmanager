@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { Absendeknopf } from "@/components/Absendeknopf";
-import { holeLeads, istVertrieb, type Lead } from "@/lib/shop/leads";
+import { holeLeads, istStoerung, type Lead } from "@/lib/shop/leads";
 import { kundenListe, listen, type BrevoListe } from "@/lib/marketing/brevo-kontakte";
 import { dateiZuBrevo, kundenlisteSpeichern, probelauf, uebertragen } from "./aktionen";
 
@@ -34,7 +34,11 @@ export default async function BrevoSeite({
   let leads: Lead[] = [];
   let leadFehler: string | null = null;
   try {
-    leads = (await holeLeads()).filter(istVertrieb);
+    // Barrierefrei-Anfragen sind hier bewusst dabei: "das ist unser
+    // hauptverteiler, dort wollen wir alle kontakte drin haben"
+    // (Florian, 29.10.2026). Nur die Stoerungsmeldungen bleiben draußen,
+    // das sind keine Kontakte, sondern Pannen.
+    leads = (await holeLeads()).filter((l) => !istStoerung(l));
   } catch (e) {
     leadFehler = e instanceof Error ? e.message : "Unbekannter Fehler";
   }

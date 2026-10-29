@@ -12,7 +12,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { holeLeads, istVertrieb } from "@/lib/shop/leads";
+import { holeLeads, istStoerung } from "@/lib/shop/leads";
 import {
   bekannteAdressen,
   dateiUebertragen,
@@ -44,7 +44,9 @@ function zurueck(meldung: string, listeId: string): never {
  * nicht für Werbung gemeldet. Sonst entscheidet die Auswahl.
  */
 async function auswahl(nur: string) {
-  const alle = (await holeLeads()).filter(istVertrieb);
+  // Alle Kontakte gehoeren in den Hauptverteiler, auch die Anfragen nach
+  // einem barrierefreien Platz (Florian, 29.10.2026). Nur Stoerungen nicht.
+  const alle = (await holeLeads()).filter((l) => !istStoerung(l));
   if (nur === "gewonnen") return alle.filter((l) => /gewonnen/i.test(l.status));
   if (nur === "offen") return alle.filter((l) => /eingegangen|kontakt|erreichbar|angebot/i.test(l.status));
   return alle;

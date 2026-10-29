@@ -117,6 +117,7 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
       { href: "/marketing", label: "Woher die Verkäufe kommen", rollen: ["chef", "team", "agentur"] },
       { href: "/abbrueche", label: "Abgebrochene Buchungen", rollen: ["chef", "team"] },
       { href: "/stoerungen", label: "Störungen", rollen: ["chef", "team"] },
+      { href: "/barrierefrei", label: "Barrierefreie Plätze", rollen: ["chef", "team"] },
       { href: "/codes", label: "Codes", rollen: ["chef", "team"] },
       { href: "/vorfreude", label: "Vorfreude-Mail", rollen: ["chef", "team"] },
       { href: "/regiotv-info", label: "RegioTV-Info-Mail", rollen: ["chef", "team"] },
