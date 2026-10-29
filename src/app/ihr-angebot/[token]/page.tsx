@@ -338,10 +338,17 @@ export default async function KundenAngebot({
               />
               <div className="p-6 text-sm leading-relaxed text-leise">
                 <p>
-                  Unsere Fassade ist über zwanzig Meter breit und von der Straße aus kaum zu
-                  übersehen. Ihr Logo läuft dort an Ihrem Abend, sichtbar für alle, die kommen,
-                  und für jeden, der vorbeifährt. Das Foto davon macht in der Regel jemand aus
-                  Ihrer Gruppe, bevor der erste Gang auf dem Tisch steht.
+                  {/*
+                    "sag nicht Strasse, sag nur ist nicht zu uebersehen,
+                    auch nicht kaum" (Florian, 29.10.2026). "Kaum zu
+                    uebersehen" laesst offen, dass man es eben doch
+                    uebersieht, und die Strasse zieht den Blick auf die
+                    Lage statt auf die Wirkung.
+                  */}
+                  Unsere Fassade ist über zwanzig Meter breit und nicht zu übersehen. Ihr Logo
+                  läuft dort an Ihrem Abend, sichtbar für alle, die kommen, und für jeden, der
+                  vorbeifährt. Das Foto davon macht in der Regel jemand aus Ihrer Gruppe, bevor
+                  der erste Gang auf dem Tisch steht.
                 </p>
                 <p className="mt-3">
                   Wir brauchen dafür nur Ihre Bilddatei als JPG oder PNG, spätestens eine Woche

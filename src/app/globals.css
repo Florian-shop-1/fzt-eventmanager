@@ -355,8 +355,26 @@ textarea:focus {
     display: none !important;
   }
 
-  .angebot-druck header p {
-    color: #444444 !important;
+  /*
+    Jedes Kind der Buehne mit, nicht nur die Absaetze.
+
+    "wenn gedruckt wird, diesen teil bitte nicht schwarz. aber auf dem
+    klickbaren link ist das schon sehr cool, da koennte es bleiben"
+    (Florian, 29.10.2026).
+
+    Der Kopf faerbt sich auf Papier hell, aber Kinder mit eigener
+    Textfarbe erben das nicht: Ein Element mit text-white setzt seine
+    Farbe selbst und bliebe weiss auf weiss, also unsichtbar. Deshalb
+    hier alles darin auf dunkel, und die Wortmarke folgt von selbst,
+    sie zeichnet in currentColor.
+  */
+  .angebot-druck header * {
+    color: #333333 !important;
+    background-color: transparent !important;
+  }
+
+  .angebot-druck header h1 {
+    color: #000000 !important;
   }
 
   .angebot-druck .zusage-block {
