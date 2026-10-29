@@ -9,7 +9,40 @@ export const metadata = { title: "Vorgänge | FZT Eventmanager" };
 // Immer frisch laden: hier arbeiten mehrere Leute gleichzeitig.
 export const dynamic = "force-dynamic";
 
-export default async function VorgaengeSeite() {
+/*
+  Suchen statt scrollen (Florian, 29.10.2026: "hier bei vorgängen muss
+  man auch suchen können").
+
+  Gesucht wird ueber alles, was auf der Zeile steht: Vorgangsnummer,
+  Firma, Ansprechpartner, Show und Datum. Das Datum in beiden
+  Schreibweisen, denn im Kopf hat man "20.11." und in der Datenbank
+  steht "2026-11-20".
+
+  Gefiltert wird hier und nicht in der Datenbank. Die Liste umfasst
+  einige hundert Zeilen, die sind ohnehin schon geladen, und eine
+  Suche ueber mehrere Spalten in SQL waere mehr Aufwand als Nutzen.
+  Wenn es einmal Tausende sind, gehoert es nach unten.
+*/
+function passt(v: VorgangZeile, suche: string): boolean {
+  const felder = [
+    v.nummer,
+    v.kundeName,
+    v.ansprechpartner ?? "",
+    v.show ?? "",
+    v.datum ?? "",
+    v.datum ? v.datum.split("-").reverse().join(".") : "",
+    v.wunschzeitraum ?? "",
+  ];
+  return felder.join(" ").toLowerCase().includes(suche);
+}
+
+export default async function VorgaengeSeite({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const suche = ((await searchParams).q ?? "").trim().toLowerCase();
+
   let vorgaenge: VorgangZeile[];
   let fehler: string | null = null;
 
@@ -19,6 +52,9 @@ export default async function VorgaengeSeite() {
     fehler = fehlertext(e);
     vorgaenge = [];
   }
+
+  const gesamt = vorgaenge.length;
+  const gefunden = suche ? vorgaenge.filter((v) => passt(v, suche)) : vorgaenge;
 
   return (
     <div className="space-y-6">
@@ -37,6 +73,34 @@ export default async function VorgaengeSeite() {
         </Link>
       </header>
 
+      {gesamt > 0 && (
+        <form method="get" className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            name="q"
+            defaultValue={suche}
+            placeholder="Nummer, Firma, Ansprechpartner, Show oder Datum"
+            className="min-w-72 flex-1 rounded-md border border-linie bg-flaeche px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+          >
+            Suchen
+          </button>
+          {suche && (
+            <Link href="/vorgaenge" className="text-sm text-leise underline">
+              zurücksetzen
+            </Link>
+          )}
+          {suche && (
+            <span className="text-sm text-leise">
+              {gefunden.length} von {gesamt}
+            </span>
+          )}
+        </form>
+      )}
+
       {fehler && (
         <div className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">
           <strong style={{ color: "var(--blocker)" }}>Datenbank nicht erreichbar.</strong>
@@ -44,7 +108,7 @@ export default async function VorgaengeSeite() {
         </div>
       )}
 
-      {!fehler && vorgaenge.length === 0 && (
+      {!fehler && gesamt === 0 && (
         <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center">
           <div className="text-sm font-medium">Noch keine Vorgänge</div>
           <p className="mx-auto mt-1 max-w-md text-sm text-leise">
@@ -60,7 +124,14 @@ export default async function VorgaengeSeite() {
         </div>
       )}
 
-      {vorgaenge.length > 0 && (
+      {gesamt > 0 && gefunden.length === 0 && (
+        <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
+          Nichts gefunden zu &bdquo;{suche}&ldquo;. Gesucht wird in Nummer, Firma,
+          Ansprechpartner, Show und Datum.
+        </p>
+      )}
+
+      {gefunden.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-linie bg-flaeche">
           <table className="w-full text-sm">
             <thead className="border-b border-linie text-left text-xs uppercase tracking-wide text-leise">
@@ -75,7 +146,7 @@ export default async function VorgaengeSeite() {
               </tr>
             </thead>
             <tbody>
-              {vorgaenge.map((v) => (
+              {gefunden.map((v) => (
                 <tr key={v.id} className="border-b border-linie last:border-0 hover:bg-hintergrund">
                   <td className="px-4 py-3">
                     <Link href={`/vorgaenge/${v.id}`} className="font-medium hover:text-gold-dunkel">
