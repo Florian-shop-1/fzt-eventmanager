@@ -188,8 +188,25 @@ export default async function VersandSeite({
     Gutscheine gibt es nur mit Code, denn ohne Code druckt der Bogen ein
     leeres Feld statt einer Nummer.
   */
+  /*
+    Gezaehlt wird, was wirklich auf Papier kommt.
+
+    Vorher stand hier "alle minus die ohne Code". Ticketsendungen haben
+    nie einen Gutscheincode, sie sind aber auch nicht in "ohne Code":
+    Tickets gehoeren ausdruecklich nicht auf Gutscheinpapier. Damit
+    zaehlten sie als Blatt mit, obwohl die Gutscheinkarte fuer sie
+    nichts ausgibt. Liegt nur so eine Sendung an, meldet die Zaehlung
+    ein Blatt, es wird ein Druckfenster geoeffnet, und darin steht
+    nichts: genau der Fall, in dem die Vorschau ratlos haengen bleibt.
+
+    Jetzt wird dasselbe gezaehlt, was die Karte auch ausgibt.
+  */
+  const gutscheinblaetter = zuDrucken.filter(
+    (s) => s.art !== "tickets" && codeVon(s, staende.get(s.bestellnummer)),
+  ).length;
+
   const blaetter = druckeGutschein
-    ? zuDrucken.length - ohneCode.length
+    ? gutscheinblaetter
     : zuDrucken.length + staebeZuDrucken.length;
 
   /*
@@ -233,7 +250,7 @@ export default async function VersandSeite({
         {(zuDrucken.length > 0 || staebeZuDrucken.length > 0) && (
           <Druckwahl
             anzahl={zuDrucken.length + staebeZuDrucken.length}
-            mitGutschein={zuDrucken.filter((s) => s.art !== "tickets" && codeVon(s, staende.get(s.bestellnummer))).length}
+            mitGutschein={gutscheinblaetter}
             mitTickets={zuDrucken.filter((s) => s.art === "tickets" && !brauchtKlaerung(s)).length}
             nur={nur}
             drucken={drucken}
