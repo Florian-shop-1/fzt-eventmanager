@@ -245,6 +245,47 @@ export function foyerZeiten(shows: Array<{ uhrzeit: string }>): {
   return { vorschlag, pause, geteilt };
 }
 
+/**
+ * Uhrzeit in Minuten, damit nach Mitternacht nicht "frueher" heisst.
+ *
+ * "00:30" ist spaeter als "23:00", als Zeichenkette aber kleiner. Alles
+ * vor sechs Uhr frueh gehoert noch zum Abend davor.
+ */
+function alsMinuten(uhrzeit: string): number {
+  const [h, m] = uhrzeit.split(":").map(Number);
+  return (h < 6 ? h + 24 : h) * 60 + m;
+}
+
+/**
+ * Bis wann dieser Platz ohne Sonderaufgabe arbeitet.
+ *
+ * Platz eins macht den Abend zu Ende, alle weiteren gehen nach der
+ * Pause: Das ist genau der Vorschlag, den der Plan ohnehin rechnet.
+ */
+export function regelEnde(vorschlag: Array<{ von: string; bis: string }>, nummer: number): string {
+  return vorschlag[Math.min(nummer, vorschlag.length) - 1]?.bis ?? "";
+}
+
+/**
+ * Laenger bleiben nur die, die auch etwas zu tun haben.
+ *
+ * "die tragen sich da selber bis 23:00 uhr ein. das geht nicht. mach
+ * das so, dass die zeit nur auf 23:00 uhr bzw. laenger eingestellt
+ * werden kann, wenn man eine Sonderaufgabe eintraegt. Ansonsten endet
+ * die Schicht wie gewohnt nach Ende der Pause der show" (Florian,
+ * 29.10.2026).
+ *
+ * Nach der Pause wird nichts mehr verkauft. Wer dann noch da ist,
+ * arbeitet entweder an etwas anderem, und das steht dann als
+ * Sonderaufgabe da, oder die Stunde wird bezahlt, ohne dass es sie
+ * braucht. Deshalb schneidet diese Stelle ueberlange Enden zurueck,
+ * und zwar beim Anzeigen wie beim Speichern.
+ */
+export function endeBegrenzen(bis: string, grenze: string, sonderaufgabe: string): string {
+  if (sonderaufgabe.trim() || !bis || !grenze) return bis;
+  return alsMinuten(bis) > alsMinuten(grenze) ? grenze : bis;
+}
+
 /** Wer im Foyer arbeiten kann, mit dem Vermerk, wer fest angestellt ist. */
 export async function foyerLeute(): Promise<FoyerPerson[]> {
   const z = (await db()`
@@ -358,7 +399,10 @@ function plaetzeBauen(
 
   const naechste = (zusaetzlich.at(-1)?.nummer ?? PLAETZE.length) + 1;
 
-  return [...fest, ...zusaetzlich, leer(naechste)];
+  return [...fest, ...zusaetzlich, leer(naechste)].map((d) => {
+    const begrenzt = endeBegrenzen(d.bis, regelEnde(vorschlag, d.nummer), d.sonderaufgabe);
+    return begrenzt === d.bis ? d : { ...d, bis: begrenzt };
+  });
 }
 
 /** Der Plan: zwei feste Plätze je Showtag, dazu beliebig viele weitere. */

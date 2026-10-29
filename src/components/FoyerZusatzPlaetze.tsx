@@ -27,6 +27,7 @@ export function FoyerZusatzPlaetze({
   abAnzeige,
   von,
   bis,
+  grenze,
   leute,
   zeitenAendern,
 }: {
@@ -37,6 +38,12 @@ export function FoyerZusatzPlaetze({
   /** Vorgeschlagene Zeiten, dieselben wie bei der zweiten Person. */
   von: string;
   bis: string;
+  /**
+   * Spaetestes Ende. Wer zusaetzlich kommt, geht nach der Pause, es sei
+   * denn, er bekommt eine Sonderaufgabe. Die traegt man unten ein, und
+   * danach laesst sich die Zeit auch weiter stellen (Florian, 29.10.2026).
+   */
+  grenze: string;
   leute: FoyerLeute[];
   /** Florian und Kevin aendern die Zeiten gleich in der Zeile. */
   zeitenAendern: boolean;
@@ -68,7 +75,15 @@ export function FoyerZusatzPlaetze({
                 <span className="flex items-center gap-1 text-leise">
                   <input type="time" name={`von${n}`} defaultValue={von} className="w-28" aria-label="von" />
                   bis
-                  <input type="time" name={`bis${n}`} defaultValue={bis} className="w-28" aria-label="bis" />
+                  <input
+                    type="time"
+                    name={`bis${n}`}
+                    defaultValue={bis}
+                    max={grenze || undefined}
+                    title={`Ohne Sonderaufgabe ist um ${grenze} Uhr Schluss, nach der Pause der Show.`}
+                    className="w-28"
+                    aria-label="bis"
+                  />
                   Uhr
                 </span>
               ) : (

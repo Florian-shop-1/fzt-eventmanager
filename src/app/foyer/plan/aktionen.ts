@@ -17,10 +17,12 @@ import { datumMitWochentag } from "@/lib/zeit";
 import {
   dienstSetzen,
   dienstWeg,
+  endeBegrenzen,
   festSetzen,
   foyerDienstLesen,
   foyerLeute,
   foyerZeiten,
+  regelEnde,
   tagTeilen,
   teilungAufheben,
   zeitenSetzen,
@@ -190,6 +192,19 @@ async function showsAmTag(datum: string): Promise<string[]> {
     .sort();
 }
 
+/**
+ * Die vorgeschlagenen Zeiten dieses Abschnitts.
+ *
+ * Daraus kommt die Grenze, bis wann jemand ohne Sonderaufgabe bleibt:
+ * siehe endeBegrenzen in lib/foyer/dienstplan.ts.
+ */
+async function vorschlagFuer(datum: string, abschnitt: Abschnitt) {
+  const { vorschlag, geteilt } = foyerZeiten((await showsAmTag(datum)).map((uhrzeit) => ({ uhrzeit })));
+  if (abschnitt === "mittag") return geteilt?.mittag ?? vorschlag;
+  if (abschnitt === "abend") return geteilt?.abend ?? vorschlag;
+  return vorschlag;
+}
+
 export async function tagEintragen(f: FormData): Promise<void> {
   const b = await darfPlanen();
   const datum = text(f, "datum", 10);
@@ -201,12 +216,15 @@ export async function tagEintragen(f: FormData): Promise<void> {
 
   const leute = await foyerLeute();
   const bestehend = (await db()`
-    select nummer, benutzer_id from foyer_dienst
+    select nummer, benutzer_id, coalesce(sonderaufgabe, '') as sonderaufgabe from foyer_dienst
      where datum = ${datum}::date and abschnitt = ${abschnitt}
-  `) as Array<{ nummer: number; benutzer_id: string | null }>;
+  `) as Array<{ nummer: number; benutzer_id: string | null; sonderaufgabe: string }>;
   const vorher = new Map(bestehend.map((r) => [r.nummer, r.benutzer_id]));
+  const aufgaben = new Map(bestehend.map((r) => [r.nummer, String(r.sonderaufgabe ?? "")]));
+  const vorschlag = await vorschlagFuer(datum, abschnitt);
 
   const eingeteilt: string[] = [];
+  const gekuerzt: string[] = [];
 
   /*
     Welche Plaetze das Formular geschickt hat.
@@ -225,7 +243,15 @@ export async function tagEintragen(f: FormData): Promise<void> {
   for (const nummer of new Set(nummern)) {
     const wert = text(f, `benutzer${nummer}`, 40);
     const von = text(f, `von${nummer}`, 5);
-    const bis = text(f, `bis${nummer}`, 5);
+    /*
+      Ohne Sonderaufgabe ist nach der Pause Schluss. Das Feld oben hat
+      schon ein Maximum, hier steht es noch einmal: Ein altes Formular
+      oder ein Browser ohne diese Pruefung soll die Regel nicht
+      aushebeln (Florian, 29.10.2026).
+    */
+    const gewuenscht = text(f, `bis${nummer}`, 5);
+    const bis = endeBegrenzen(gewuenscht, regelEnde(vorschlag, nummer), aufgaben.get(nummer) ?? "");
+    if (bis !== gewuenscht) gekuerzt.push(`${nummer}. Person`);
     const person = wert && wert !== "offen" ? leute.find((p) => p.id === wert) : undefined;
 
     // Ein zusaetzlicher Platz ohne Person verschwindet wieder, sonst
@@ -283,10 +309,14 @@ export async function tagEintragen(f: FormData): Promise<void> {
     }
   }
 
+  const hinweis =
+    gekuerzt.length > 0
+      ? ` ${gekuerzt.join(", ")}: Schluss nach der Pause. Wer länger bleibt, braucht eine Sonderaufgabe.`
+      : "";
   zurueck(
-    eingeteilt.length > 0
+    (eingeteilt.length > 0
       ? `${datumMitWochentag(datum)}: ${eingeteilt.join(", ")} eingetragen.`
-      : `${datumMitWochentag(datum)} gespeichert.`,
+      : `${datumMitWochentag(datum)} gespeichert.`) + hinweis,
   );
 }
 
@@ -423,17 +453,31 @@ export async function zeiten(f: FormData): Promise<void> {
     zurueck("An diesem Tag ist die Vorstellung abgesagt.");
   }
   const nummer = Math.max(1, Math.min(20, Number(text(f, "nummer", 2)) || 1));
+  const abschnitt = abschnittAus(f);
+  const sonderaufgabe = text(f, "sonderaufgabe");
+  /*
+    Hier stehen Zeit und Sonderaufgabe im selben Formular. Wer beides
+    zusammen eintraegt, darf also gleich laenger bleiben; wer nur die
+    Zeit verschiebt, kommt bis nach der Pause (Florian, 29.10.2026).
+  */
+  const grenze = regelEnde(await vorschlagFuer(datum, abschnitt), nummer);
+  const gewuenscht = text(f, "bis", 5);
+  const bis = endeBegrenzen(gewuenscht, grenze, sonderaufgabe);
   await zeitenSetzen({
     datum,
-    abschnitt: abschnittAus(f),
+    abschnitt,
     nummer,
     von: text(f, "von", 5),
-    bis: text(f, "bis", 5),
+    bis,
     notiz: text(f, "notiz"),
-    sonderaufgabe: text(f, "sonderaufgabe"),
+    sonderaufgabe,
     von_wem: b.name,
   });
-  zurueck("Gespeichert.");
+  zurueck(
+    bis === gewuenscht
+      ? "Gespeichert."
+      : `Gespeichert, Schluss um ${bis} Uhr. Länger geht nur mit einer Sonderaufgabe.`,
+  );
 }
 
 /** Wer fest angestellt ist, legt nur das Büro fest. */

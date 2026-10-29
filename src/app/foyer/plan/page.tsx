@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { foyerLeute, foyerPlan, type FoyerDienst, type FoyerPerson } from "@/lib/foyer/dienstplan";
+import { foyerLeute, foyerPlan, regelEnde, type FoyerDienst, type FoyerPerson } from "@/lib/foyer/dienstplan";
 import { offeneUebernahmen, type UebernahmeAntrag } from "@/lib/dienstplan/uebernahme";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -329,6 +329,7 @@ export default async function FoyerPlanSeite({
                                 anzeige={i + 1}
                                 leute={leute}
                                 zeitenAendern={darfZeiten}
+                                grenze={regelEnde(blk.vorschlag, d.nummer)}
                               />
                             ))}
                         </ul>
@@ -341,6 +342,7 @@ export default async function FoyerPlanSeite({
                               abAnzeige={blk.dienste.filter((d, i) => i < 2 || d.benutzerId).length + 1}
                               von={naechster.von}
                               bis={naechster.bis}
+                              grenze={regelEnde(blk.vorschlag, naechster.nummer)}
                               leute={leute.map((p) => ({ id: p.id, name: p.name, fest: p.fest }))}
                               zeitenAendern={darfZeiten}
                             />
@@ -371,6 +373,15 @@ export default async function FoyerPlanSeite({
                             <label className="block">
                               <span className="mb-1 block text-xs text-leise">bis</span>
                               <input type="time" name="bis" defaultValue={d.bis} className="w-28" />
+                              {/*
+                                Hier kein Maximum: Sonderaufgabe und Zeit
+                                stehen im selben Formular, wer beides
+                                zusammen eintraegt, darf laenger bleiben.
+                                Das entscheidet die Aktion beim Speichern.
+                              */}
+                              <span className="mt-1 block text-xs text-leise">
+                                ohne Sonderaufgabe bis {regelEnde(blk.vorschlag, d.nummer)}
+                              </span>
                             </label>
                             <label className="block min-w-[12rem] flex-1">
                               <span className="mb-1 block text-xs text-leise">Notiz</span>
@@ -458,6 +469,7 @@ function PlatzZeile({
   anzeige,
   leute,
   zeitenAendern,
+  grenze,
 }: {
   d: FoyerDienst;
   /** Die Nummer, wie sie dasteht. Gezaehlt wird die Zeile, nicht der Platz. */
@@ -465,6 +477,14 @@ function PlatzZeile({
   leute: FoyerPerson[];
   /** Florian und Kevin aendern die Zeiten gleich hier, siehe oben. */
   zeitenAendern: boolean;
+  /**
+   * Spaetestes Ende ohne Sonderaufgabe.
+   *
+   * "die tragen sich da selber bis 23:00 uhr ein. das geht nicht"
+   * (Florian, 29.10.2026). Steht eine Sonderaufgabe da, faellt die
+   * Grenze weg: Dann gibt es ja etwas zu tun.
+   */
+  grenze: string;
 }) {
   return (
     <li className="flex flex-wrap items-center gap-2 border-t border-linie pt-2 text-sm">
@@ -484,7 +504,19 @@ function PlatzZeile({
         <span className="flex items-center gap-1 text-leise">
           <input type="time" name={`von${d.nummer}`} defaultValue={d.von} className="w-28" aria-label="von" />
           bis
-          <input type="time" name={`bis${d.nummer}`} defaultValue={d.bis} className="w-28" aria-label="bis" />
+          <input
+            type="time"
+            name={`bis${d.nummer}`}
+            defaultValue={d.bis}
+            max={d.sonderaufgabe ? undefined : grenze || undefined}
+            title={
+              d.sonderaufgabe
+                ? undefined
+                : `Ohne Sonderaufgabe ist um ${grenze} Uhr Schluss, nach der Pause der Show.`
+            }
+            className="w-28"
+            aria-label="bis"
+          />
           Uhr
         </span>
       ) : (
