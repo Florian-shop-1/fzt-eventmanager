@@ -1257,7 +1257,12 @@ function gruesse(sendung: Sendung, stand: VersandStand | undefined) {
   };
 
   return {
-    fuer: nimm(stand?.widmungFuer, sendung.empfaenger),
+    /*
+      Bei FloTix steht "Für" so da, wie der Käufer es eingetragen hat. Der Empfänger ist nur der Name auf dem Umschlag und passte
+      oft nicht ("Für Kevin" statt "Für Netti", Florian, 29.10.2026). Ohne Eintrag bleibt die Zeile leer, wie im PDF aus FloTix.
+      Nur die alten Sendungen aus Ditix, die kein eigenes Feld haben, nehmen weiter den Empfänger.
+    */
+    fuer: nimm(stand?.widmungFuer, sendung.quelle === "flotix" ? (sendung.fuer ?? "") : sendung.empfaenger),
     text: nimm(stand?.widmungText, sendung.widmung),
     // Steht in der Tabelle kein Absender, kommt der Gutschein vom
     // Kaeufer selbst. Genau so steht es auch in den bisherigen

@@ -64,6 +64,11 @@ export interface Sendung {
   ortVorher: string;
   /** Die Postleitzahl gehört zu mehreren Orten, bitte prüfen. */
   ortMehrdeutig: string[];
+  /**
+   * Für wen der Gutschein ist, so wie der Käufer es eingetragen hat (nur FloTix). Nicht zu verwechseln mit dem Empfänger: Das ist
+   * der Name auf dem Briefumschlag, und der kann ein anderer sein ("Für Netti", Umschlag an Kevin; Florian, 29.10.2026).
+   */
+  fuer?: string | null;
   /** Wer schenkt. Steht auf dem Begleitschreiben. */
   absender: string;
   /** Der persönliche Text des Käufers. */
@@ -256,6 +261,7 @@ function ausFlotix(sendungen: FlotixSendung[]): Sendung[] {
     zustellart: zustellart(g.zustellung),
     versandAn: "",
     empfaenger: nameOrdentlich(g.empfaenger ?? ""),
+    fuer: (g.fuer ?? "").trim(),
     strasse: g.strasse ?? "",
     plz: g.plz ?? "",
     ort: g.ort ?? "",
