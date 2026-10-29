@@ -762,6 +762,16 @@ function AngebotKarte({
   const link = `${appUrl}/ihr-angebot/${angebot.trackingToken}`;
   const summe = angebotssumme(angebot.positionen);
 
+  // Was sich am Angebot aendern laesst, in einer Zeile. Siehe pruefsumme.
+  const abdruck = pruefsumme(
+    angebot.positionen
+      .map(
+        (x) =>
+          `${x.id}:${x.menge}:${x.einzelBruttoCent}:${x.optional ? 1 : 0}:${x.beschreibung ?? ""}`,
+      )
+      .join("|"),
+  );
+
   /*
     Gesiezt, wie das Angebot selbst.
 
@@ -862,161 +872,6 @@ function AngebotKarte({
 
       <AenderungsWunsch angebot={angebot} />
 
-      <details className="mb-3">
-        <summary className="cursor-pointer text-xs text-leise">
-          {angebot.positionen.filter((p) => !p.istAlternativeZu).length} Positionen ansehen,
-          Preise ändern, optional setzen
-        </summary>
-        <table className="mt-2 w-full text-xs">
-          <tbody>
-            {angebot.positionen
-              .filter((p) => !p.istAlternativeZu)
-              .map((p) => (
-                <tr key={p.id} className="border-b border-linie last:border-0">
-                  <td className="py-1">
-                    {p.optional && <span className="text-leise">Optional: </span>}
-                    <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
-                    {/*
-                      Der Text, der im Angebot unter der Position steht.
-                      Enter speichert (Florian, 15.10.2026).
-                    */}
-                    <form action={positionText.bind(null, p.id, vorgangId)} className="mt-0.5">
-                      <input
-                        name="text"
-                        defaultValue={p.beschreibung ?? ""}
-                        maxLength={600}
-                        placeholder="Text unter der Position"
-                        className="w-full rounded border border-linie px-1.5 py-0.5 text-xs"
-                      />
-                    </form>
-                  </td>
-                  <td className="py-1 text-right tabular-nums">{p.menge}x</td>
-
-                  {/*
-                    Der Einzelpreis zum Ueberschreiben. Enter genuegt,
-                    der Knopf daneben ist fuer die Maus
-                    (Florian, 15.10.2026).
-                  */}
-                  <td className="py-1 pl-2 text-right">
-                    <form
-                      action={positionPreisSetzen.bind(null, p.id, vorgangId)}
-                      className="flex items-center justify-end gap-1"
-                    >
-                      <input
-                        type="text"
-                        name="preis"
-                        inputMode="decimal"
-                        defaultValue={(p.einzelBruttoCent / 100).toFixed(2).replace(".", ",")}
-                        className="w-20 rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
-                      />
-                      <button type="submit" className="underline text-leise">
-                        €
-                      </button>
-                    </form>
-                  </td>
-
-                  <td className={`py-1 pl-2 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
-                    {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
-                  </td>
-                  {/*
-                    Der Schalter je Zeile. Optional heisst: steht im
-                    Angebot mit Preis in Klammern und zaehlt nicht zur
-                    Summe (Florian, 14.10.2026).
-                  */}
-                  <td className="py-1 pl-2 text-right">
-                    <form action={positionOptional.bind(null, p.id, vorgangId, !p.optional)}>
-                      <button type="submit" className="whitespace-nowrap underline text-leise">
-                        {p.optional ? "zur Pflicht" : "optional"}
-                      </button>
-                    </form>
-                    <form action={positionEntfernen.bind(null, p.id, vorgangId)}>
-                      <button type="submit" className="whitespace-nowrap underline text-leise">
-                        entfernen
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-leise">
-          Im Feld steht der Einzelpreis, rechts daneben die Zeilensumme. Optionale Positionen
-          stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag nicht enthalten.
-          Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
-          schon.
-        </p>
-
-        {/* ------------------------------------------------------------
-            Eine Position dazunehmen, wie bei lexoffice: Artikel wählen
-            oder frei eintippen, Menge, Preis, Haken für optional, dazu
-            ein eigener Text (Florian, 15.10.2026).
-            ------------------------------------------------------------ */}
-        <form
-          action={positionHinzufuegen.bind(null, angebot.id, vorgangId)}
-          className="mt-3 space-y-2 border-t border-linie pt-3"
-        >
-          <div className="grid gap-2 sm:grid-cols-[1fr_5rem_6rem]">
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Position</span>
-              <select name="artikel" defaultValue="" className="text-sm">
-                <option value="">frei eintippen</option>
-                {ZUSATZARTIKEL.map((x) => (
-                  <option key={x.nummer} value={x.nummer}>
-                    {x.bezeichnung} ({eur(x.bruttoCent)})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Menge</span>
-              <input name="menge" defaultValue="1" inputMode="decimal" className="text-sm" />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-leise">Preis €</span>
-              <input name="preis" inputMode="decimal" placeholder="wie Liste" className="text-sm" />
-            </label>
-          </div>
-
-          <input
-            name="bezeichnung"
-            maxLength={200}
-            placeholder="Eigene Bezeichnung, wenn oben frei eintippen gewählt ist"
-            className="w-full text-sm"
-          />
-
-          <textarea
-            name="text"
-            rows={2}
-            maxLength={600}
-            placeholder="Text unter der Position, zum Beispiel der Hinweis zur LED-Fassade"
-            className="w-full text-sm"
-          />
-
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="optional" value="ja" defaultChecked className="h-4 w-4" />
-              optional, Preis in Klammern und nicht im Gesamtbetrag
-            </label>
-            <button
-              type="submit"
-              className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
-            >
-              Position hinzufügen
-            </button>
-          </div>
-
-          {/*
-            Der Satz zur LED-Fassade steht zum Kopieren da. Werbeleistung
-            und Eventpaket bleiben darin getrennt, der Nachlass hängt an
-            der Partnerschaft und nicht am Ticketpreis (Florian,
-            15.10.2026).
-          */}
-          <details className="text-xs text-leise">
-            <summary className="cursor-pointer">Textbaustein LED-Fassade</summary>
-            <p className="mt-1 rounded border border-linie p-2 text-text">{LED_TEXT}</p>
-          </details>
-        </form>
-      </details>
 
       <div className="mb-3 rounded bg-hintergrund p-2">
         <div className="mb-1 text-xs text-leise">Persönlicher Link für den Kunden</div>
@@ -1065,23 +920,23 @@ function AngebotKarte({
         </form>
       </div>
 
+      {/*
+        Aendern und ansehen nebeneinander.
+
+        "ich will aber, dass man in dem erstellten rumwurschteln kann.
+        dinge aendern, zuruecknehmen, optionen aendern usw."
+        (Florian, 29.10.2026). Vorher sprang der Knopf in den Baukasten,
+        und daraus entstand ein weiteres Angebot statt einer Aenderung
+        am vorhandenen.
+
+        Links stehen jetzt die Positionen, rechts das Dokument. Jede
+        Aenderung laedt den Rahmen neu, siehe pruefsumme. Der Baukasten
+        bleibt erreichbar, aber als das, was er ist: der Weg zu einer
+        ganz neuen Fassung.
+      */}
       {vorschau && (
         <div className="mb-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            {!angebot.angenommenAm && !angebot.abgelehntAm && (
-              <button
-                type="button"
-                onClick={zumBaukasten}
-                className="rounded-md border border-gold bg-gold px-3 py-1.5 text-sm font-medium text-white hover:bg-gold-dunkel"
-                title={
-                  angebot.versendetAm
-                    ? "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot liegt beim Kunden und bleibt deshalb erhalten."
-                    : "Öffnet den Baukasten. Daraus entsteht eine neue Fassung mit eigener Nummer. Dieses Angebot ist noch nicht verschickt, du kannst es danach löschen."
-                }
-              >
-                Angebot ändern
-              </button>
-            )}
             <a
               href={link}
               target="_blank"
@@ -1099,14 +954,176 @@ function AngebotKarte({
             >
               als PDF
             </a>
+            {!angebot.angenommenAm && !angebot.abgelehntAm && (
+              <button
+                type="button"
+                onClick={zumBaukasten}
+                className="rounded-md px-3 py-1.5 text-sm text-leise underline hover:text-gold-dunkel"
+                title="Öffnet den Baukasten weiter unten. Daraus entsteht ein weiteres Angebot mit eigener Nummer, dieses hier bleibt stehen."
+              >
+                lieber ganz neu bauen
+              </button>
+            )}
           </div>
 
-          <iframe
-            key={stand}
-            src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}`}
-            title={`Angebot ${angebot.nummer}`}
-            className="h-[85vh] w-full rounded-md border border-linie bg-white"
-          />
+          <div className="grid gap-3 lg:grid-cols-[23rem_1fr]">
+            <div className="space-y-3">
+            <details open className="rounded-md border border-linie p-3">
+              <summary className="cursor-pointer text-xs text-leise">
+                      Positionen ändern: Preis, Menge, optional, löschen
+              </summary>
+              <table className="mt-2 w-full text-xs">
+                <tbody>
+                  {angebot.positionen
+                    .filter((p) => !p.istAlternativeZu)
+                    .map((p) => (
+                      <tr key={p.id} className="border-b border-linie last:border-0">
+                        <td className="py-1">
+                          {p.optional && <span className="text-leise">Optional: </span>}
+                          <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
+                          {/*
+                            Der Text, der im Angebot unter der Position steht.
+                            Enter speichert (Florian, 15.10.2026).
+                          */}
+                          <form action={positionText.bind(null, p.id, vorgangId)} className="mt-0.5">
+                            <input
+                              name="text"
+                              defaultValue={p.beschreibung ?? ""}
+                              maxLength={600}
+                              placeholder="Text unter der Position"
+                              className="w-full rounded border border-linie px-1.5 py-0.5 text-xs"
+                            />
+                          </form>
+                        </td>
+                        <td className="py-1 text-right tabular-nums">{p.menge}x</td>
+                        {/*
+                          Der Einzelpreis zum Ueberschreiben. Enter genuegt,
+                          der Knopf daneben ist fuer die Maus
+                          (Florian, 15.10.2026).
+                        */}
+                        <td className="py-1 pl-2 text-right">
+                          <form
+                            action={positionPreisSetzen.bind(null, p.id, vorgangId)}
+                            className="flex items-center justify-end gap-1"
+                          >
+                            <input
+                              type="text"
+                              name="preis"
+                              inputMode="decimal"
+                              defaultValue={(p.einzelBruttoCent / 100).toFixed(2).replace(".", ",")}
+                              className="w-20 rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
+                            />
+                            <button type="submit" className="underline text-leise">
+                              €
+                            </button>
+                          </form>
+                        </td>
+                        <td className={`py-1 pl-2 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
+                          {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                        </td>
+                        {/*
+                          Der Schalter je Zeile. Optional heisst: steht im
+                          Angebot mit Preis in Klammern und zaehlt nicht zur
+                          Summe (Florian, 14.10.2026).
+                        */}
+                        <td className="py-1 pl-2 text-right">
+                          <form action={positionOptional.bind(null, p.id, vorgangId, !p.optional)}>
+                            <button type="submit" className="whitespace-nowrap underline text-leise">
+                              {p.optional ? "zur Pflicht" : "optional"}
+                            </button>
+                          </form>
+                          <form action={positionEntfernen.bind(null, p.id, vorgangId)}>
+                            <button type="submit" className="whitespace-nowrap underline text-leise">
+                              entfernen
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-leise">
+                Im Feld steht der Einzelpreis, rechts daneben die Zeilensumme. Optionale Positionen
+                stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag nicht enthalten.
+                Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
+                schon.
+              </p>
+              {/* ------------------------------------------------------------
+                  Eine Position dazunehmen, wie bei lexoffice: Artikel wählen
+                  oder frei eintippen, Menge, Preis, Haken für optional, dazu
+                  ein eigener Text (Florian, 15.10.2026).
+                  ------------------------------------------------------------ */}
+              <form
+                action={positionHinzufuegen.bind(null, angebot.id, vorgangId)}
+                className="mt-3 space-y-2 border-t border-linie pt-3"
+              >
+                <div className="grid gap-2 sm:grid-cols-[1fr_5rem_6rem]">
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Position</span>
+                    <select name="artikel" defaultValue="" className="text-sm">
+                      <option value="">frei eintippen</option>
+                      {ZUSATZARTIKEL.map((x) => (
+                        <option key={x.nummer} value={x.nummer}>
+                          {x.bezeichnung} ({eur(x.bruttoCent)})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Menge</span>
+                    <input name="menge" defaultValue="1" inputMode="decimal" className="text-sm" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-leise">Preis €</span>
+                    <input name="preis" inputMode="decimal" placeholder="wie Liste" className="text-sm" />
+                  </label>
+                </div>
+                <input
+                  name="bezeichnung"
+                  maxLength={200}
+                  placeholder="Eigene Bezeichnung, wenn oben frei eintippen gewählt ist"
+                  className="w-full text-sm"
+                />
+                <textarea
+                  name="text"
+                  rows={2}
+                  maxLength={600}
+                  placeholder="Text unter der Position, zum Beispiel der Hinweis zur LED-Fassade"
+                  className="w-full text-sm"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="optional" value="ja" defaultChecked className="h-4 w-4" />
+                    optional, Preis in Klammern und nicht im Gesamtbetrag
+                  </label>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
+                  >
+                    Position hinzufügen
+                  </button>
+                </div>
+                {/*
+                  Der Satz zur LED-Fassade steht zum Kopieren da. Werbeleistung
+                  und Eventpaket bleiben darin getrennt, der Nachlass hängt an
+                  der Partnerschaft und nicht am Ticketpreis (Florian,
+                  15.10.2026).
+                */}
+                <details className="text-xs text-leise">
+                  <summary className="cursor-pointer">Textbaustein LED-Fassade</summary>
+                  <p className="mt-1 rounded border border-linie p-2 text-text">{LED_TEXT}</p>
+                </details>
+              </form>
+            </details>
+            </div>
+
+            <iframe
+              key={`${stand}-${abdruck}`}
+              src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}&p=${abdruck}`}
+              title={`Angebot ${angebot.nummer}`}
+              className="h-[85vh] w-full rounded-md border border-linie bg-white"
+            />
+          </div>
         </div>
       )}
 
@@ -1233,6 +1250,21 @@ function AngebotKarte({
       )}
     </div>
   );
+}
+
+/**
+ * Eine kurze Zahl ueber den Stand der Positionen.
+ *
+ * Sie haengt am Rahmen der Vorschau. Aendert jemand einen Preis, eine
+ * Menge oder einen Haken, ist die Zahl eine andere, der Rahmen wird neu
+ * geladen, und im Dokument daneben steht sofort die neue Fassung
+ * (Florian, 29.10.2026: "in dem angezeigten dokument soll sich das dann
+ * auch immer gleich aendern").
+ */
+function pruefsumme(text: string): number {
+  let wert = 0;
+  for (let i = 0; i < text.length; i++) wert = (wert * 31 + text.charCodeAt(i)) | 0;
+  return Math.abs(wert);
 }
 
 /**
