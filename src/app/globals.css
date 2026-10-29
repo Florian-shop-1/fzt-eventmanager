@@ -316,6 +316,37 @@ textarea:focus {
   }
 }
 
+/*
+  Tickets auf Papier.
+
+  Die Seiten stehen als Bilder auf der Seite, ein Bild je Ticket. Jedes
+  gehoert auf ein eigenes Blatt, randlos und in Originalgroesse: Auf dem
+  Ticket sitzt ein Strichcode, und ein verkleinerter Code wird am Einlass
+  nicht mehr gelesen.
+
+  Das Blattformat setzt die Komponente selbst, sie kennt die Masse des
+  Tickets (components/TicketSeiten.tsx).
+*/
+@media print {
+  .ticketblatt {
+    margin: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ticketblatt + .ticketblatt {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Ohne diese Zeile laesst der Browser die Bilder beim Drucken weg. */
+  .ticketseiten,
+  .ticketseiten * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 @page parkschild {
   size: A4 landscape;
   /*

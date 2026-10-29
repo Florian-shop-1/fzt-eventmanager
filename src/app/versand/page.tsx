@@ -734,7 +734,7 @@ function Karte({
             <li className="flex flex-wrap items-center gap-3">
               <Schrittzahl n={2} gut />
               <a
-                href={`/versand/tickets?nur=${encodeURIComponent(sendung.bestellnummer)}`}
+                href={`/versand/ticketdruck?nur=${encodeURIComponent(sendung.bestellnummer)}&sofort=1`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 font-medium text-gold-dunkel hover:bg-gold hover:text-white"
@@ -1332,10 +1332,19 @@ function Druckwahl({
         >
           Gutscheine ({mitGutschein})
         </Link>
-        {/* Die Tickets kommen als fertiges PDF aus FloTix (eine Seite je Ticket, ohne Preis) und gehen auf das Ticketpapier. */}
+        {/*
+          Die Tickets kommen als fertiges PDF aus FloTix (eine Seite je Ticket, ohne Preis)
+          und gehen auf das Ticketpapier. Der Weg fuehrt ueber eine eigene Druckseite statt
+          direkt auf die Datei: Nur dann oeffnet der Browser sein Druckfenster mit Drucker,
+          Format und Anzahl, so wie beim Anschreiben (Florian, 29.10.2026).
+        */}
         {mitTickets > 0 && (
           <a
-            href={nur ? `/versand/tickets?nur=${encodeURIComponent(nur)}` : "/versand/tickets"}
+            href={
+              nur
+                ? `/versand/ticketdruck?nur=${encodeURIComponent(nur)}&sofort=1`
+                : "/versand/ticketdruck?sofort=1"
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-md border border-linie bg-flaeche px-3 py-2 text-sm font-medium"
