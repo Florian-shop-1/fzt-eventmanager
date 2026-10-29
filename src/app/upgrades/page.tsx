@@ -19,6 +19,7 @@ import { gastGesetzt } from "@/app/gaesteliste/aktionen";
 import { AbendAuswahl } from "@/components/AbendAuswahl";
 import { AbgesagtHinweis } from "@/components/AbgesagtHinweis";
 import { DruckKnopf } from "@/components/DruckKnopf";
+import { ScannerKlappe } from "@/components/ScannerKlappe";
 import { Druckkopf } from "@/components/Druckkopf";
 import { datumLang, datumMitWochentag } from "@/lib/zeit";
 import { UpgradeTafel, type TafelGruppe, type TafelSitz } from "@/components/UpgradeTafel";
@@ -252,6 +253,17 @@ export default async function UpgradeSeite({
           )}
         </div>
       </header>
+
+      {/*
+        Scannen und umsetzen gehoeren zusammen.
+
+        "vielleicht macht es mehr sinn im eventmanager den scanner direkt
+        bei upgrades zu platzieren.. dass sie nicht zwischen zwei
+        fenstern hin und her hüpfen?" (Florian, 29.10.2026). Wer am
+        Einlass einen Gast scannt, der nach vorn soll, hat den Plan dann
+        gleich darunter. Die Kamera startet erst beim Aufklappen.
+      */}
+      <ScannerKlappe />
 
       {testModus && (
         <div
