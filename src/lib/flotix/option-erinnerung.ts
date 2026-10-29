@@ -21,7 +21,7 @@ import { optionen } from "./option";
 
 const APP = process.env.EVENTMANAGER_URL ?? "https://eventmanager.florianzimmertheater.de";
 
-function empfaenger(): string[] {
+export function empfaenger(): string[] {
   return (process.env.ANGEBOT_MELDEN_AN ?? "kevin.steele@florianzimmer.com,info@florianzimmer.com")
     .split(",")
     .map((a) => a.trim())

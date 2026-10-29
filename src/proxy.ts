@@ -75,6 +75,8 @@ const OHNE_ANMELDUNG = [
   "/api/flotix/meldung",
   // FloTix fragt beim Scannen, ob eine Bestellung nach vorn gesetzt werden soll; die Route prueft selbst den Schluessel.
   "/api/flotix/upgrade",
+  // FloTix meldet, dass Plaetze einer Firmenanfrage von Hand freigegeben wurden; die Route prueft selbst den Schluessel.
+  "/api/flotix/option-frei",
   // Eine freigegebene Einzelmail aus einem Hauspostfach, prueft selbst
   // ihren Schluessel. Siehe app/api/mail/senden.
   "/api/mail/senden",
