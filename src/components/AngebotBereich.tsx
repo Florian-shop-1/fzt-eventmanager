@@ -196,36 +196,45 @@ export function AngebotBereich({
     direkt darunter sichtbar auftauchen. man checkt ja gar nicht sonst,
     ob es geklappt hat" (Florian, 28.10.2026).
 
-    Die Liste steht ueber dem Baukasten, und wer unten auf den Knopf
-    drueckt, sieht sie nicht. Deshalb springt die Seite danach selbst
-    zum neuen Angebot und hebt es kurz hervor. Erkannt wird es daran,
-    dass ein Angebot mehr da ist als vorher: Die Serveraktion liefert
-    die Kennung nicht zurueck, der Stapel kommt frisch vom Server.
+    Erster Versuch war ein Sprung nach oben zur Liste. Der ging ins
+    Leere: Gesprungen wurde, sobald die Kennung da war, und das war
+    haeufig, bevor die neue Karte ueberhaupt im Baum stand. Ein zweiter
+    Versuch war nicht vorgesehen, der Sprung galt als erledigt. Wer
+    unten am Knopf stand, sah also weiterhin nichts (Florian,
+    29.10.2026: "das geht noch nicht").
+
+    Jetzt wird nicht mehr gesprungen. Die frischen Angebote stehen
+    unter dem Knopf, also dort, wo geklickt wurde, und in der Liste
+    oben fehlen sie solange: Dasselbe Angebot zweimal auf einer Seite
+    verwirrt mehr, als es hilft. Mit "oben einsortieren" wandern sie an
+    ihren Platz, spaetestens beim naechsten Laden der Seite.
+
+    Es sind mehrere Kennungen, nicht eine: Aus einem Klick koennen drei
+    Angebote entstehen, und dann will man alle drei ansehen.
   */
-  const [frisch, setFrisch] = useState<string | null>(null);
-  const gesprungen = useRef<string | null>(null);
+  const [frisch, setFrisch] = useState<string[]>([]);
+  const frischRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!frisch || gesprungen.current === frisch) return;
-    gesprungen.current = frisch;
-    document
-      .getElementById(`angebot-${frisch}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    // Die Hervorhebung wieder abnehmen, sonst leuchtet sie fuer immer
-    // und sagt beim naechsten Blick nichts mehr.
-    const uhr = setTimeout(() => setFrisch(null), 6000);
-    return () => clearTimeout(uhr);
+    if (frisch.length === 0) return;
+    frischRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [frisch]);
+
+  // Frische Angebote stehen unten beim Knopf, nicht noch einmal oben.
+  const frischeAngebote = angebote.filter((a) => frisch.includes(a.id));
+  const restliche = angebote.filter((a) => !frisch.includes(a.id));
 
   return (
     <section className="rounded-lg border border-linie bg-flaeche p-5">
       <h2 className="mb-3 text-sm font-semibold">Angebote</h2>
 
-      {angebote.length === 0 ? (
+      {angebote.length === 0 && (
         <p className="mb-4 text-sm text-leise">Noch kein Angebot erstellt.</p>
-      ) : (
+      )}
+
+      {restliche.length > 0 && (
         <div className="mb-5 space-y-3">
-          {angebote.map((a) => (
+          {restliche.map((a) => (
             <AngebotKarte
               key={a.id}
               angebot={a}
@@ -233,7 +242,6 @@ export function AngebotBereich({
               appUrl={appUrl}
               kundeEmail={kundeEmail}
               ansprechpartner={ansprechpartner}
-              frisch={a.id === frisch}
             />
           ))}
         </div>
@@ -651,7 +659,7 @@ export function AngebotBereich({
                   fassungen,
                   arten,
                 );
-                setFrisch(ergebnis.ids[0] ?? null);
+                setFrisch(ergebnis.ids);
               });
             }}
             className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-dunkel disabled:opacity-50"
@@ -669,6 +677,41 @@ export function AngebotBereich({
             die {personen} Gäste in dieser Vorbelegung. Menüs, Empfang und Getränke rechnen auch
             beim Exklusivevent je Gast.
           </p>
+
+          {frisch.length > 0 && (
+            <div ref={frischRef} className="scroll-mt-4 space-y-3 border-t border-linie pt-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm font-medium" style={{ color: "var(--gut)" }}>
+                  {frischeAngebote.length > 1
+                    ? `${frischeAngebote.length} neue Angebote, bitte einmal durchsehen`
+                    : "Das neue Angebot, bitte einmal durchsehen"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFrisch([])}
+                  className="rounded-md border border-linie px-3 py-1 text-xs hover:border-gold hover:bg-gold-hell"
+                >
+                  oben einsortieren
+                </button>
+              </div>
+
+              {frischeAngebote.length === 0 ? (
+                <p className="text-sm text-leise">Angelegt. Das Angebot wird geladen.</p>
+              ) : (
+                frischeAngebote.map((a) => (
+                  <AngebotKarte
+                    key={a.id}
+                    angebot={a}
+                    vorgangId={vorgangId}
+                    appUrl={appUrl}
+                    kundeEmail={kundeEmail}
+                    ansprechpartner={ansprechpartner}
+                    frisch
+                  />
+                ))
+              )}
+            </div>
+          )}
         </div>
       </details>
     </section>
@@ -693,6 +736,22 @@ function AngebotKarte({
 }) {
   const [laeuft, starte] = useTransition();
   const [kopiert, setKopiert] = useState<"" | "link" | "mail">("");
+
+  /*
+    Das Angebot hier auf der Seite ansehen, ohne Tab zu wechseln.
+
+    "dass man nochmal drueber gucken kann vor dem versand an den kunden"
+    (Florian, 29.10.2026). Gezeigt wird das PDF ueber `?id=`, also der
+    Weg fuers Buero: Der zaehlt nicht als Oeffnung durch den Kunden. Der
+    Kundenlink wuerde das tun, und dann staende in der Oeffnungsliste
+    ein Besuch, den es nie gab.
+
+    `stand` steigt bei jedem Aufklappen und haengt am Rahmen. Wer eine
+    Position geaendert hat, sieht beim naechsten Aufklappen die neue
+    Fassung und nicht die, die der Browser noch im Zwischenspeicher hat.
+  */
+  const [vorschau, setVorschau] = useState(frisch);
+  const [stand, setStand] = useState(1);
 
   const link = `${appUrl}/ihr-angebot/${angebot.trackingToken}`;
   const summe = angebotssumme(angebot.positionen);
@@ -963,13 +1022,24 @@ function AngebotKarte({
         selbst ansehen ist die beste Kontrolle (Florian, 25.09.2026).
       */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (!vorschau) setStand((s) => s + 1);
+            setVorschau((v) => !v);
+          }}
+          className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+        >
+          {vorschau ? "Vorschau schließen" : "Angebot hier ansehen"}
+        </button>
+
         <a
           href={`/api/angebot/pdf?id=${angebot.id}`}
           target="_blank"
           rel="noreferrer"
           className="rounded-md border border-linie px-3 py-1.5 text-sm hover:bg-hintergrund"
         >
-          Angebot als PDF ansehen
+          in eigenem Tab öffnen
         </a>
 
         {/*
@@ -990,6 +1060,15 @@ function AngebotKarte({
           </button>
         </form>
       </div>
+
+      {vorschau && (
+        <iframe
+          key={stand}
+          src={`/api/angebot/pdf?id=${angebot.id}&stand=${stand}`}
+          title={`Angebot ${angebot.nummer}`}
+          className="mb-3 h-[70vh] w-full rounded-md border border-linie bg-white"
+        />
+      )}
 
       {/*
         Verschicken aus dem Programm heraus, ueber das Postfach
