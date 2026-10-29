@@ -12,6 +12,7 @@ import {
   terminSetzen,
   ausnahmeSetzen,
   gruppeEntfernen,
+  gruppeHinzufuegen,
   gruppePersonenSetzen,
   notizHinzufuegen,
   menueSetzen,
@@ -431,13 +432,56 @@ export default async function VorgangSeite({
             </div>
 
             {/*
-              Kein Feld mehr fuer eine weitere Gruppe.
+              Steht noch gar keine Zahl da, muss sie hier hineingehen.
 
-              "weitere Gruppe brauche wir nicht. es geht um ein angebot
-              immer fuer eine Firma" (Florian, 28.10.2026). Was schon
-              geteilt ist, bleibt stehen und laesst sich weiter aendern;
-              neu geteilt wird hier nichts mehr.
+              Hintergrund: Seit dem 28.10.2026 gibt es kein Feld mehr
+              fuer eine weitere Gruppe ("weitere Gruppe brauche wir
+              nicht. es geht um ein angebot immer fuer eine Firma").
+              Damit fiel aber auch der einzige Weg weg, ueberhaupt eine
+              anzulegen. Ein Vorgang aus der Anfragenliste bekommt
+              naemlich nur dann eine, wenn in der Anfrage eine klare
+              Zahl stand; bei "10 bis 20 Personen" bleibt er ohne.
+
+              Dann stand hier eine leere Karte, die Gaestezahl blieb
+              null, und das Angebot rechnete mit null Gaesten: Menue,
+              Empfang und die Loge als Wahlmoeglichkeit fielen weg, weil
+              sie an der Personenzahl haengen (Kevin, 29.10.2026).
+
+              Also genau ein Feld, und nur solange keine Gruppe da ist.
+              Geteilt wird weiterhin nichts.
             */}
+            {vorgang.gruppen.length === 0 && (
+              <>
+                <form
+                  action={gruppeHinzufuegen.bind(null, vorgang.id)}
+                  className="flex flex-wrap items-end gap-2"
+                >
+                  <input type="hidden" name="name" value={vorgang.kunde.name} />
+                  <label className="text-xs">
+                    <span className="mb-1 block text-leise">Wie viele Personen kommen?</span>
+                    <input
+                      type="number"
+                      name="personen"
+                      min={1}
+                      required
+                      placeholder="25"
+                      className="w-28 rounded-md border border-linie px-2 py-1.5 text-sm tabular-nums"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+                  >
+                    Übernehmen
+                  </button>
+                </form>
+                <p className="mt-2 text-xs" style={{ color: "var(--warnung)" }}>
+                  Solange hier nichts steht, rechnet das Angebot mit null Gästen. Menü, Empfang
+                  und die Loge als Wahlmöglichkeit fallen dann weg, weil sie an der Personenzahl
+                  hängen.
+                </p>
+              </>
+            )}
           </Karte>
 
           <AngebotBereich
