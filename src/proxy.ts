@@ -73,6 +73,8 @@ const OHNE_ANMELDUNG = [
     nichts ab, sie wirft nur den Zwischenspeicher weg.
   */
   "/api/flotix/meldung",
+  // FloTix fragt beim Scannen, ob eine Bestellung nach vorn gesetzt werden soll; die Route prueft selbst den Schluessel.
+  "/api/flotix/upgrade",
   // Eine freigegebene Einzelmail aus einem Hauspostfach, prueft selbst
   // ihren Schluessel. Siehe app/api/mail/senden.
   "/api/mail/senden",

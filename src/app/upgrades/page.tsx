@@ -27,6 +27,7 @@ import { shopGruppenDesAbends } from "@/lib/shop/rohdaten";
 import { ditixSitzgruppen } from "@/lib/db/ditix-sitzgruppen";
 import { umsetzungenDerVorstellung } from "@/lib/db/upgradeumsetzung";
 import { eingecheckteSitze } from "@/lib/db/sitzeinchecken";
+import { flotixEingelassen, sitzSchluessel } from "@/lib/flotix/tuer";
 
 export const metadata = { title: "Upgrades | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -153,6 +154,17 @@ export default async function UpgradeSeite({
   const buchungen = new Map([...ausDitix, ...ausFlotix]);
 
   const rat = plan ? empfehlung(plan, buchungen) : null;
+
+  /*
+    Der Scan am Einlass zaehlt als Bestaetigung (Florian, 29.10.2026): Wer gescannt wurde, ist drin und bekommt sein X, ohne dass es
+    jemand antippt. Zusammen mit dem, was von Hand durch-x-t wurde.
+  */
+  if (plan && vorstellung && flotixQuelle()) {
+    const gescannt = await flotixEingelassen(vorstellung.ditixEventId).catch(() => new Set<string>());
+    for (const s of plan.sitze) {
+      if (gescannt.has(sitzSchluessel({ sektor: s.sektor, reihe: s.reihe, name: s.name })) && !eingecheckt.includes(s.id)) eingecheckt.push(s.id);
+    }
+  }
 
   /*
     Wie gross kann eine Gruppe an diesem Abend ueberhaupt sein?

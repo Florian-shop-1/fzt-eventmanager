@@ -206,6 +206,25 @@ export async function flotixSitzgruppen(vorstellungId: string): Promise<Map<stri
   return karte;
 }
 
+/**
+ * Welche Plaetze sind am Einlass schon gescannt? (Florian, 29.10.2026)
+ *
+ * Der Scan am iPad gilt als Bestaetigung, dass der Gast drin ist. Auf der Seite "Upgrades" erscheint dann das X, ohne dass
+ * jemand es von Hand setzen muss. Gemeint ist der Platz, den das Ticket nennt.
+ */
+export async function flotixEingelassen(vorstellungId: string): Promise<Set<string>> {
+  const gescannt = new Set<string>();
+  if (!/^[0-9a-f-]{36}$/i.test(vorstellungId)) return gescannt;
+
+  const d = await holen(`sitzgruppen&vorstellung=${vorstellungId}`);
+  const liste = Array.isArray(d.plaetze) ? (d.plaetze as Array<Record<string, unknown>>) : [];
+  for (const p of liste) {
+    if (p.drin !== true) continue;
+    gescannt.add(sitzSchluessel({ sektor: String(p.sektor ?? ""), reihe: String(p.reihe ?? ""), name: String(p.platz ?? "") }));
+  }
+  return gescannt;
+}
+
 async function holen(aktion: string): Promise<Record<string, unknown>> {
   const schluessel = (process.env.FLOTIX_KEY ?? "").trim();
   if (!schluessel) throw new Error("FLOTIX_KEY fehlt. Ohne Schlüssel antwortet FloTix nicht.");
