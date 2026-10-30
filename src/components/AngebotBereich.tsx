@@ -16,7 +16,7 @@ import {
   angeboteErzeugen,
   angebotLoeschen,
   angebotVersendet,
-  positionOptional,
+  positionZustand,
   positionPreisSetzen,
   positionRabattSetzen,
   positionEntfernen,
@@ -1865,45 +1865,51 @@ function AngebotKarte({
                           )}
                         </td>
                         {/*
-                          Der Schalter je Zeile. Optional heisst: steht im
-                          Angebot mit Preis in Klammern und zaehlt nicht zur
-                          Summe (Florian, 14.10.2026).
+                          Ein Schalter fuer die ganze Frage.
 
-                          Frueher stand hier ein grauer Link "optional", der
-                          beim Druecken auf "zur Pflicht" umsprang. Man sah
-                          also nicht den Zustand, sondern das Gegenteil, und
-                          im Kleingedruckten ganz rechts hat ihn niemand
-                          gefunden (Florian, 30.10.2026). Jetzt stehen beide
-                          Zustaende nebeneinander, der geltende ist
-                          hervorgehoben, genau wie im Baukasten.
+                          "jetzt sind die golden seat fest drin. man kann
+                          nicht optional/fest/gar nicht klicken" (Kevin
+                          ueber Florian, 30.10.2026).
+
+                          Hier standen zwei Schalter fuer drei Dinge, und
+                          sie zeigten bei einer Wahlmoeglichkeit auch noch
+                          das Falsche: Die Golden Seats standen beim Kunden
+                          in Klammern, in der Liste leuchtete trotzdem
+                          "fest drin". Daneben lag "entfernen" als grauer
+                          Link, also der dritte Zustand an einer vierten
+                          Stelle.
+
+                          Jetzt sind es drei Knoepfe, der geltende ist
+                          hervorgehoben. "fest drin" macht aus einer
+                          Wahlmoeglichkeit eine echte Position, die zur
+                          Summe zaehlt.
                         */}
                         <td className="py-1 pl-2 text-right">
                           <span className="inline-flex gap-1">
                             {([
-                              [false, "fest drin", "Zählt zur Summe des Angebots."],
-                              [true, "optional", "Steht beim Kunden in Klammern und zählt nicht zur Summe."],
-                            ] as const).map(([an, text, titel]) => (
-                              <form key={text} action={positionOptional.bind(null, p.id, vorgangId, an)}>
-                                <button
-                                  type="submit"
-                                  title={titel}
-                                  className="whitespace-nowrap rounded-md border px-2 py-0.5 text-xs"
-                                  style={
-                                    Boolean(p.optional) === an
-                                      ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
-                                      : { borderColor: "var(--linie)", color: "var(--text-leise)" }
-                                  }
-                                >
-                                  {text}
-                                </button>
-                              </form>
-                            ))}
+                              ["weg", "gar nicht", "Kommt im Angebot nicht vor. Über das Regal darunter jederzeit wieder dazu."],
+                              ["wahl", "optional", "Steht beim Kunden in Klammern und zählt nicht zur Summe."],
+                              ["fest", "fest drin", "Zählt zur Summe des Angebots."],
+                            ] as const).map(([wert, text, titel]) => {
+                              const gilt = p.optional || p.istAlternativeZu ? "wahl" : "fest";
+                              return (
+                                <form key={wert} action={positionZustand.bind(null, p.id, vorgangId, wert)}>
+                                  <button
+                                    type="submit"
+                                    title={titel}
+                                    className="whitespace-nowrap rounded-md border px-2 py-0.5 text-xs"
+                                    style={
+                                      gilt === wert
+                                        ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
+                                        : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+                                    }
+                                  >
+                                    {text}
+                                  </button>
+                                </form>
+                              );
+                            })}
                           </span>
-                          <form action={positionEntfernen.bind(null, p.id, vorgangId)}>
-                            <button type="submit" className="whitespace-nowrap underline text-leise">
-                              entfernen
-                            </button>
-                          </form>
                         </td>
                       </tr>
                     ))}
@@ -2636,12 +2642,33 @@ function Kategorienwahl({
               Getraenken und den Highlights gab es ihn schon, bei den
               Tickets fehlte er.
             */}
-            {(mengen[t.nummer] ?? 0) > 0 && (
-              <DrinSchalter
-                optional={istOptional(t.nummer)}
-                setzen={(an) => setzeOptional(t.nummer, an)}
-              />
-            )}
+            {/*
+              Auch hier drei Wege statt zwei (Kevin über Florian,
+              30.10.2026). "gar nicht" setzt die Stückzahl auf null,
+              denn eine Kategorie ohne Karten steht im Angebot nicht
+              drin. Zurück auf optional oder fest nimmt die Teilnehmer
+              als Stückzahl, das ist der Normalfall.
+            */}
+            <DreiWeg
+              wert={
+                (mengen[t.nummer] ?? 0) === 0
+                  ? "weg"
+                  : istOptional(t.nummer)
+                    ? "wahl"
+                    : "fest"
+              }
+              setzen={(w) => {
+                if (w === "weg") {
+                  setzen({ ...mengen, [t.nummer]: 0 });
+                  return;
+                }
+                if ((mengen[t.nummer] ?? 0) === 0) {
+                  setzen({ ...mengen, [t.nummer]: personen });
+                }
+                setzeOptional(t.nummer, w === "wahl");
+              }}
+              weg="gar nicht"
+            />
           </div>
         );
       })}

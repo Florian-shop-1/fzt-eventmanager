@@ -490,7 +490,57 @@ export async function positionText(
 /** Eine Position wieder entfernen. */
 export async function positionEntfernen(positionId: string, vorgangId: string): Promise<void> {
   await verlangeTeam();
-  await db()`delete from position where id = ${positionId}`;
+  /*
+    Haengen Wahlmoeglichkeiten an dieser Zeile, gehen sie mit.
+
+    Eine Wahlmoeglichkeit ist der Satz "oder stattdessen das hier". Ist
+    das Hier weg, steht sie ohne Bezug da und waere im Angebot eine
+    Zeile ohne Sinn.
+  */
+  await db()`delete from position where id = ${positionId} or ist_alternative_zu = ${positionId}`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/**
+ * Eine Position auf gar nicht, zur Wahl oder fest stellen.
+ *
+ * "jetzt sind die golden seat fest drin. man kann nicht
+ * optional/fest/gar nicht klicken" (Kevin über Florian, 30.10.2026).
+ *
+ * Bis hierher gab es zwei Schalter fuer drei Dinge. Die Golden Seats
+ * standen als Wahlmoeglichkeit im Angebot, in der Liste leuchtete aber
+ * "fest drin", weil in der Spalte nur der Optional-Haken stand und der
+ * bei einer Wahlmoeglichkeit auf falsch steht. Gedrueckt hat der
+ * Schalter dann auch nichts Sinnvolles: Eine Wahlmoeglichkeit zaehlt
+ * nie zur Summe, egal was dort steht.
+ *
+ * Jetzt beantwortet ein Schalter die ganze Frage:
+ *
+ *   fest   Die Zeile zaehlt zur Summe. Aus einer Wahlmoeglichkeit wird
+ *          damit eine echte Position, sie haengt an nichts mehr.
+ *   wahl   Sie steht beim Kunden in Klammern und zaehlt nicht mit.
+ *   weg    Sie kommt im Angebot nicht vor.
+ */
+export async function positionZustand(
+  positionId: string,
+  vorgangId: string,
+  zustand: "weg" | "wahl" | "fest",
+): Promise<void> {
+  await verlangeTeam();
+
+  if (zustand === "weg") {
+    await positionEntfernen(positionId, vorgangId);
+    return;
+  }
+
+  if (zustand === "fest") {
+    await db()`
+      update position set optional = false, ist_alternative_zu = null where id = ${positionId}
+    `;
+  } else {
+    await db()`update position set optional = true where id = ${positionId}`;
+  }
+
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
