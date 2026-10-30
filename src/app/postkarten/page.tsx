@@ -5,6 +5,7 @@ import { karten, stand, type Postkarte } from "@/lib/postkarte/db";
 import { lesenEingerichtet } from "@/lib/postkarte/lesen";
 import { PostkartenScanner } from "@/components/PostkartenScanner";
 import { PostkarteSchwaerzen } from "@/components/PostkarteSchwaerzen";
+import { PostkartenSwipe, SCHWELLE } from "@/components/PostkartenSwipe";
 import { kartenHighlight, kartenSperren, kartenStand } from "./aktionen";
 import { zeitpunkt } from "@/lib/zeit";
 
@@ -49,10 +50,15 @@ export default async function PostkartenSeite({
   const z = await stand();
 
   /*
-    Was die Liste zeigt. Vorgeschlagen wird, was die KI mit 9 oder
-    besser bewertet hat: "Standardmässig nur Karten mit einer
-    KI-Bewertung von mindestens 9/10 zur Veroeffentlichung
-    vorschlagen" (Florian, 27.10.2026).
+    Was die Liste zeigt.
+
+    Vorgeschlagen wird, was die KI mit 8 oder besser bewertet hat.
+    Angefangen hatte es bei 9 (Florian, 27.10.2026), seit dem
+    30.10.2026 reicht eine Acht: "denke eine 8 reicht auch. leg sie mir
+    aber einfach vor wenn sie unter 8 ist."
+
+    Was darunter liegt, verschwindet deshalb nicht mehr, es kommt nur
+    hinter den Empfehlungen. Entschieden wird ohnehin von Hand.
   */
   const sicht = zeigen ?? "vorschlag";
   const liste =
@@ -62,7 +68,9 @@ export default async function PostkartenSeite({
         ? await karten({ status: "freigegeben", anzahl: 120 })
         : sicht === "zurueck"
           ? await karten({ status: "zurueck", anzahl: 120 })
-          : (await karten({ status: "gelesen", anzahl: 200 })).filter((k) => k.bewertung >= 9);
+          : (await karten({ status: "gelesen", anzahl: 200 })).sort(
+              (a, b) => b.bewertung - a.bewertung,
+            );
 
   /*
     Was die Schwelle verschluckt.
@@ -75,10 +83,7 @@ export default async function PostkartenSeite({
     Schwelle bleibt, sie soll die Arbeit sortieren und nichts
     verschwinden lassen.
   */
-  const knappDarunter =
-    sicht === "vorschlag"
-      ? (await karten({ status: "gelesen", anzahl: 200 })).filter((k) => k.bewertung < 9).length
-      : 0;
+  const knappDarunter = sicht === "vorschlag" ? liste.filter((k) => k.bewertung < SCHWELLE).length : 0;
 
   return (
     <div className="space-y-5">
@@ -104,7 +109,7 @@ export default async function PostkartenSeite({
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Zahl wert={z.gesamt} text="Karten gescannt" />
-        <Zahl wert={z.geeignet} text="mit 9 oder 10 bewertet" />
+        <Zahl wert={z.geeignet} text="von der KI empfohlen" />
         <Zahl wert={z.veroeffentlicht} text="auf der Wand" />
         <Zahl wert={z.gelesen} text="warten auf Entscheidung" />
         <Zahl wert={z.gesperrt} text="wegen Persönlichem gesperrt" />
@@ -133,19 +138,29 @@ export default async function PostkartenSeite({
         ))}
       </nav>
 
-      {knappDarunter > 0 && (
-        <p
-          className="rounded-md border px-4 py-3 text-sm"
-          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
-        >
-          {knappDarunter === 1
-            ? "Eine weitere Karte wartet auf eine Entscheidung, die KI hat ihr aber weniger als 9 gegeben."
-            : `${knappDarunter} weitere Karten warten auf eine Entscheidung, die KI hat ihnen aber weniger als 9 gegeben.`}{" "}
-          Die Bewertung ist nur ein Vorschlag, entscheiden darfst du anders.{" "}
-          <Link href="/postkarten?zeigen=alle" className="underline">
-            alle Karten ansehen
-          </Link>
-        </p>
+      {sicht === "vorschlag" && liste.length > 0 && (
+        <section className="space-y-2 rounded-lg border border-linie bg-flaeche p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
+            Durchsehen
+          </h2>
+          <p className="text-xs text-leise">
+            Nach rechts wischen heißt auf die Wand, nach links zurückhalten. Am Rechner gehen auch
+            die Pfeiltasten oder die Knöpfe darunter.
+            {knappDarunter > 0 &&
+              ` ${knappDarunter === 1 ? "Eine Karte liegt" : `${knappDarunter} Karten liegen`} unter ${SCHWELLE} von 10, ${knappDarunter === 1 ? "sie kommt" : "sie kommen"} zuletzt.`}
+          </p>
+          <PostkartenSwipe
+            karten={liste.map((k) => ({
+              id: k.id,
+              zitat: k.zitat,
+              zusammenfassung: k.zusammenfassung,
+              bewertung: k.bewertung,
+              einwilligung: k.einwilligung,
+              fundstellen: k.personenbezug,
+              hatBild: k.hatBild,
+            }))}
+          />
+        </section>
       )}
 
       {liste.length === 0 ? (

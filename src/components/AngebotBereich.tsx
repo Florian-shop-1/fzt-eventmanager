@@ -1180,23 +1180,35 @@ function AngebotKarte({
                             />
                           </form>
                         </td>
-                        <td className="py-1 text-right tabular-nums">{p.menge}x</td>
+                        <td className="w-14 py-1 text-right tabular-nums">{p.menge}x</td>
                         {/*
                           Der Einzelpreis zum Ueberschreiben. Enter genuegt,
                           der Knopf daneben ist fuer die Maus
                           (Florian, 15.10.2026).
                         */}
-                        <td className="py-1 pl-2 text-right">
+                        <td className="w-32 py-1 pl-2 text-right">
                           <form
                             action={positionPreisSetzen.bind(null, p.id, vorgangId)}
                             className="flex items-center justify-end gap-1"
                           >
+                            {/*
+                              Die Breite steht hier und nicht als Klasse.
+
+                              In globals.css bekommt jedes Textfeld
+                              width:100%, und das gewinnt gegen w-20.
+                              Seit die Tabelle ueber die ganze Breite
+                              geht, war das Preisfeld deshalb riesig:
+                              "beim angebot das feld für die preise nicht
+                              ganz so groß, nur so wie man es braucht"
+                              (Florian, 30.10.2026).
+                            */}
                             <input
                               type="text"
                               name="preis"
                               inputMode="decimal"
                               defaultValue={(p.einzelBruttoCent / 100).toFixed(2).replace(".", ",")}
-                              className="w-20 rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
+                              style={{ width: "5.5rem" }}
+                              className="rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
                             />
                             <button type="submit" className="underline text-leise">
                               €
