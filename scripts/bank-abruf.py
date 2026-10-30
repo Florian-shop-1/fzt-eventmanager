@@ -267,12 +267,14 @@ def main():
     # gelesen und nichts ausgeloest.
     try:
         verfahren = klient.get_tan_mechanisms()
-        if not verfahren:
+        # Diese Zeile steht immer da: Sie zeigt, ob ein gemerkter Zustand geladen wurde und welche Verfahren bekannt sind.
+        print(f"Gemerkter Zustand: {'ja' if zustand else 'nein'}. Bekannte TAN-Verfahren: {len(verfahren)}.", flush=True)
+        if zustand is None or not verfahren:
             # Ohne gemerkten Zustand (neue Datei, oder die alte lag beiseite) kennt die Bibliothek die Bankparameter noch
             # nicht, die Liste ist leer, und es wird kein Verfahren gewaehlt. Dann verlangt die Bank "9075 Starke
             # Kundenauthentifizierung notwendig", ohne dass das Programm eine Freigabe anfordert (30.10.2026). Dieser Aufruf
             # holt die Bankparameter ueber einen anonymen Dialog, es wird nichts gelesen und nichts ausgeloest.
-            print("Die Bankparameter werden geholt ...")
+            print("Die Bankparameter werden geholt ...", flush=True)
             klient.fetch_tan_mechanisms()
             verfahren = klient.get_tan_mechanisms()
         if verfahren:
