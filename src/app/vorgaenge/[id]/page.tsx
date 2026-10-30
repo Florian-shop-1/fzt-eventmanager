@@ -89,6 +89,22 @@ export default async function VorgangSeite({
   const appUrl = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
   const personen = vorgang.gruppen.reduce((s, g) => s + g.personen, 0);
+
+  /*
+    Die Uhrzeit der gewaehlten Vorstellung.
+
+    "wenn man eine mittagsshow auswählt, ist der ablaufplan trotzdem für
+    die abendveranstaltung. dabei ist ja das essen nach der show"
+    (Florian, 30.10.2026).
+
+    Der Ablauf richtet sich nach der Tageszeit, und die stand im
+    Baukasten immer auf Abend: Der Vorgang kennt Datum und Show, aber
+    keine Uhrzeit, und so wurde nie eine uebergeben. Jetzt wird sie aus
+    dem Spielplan geholt.
+  */
+  const terminZeit = vorgang.vorstellung?.ditixEventId
+    ? (await findeTermin(vorgang.vorstellung.ditixEventId).catch(() => null))?.uhrzeit ?? null
+    : null;
   // Die Kennung des Abends in FloTix, dort haengen die Plaetze.
   const vorgangFlotixId = vorgang.vorstellung?.ditixEventId ?? "";
   const ich = await angemeldeterBenutzer();
@@ -511,6 +527,7 @@ export default async function VorgangSeite({
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
             terminDatum={vorgang.vorstellung?.datum ?? null}
+            terminZeit={terminZeit}
             terminEventId={vorgang.vorstellung?.ditixEventId ?? null}
             /*
               Beides zusammen: Der Wochentag steht in einem eigenen Feld,
