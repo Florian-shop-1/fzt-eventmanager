@@ -36,21 +36,40 @@ const GETRAENKE = artikelDerGruppe("getraenke");
 const EXKLUSIV = artikelDerGruppe("exklusiv");
 const WOCHENTAGE = [0, 1, 2, 3, 4, 5, 6].map(wochentagName);
 
-/*
-  Was zusaetzlich in ein Angebot kann: Technik, Effekte, Foyer,
-  Highlights. Menues und Tickets stehen nicht dabei, die kommen aus der
-  Fassung.
-*/
 /** Face to Face, Aftershow, DJ: im Baukasten zum Anhaken. */
 const HIGHLIGHTS = artikelDerGruppe("highlight");
 
-const ZUSATZARTIKEL = [
-  ...artikelDerGruppe("highlight"),
-  ...artikelDerGruppe("technik"),
-  ...artikelDerGruppe("foyer"),
-  ...artikelDerGruppe("loge"),
-  ...artikelDerGruppe("sonstiges"),
-];
+/*
+  Alles, was es im Haus gibt, zum Nachtragen an einem Angebot.
+
+  "beim angebot (vorschau angebot) drunter soll man bitte auch alle
+  dinge die es gibt klicken können. d.h. du musst auch alle anderen
+  kategorien listen ... mach einfach alles rein was wir haben bis hin
+  zum sovenier glas und bundle" (Florian, 30.10.2026).
+
+  Vorher standen hier nur Highlights, Technik, Foyer, Loge und
+  Sonstiges. Menues und Tickets fehlten, weil sie aus der Fassung
+  kommen; wer aber nachtraeglich zwei Menues dazunehmen oder eine
+  Kategorie als Wahlmoeglichkeit zeigen will, braucht sie genau hier.
+  Nach Gruppen sortiert bleibt die Liste trotzdem uebersichtlich.
+*/
+const ARTIKELGRUPPEN = [
+  ["Menüs", "menue"],
+  ["Tickets", "ticket"],
+  ["Getränke", "getraenke"],
+  ["Empfang", "empfang"],
+  ["Loge", "loge"],
+  ["Foyer und Souvenirs", "foyer"],
+  ["Highlights", "highlight"],
+  ["Technik", "technik"],
+  ["Exklusivbuchung", "exklusiv"],
+  ["Sonstiges", "sonstiges"],
+] as const;
+
+const ZUSATZARTIKEL = ARTIKELGRUPPEN.map(([titel, gruppe]) => ({
+  titel,
+  artikel: artikelDerGruppe(gruppe),
+})).filter((g) => g.artikel.length > 0);
 
 /**
  * Der Satz, der die LED-Fassade sauber vom Ticketpreis trennt.
@@ -1238,10 +1257,14 @@ function AngebotKarte({
                     <span className="mb-1 block text-xs text-leise">Position</span>
                     <select name="artikel" defaultValue="" className="text-sm">
                       <option value="">frei eintippen</option>
-                      {ZUSATZARTIKEL.map((x) => (
-                        <option key={x.nummer} value={x.nummer}>
-                          {x.bezeichnung} ({eur(x.bruttoCent)})
-                        </option>
+                      {ZUSATZARTIKEL.map((g) => (
+                        <optgroup key={g.titel} label={g.titel}>
+                          {g.artikel.map((x) => (
+                            <option key={x.nummer} value={x.nummer}>
+                              {x.bezeichnung} ({eur(x.bruttoCent)})
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </label>

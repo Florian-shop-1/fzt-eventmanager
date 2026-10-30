@@ -220,6 +220,46 @@ export const ARTIKEL: Artikel[] = [
     ust: 0.19,
     gruppe: "foyer",
   },
+  /*
+    Was es im Shop zu kaufen gibt und was auch in ein Angebot kann.
+
+    "mach einfach alles rein was wir haben bis hin zum sovenier glas und
+    bundle" (Florian, 30.10.2026). Die Preise stehen so im Shop, geprüft
+    an den Bestellungen in FloTix am 30.10.2026.
+  */
+  {
+    nummer: "SOUVENIRGLAS",
+    bezeichnung: "Souvenir Glas",
+    beschreibung: "Das Glas zum Mitnehmen, als Andenken an den Abend",
+    einheit: "Stück",
+    bruttoCent: 1490,
+    ust: 0.19,
+    gruppe: "foyer",
+  },
+  {
+    nummer: "VIPARMBAND",
+    bezeichnung: "VIP-Armband",
+    beschreibung: "Bevorzugter Einlass und ein Getränk an der Magic-Bar",
+    einheit: "Stück",
+    bruttoCent: 1900,
+    ust: 0.19,
+    gruppe: "foyer",
+  },
+  {
+    /*
+      Achtung Steuersatz: Im Bundle steckt ein Ticketanteil, der mit
+      sieben Prozent zu versteuern waere. Hier stehen neunzehn, wie bei
+      den uebrigen Waren. Vor dem ersten Angebot damit bitte mit dem
+      Steuerbuero klaeren (offen am 30.10.2026).
+    */
+    nummer: "KIDSBUNDLE",
+    bezeichnung: "Kids-Magic-Bundle",
+    beschreibung: "Das Paket für Kinder: Zauberstab, Popcorn und eine Überraschung",
+    einheit: "Stück",
+    bruttoCent: 4900,
+    ust: 0.19,
+    gruppe: "foyer",
+  },
   {
     // Nicht mehr im Shop wählbar, steht aber noch in alten Bestellungen
     // und in der lexoffice-Artikelliste.
