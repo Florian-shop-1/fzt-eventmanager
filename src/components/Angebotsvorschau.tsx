@@ -31,6 +31,26 @@ export interface VorstellungsWahl {
   beschriftung: string;
 }
 
+/**
+ * Uhrzeit und Tageszeit aus der Beschriftung der Vorstellung.
+ *
+ * Diese Seite zeigte den Ablauf immer als Abend, auch wenn oben eine
+ * 15-Uhr-Show gewaehlt war. Dasselbe Versehen wie auf der Kundenseite
+ * (Florian, 30.10.2026: "Er bekommt den FALSCHEN Ablaufplan.").
+ *
+ * In der Beschriftung steht die Uhrzeit, etwa "Sa., 09.01.2027, 15:00
+ * Uhr". Steht dort keine, bleibt es beim Abend, so wie bisher.
+ */
+function ausDerVorstellung(beschriftung: string | undefined) {
+  const treffer = /(\d{1,2}):(\d{2})/.exec(beschriftung ?? "");
+  if (!treffer) return {};
+  const stunde = Number(treffer[1]);
+  return {
+    showzeit: `${treffer[1].padStart(2, "0")}:${treffer[2]}`,
+    tageszeit: (stunde < 16 ? "nachmittag" : "abend") as "nachmittag" | "abend",
+  };
+}
+
 export function Angebotsvorschau({
   vorstellungen = [],
   startPreise = {},
@@ -324,7 +344,10 @@ export function Angebotsvorschau({
         </h1>
 
         <pre className="mb-6 whitespace-pre-wrap font-sans text-xs leading-relaxed text-leise">
-          {einleitungstext(vorgang, { variante: verpflegung === "fingerfood" ? "fingerfood" : "menue" })}
+          {einleitungstext(vorgang, {
+            variante: verpflegung === "fingerfood" ? "fingerfood" : "menue",
+            ...ausDerVorstellung(gewaehlteShow?.beschriftung),
+          })}
         </pre>
 
         <table className="mb-4 w-full text-xs">

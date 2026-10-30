@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Cormorant_Garamond } from "next/font/google";
 import { holeAngebotFuerKunden } from "@/lib/angebot/lesen";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
-import { ABLAUF, einleitungOhneAblauf } from "@/lib/angebot/ablauf";
+import { ablaufAusEinleitung, einleitungOhneAblauf } from "@/lib/angebot/ablauf";
 import { eur } from "@/lib/domain/pricing";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Logo } from "@/components/Logo";
@@ -109,6 +109,19 @@ export default async function KundenAngebot({
     : "";
   const anrede = angebot.kunde.ansprechpartner || angebot.kunde.name;
   const gruss = einleitungOhneAblauf(angebot.einleitung);
+  /*
+    Der Ablauf dieses Angebots, genau der, der auch im PDF steht.
+    Findet sich in der Einleitung keiner, etwa bei sehr alten
+    Angeboten, greift die Vorlage aus ablauf.ts.
+  */
+  const stationen = ablaufAusEinleitung(angebot.einleitung);
+  /* Beginnt der Tag vor 16 Uhr, ist es keine Abendveranstaltung. */
+  const nachmittags = (() => {
+    const erste = stationen[0]?.zeit;
+    if (!erste) return false;
+    const [h] = erste.split(":").map(Number);
+    return Number.isFinite(h) && h < 16;
+  })();
 
   // Wie viele Gaeste? Steht in der Menge der Menue- oder Ticketposition.
   // Danach richtet sich, ob wir eine Loge versprechen duerfen: unter zehn
@@ -203,12 +216,24 @@ export default async function KundenAngebot({
           )}
         </section>
 
-        {/* Der Abend, Station für Station */}
+        {/*
+          Der Ablauf dieses Angebots, Station für Station.
+
+          Hier stand bis zum 30.10.2026 eine feste Liste: immer 17:20
+          Empfang, 17:50 Menü, 20:00 Show, 22:30 Ausklang. Der echte
+          Ablauf aus dem Angebot wurde abgeschnitten und weggeworfen.
+          Bei einer Nachmittagsshow las der Kunde damit etwas anderes,
+          als im PDF stand (Florian: "Er bekommt den FALSCHEN
+          Ablaufplan.").
+        */}
         <section>
-          <Ueberschrift oben="Der Abend" unten="Wie er bei uns abläuft" />
+          <Ueberschrift
+            oben={nachmittags ? "Ihr Tag" : "Ihr Abend"}
+            unten="Wie er bei uns abläuft"
+          />
 
           <div className="mt-10 space-y-12">
-            {ABLAUF.map((s, i) => (
+            {stationen.map((s, i) => (
               <article
                 key={s.zeit}
                 className={`flex flex-col gap-6 sm:flex-row sm:items-center ${
