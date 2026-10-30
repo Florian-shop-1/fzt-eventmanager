@@ -470,8 +470,27 @@ export async function einteilen(f: FormData): Promise<void> {
   if (!p) zurueck(eventId, "Diese Person gibt es nicht.");
   await einsatzSetzen({ termin, position, benutzerId: p.id, suchtErsatz: false, grund: null, von: benutzer.name });
   const notiz = text(f, "notiz").slice(0, 300) || null;
-  if (p.id !== benutzer.id) await eingeteiltMail({ an: p, wer: benutzer.name, termin, position, notiz });
-  zurueck(eventId, `${p.name} ist eingeteilt und hat eine Mail bekommen.`);
+  /*
+    Ob die Mail wirklich rausging, gehoert in die Rueckmeldung.
+
+    "ich hab nicole eingeteilt gehabt über den eventmanager - die hatte
+    keine mail bekommen" (Florian, 30.10.2026). Bis dahin stand hier in
+    jedem Fall "hat eine Mail bekommen", auch wenn der Versand
+    fehlschlug: Der Fehler landete still im Protokoll des Servers, das
+    niemand liest. Wer einteilt, soll es sofort sehen und notfalls
+    durchrufen.
+  */
+  const fehler = p.id !== benutzer.id
+    ? await eingeteiltMail({ an: p, wer: benutzer.name, termin, position, notiz })
+    : [];
+  zurueck(
+    eventId,
+    p.id === benutzer.id
+      ? `${p.name} ist eingeteilt.`
+      : fehler.length === 0
+        ? `${p.name} ist eingeteilt und hat eine Mail an ${p.email} bekommen.`
+        : `${p.name} ist eingeteilt, aber die Mail an ${p.email} ging nicht raus. Bitte Bescheid sagen.`,
+  );
 }
 
 /**
@@ -873,16 +892,20 @@ export async function zusatzEinteilen(f: FormData): Promise<void> {
     von: benutzer.name,
     bezeichnung: bezeichnung || "Zusätzlich",
   });
-  if (p.id !== benutzer.id) {
-    await eingeteiltMail({
-      an: p,
-      wer: benutzer.name,
-      termin: schicht.termin,
-      position: frei,
-      notiz: bezeichnung || null,
-    }).catch(() => undefined);
-  }
-  zurueck(eventId, `${p.name} ist zusätzlich eingeteilt${bezeichnung ? ` (${bezeichnung})` : ""}.`);
+  const fehler = p.id !== benutzer.id
+    ? await eingeteiltMail({
+        an: p,
+        wer: benutzer.name,
+        termin: schicht.termin,
+        position: frei,
+        notiz: bezeichnung || null,
+      }).catch(() => [p.email])
+    : [];
+  zurueck(
+    eventId,
+    `${p.name} ist zusätzlich eingeteilt${bezeichnung ? ` (${bezeichnung})` : ""}.` +
+      (fehler.length > 0 ? ` Die Mail an ${p.email} ging nicht raus, bitte Bescheid sagen.` : ""),
+  );
 }
 
 /** Einen zusätzlichen Platz wieder herausnehmen. */
