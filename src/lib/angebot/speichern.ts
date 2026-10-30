@@ -407,6 +407,37 @@ export async function positionPreisSetzen(
 }
 
 /**
+ * Die Stückzahl einer Position ändern.
+ *
+ * "wichtiger ist, dass man die anzahl von dem was man einfügt auch
+ * immer verändern kann.. wenn ich jetzt sparkler hinzufüge, ist der
+ * auf 1x... aber es sind ja mehrere.. oder auch gläser. die sind für
+ * alle gäste" (Florian, 30.10.2026).
+ *
+ * Die Zahl stand bisher nur da. Ändern ging allein beim Bauen des
+ * Angebots, und wer eine Zeile nachträglich aus dem Regal dazunahm,
+ * bekam eine Einheit und kam davon nicht mehr weg.
+ *
+ * Halbe Stückzahlen sind erlaubt: Eine Flasche Wein für zwei steht im
+ * Haus auch mal als 0,5 je Gast. Null nicht, denn eine Zeile ohne
+ * Menge gehört entfernt und nicht auf null gesetzt.
+ */
+export async function positionMengeSetzen(
+  positionId: string,
+  vorgangId: string,
+  formData: FormData,
+): Promise<void> {
+  await verlangeTeam();
+
+  const roh = String(formData.get("menge") ?? "").trim().replace(",", ".");
+  const menge = Number(roh);
+  if (!roh || !Number.isFinite(menge) || menge <= 0 || menge > 100000) return;
+
+  await db()`update position set menge = ${menge} where id = ${positionId}`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/**
  * Den Rabatt einer einzelnen Position setzen oder aufheben.
  *
  * "es gibt keine möglichkeit mehr für discount. das soll möglich sein
@@ -586,6 +617,16 @@ export async function angebotLoeschen(angebotId: string, vorgangId: string): Pro
  */
 const JE_GAST = new Set(["menue", "ticket", "getraenke", "empfang"]);
 
+/**
+ * Einzelne Artikel, die trotz ihrer Gruppe je Gast zählen.
+ *
+ * "oder auch gläser. die sind für alle gäste" (Florian, 30.10.2026).
+ * Das Souvenirglas steht in der Gruppe Foyer, zusammen mit Stehtischen
+ * und Logen-Dekoration, und die zählen je Stück. Es selbst bekommt
+ * aber jeder Gast in die Hand.
+ */
+const JE_GAST_ARTIKEL = new Set(["SOUVENIRGLAS", "VIPARMBAND"]);
+
 export async function positionenErgaenzen(
   angebotId: string,
   vorgangId: string,
@@ -628,7 +669,8 @@ export async function positionenErgaenzen(
       continue;
     }
 
-    const menge = JE_GAST.has(stamm.gruppe) ? gaeste : 1;
+    const menge =
+      JE_GAST.has(stamm.gruppe) || JE_GAST_ARTIKEL.has(stamm.nummer) ? gaeste : 1;
     await db()`
       insert into position (angebot_id, artikel_nummer, bezeichnung, beschreibung, menge,
                             einheit, einzel_brutto_cent, ust, sortierung, optional)

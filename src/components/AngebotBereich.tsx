@@ -18,6 +18,7 @@ import {
   angebotVersendet,
   positionZustand,
   positionenNeuOrdnen,
+  positionMengeSetzen,
   reihenfolgeZuruecksetzen,
   positionPreisSetzen,
   positionRabattSetzen,
@@ -1763,6 +1764,7 @@ function AngebotKarte({
                           e.preventDefault();
                           setUeber(p.id);
                         }}
+                        onDragLeave={() => setUeber((u) => (u === p.id ? null : u))}
                         onDrop={(e) => {
                           e.preventDefault();
                           if (ziehtZeile && ziehtZeile !== p.id) {
@@ -1777,7 +1779,20 @@ function AngebotKarte({
                           setZiehtGriff(null);
                           setUeber(null);
                         }}
-                        className="border-b border-linie last:border-0"
+                        /*
+                          Die Zeile macht Platz, bevor etwas landet.
+
+                          "es könnte visuell etwas schöner sein noch,
+                          dass zb. bevor man es ablegt die beiden zeilen
+                          drüber und drunter platz machen" (Florian,
+                          30.10.2026). Die Zelle bekommt oben Luft, der
+                          goldene Strich zeigt die Stelle. Padding auf
+                          der Zeile selbst wirkt in einer Tabelle nicht,
+                          deshalb greift es auf die Zellen durch.
+                        */
+                        className={`border-b border-linie transition-[padding] duration-150 last:border-0 ${
+                          ueber === p.id ? "[&>td]:pt-7" : ""
+                        }`}
                         style={{
                           opacity: ziehtZeile === p.id ? 0.4 : 1,
                           borderTop:
@@ -1854,7 +1869,45 @@ function AngebotKarte({
                             />
                           </form>
                         </td>
-                        <td className="w-14 py-1 text-right tabular-nums">{p.menge}x</td>
+                        {/*
+                          Die Stueckzahl zum Ueberschreiben.
+
+                          "wichtiger ist, dass man die anzahl von dem was
+                          man einfügt auch immer verändern kann.. wenn
+                          ich jetzt sparkler hinzufüge, ist der auf 1x...
+                          aber es sind ja mehrere.. oder auch gläser. die
+                          sind für alle gäste" (Florian, 30.10.2026).
+
+                          Die Zahl stand hier nur da. Aendern ging allein
+                          beim Bauen des Angebots, und wer eine Zeile aus
+                          dem Regal dazunahm, kam von der einen Einheit
+                          nicht mehr weg.
+
+                          Gespeichert wird beim Verlassen des Feldes,
+                          genau wie beim Preis daneben.
+                        */}
+                        <td className="w-20 py-1 text-right">
+                          <form
+                            action={positionMengeSetzen.bind(null, p.id, vorgangId)}
+                            className="flex items-center justify-end gap-0.5"
+                          >
+                            <input
+                              type="text"
+                              name="menge"
+                              inputMode="decimal"
+                              defaultValue={String(p.menge).replace(".", ",")}
+                              onBlur={(e) => {
+                                if (e.currentTarget.value.trim() !== String(p.menge).replace(".", ",")) {
+                                  e.currentTarget.form?.requestSubmit();
+                                }
+                              }}
+                              title="Stückzahl ändern"
+                              style={{ width: "3.2rem" }}
+                              className="rounded border border-linie px-1 py-0.5 text-right text-xs tabular-nums"
+                            />
+                            <span className="text-xs text-leise">x</span>
+                          </form>
+                        </td>
                         {/*
                           Der Einzelpreis zum Ueberschreiben. Enter genuegt,
                           der Knopf daneben ist fuer die Maus
