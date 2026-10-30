@@ -83,10 +83,15 @@ export const ARTIKEL: Artikel[] = [
     Die sparsame Fassung: Umtrunk und Fingerfood statt Fine Dining.
 
     Auf der Firmenseite steht "schon ab 110 Euro pro Person, ohne Fine
-    Dining, aber inklusive Umtrunk und Fingerfood". Die Rechnung dahinter:
-    Ticket Kat. 3 (49) plus Fingerfood (49) plus Empfang (12) sind genau
-    110 Euro brutto. Wer mehr Budget hat, nimmt eine bessere Kategorie
-    oder gleich das Magic Menü (Florian, 25.09.2026).
+    Dining, aber inklusive Umtrunk und Fingerfood". Die Rechnung dahinter
+    war: Ticket Kat. 3 (49) plus Fingerfood (49) plus Empfang (12).
+
+    ACHTUNG, das stimmt seit dem 30.10.2026 nicht mehr: "kat 3 soll gar
+    nicht angeboten werden, nimm sie raus" (Florian). Die sparsame
+    Fassung rechnet jetzt mit Kat. 2, also 89 plus 49 plus 12 und damit
+    150 Euro. Entweder der Satz auf der Firmenseite wird angepasst, oder
+    Kat. 3 kommt fuer genau dieses Paket zurueck. Das ist Florians
+    Entscheidung, nicht die des Programms.
   */
   {
     nummer: "FINGERFOOD",
@@ -133,6 +138,18 @@ export const ARTIKEL: Artikel[] = [
     proPerson: true,
   },
   {
+    /*
+      Wird Firmen nicht mehr angeboten.
+
+      "kat 3 soll gar nicht angeboten werden, nimm sie raus" (Florian,
+      30.10.2026). Schon am 28.10. stand sie nicht mehr als
+      Wahlmoeglichkeit unter den anderen Kategorien, weil die letzte
+      Reihe dazu einlaedt, das Angebot nach unten zu verhandeln. Jetzt
+      ist sie auch aus dem Baukasten und dem Regal heraus.
+
+      Der Artikel bleibt stehen, nicht geloescht: Er steht in alten
+      Angeboten und Rechnungen, und die muessen lesbar bleiben.
+    */
     nummer: "TK3",
     bezeichnung: "Ticket Kat. 3",
     beschreibung: "Tickets in Reihe 9 nach Verfügbarkeit",
@@ -140,6 +157,7 @@ export const ARTIKEL: Artikel[] = [
     bruttoCent: 4900,
     ust: 0.07,
     gruppe: "ticket",
+    aktiv: false,
     proPerson: true,
   },
 

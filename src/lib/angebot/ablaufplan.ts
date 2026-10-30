@@ -48,7 +48,7 @@ export const VARIANTEN: Array<{
   {
     wert: "fingerfood",
     titel: "Show mit Fingerfood",
-    kurz: "Die sparsame Fassung, etwa 110 Euro je Gast",
+    kurz: "Die sparsame Fassung, etwa 150 Euro je Gast",
     enthaelt: "Empfang, Fingerfood an Stehtischen, Showticket",
   },
   {

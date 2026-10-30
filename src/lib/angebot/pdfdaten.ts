@@ -233,7 +233,7 @@ async function probeFingerfood(): Promise<AngebotsPdfDaten> {
  * Ein Musterangebot zum Anschauen des Layouts, ohne echten Vorgang.
  *
  * Beide Fassungen: das Magic Menü und die sparsame Variante mit
- * Fingerfood, die auf 110 Euro pro Gast kommt.
+ * Fingerfood.
  */
 export async function probeAngebot(
   verpflegung: Verpflegung = "finedining",

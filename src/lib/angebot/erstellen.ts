@@ -29,8 +29,10 @@ import { datumLang } from "@/lib/zeit";
  * Was auf den Tisch kommt.
  *
  * "finedining" ist der Normalfall: das Magic Menü by Osman Kavak.
- * "fingerfood" ist die sparsame Fassung für Gruppen, die auf ein Budget
- * von etwa 110 Euro pro Gast kommen wollen (Florian, 25.09.2026).
+ * "fingerfood" ist die sparsame Fassung für Gruppen mit kleinerem
+ * Budget (Florian, 25.09.2026). Sie lief auf Kat. 3 und damit auf die
+ * beworbenen 110 Euro; seit dem 30.10.2026 wird Kat. 3 nicht mehr
+ * angeboten, deshalb sind es mit Kat. 2 etwa 150 Euro.
  */
 export type Verpflegung = "finedining" | "fingerfood";
 
@@ -235,12 +237,14 @@ export const STANDARD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
 /**
  * Die sparsame Fassung, wie sie auf der Firmenseite beworben wird.
  *
- * Ticket Kat. 3 statt Kat. 2, Fingerfood statt Menü, Empfang bleibt:
- * zusammen 110 Euro brutto pro Gast.
+ * Fingerfood statt Menü, Empfang bleibt. Bis zum 30.10.2026 lief sie
+ * auf Kat. 3 und kam damit auf die beworbenen 110 Euro brutto pro Gast.
+ * Kat. 3 wird Firmen nicht mehr angeboten (siehe artikel.ts), deshalb
+ * jetzt Kat. 2: 89 plus 49 plus 12, also 150 Euro.
  */
 export const FINGERFOOD_ANGEBOTSOPTIONEN: AngebotsOptionen = {
   ...STANDARD_ANGEBOTSOPTIONEN,
-  ticket: "TK3",
+  ticket: "TK2",
   verpflegung: "fingerfood",
 };
 

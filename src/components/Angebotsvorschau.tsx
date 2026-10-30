@@ -240,10 +240,10 @@ export function Angebotsvorschau({
             onChange={(e) => {
               const gewaehlt = e.target.value as Verpflegung;
               setVerpflegung(gewaehlt);
-              // Die sparsame Fassung rechnet sich nur mit Kat. 3 auf die
-              // beworbenen 110 Euro. Umstellen laesst es sich weiter.
+              /* Kat. 3 wird nicht mehr angeboten (Florian, 30.10.2026),
+                 deshalb Kat. 2. Umstellen laesst es sich weiter. */
               if (gewaehlt === "fingerfood") {
-                setTicket("TK3");
+                setTicket("TK2");
                 setRabatt(0);
                 setMitEmpfang(true);
               }
