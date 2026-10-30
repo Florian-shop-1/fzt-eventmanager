@@ -28,7 +28,12 @@ import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kart
 import { auszugMitAbdruck, auszugVermerken, dateiAbdruck } from "@/lib/rechnung/auszuege";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
 import { mailVerschicken } from "@/lib/mail/versand";
-import { entwurfFestschreiben, entwurfVerwerfen, zeilenSpeichern } from "@/lib/rechnung/entwurf";
+import {
+  entwurfFestschreiben,
+  entwurfVerwerfen,
+  rechnungKorrigieren,
+  zeilenSpeichern,
+} from "@/lib/rechnung/entwurf";
 import { handRechnungAnlegen } from "@/lib/rechnung/hand";
 import { erinnerungVerschicken } from "@/lib/rechnung/erinnerung";
 
@@ -494,4 +499,52 @@ export async function entwurfWegwerfen(f: FormData): Promise<void> {
     vorgangId ? `/vorgaenge/${vorgangId}` : "/rechnungen",
     "Entwurf verworfen. Es wurde nichts eingebucht.",
   );
+}
+
+/**
+ * Eine eingebuchte Rechnung ändern: Korrektur plus neuer Entwurf.
+ *
+ * "die möglichkeit 'rechnung ändern' (dann wie gewohnt eine korrektur
+ * rechnung, falls die schon eingebucht und versendet war!)"
+ * (Florian, 30.10.2026). Siehe lib/rechnung/entwurf.ts.
+ */
+export async function rechnungAendern(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = text(f, "id", 40);
+  let ziel = `/rechnungen/${id}`;
+  let meldung = "";
+  try {
+    const e = await rechnungKorrigieren(id, b.name ?? "Büro");
+    ziel = `/rechnungen/${e.entwurfId}`;
+    meldung =
+      `Korrekturrechnung ${e.stornoNummer} ist gebucht, sie hebt die alte auf. ` +
+      "Hier ist der neue Entwurf: ändern und dann einbuchen.";
+  } catch (fehler) {
+    meldung = fehler instanceof Error ? fehler.message : "Das ging nicht.";
+  }
+  revalidatePath("/rechnungen");
+  zurueck(ziel, meldung);
+}
+
+/**
+ * Eine eingebuchte Rechnung stornieren, mit eigenem Beleg.
+ *
+ * "storno möglichkeit einer Rechnung brauchen wir auch im manager"
+ * (Florian, 30.10.2026). Anders als das bloße Abhaken von früher
+ * entsteht hier eine Korrekturrechnung mit eigener Nummer, die auf die
+ * alte verweist und sie aufhebt. So steht es auch bei FloTix, und so
+ * erwartet es der Steuerberater.
+ */
+export async function rechnungStornoBeleg(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = text(f, "id", 40);
+  let meldung = "";
+  try {
+    const e = await rechnungKorrigieren(id, b.name ?? "Büro", true);
+    meldung = `Storniert. Die Korrekturrechnung ${e.stornoNummer} hebt sie auf.`;
+  } catch (fehler) {
+    meldung = fehler instanceof Error ? fehler.message : "Das ging nicht.";
+  }
+  revalidatePath("/rechnungen");
+  zurueck(`/rechnungen/${id}`, meldung);
 }

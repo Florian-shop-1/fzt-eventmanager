@@ -13,6 +13,8 @@ import {
   entwurfWegwerfen,
   entwurfZeilenSpeichern,
   erinnerungSenden,
+  rechnungAendern,
+  rechnungStornoBeleg,
   faelligAendern,
   manuellBezahlt,
   rechnungStornieren,
@@ -119,6 +121,39 @@ export default async function RechnungSeite({
         <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
           {meldung}
         </p>
+      )}
+
+      {/*
+        Eine gebuchte Rechnung ändert man nicht, man korrigiert sie.
+
+        "die möglichkeit 'rechnung ändern' (dann wie gewohnt eine
+        korrektur rechnung, falls die schon eingebucht und versendet
+        war!) selbe vorgehensweise wie bei flotix" (Florian,
+        30.10.2026).
+
+        Beide Knöpfe tun dasselbe, nur hört der Storno früher auf: Er
+        bucht die Korrekturrechnung und lässt es dabei. Beim Ändern
+        kommt ein neuer Entwurf hinterher.
+      */}
+      {!entwurf && hatPositionen && r.status !== "CANCELLED" && (
+        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-linie bg-flaeche px-4 py-3">
+          <form action={rechnungAendern}>
+            <input type="hidden" name="id" value={r.id} />
+            <button type="submit" className="rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel">
+              Rechnung ändern
+            </button>
+          </form>
+          <form action={rechnungStornoBeleg}>
+            <input type="hidden" name="id" value={r.id} />
+            <button type="submit" className="rounded-md border border-linie px-3 py-1.5 text-sm" style={{ color: "var(--blocker)" }}>
+              Stornieren
+            </button>
+          </form>
+          <span className="text-xs text-leise">
+            Beides bucht eine Korrekturrechnung mit eigener Nummer, die diese hier aufhebt. Beim
+            Ändern bekommst du danach einen neuen Entwurf.
+          </span>
+        </section>
       )}
 
       {/*
@@ -465,7 +500,7 @@ export default async function RechnungSeite({
                 </span>
               </label>
               <button type="submit" className="rounded-md border border-linie px-3 py-1.5" style={{ color: "var(--blocker)" }}>
-                Rechnung stornieren
+                Nur abhaken, ohne Beleg
               </button>
             </form>
           )}
