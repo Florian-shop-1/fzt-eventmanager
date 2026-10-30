@@ -104,13 +104,13 @@ export function jahrgangGueltig(jahrgang: number, heute = new Date()): boolean {
  * Wo der Schlemmerblock überhaupt gilt.
  *
  * Nur bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an
- * Feiertagen und nicht bei Sonderveranstaltungen (Florian, 24.10.2026).
+ * Feiertagen, nicht vom 24. bis 31. Dezember und nicht bei Sonderveranstaltungen (Florian, 24.10.2026, ergaenzt 30.10.2026).
  * Beim Einlösen prüft FloTix dasselbe noch einmal, siehe dort
  * src/codes.ts: Diese Liste hier dient nur der Auskunft.
  */
 export const GILT_BEI = "ULMFASSBAR, Magic Memories und Flo-Zirkus";
 export const GILT_NICHT_BEI =
-  "an Feiertagen und bei Sonderveranstaltungen, zum Beispiel an Silvester oder Weihnachten";
+  "an Feiertagen, nicht vom 24. bis 31. Dezember und nicht bei Sonderveranstaltungen";
 
 export interface SchlemmerBefund {
   /** Geht es überhaupt um den Schlemmerblock? */

@@ -146,8 +146,8 @@ const BAUSTEINE: Baustein[] = [
           "Kategorie ist damit für dich frei.\n\n" +
           "Deinen Code schicke ich dir gleich hinterher. Such dir dann im Shop deine Plätze aus " +
           "und gib ihn im letzten Schritt vor dem Bezahlen ein.\n\n" +
-          "Der Block gilt bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an Feiertagen und " +
-          "nicht bei Sonderveranstaltungen. Bitte bring ihn am Showtag mit, der Abriss wird " +
+          "Der Block gilt bei ULMFASSBAR, Magic Memories und Flo-Zirkus, nicht an Feiertagen, " +
+          "nicht vom 24. bis 31. Dezember und nicht bei Sonderveranstaltungen. Bitte bring ihn am Showtag mit, der Abriss wird " +
           "eingesammelt.\n\n" +
           "Wenn ihr dazu essen möchtet: Zu jeder Karte lässt sich unser 4-Gang-Menü für 69 Euro " +
           "dazubuchen, Welcome Drink inklusive, auch zur freien Karte. Eine Speisekarte haben wir " +
