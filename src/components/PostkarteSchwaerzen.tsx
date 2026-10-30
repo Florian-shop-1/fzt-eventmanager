@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { standardSchwaerzung, weitereFundstellen } from "@/lib/postkarte/schwaerzen";
+
 /**
  * Die Schwärzung: Namen, Unterschrift und Adresse verdecken, dann
  * freigeben.
@@ -38,7 +40,15 @@ export function PostkarteSchwaerzen({
   einwilligung: string;
 }) {
   const [offen, setOffen] = useState(false);
-  const [kaesten, setKaesten] = useState<Fundstelle[]>(fundstellen);
+  /*
+    Vorausgewaehlt ist nur die Anschrift.
+
+    "da es eine postkarte ist, reicht es völlig aus nur die anschrift zu
+    schwärzen. dies wurde bestätigt vom anwalt" (Florian, 30.10.2026).
+    Was die KI sonst gefunden hat, steht darunter zum Dazunehmen.
+  */
+  const [kaesten, setKaesten] = useState<Fundstelle[]>(() => standardSchwaerzung(fundstellen));
+  const [uebrige, setUebrige] = useState<Fundstelle[]>(() => weitereFundstellen(fundstellen));
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [ohneEinwilligung, setOhneEinwilligung] = useState(false);
@@ -173,9 +183,30 @@ export function PostkarteSchwaerzen({
         ))}
       </div>
 
+      {uebrige.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-leise">Auch gefunden, nicht verdeckt:</span>
+          {uebrige.map((k, i) => (
+            <button
+              key={`${k.art}-${i}`}
+              type="button"
+              onClick={() => {
+                setKaesten((alt) => [...alt, k]);
+                setUebrige((alt) => alt.filter((_, j) => j !== i));
+              }}
+              className="rounded border border-dashed border-linie px-2 py-0.5 text-leise hover:bg-gold-hell"
+              title="Diese Stelle doch verdecken"
+            >
+              + {k.art}: {k.text.slice(0, 20) || "ohne Text"}
+            </button>
+          ))}
+        </div>
+      )}
+
       <p className="text-xs text-leise">
-        Fehlt etwas? Mit der Maus über die Stelle ziehen, dann kommt ein weiterer Balken dazu.
-        Veröffentlicht wird genau dieses Bild, das Original bleibt intern.
+        Verdeckt wird die Anschrift, mehr braucht es bei einer Postkarte nicht. Fehlt etwas? Mit
+        der Maus über die Stelle ziehen, dann kommt ein weiterer Balken dazu. Veröffentlicht wird
+        genau dieses Bild, das Original bleibt intern.
       </p>
 
       {einwilligung !== "erteilt" && (

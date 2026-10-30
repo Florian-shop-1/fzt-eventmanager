@@ -1168,7 +1168,9 @@ function AngebotKarte({
                           <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
                           {/*
                             Der Text, der im Angebot unter der Position steht.
-                            Enter speichert (Florian, 15.10.2026).
+                            Enter speichert (Florian, 15.10.2026), und seit
+                            dem 30.10.2026 auch das Verlassen des Feldes,
+                            aus demselben Grund wie beim Preis daneben.
                           */}
                           <form action={positionText.bind(null, p.id, vorgangId)} className="mt-0.5">
                             <input
@@ -1176,6 +1178,11 @@ function AngebotKarte({
                               defaultValue={p.beschreibung ?? ""}
                               maxLength={600}
                               placeholder="Text unter der Position"
+                              onBlur={(e) => {
+                                if (e.currentTarget.value !== (p.beschreibung ?? "")) {
+                                  e.currentTarget.form?.requestSubmit();
+                                }
+                              }}
                               className="w-full rounded border border-linie px-1.5 py-0.5 text-xs"
                             />
                           </form>
@@ -1207,10 +1214,33 @@ function AngebotKarte({
                               name="preis"
                               inputMode="decimal"
                               defaultValue={(p.einzelBruttoCent / 100).toFixed(2).replace(".", ",")}
+                              /*
+                                Speichern, sobald das Feld verlassen wird.
+
+                                "wenn man die preise unterm angebot
+                                ändert, gibt es keine speichermöglichkeit
+                                ... wenn man dann auf pdf klickt, dass
+                                dann der alte preis noch drin steht"
+                                (Florian, 30.10.2026). Enter speicherte
+                                schon vorher, aber wer tippt und
+                                weiterklickt, denkt nicht an Enter.
+
+                                Abgeschickt wird nur bei einer echten
+                                Aenderung: Sonst liefe bei jedem Klick
+                                durch die Zeilen ein Speichervorgang.
+                              */
+                              onBlur={(e) => {
+                                const vorher = (p.einzelBruttoCent / 100)
+                                  .toFixed(2)
+                                  .replace(".", ",");
+                                if (e.currentTarget.value.trim() !== vorher) {
+                                  e.currentTarget.form?.requestSubmit();
+                                }
+                              }}
                               style={{ width: "5.5rem" }}
                               className="rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
                             />
-                            <button type="submit" className="underline text-leise">
+                            <button type="submit" className="underline text-leise" title="Speichern">
                               €
                             </button>
                           </form>
@@ -1264,7 +1294,8 @@ function AngebotKarte({
                 </tbody>
               </table>
               <p className="mt-2 text-xs text-leise">
-                Im Feld steht der Einzelpreis, rechts daneben die Zeilensumme. Optionale Positionen
+                Im Feld steht der Einzelpreis, rechts daneben die Zeilensumme. Ein geänderter Preis
+                wird gespeichert, sobald du das Feld verlässt. Optionale Positionen
                 stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag nicht enthalten.
                 Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
                 schon.

@@ -23,6 +23,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { standardSchwaerzung } from "@/lib/postkarte/schwaerzen";
+
 export interface SwipeFundstelle {
   art: string;
   text: string;
@@ -77,7 +79,7 @@ export function PostkartenSwipe({ karten }: { karten: SwipeKarte[] }) {
       if (!stift) return;
       stift.drawImage(bild, 0, 0);
       stift.fillStyle = "#111111";
-      for (const k of karte.fundstellen) {
+      for (const k of standardSchwaerzung(karte.fundstellen)) {
         stift.fillRect(
           (k.x / 100) * l.width,
           (k.y / 100) * l.height,
@@ -250,8 +252,8 @@ export function PostkartenSwipe({ karten }: { karten: SwipeKarte[] }) {
           >
             {karte.bewertung}/10
           </span>
-          {karte.fundstellen.length > 0 && (
-            <span>{karte.fundstellen.length} Stellen geschwärzt</span>
+          {standardSchwaerzung(karte.fundstellen).length > 0 && (
+            <span>Anschrift verdeckt</span>
           )}
           {karte.einwilligung !== "erteilt" && <span>ohne schriftliche Einwilligung</span>}
         </div>

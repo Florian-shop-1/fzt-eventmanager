@@ -108,12 +108,37 @@ export async function angebotErzeugen(
   let preise: Map<string, number> | undefined;
   let preisHerkunft: { datum: string; show: string } | null = null;
 
-  if (typeof optionen.wochentag === "number") {
+  /*
+    Auch ein fester Termin braucht die passende Vorstellung.
+
+    "wenn man eine mittagsshow nimmt, z.b. sonntags, dann muss sich der
+    eventmanger die preise aus einer sonntagsshow nehmen. oder bei einer
+    donnerstag abend show eben was es donnerstags kostet" (Florian,
+    30.10.2026).
+
+    Haengt am Vorgang ein Termin, wurden bisher immer dessen Preise
+    genommen, auch wenn im Baukasten eine andere Tageszeit stand. Wer
+    also zu einem Samstagabend-Termin die Mittagsshow anbot, bekam
+    Abendpreise. Passt die Tageszeit nicht, wird deshalb jetzt nach dem
+    Wochentag des Termins gesucht, wie bei einem offenen Termin.
+  */
+  const terminUhrzeit = optionen.showzeit ?? "";
+  const terminIstNachmittag = Boolean(terminUhrzeit) && terminUhrzeit < "17:00";
+  const tageszeitPasst =
+    !terminUhrzeit || (optionen.tageszeit === "nachmittag") === terminIstNachmittag;
+  const wochentagZumSuchen =
+    typeof optionen.wochentag === "number"
+      ? optionen.wochentag
+      : !tageszeitPasst && vorgang.vorstellung?.datum
+        ? new Date(`${vorgang.vorstellung.datum}T12:00:00Z`).getUTCDay()
+        : null;
+
+  if (typeof wochentagZumSuchen === "number") {
     try {
       const { showtageAbHeute } = await import("@/lib/ditix/spielplan");
       const passend = (await showtageAbHeute(400)).find((t) => {
         const wochentag = new Date(`${t.datum}T12:00:00Z`).getUTCDay();
-        if (wochentag !== optionen.wochentag) return false;
+        if (wochentag !== wochentagZumSuchen) return false;
         // Nachmittag heisst: Vorstellung vor 17 Uhr.
         return optionen.tageszeit === "nachmittag" ? t.uhrzeit < "17:00" : t.uhrzeit >= "17:00";
       });
