@@ -97,7 +97,7 @@ export async function gruppenDesAbends(
       join kunde k       on k.id = v.kunde_id
       join vorstellung s on s.id = v.vorstellung_id
      where v.vorstellung_id = any(${vorstellungIds})
-       and v.status <> 'abgesagt'
+       and v.status not in ('abgesagt', 'verloren')
      order by g.personen desc
   `) as Record<string, unknown>[])
       : [];

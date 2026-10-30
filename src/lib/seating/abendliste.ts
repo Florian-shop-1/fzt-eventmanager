@@ -118,7 +118,7 @@ async function abendeAufbauen(maxAnzahl: number): Promise<PlanbarerAbend[]> {
            coalesce((select sum(g.personen)
                        from gruppe g
                        join vorgang v on v.id = g.vorgang_id
-                      where v.vorstellung_id = s.id and v.status <> 'abgesagt'), 0)::int as personen,
+                      where v.vorstellung_id = s.id and v.status not in ('abgesagt', 'verloren')), 0)::int as personen,
            exists(select 1 from sitzplan p where p.vorstellung_id = s.id) as festgelegt
       from vorstellung s
      where s.ditix_event_id is not null

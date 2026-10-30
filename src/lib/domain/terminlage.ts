@@ -32,6 +32,14 @@ export function terminlage(o: {
     return { bestaetigt: false, text: "Abgesagt", erklaerung: "Der Vorgang ist abgesagt." };
   }
 
+  if (o.status === "verloren") {
+    return {
+      bestaetigt: false,
+      text: "Verloren",
+      erklaerung: "Der Kunde hat sich anders entschieden. Die Plätze sind wieder frei.",
+    };
+  }
+
   if (eingegangen.length > 0) {
     const betrag = (summe / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
     return {

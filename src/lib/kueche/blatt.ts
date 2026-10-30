@@ -144,7 +144,7 @@ async function firmenGruppen(
       join vorgang v on v.id = g.vorgang_id
       join kunde k   on k.id = v.kunde_id
      where v.vorstellung_id = any(${vorstellungIds})
-       and v.status <> 'abgesagt'
+       and v.status not in ('abgesagt', 'verloren')
      order by g.personen desc
   `) as Record<string, unknown>[];
 

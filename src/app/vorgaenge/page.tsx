@@ -1,10 +1,40 @@
 import Link from "next/link";
-import { listeVorgaenge, type VorgangZeile } from "@/lib/db/vorgaenge";
+import {
+  ERLEDIGT,
+  listeVorgaenge,
+  vorgangsfilter,
+  type Vorgangsfilter,
+  type VorgangZeile,
+} from "@/lib/db/vorgaenge";
+import {
+  alsVerlorenMarkieren,
+  erledigteArchivieren,
+  vorgangArchivieren,
+  vorgangHervorholen,
+} from "@/lib/db/aktionen";
 import { fehlertext } from "@/lib/db/client";
 import { StatusBadge, datumKurz, vorZeit } from "@/components/Status";
 import { eur } from "@/lib/domain/pricing";
 
 export const metadata = { title: "Vorgänge | FZT Eventmanager" };
+
+/*
+  Die Reiter über der Liste.
+
+  "bei dieser ewig langen liste von vorgängen muss es die möglichkeit
+  geben zu archivieren. bzw. als verloren zu markieren oder zu löschen,
+  dass es verschwindet" (Florian, 30.10.2026).
+
+  Voreingestellt ist "Offen": alles, woran noch gearbeitet wird. Was
+  durch ist, steht unter "Erledigt", was aus dem Weg soll, im Archiv.
+  Nichts geht dabei verloren, es steht nur woanders.
+*/
+const REITER: Array<{ wert: Vorgangsfilter; text: string }> = [
+  { wert: "offen", text: "Offen" },
+  { wert: "erledigt", text: "Erledigt" },
+  { wert: "archiv", text: "Archiv" },
+  { wert: "alle", text: "Alle" },
+];
 
 // Immer frisch laden: hier arbeiten mehrere Leute gleichzeitig.
 export const dynamic = "force-dynamic";
@@ -39,22 +69,32 @@ function passt(v: VorgangZeile, suche: string): boolean {
 export default async function VorgaengeSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; zeige?: string }>;
 }) {
-  const suche = ((await searchParams).q ?? "").trim().toLowerCase();
+  const parameter = await searchParams;
+  const suche = (parameter.q ?? "").trim().toLowerCase();
+  const zeige = (REITER.find((r) => r.wert === parameter.zeige)?.wert ?? "offen") as Vorgangsfilter;
 
   let vorgaenge: VorgangZeile[];
   let fehler: string | null = null;
 
   try {
-    vorgaenge = await listeVorgaenge();
+    vorgaenge = await listeVorgaenge("alle");
   } catch (e) {
     fehler = fehlertext(e);
     vorgaenge = [];
   }
 
   const gesamt = vorgaenge.length;
-  const gefunden = suche ? vorgaenge.filter((v) => passt(v, suche)) : vorgaenge;
+  const imReiter = vorgaenge.filter((v) => vorgangsfilter(v, zeige));
+  const gefunden = suche ? imReiter.filter((v) => passt(v, suche)) : imReiter;
+  const zuArchivieren = vorgaenge.filter(
+    (v) => v.archiviertAm === null && ERLEDIGT.includes(v.status),
+  ).length;
+
+  /** Den Reiter und die Suche beim Blättern behalten. */
+  const mitReiter = (wert: string) =>
+    `/vorgaenge?zeige=${wert}${suche ? `&q=${encodeURIComponent(suche)}` : ""}`;
 
   return (
     <div className="space-y-6">
@@ -74,7 +114,53 @@ export default async function VorgaengeSeite({
       </header>
 
       {gesamt > 0 && (
+        <nav className="flex flex-wrap items-center gap-2" aria-label="Vorgänge filtern">
+          {REITER.map((r) => {
+            const anzahl = vorgaenge.filter((v) => vorgangsfilter(v, r.wert)).length;
+            const an = r.wert === zeige;
+            return (
+              <Link
+                key={r.wert}
+                href={mitReiter(r.wert)}
+                aria-current={an ? "page" : undefined}
+                className="rounded-md border px-3 py-1.5 text-sm"
+                style={
+                  an
+                    ? {
+                        borderColor: "var(--gold)",
+                        background: "var(--gold-hell)",
+                        color: "var(--gold-dunkel)",
+                        fontWeight: 600,
+                      }
+                    : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+                }
+              >
+                {r.text} <span className="tabular-nums">({anzahl})</span>
+              </Link>
+            );
+          })}
+
+          {/*
+            Der eine Knopf für den Rückstand. Einzeln wären das bei ein
+            paar hundert durchgeführten Abenden eine Stunde Klickarbeit.
+          */}
+          {zeige !== "archiv" && zuArchivieren > 0 && (
+            <form action={erledigteArchivieren} className="ml-auto">
+              <button
+                type="submit"
+                title="Nimmt alles aus der Liste, was durchgeführt, abgesagt oder verloren ist. Im Archiv bleibt es vollständig erhalten."
+                className="rounded-md border border-linie px-3 py-1.5 text-sm text-leise hover:border-gold hover:text-gold-dunkel"
+              >
+                {zuArchivieren} Erledigte ins Archiv
+              </button>
+            </form>
+          )}
+        </nav>
+      )}
+
+      {gesamt > 0 && (
         <form method="get" className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="zeige" value={zeige} />
           <input
             type="search"
             name="q"
@@ -89,7 +175,7 @@ export default async function VorgaengeSeite({
             Suchen
           </button>
           {suche && (
-            <Link href="/vorgaenge" className="text-sm text-leise underline">
+            <Link href={mitReiter(zeige)} className="text-sm text-leise underline">
               zurücksetzen
             </Link>
           )}
@@ -126,8 +212,18 @@ export default async function VorgaengeSeite({
 
       {gesamt > 0 && gefunden.length === 0 && (
         <p className="rounded-lg border border-dashed border-linie px-6 py-10 text-center text-sm text-leise">
-          Nichts gefunden zu &bdquo;{suche}&ldquo;. Gesucht wird in Nummer, Firma,
-          Ansprechpartner, Show und Datum.
+          {suche ? (
+            <>
+              Nichts gefunden zu &bdquo;{suche}&ldquo;. Gesucht wird in Nummer, Firma,
+              Ansprechpartner, Show und Datum.
+            </>
+          ) : zeige === "archiv" ? (
+            "Im Archiv liegt noch nichts. Was du hier ablegst, bleibt vollständig erhalten."
+          ) : zeige === "erledigt" ? (
+            "Nichts erledigt. Durchgeführte, abgesagte und verlorene Vorgänge stehen hier."
+          ) : (
+            "Nichts offen. Alles ist erledigt oder liegt im Archiv."
+          )}
         </p>
       )}
 
@@ -143,6 +239,7 @@ export default async function VorgaengeSeite({
                 <th className="px-4 py-2 font-medium">Status</th>
                 <th className="px-4 py-2 font-medium">Angebot</th>
                 <th className="px-4 py-2 text-right font-medium">Gezahlt</th>
+                <th className="px-4 py-2 font-medium"><span className="sr-only">Ablegen</span></th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +291,14 @@ export default async function VorgaengeSeite({
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={v.status} />
+                    {v.verlorenGrund && (
+                      <div className="mt-1 max-w-48 text-xs text-leise">{v.verlorenGrund}</div>
+                    )}
+                    {v.archiviertAm && (
+                      <div className="mt-1 text-xs text-leise">
+                        archiviert {vorZeit(v.archiviertAm)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {v.angebote === 0 ? (
@@ -216,6 +321,56 @@ export default async function VorgaengeSeite({
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {v.gezahltCent > 0 ? eur(v.gezahltCent) : <span className="text-leise">-</span>}
+                  </td>
+                  {/*
+                    Aus der Liste nehmen, ohne die Seite zu verlassen.
+
+                    Eingeklappt, weil es drei Wege sind und keiner davon
+                    aus Versehen passieren soll. Wer aufklappt, hat sich
+                    schon entschieden, etwas abzulegen.
+                  */}
+                  <td className="px-4 py-3 text-right">
+                    <details className="inline-block text-left">
+                      <summary className="cursor-pointer list-none px-2 text-leise hover:text-gold-dunkel">
+                        ablegen
+                      </summary>
+                      <div className="mt-2 space-y-2 rounded-md border border-linie bg-flaeche p-2 text-xs">
+                        {v.archiviertAm ? (
+                          <form action={vorgangHervorholen.bind(null, v.id)}>
+                            <button type="submit" className="underline">
+                              zurück in die Liste
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            {v.status !== "verloren" && (
+                              <form
+                                action={alsVerlorenMarkieren.bind(null, v.id)}
+                                className="space-y-1"
+                              >
+                                <input
+                                  name="grund"
+                                  maxLength={300}
+                                  placeholder="Warum verloren? Preis, Termin, keine Antwort"
+                                  className="w-56 rounded-md border border-linie px-2 py-1 text-xs"
+                                />
+                                <button type="submit" className="block underline">
+                                  auf verloren setzen
+                                </button>
+                              </form>
+                            )}
+                            <form action={vorgangArchivieren.bind(null, v.id)}>
+                              <button type="submit" className="underline">
+                                ins Archiv
+                              </button>
+                            </form>
+                          </>
+                        )}
+                        <Link href={`/vorgaenge/${v.id}`} className="block underline text-leise">
+                          öffnen, zum Löschen
+                        </Link>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               ))}

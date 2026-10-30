@@ -129,7 +129,7 @@ export async function belegungKommenderAbende(maxAnzahl = 400): Promise<AbendBel
       join vorgang v     on v.id = g.vorgang_id
       join kunde k       on k.id = v.kunde_id
       join vorstellung s on s.id = v.vorstellung_id
-     where v.status <> 'abgesagt'
+     where v.status not in ('abgesagt', 'verloren')
        and s.ditix_event_id is not null
   `) as Record<string, unknown>[];
 

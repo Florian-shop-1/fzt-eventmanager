@@ -82,6 +82,35 @@ const HIGHLIGHTS = artikelDerGruppe("highlight");
   Kategorie als Wahlmoeglichkeit zeigen will, braucht sie genau hier.
   Nach Gruppen sortiert bleibt die Liste trotzdem uebersichtlich.
 */
+/**
+ * Die Positionen in der Reihenfolge, in der sie zum Aendern dastehen.
+ *
+ * "warum kann ich nicht in dieser liste einfach die preise der tickets
+ * bestimmen, du siehst im screenshot, dass da keine weiteren
+ * kategorien sind" (Florian, 30.10.2026).
+ *
+ * Die Wahlmoeglichkeiten, also die uebrigen Ticketkategorien, standen
+ * zwar im Angebot beim Kunden, die Aenderungsliste hat sie aber
+ * herausgefiltert. Kevin sah Kat. 2 und konnte den Preis der Golden
+ * Seats nirgends anfassen.
+ *
+ * Jetzt steht jede Wahlmoeglichkeit direkt unter der Position, zu der
+ * sie gehoert. Dadurch bleiben die Sitzplaetze beieinander, so wie im
+ * Angebot selbst.
+ */
+function zumAendern(positionen: AngebotDetail["positionen"]) {
+  const haupt = positionen.filter((p) => !p.istAlternativeZu);
+  const weitere = positionen.filter((p) => p.istAlternativeZu);
+  const geordnet = haupt.flatMap((h) => [
+    h,
+    ...weitere.filter((a) => a.istAlternativeZu === h.id),
+  ]);
+  /* Eine Wahlmoeglichkeit, deren Bezugszeile entfernt wurde, faellt
+     sonst aus der Liste und waere nicht mehr zu erreichen. */
+  const verwaist = weitere.filter((a) => !geordnet.includes(a));
+  return [...geordnet, ...verwaist];
+}
+
 const ZUSATZARTIKEL = GRUPPENFOLGE.map((gruppe) => ({
   gruppe,
   titel: GRUPPENTITEL[gruppe],
@@ -1614,13 +1643,17 @@ function AngebotKarte({
               </p>
               <table className="mt-2 w-full text-xs">
                 <tbody>
-                  {angebot.positionen
-                    .filter((p) => !p.istAlternativeZu)
-                    .map((p) => (
+                  {zumAendern(angebot.positionen).map((p) => (
                       <tr key={p.id} className="border-b border-linie last:border-0">
-                        <td className="py-1">
-                          {p.optional && <span className="text-leise">Optional: </span>}
-                          <span className={p.optional ? "text-leise" : ""}>{p.bezeichnung}</span>
+                        <td className={`py-1 ${p.istAlternativeZu ? "pl-5" : ""}`}>
+                          {p.istAlternativeZu ? (
+                            <span className="text-leise">Wahlmöglichkeit: </span>
+                          ) : (
+                            p.optional && <span className="text-leise">Optional: </span>
+                          )}
+                          <span className={p.optional || p.istAlternativeZu ? "text-leise" : ""}>
+                            {p.bezeichnung}
+                          </span>
                           {/*
                             Der Text, der im Angebot unter der Position steht.
                             Enter speichert (Florian, 15.10.2026), und seit

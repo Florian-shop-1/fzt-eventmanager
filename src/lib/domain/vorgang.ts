@@ -23,7 +23,18 @@ export type VorgangStatus =
   | "teilzahlung"
   | "bezahlt"
   | "durchgefuehrt"
-  | "abgesagt";
+  | "abgesagt"
+  /*
+    Der Kunde hat sich gegen uns entschieden.
+
+    "wie klicke ich ein angebot einfach auf verloren" (Florian,
+    30.10.2026). Abgesagt heisst: Es war unseres und faellt aus, die
+    Plaetze werden frei. Verloren heisst: Es war nie unseres, der Kunde
+    hat woanders gebucht oder gar nicht. Zwei verschiedene Dinge, die
+    vorher beide "Abgesagt" hiessen, und danach stimmte keine Auswertung
+    mehr.
+  */
+  | "verloren";
 
 export const STATUS_REIHENFOLGE: VorgangStatus[] = [
   "anfrage",
@@ -48,6 +59,7 @@ export const STATUS_LABEL: Record<VorgangStatus, string> = {
   bezahlt: "Bezahlt und fest",
   durchgefuehrt: "Durchgeführt",
   abgesagt: "Abgesagt",
+  verloren: "Verloren",
 };
 
 export interface Kunde {

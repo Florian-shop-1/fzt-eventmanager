@@ -687,6 +687,42 @@ export async function aufgabeUmschalten(vorgangId: string, aufgabeId: string): P
  */
 export async function vorgangLoeschen(vorgangId: string): Promise<void> {
   await verlangeTeam();
+
+  /*
+    Was in der Buchhaltung steht, wird nicht geloescht.
+
+    Eine festgeschriebene Rechnung hat eine fortlaufende Nummer und
+    einen Umsatz, der beim Steuerbuero gemeldet ist; eine Zahlung steht
+    auf dem Konto. Verschwindet der Vorgang dazu, fehlt der Beleg und
+    die Reihe hat ein Loch. Fuer solche Faelle gibt es das Archiv: weg
+    aus der Liste, aber alles bleibt da.
+
+    Entwuerfe zaehlen nicht, die haben noch keine Nummer.
+  */
+  const [hindernis] = (await db()`
+    select
+      (select count(*) from zahlung z where z.vorgang_id = ${vorgangId})::int as zahlungen,
+      (select count(*) from rechnung r
+        where r.vorgang_id = ${vorgangId} and r.status <> 'DRAFT')::int        as rechnungen
+  `) as Array<{ zahlungen: number; rechnungen: number }>;
+
+  if (hindernis && (hindernis.zahlungen > 0 || hindernis.rechnungen > 0)) {
+    const was = [
+      hindernis.rechnungen > 0
+        ? `${hindernis.rechnungen} Rechnung${hindernis.rechnungen === 1 ? "" : "en"}`
+        : "",
+      hindernis.zahlungen > 0
+        ? `${hindernis.zahlungen} Zahlung${hindernis.zahlungen === 1 ? "" : "en"}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" und ");
+    throw new Error(
+      `Zu diesem Vorgang gibt es ${was}. Das gehoert in die Buchhaltung und wird nicht `
+      + "geloescht. Leg den Vorgang stattdessen ins Archiv, dann ist er aus der Liste.",
+    );
+  }
+
   await db()`delete from vorgang where id = ${vorgangId}`;
   // Vorstellungen ohne Vorgänge sind Karteileichen und können weg.
   await db()`
@@ -908,4 +944,91 @@ export async function wunschSetzen(vorgangId: string, formData: FormData): Promi
   revalidatePath(`/vorgaenge/${vorgangId}`);
   revalidatePath("/vorgaenge");
   redirect(`/vorgaenge/${vorgangId}?meldung=${encodeURIComponent("Wunsch gespeichert.")}`);
+}
+
+/* ------------------------------------------------------------------
+   Aus der Liste nehmen
+
+   "bei dieser ewig langen liste von vorgaengen muss es die moeglichkeit
+   geben zu archivieren. bzw. als verloren zu markieren oder zu
+   loeschen, dass es verschwindet" (Florian, 30.10.2026).
+
+   Drei Wege, die sich in der Haerte unterscheiden:
+
+   verloren     Der Kunde hat woanders gebucht. Der Vorgang bleibt
+                sichtbar, nur eben unter "Erledigt", mit dem Grund
+                daneben. Daraus laesst sich lernen.
+   archivieren  Aus der Liste, sonst nichts. Jederzeit zurueckzuholen.
+   loeschen     Weg. Nur fuer Testeintraege und Fehleingaben, und nur,
+                solange keine Rechnung und keine Zahlung daran haengt
+                (siehe vorgangLoeschen weiter oben).
+   ------------------------------------------------------------------ */
+
+/**
+ * Das Angebot ist verloren: Der Kunde hat sich anders entschieden.
+ *
+ * Der Grund ist freiwillig, aber erwuenscht. Steht er da, sieht man
+ * beim naechsten Mal, ob es am Preis lag, am Termin oder daran, dass
+ * sich niemand gemeldet hat.
+ */
+export async function alsVerlorenMarkieren(
+  vorgangId: string,
+  formData: FormData,
+): Promise<void> {
+  await verlangeTeam();
+  const grund = String(formData.get("grund") ?? "").trim().slice(0, 300);
+  await db()`
+    update vorgang
+       set status = 'verloren',
+           verloren_grund = ${grund || null},
+           geaendert_am = now()
+     where id = ${vorgangId}
+  `;
+  // Verloren heisst: Die Plaetze und das Essen sind wieder frei.
+  await vormerkungNachziehen(vorgangId);
+  revalidatePath("/vorgaenge");
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/** Aus der taeglichen Liste nehmen. Alles bleibt erhalten. */
+export async function vorgangArchivieren(vorgangId: string): Promise<void> {
+  const wer = await verlangeTeam();
+  await db()`
+    update vorgang
+       set archiviert_am = now(), archiviert_von = ${wer}, geaendert_am = now()
+     where id = ${vorgangId}
+  `;
+  revalidatePath("/vorgaenge");
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/** Zurueck in die Liste. */
+export async function vorgangHervorholen(vorgangId: string): Promise<void> {
+  await verlangeTeam();
+  await db()`
+    update vorgang
+       set archiviert_am = null, archiviert_von = null, geaendert_am = now()
+     where id = ${vorgangId}
+  `;
+  revalidatePath("/vorgaenge");
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/**
+ * Alles Erledigte auf einmal ins Archiv.
+ *
+ * Nach einem Jahr Betrieb stehen ein paar hundert durchgefuehrte
+ * Abende in der Liste. Die einzeln wegzuklicken waere eine Stunde
+ * Arbeit, deshalb dieser eine Knopf. Er fasst nur an, was wirklich
+ * durch ist: durchgefuehrt, abgesagt oder verloren.
+ */
+export async function erledigteArchivieren(): Promise<void> {
+  const wer = await verlangeTeam();
+  await db()`
+    update vorgang
+       set archiviert_am = now(), archiviert_von = ${wer}, geaendert_am = now()
+     where archiviert_am is null
+       and status in ('durchgefuehrt', 'abgesagt', 'verloren')
+  `;
+  revalidatePath("/vorgaenge");
 }

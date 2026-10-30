@@ -16,6 +16,7 @@ import {
   gruppePersonenSetzen,
   notizHinzufuegen,
   menueSetzen,
+  alsVerlorenMarkieren,
   statusSetzen,
   vorgangLoeschen,
   wunschSetzen,
@@ -594,8 +595,17 @@ export default async function VorgangSeite({
               </p>
               <p className="mb-3 text-leise">
                 Ein Event, das doch nicht stattfindet, solltest du stattdessen auf{" "}
-                <strong>Abgesagt</strong> setzen. Dann bleibt nachvollziehbar, dass es die
-                Anfrage gab.
+                <strong>Abgesagt</strong> setzen, ein Kunde, der woanders gebucht hat, auf{" "}
+                <strong>Verloren</strong>. Dann bleibt nachvollziehbar, dass es die Anfrage gab.
+              </p>
+              <p className="mb-3 text-leise">
+                Soll der Vorgang nur aus der Liste verschwinden, leg ihn ins{" "}
+                <strong>Archiv</strong>: in der Vorgangsliste rechts auf &bdquo;ablegen&ldquo;.
+                Dort bleibt alles erhalten und lässt sich jederzeit zurückholen.
+              </p>
+              <p className="mb-3 text-leise">
+                Hängt eine festgeschriebene Rechnung oder eine Zahlung daran, geht Löschen
+                nicht. Das gehört in die Buchhaltung.
               </p>
               <form action={vorgangLoeschen.bind(null, vorgang.id)}>
                 <button
@@ -1076,6 +1086,29 @@ function StatusLeiste({ vorgangId, aktuell }: { vorgangId: string; aktuell: Vorg
             }}
           >
             Abgesagt
+          </button>
+        </form>
+        {/*
+          Verloren ist nicht dasselbe wie abgesagt.
+
+          "wie klicke ich ein angebot einfach auf verloren" (Florian,
+          30.10.2026). Abgesagt heisst: Es war unseres und faellt aus.
+          Verloren heisst: Der Kunde hat woanders gebucht. Standen beide
+          unter "Abgesagt", stimmte keine Auswertung mehr.
+        */}
+        <form action={alsVerlorenMarkieren.bind(null, vorgangId)}>
+          <button
+            type="submit"
+            title="Der Kunde hat sich anders entschieden. Den Grund kannst du in der Vorgangsliste dazuschreiben."
+            className="rounded-md border px-2.5 py-1 text-xs"
+            style={{
+              borderColor: aktuell === "verloren" ? "var(--text-leise)" : "var(--linie)",
+              background: aktuell === "verloren" ? "var(--hintergrund)" : "transparent",
+              color: "var(--text-leise)",
+              fontWeight: aktuell === "verloren" ? 600 : 400,
+            }}
+          >
+            Verloren
           </button>
         </form>
       </div>

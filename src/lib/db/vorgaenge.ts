@@ -36,9 +36,29 @@ export interface VorgangZeile {
   angenommenAm: string | null;
   gezahltCent: number;
   offeneAufgaben: number;
+  /** Wann der Vorgang aus der taeglichen Liste genommen wurde. */
+  archiviertAm: string | null;
+  /** Warum das Angebot nicht zustande kam, bei Status "verloren". */
+  verlorenGrund: string | null;
 }
 
-export async function listeVorgaenge(): Promise<VorgangZeile[]> {
+/**
+ * Welche Vorgaenge die Liste zeigt.
+ *
+ * "bei dieser ewig langen liste von vorgaengen muss es die moeglichkeit
+ * geben zu archivieren" (Florian, 30.10.2026). Voreingestellt ist
+ * "offen": alles, woran noch gearbeitet wird. Durchgefuehrte, abgesagte
+ * und verlorene Vorgaenge sind erledigt und stehen unter "Erledigt",
+ * archivierte unter "Archiv".
+ */
+export type Vorgangsfilter = "offen" | "erledigt" | "archiv" | "alle";
+
+/** Welche Staende als erledigt gelten. */
+export const ERLEDIGT: VorgangStatus[] = ["durchgefuehrt", "abgesagt", "verloren"];
+
+export async function listeVorgaenge(
+  filter: Vorgangsfilter = "alle",
+): Promise<VorgangZeile[]> {
   const zeilen = (await db()`
     select
       v.id,
@@ -64,7 +84,9 @@ export async function listeVorgaenge(): Promise<VorgangZeile[]> {
       coalesce((select sum(case when z.art = 'erstattung' then -z.betrag_cent else z.betrag_cent end)
                   from zahlung z where z.vorgang_id = v.id), 0)::int  as gezahlt_cent,
       (select count(*) from aufgabe f
-        where f.vorgang_id = v.id and f.erledigt = false)::int        as offene_aufgaben
+        where f.vorgang_id = v.id and f.erledigt = false)::int        as offene_aufgaben,
+      v.archiviert_am,
+      v.verloren_grund
     from vorgang v
     join kunde k            on k.id = v.kunde_id
     left join vorstellung s on s.id = v.vorstellung_id
@@ -72,7 +94,13 @@ export async function listeVorgaenge(): Promise<VorgangZeile[]> {
     order by s.datum asc nulls last, v.nummer asc
   `) as Record<string, unknown>[];
 
-  return zeilen.map((z) => ({
+  /*
+    Gefiltert wird hier und nicht in SQL, weil die Seite ohnehin alle
+    Zeilen braucht: Sie schreibt an jeden Reiter, wie viele dahinter
+    stehen. Zwei Abfragen waeren langsamer als eine mit einem filter
+    darueber.
+  */
+  const alle = zeilen.map((z) => ({
     id: String(z.id),
     nummer: String(z.nummer),
     status: z.status as VorgangStatus,
@@ -93,7 +121,23 @@ export async function listeVorgaenge(): Promise<VorgangZeile[]> {
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am as string).toISOString() : null,
     gezahltCent: Number(z.gezahlt_cent),
     offeneAufgaben: Number(z.offene_aufgaben),
+    archiviertAm: (z.archiviert_am as string) ?? null,
+    verlorenGrund: (z.verloren_grund as string) ?? null,
   }));
+
+  return alle.filter((v) => vorgangsfilter(v, filter));
+}
+
+/** Gehoert dieser Vorgang in diesen Reiter? */
+export function vorgangsfilter(
+  v: Pick<VorgangZeile, "status" | "archiviertAm">,
+  filter: Vorgangsfilter,
+): boolean {
+  if (filter === "alle") return true;
+  if (filter === "archiv") return v.archiviertAm !== null;
+  if (v.archiviertAm !== null) return false;
+  const erledigt = ERLEDIGT.includes(v.status);
+  return filter === "erledigt" ? erledigt : !erledigt;
 }
 
 /** Ein Abend mit allen Gruppen, die an diesem Tag im Haus sind. */
@@ -119,7 +163,7 @@ export async function listeVorstellungen(): Promise<VorstellungZeile[]> {
                   from gruppe g
                   join vorgang v on v.id = g.vorgang_id
                  where v.vorstellung_id = s.id
-                   and v.status <> 'abgesagt'), 0)::int as personen
+                   and v.status not in ('abgesagt', 'verloren')), 0)::int as personen
     from vorstellung s
     order by s.datum asc
   `) as Record<string, unknown>[];
@@ -281,7 +325,7 @@ export async function gruppenDerVorstellung(vorstellungId: string): Promise<Buch
       from gruppe g
       join vorgang v on v.id = g.vorgang_id
      where v.vorstellung_id = ${vorstellungId}
-       and v.status <> 'abgesagt'
+       and v.status not in ('abgesagt', 'verloren')
      order by g.personen desc
   `) as Record<string, unknown>[];
   return zeilen.map((z) => zuBuchungsgruppe(z, z.status as VorgangStatus));

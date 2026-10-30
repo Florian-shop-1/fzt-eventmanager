@@ -17,6 +17,8 @@ const FARBEN: Record<VorgangStatus, { flaeche: string; text: string }> = {
   bezahlt: { flaeche: "var(--gut-hell)", text: "var(--gut)" },
   durchgefuehrt: { flaeche: "var(--gut-hell)", text: "var(--gut)" },
   abgesagt: { flaeche: "var(--blocker-hell)", text: "var(--blocker)" },
+  /* Verloren tut nicht weh wie eine Absage, es ist nur vorbei: grau. */
+  verloren: { flaeche: "var(--hintergrund)", text: "var(--text-leise)" },
 };
 
 export function StatusBadge({ status }: { status: VorgangStatus }) {
