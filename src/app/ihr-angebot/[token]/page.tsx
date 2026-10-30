@@ -301,7 +301,7 @@ export default async function KundenAngebot({
               alt={inLoge ? "Eine Loge mit langem Tisch, Gaeste stossen an" : "Die Magicuisine mit ihren Tischen"}
               hoehe="h-72"
             />
-            <div className="p-6 text-sm leading-relaxed text-leise">
+            <div className="relative p-6 text-sm leading-relaxed text-leise">
               {inLoge ? (
                 <>
                   <p>
@@ -333,10 +333,40 @@ export default async function KundenAngebot({
                     Tische, direkt über dem Geschehen, mit freiem Blick zur Bühne. Sie sitzen
                     zusammen an einem Tisch, nicht verteilt.
                   </p>
-                  <p className="mt-3">
-                    Möchten Sie lieber eine eigene Loge im Showroom, sagen Sie uns Bescheid. Eine Loge
-                    fasst zehn bis zwölf Personen und wird als Ganzes vergeben.
-                  </p>
+                  {/*
+                    Der Störer mit dem Logenfoto.
+
+                    "hier wäre doch klein, vielleicht schräg unten rechts
+                    als störer bei dem text 'lieber loge' das logenfoto
+                    cool" (Florian, 30.10.2026).
+
+                    Das große Bild oben zeigt die Eventgalerie, also das,
+                    was angeboten ist. Die Loge steht nur als Satz
+                    daneben, und ein Satz verkauft keinen Raum. Deshalb
+                    hier klein und schräg: Man sieht, wovon die Rede ist,
+                    ohne dass es dem Hauptbild die Schau stiehlt.
+
+                    Auf dem Handy steht es über dem Text statt daneben,
+                    sonst bliebe für beides zu wenig Platz.
+                  */}
+                  <div className="mt-3 sm:flex sm:items-start sm:gap-5">
+                    <p className="sm:flex-1">
+                      Möchten Sie lieber eine eigene Loge im Showroom, sagen Sie uns Bescheid. Eine
+                      Loge fasst zehn bis zwölf Personen und wird als Ganzes vergeben.
+                    </p>
+                    <figure className="mx-auto mt-4 w-44 shrink-0 -rotate-3 sm:mx-0 sm:mt-0">
+                      <div className="overflow-hidden rounded-md border border-linie bg-flaeche shadow-lg">
+                        <Bild
+                          datei="loge-tisch.jpg"
+                          alt="Eine Loge im Showroom mit langem Tisch"
+                          hoehe="h-28"
+                        />
+                      </div>
+                      <figcaption className="mt-1 text-center text-xs text-leise">
+                        So sieht eine Loge aus
+                      </figcaption>
+                    </figure>
+                  </div>
                 </>
               )}
             </div>
@@ -416,7 +446,24 @@ export default async function KundenAngebot({
                             <div className="mt-0.5 text-xs text-leise">{p.beschreibung}</div>
                           )}
                         </td>
-                        <td className="py-2.5 text-right tabular-nums">{p.menge}</td>
+                        {/*
+                          Die Einheit gehoert dazu, wenn sie nicht
+                          "Stueck" ist.
+
+                          "forsche mal nach. haben wir das nicht pro
+                          stunde gerechnet gehabt" (Florian, 30.10.2026),
+                          zur LED-Fassade. Gerechnet wurde richtig, je
+                          Stunde zu 350 Euro. In der Zeile stand aber nur
+                          eine nackte 1, und damit sah es nach einer
+                          Pauschale aus. Wer das Angebot liest, soll
+                          sehen, wofuer der Betrag gilt.
+                        */}
+                        <td className="py-2.5 text-right tabular-nums">
+                          {p.menge}
+                          {p.einheit && p.einheit !== "Stück" && (
+                            <span className="text-leise"> {p.einheit}</span>
+                          )}
+                        </td>
                         {/*
                           Der Nachlass soll man sehen.
 
