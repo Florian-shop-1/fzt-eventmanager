@@ -18,6 +18,7 @@ import {
   angebotVersendet,
   positionOptional,
   positionPreisSetzen,
+  positionRabattSetzen,
   positionEntfernen,
   positionenErgaenzen,
   positionHinzufuegen,
@@ -1684,9 +1685,58 @@ function AngebotKarte({
                               €
                             </button>
                           </form>
+                          {/*
+                            Der Nachlass je Zeile.
+
+                            "das soll möglich sein bei jedem einzelnen
+                            produkt weiterhin" (Florian, 30.10.2026). Es
+                            gab ihn nur noch als Prozentsatz auf alle
+                            Tickets im Baukasten; gerechnet und gedruckt
+                            wurde er je Zeile immer schon.
+
+                            Leer heisst kein Nachlass. Mehr als die
+                            Haelfte nimmt der Server nicht an, das waere
+                            kein Rabatt mehr, sondern ein anderer Preis.
+                          */}
+                          <form
+                            action={positionRabattSetzen.bind(null, p.id, vorgangId)}
+                            className="mt-1 flex items-center justify-end gap-1"
+                          >
+                            <input
+                              type="text"
+                              name="rabatt"
+                              inputMode="numeric"
+                              defaultValue={p.rabattProzent ? String(p.rabattProzent) : ""}
+                              placeholder="Rabatt"
+                              style={{ width: "5.5rem" }}
+                              onBlur={(e) => {
+                                const vorher = p.rabattProzent ? String(p.rabattProzent) : "";
+                                if (e.currentTarget.value.trim() !== vorher) {
+                                  e.currentTarget.form?.requestSubmit();
+                                }
+                              }}
+                              className="rounded border border-linie px-1.5 py-0.5 text-right text-xs tabular-nums"
+                            />
+                            <button type="submit" className="underline text-leise" title="Rabatt speichern">
+                              %
+                            </button>
+                          </form>
                         </td>
                         <td className={`py-1 pl-2 text-right tabular-nums ${p.optional ? "text-leise" : ""}`}>
-                          {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                          {p.rabattProzent ? (
+                            <>
+                              <span className="block text-leise line-through">
+                                {eur(p.einzelBruttoCent * p.menge)}
+                              </span>
+                              <span style={{ color: "var(--gut)", fontWeight: 600 }}>
+                                {p.optional ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                              </span>
+                            </>
+                          ) : p.optional ? (
+                            `(${eur(positionsSumme(p))})`
+                          ) : (
+                            eur(positionsSumme(p))
+                          )}
                         </td>
                         {/*
                           Der Schalter je Zeile. Optional heisst: steht im

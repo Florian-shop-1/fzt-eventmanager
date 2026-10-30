@@ -394,6 +394,36 @@ export async function positionPreisSetzen(
 }
 
 /**
+ * Den Rabatt einer einzelnen Position setzen oder aufheben.
+ *
+ * "es gibt keine möglichkeit mehr für discount. das soll möglich sein
+ * bei jedem einzelnen produkt weiterhin.. dann auf dem angebot den
+ * ursprünglichen preis durchstreichen" (Florian, 30.10.2026).
+ *
+ * Es gab ihn nur noch als Prozentsatz auf alle Tickets, beim Bauen.
+ * Gerechnet und gedruckt wurde er je Zeile immer schon, bedienen ließ
+ * er sich nur nicht mehr. Hier ist der Schalter zurück.
+ *
+ * Null oder leer hebt ihn auf. Mehr als die Hälfte geht nicht: Ein
+ * Nachlass über fünfzig Prozent ist in diesem Haus kein Rabatt mehr,
+ * sondern ein anderer Preis, und den tippt man als Preis ein.
+ */
+export async function positionRabattSetzen(
+  positionId: string,
+  vorgangId: string,
+  formData: FormData,
+): Promise<void> {
+  await verlangeTeam();
+
+  const roh = String(formData.get("rabatt") ?? "").trim().replace(",", ".");
+  const zahl = Number(roh);
+  const prozent = !roh || !Number.isFinite(zahl) || zahl <= 0 ? null : Math.min(50, Math.round(zahl));
+
+  await db()`update position set rabatt_prozent = ${prozent} where id = ${positionId}`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/**
  * Eine Position zu einem bestehenden Angebot hinzufügen.
  *
  * "die Option, wie man Punkte aufnehmen kann in einem Angebot, machen

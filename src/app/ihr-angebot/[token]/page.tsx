@@ -392,18 +392,60 @@ export default async function KundenAngebot({
                           )}
                         </td>
                         <td className="py-2.5 text-right tabular-nums">{p.menge}</td>
+                        {/*
+                          Der Nachlass soll man sehen.
+
+                          "dann auf dem angebot den ursprünglichen preis
+                          durchstreichen. einfach so darstellen, dass man
+                          sich gehypt fühlt dass man einen besseren preis
+                          hat" (Florian, 30.10.2026).
+
+                          Vorher stand dort nur eine graue Zeile
+                          "abzüglich 20%", und die Zahl rechts war schon
+                          der Endpreis: Man sah also nie, was der Abend
+                          regulär kostet. Jetzt steht der Listenpreis
+                          durchgestrichen daneben und der Nachlass als
+                          Schild darunter.
+                        */}
                         <td className="py-2.5 text-right tabular-nums">
-                          {eur(p.einzelBruttoCent)}
                           {p.rabattProzent ? (
-                            <div className="text-xs text-leise">abzüglich {p.rabattProzent}%</div>
-                          ) : null}
+                            <>
+                              <span className="text-leise line-through">
+                                {eur(p.einzelBruttoCent)}
+                              </span>{" "}
+                              <span style={{ color: "var(--gut)", fontWeight: 600 }}>
+                                {eur(Math.round((p.einzelBruttoCent * (100 - p.rabattProzent)) / 100))}
+                              </span>
+                            </>
+                          ) : (
+                            eur(p.einzelBruttoCent)
+                          )}
                         </td>
                         <td
                           className={`py-2.5 text-right tabular-nums ${
                             alternative ? "text-leise" : "font-medium"
                           }`}
                         >
-                          {alternative ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                          {p.rabattProzent ? (
+                            <>
+                              <span className="block text-xs text-leise line-through">
+                                {eur(p.einzelBruttoCent * p.menge)}
+                              </span>
+                              <span style={{ color: "var(--gut)" }}>
+                                {alternative ? `(${eur(positionsSumme(p))})` : eur(positionsSumme(p))}
+                              </span>
+                              <span
+                                className="mt-0.5 block rounded px-1.5 py-0.5 text-xs font-semibold"
+                                style={{ background: "var(--gut-hell)", color: "var(--gut)" }}
+                              >
+                                Sie sparen {eur(p.einzelBruttoCent * p.menge - positionsSumme(p))}
+                              </span>
+                            </>
+                          ) : alternative ? (
+                            `(${eur(positionsSumme(p))})`
+                          ) : (
+                            eur(positionsSumme(p))
+                          )}
                         </td>
                       </tr>
                     );

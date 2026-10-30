@@ -460,8 +460,31 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
 
     rechtsB(String(p.menge), SP_MENGE, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
     schreib(p.einheit, SP_EINHEIT - 28, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
-    rechtsB(eur(p.einzelBruttoCent), SP_EINZEL, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
-    if (p.rabattProzent) rechtsB(`${p.rabattProzent} %`, SP_RABATT, oben, 9.5, normal, GOLD);
+    /*
+      Beim Nachlass wird der Listenpreis durchgestrichen.
+
+      "dann auf dem angebot den ursprünglichen preis durchstreichen.
+      einfach so darstellen, dass man sich gehypt fühlt dass man einen
+      besseren preis hat" (Florian, 30.10.2026). pdf-lib kennt keine
+      Durchstreichung, also wird der Strich gezeichnet: ueber die Breite
+      des Textes, auf halber Zeilenhoehe.
+    */
+    if (p.rabattProzent) {
+      const listenpreis = eur(p.einzelBruttoCent);
+      const breite = normal.widthOfTextAtSize(listenpreis, 8.5);
+      rechtsB(listenpreis, SP_EINZEL, oben + 9, 8.5, normal, GRAU);
+      s.drawLine({
+        start: { x: SP_EINZEL - breite, y: oben + 12 },
+        end: { x: SP_EINZEL, y: oben + 12 },
+        thickness: 0.6,
+        color: GRAU,
+      });
+      const neuerPreis = Math.round((p.einzelBruttoCent * (100 - p.rabattProzent)) / 100);
+      rechtsB(eur(neuerPreis), SP_EINZEL, oben, 9.5, fett, optional ? GRAU : GOLD);
+      rechtsB(`-${p.rabattProzent} %`, SP_RABATT, oben, 9.5, fett, GOLD);
+    } else {
+      rechtsB(eur(p.einzelBruttoCent), SP_EINZEL, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
+    }
     rechtsB(
       optional ? `(${eur(betrag)})` : eur(betrag),
       RECHTS, oben, optional ? 9.5 : 10, optional ? normal : fett, optional ? GRAU : SCHWARZ,
