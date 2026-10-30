@@ -54,6 +54,25 @@ async function entwurfHolen(id: string): Promise<Rechnung> {
   return r;
 }
 
+/**
+ * Der Steuersatz als Anteil, egal wie er hereinkommt.
+ *
+ * Im Haus gibt es den Satz in zwei Schreibweisen: Der Artikelstamm und
+ * die Angebotspositionen fuehren ihn als Anteil (0.07), das Formular
+ * zeigt Prozent (7). Beides meint dasselbe, und wer sie verwechselt,
+ * macht aus sieben Prozent siebenhundert (gefunden am 30.10.2026).
+ *
+ * Gespeichert wird immer der Anteil, denn so rechnet das PDF.
+ */
+export function ustAnteil(wert: unknown): number {
+  const n = Number(wert);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  const anteil = n > 1 ? n / 100 : n;
+  // Nur die Saetze, die es wirklich gibt. Alles andere waere ein Vertipper.
+  return [0.07, 0.19].reduce((naechster, satz) =>
+    Math.abs(satz - anteil) < Math.abs(naechster - anteil) ? satz : naechster, 0);
+}
+
 export function summeAusZeilen(zeilen: Entwurfszeile[]): number {
   return zeilen.reduce((n, z) => n + Math.round(z.menge * z.einzelBruttoCent), 0);
 }
@@ -78,7 +97,7 @@ export async function zeilenSpeichern(
       menge: Math.max(0, Math.min(9999, Number(z.menge) || 0)),
       einheit: (z.einheit || "Stück").trim().slice(0, 30),
       einzelBruttoCent: Math.max(0, Math.round(Number(z.einzelBruttoCent) || 0)),
-      ust: [0, 7, 19].includes(Number(z.ust)) ? Number(z.ust) : 19,
+      ust: ustAnteil(z.ust),
       artikelNummer: (z.artikelNummer ?? "").trim().slice(0, 40),
     }))
     .filter((z) => z.bezeichnung && z.menge > 0);

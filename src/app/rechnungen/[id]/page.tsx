@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { rechnungPerMail, rechnungsMailtext } from "@/lib/rechnung/mailversand";
 import { rechnungsPdfDaten } from "@/lib/rechnung/pdfdaten";
+import { ustAnteil } from "@/lib/rechnung/entwurf";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfBuchhaltung, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { ereignisse, rechnungLesen } from "@/lib/rechnung/db";
@@ -79,7 +80,9 @@ export default async function RechnungSeite({
     menge: Number(z.menge ?? 0),
     einheit: String(z.einheit ?? "Stück"),
     einzelBruttoCent: Number(z.einzelBruttoCent ?? 0),
-    ust: Number(z.ust ?? 19),
+    // Der Artikelstamm fuehrt den Satz als Anteil (0.07), das Formular
+    // zeigt Prozent. Siehe ustAnteil in lib/rechnung/entwurf.ts.
+    ust: Math.round(ustAnteil(z.ust) * 100),
   }));
 
   /** Die leere Zeile am Ende, damit immer etwas dazukommen kann. */
@@ -91,6 +94,7 @@ export default async function RechnungSeite({
     einzelBruttoCent: 0,
     ust: 19,
   });
+
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
