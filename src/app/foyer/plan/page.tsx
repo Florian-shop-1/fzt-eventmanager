@@ -1,6 +1,13 @@
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { foyerLeute, foyerPlan, regelEnde, type FoyerDienst, type FoyerPerson } from "@/lib/foyer/dienstplan";
+import {
+  foyerLeute,
+  foyerPlan,
+  regelEnde,
+  ueberRegel,
+  type FoyerDienst,
+  type FoyerPerson,
+} from "@/lib/foyer/dienstplan";
 import { offeneUebernahmen, type UebernahmeAntrag } from "@/lib/dienstplan/uebernahme";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -380,7 +387,7 @@ export default async function FoyerPlanSeite({
                                 Das entscheidet die Aktion beim Speichern.
                               */}
                               <span className="mt-1 block text-xs text-leise">
-                                ohne Sonderaufgabe bis {regelEnde(blk.vorschlag, d.nummer)}
+                                gewöhnlich bis {regelEnde(blk.vorschlag, d.nummer)}
                               </span>
                             </label>
                             <label className="block min-w-[12rem] flex-1">
@@ -504,15 +511,23 @@ function PlatzZeile({
         <span className="flex items-center gap-1 text-leise">
           <input type="time" name={`von${d.nummer}`} defaultValue={d.von} className="w-28" aria-label="von" />
           bis
+          {/*
+            Keine harte Grenze mehr.
+
+            "nur für Kevin und mich ermöglichen, dass man jede Uhrzeit
+            eingeben kann! einfach eine warnung machen" (Florian,
+            30.10.2026). Zeiten aendern duerfen ohnehin nur die beiden,
+            und wer den Plan macht, kennt die Ausnahmen. Der Hinweis
+            steht daneben, sobald die Zeit darueber liegt.
+          */}
           <input
             type="time"
             name={`bis${d.nummer}`}
             defaultValue={d.bis}
-            max={d.sonderaufgabe ? undefined : grenze || undefined}
             title={
               d.sonderaufgabe
                 ? undefined
-                : `Ohne Sonderaufgabe ist um ${grenze} Uhr Schluss, nach der Pause der Show.`
+                : `Gewöhnlich ist um ${grenze} Uhr Schluss, nach der Pause der Show.`
             }
             className="w-28"
             aria-label="bis"
@@ -527,6 +542,16 @@ function PlatzZeile({
             {d.von || "?"} bis {d.bis || "?"} Uhr
           </span>
         </>
+      )}
+
+      {ueberRegel(d.bis, grenze, d.sonderaufgabe) && (
+        <span
+          className="rounded px-1.5 py-0.5 text-xs"
+          style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}
+          title={`Gewöhnlich ist um ${grenze} Uhr Schluss. Wer länger bleibt, bekommt eine Sonderaufgabe.`}
+        >
+          länger als gewöhnlich, sonst {grenze}
+        </span>
       )}
 
       {d.notiz && <span className="text-leise">· {d.notiz}</span>}

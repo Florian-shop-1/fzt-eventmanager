@@ -79,8 +79,7 @@ export function FoyerZusatzPlaetze({
                     type="time"
                     name={`bis${n}`}
                     defaultValue={bis}
-                    max={grenze || undefined}
-                    title={`Ohne Sonderaufgabe ist um ${grenze} Uhr Schluss, nach der Pause der Show.`}
+                    title={`Gewöhnlich ist um ${grenze} Uhr Schluss, nach der Pause der Show.`}
                     className="w-28"
                     aria-label="bis"
                   />

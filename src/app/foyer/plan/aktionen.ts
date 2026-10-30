@@ -24,6 +24,7 @@ import {
   foyerZeiten,
   regelEnde,
   tagTeilen,
+  ueberRegel,
   teilungAufheben,
   zeitenSetzen,
   type Abschnitt,
@@ -225,6 +226,8 @@ export async function tagEintragen(f: FormData): Promise<void> {
 
   const eingeteilt: string[] = [];
   const gekuerzt: string[] = [];
+  const ueberzogen: string[] = [];
+  const chef = darfEinladen(b);
 
   /*
     Welche Plaetze das Formular geschickt hat.
@@ -244,14 +247,22 @@ export async function tagEintragen(f: FormData): Promise<void> {
     const wert = text(f, `benutzer${nummer}`, 40);
     const von = text(f, `von${nummer}`, 5);
     /*
-      Ohne Sonderaufgabe ist nach der Pause Schluss. Das Feld oben hat
-      schon ein Maximum, hier steht es noch einmal: Ein altes Formular
-      oder ein Browser ohne diese Pruefung soll die Regel nicht
-      aushebeln (Florian, 29.10.2026).
+      Ohne Sonderaufgabe ist nach der Pause Schluss, ausser fuer die
+      Chefs.
+
+      "bitte beim dienstplan erstellen nur für Kevin und mich
+      ermöglichen, dass man jede Uhrzeit eingeben kann! einfach eine
+      warnung machen" (Florian, 30.10.2026). Wer den Plan macht, kennt
+      die Ausnahmen; die Regel soll ihn erinnern, nicht aufhalten. Fuer
+      alle anderen bleibt sie eine Grenze, denn deren Formular schickt
+      nur zurueck, was ohnehin schon dasteht.
     */
     const gewuenscht = text(f, `bis${nummer}`, 5);
-    const bis = endeBegrenzen(gewuenscht, regelEnde(vorschlag, nummer), aufgaben.get(nummer) ?? "");
+    const grenze = regelEnde(vorschlag, nummer);
+    const aufgabe = aufgaben.get(nummer) ?? "";
+    const bis = chef ? gewuenscht : endeBegrenzen(gewuenscht, grenze, aufgabe);
     if (bis !== gewuenscht) gekuerzt.push(`${nummer}. Person`);
+    else if (ueberRegel(bis, grenze, aufgabe)) ueberzogen.push(`${nummer}. Person bis ${bis}`);
     const person = wert && wert !== "offen" ? leute.find((p) => p.id === wert) : undefined;
 
     // Ein zusaetzlicher Platz ohne Person verschwindet wieder, sonst
@@ -312,7 +323,9 @@ export async function tagEintragen(f: FormData): Promise<void> {
   const hinweis =
     gekuerzt.length > 0
       ? ` ${gekuerzt.join(", ")}: Schluss nach der Pause. Wer länger bleibt, braucht eine Sonderaufgabe.`
-      : "";
+      : ueberzogen.length > 0
+        ? ` Hinweis: ${ueberzogen.join(", ")}, das ist über der gewöhnlichen Zeit. Ohne Sonderaufgabe wäre hier früher Schluss.`
+        : "";
   zurueck(
     (eingeteilt.length > 0
       ? `${datumMitWochentag(datum)}: ${eingeteilt.join(", ")} eingetragen.`
@@ -462,7 +475,7 @@ export async function zeiten(f: FormData): Promise<void> {
   */
   const grenze = regelEnde(await vorschlagFuer(datum, abschnitt), nummer);
   const gewuenscht = text(f, "bis", 5);
-  const bis = endeBegrenzen(gewuenscht, grenze, sonderaufgabe);
+  const bis = darfEinladen(b) ? gewuenscht : endeBegrenzen(gewuenscht, grenze, sonderaufgabe);
   await zeitenSetzen({
     datum,
     abschnitt,
@@ -474,9 +487,11 @@ export async function zeiten(f: FormData): Promise<void> {
     von_wem: b.name,
   });
   zurueck(
-    bis === gewuenscht
-      ? "Gespeichert."
-      : `Gespeichert, Schluss um ${bis} Uhr. Länger geht nur mit einer Sonderaufgabe.`,
+    bis !== gewuenscht
+      ? `Gespeichert, Schluss um ${bis} Uhr. Länger geht nur mit einer Sonderaufgabe.`
+      : ueberRegel(bis, grenze, sonderaufgabe)
+        ? `Gespeichert. Hinweis: ${bis} Uhr ist über der gewöhnlichen Zeit, ohne Sonderaufgabe wäre früher Schluss.`
+        : "Gespeichert.",
   );
 }
 

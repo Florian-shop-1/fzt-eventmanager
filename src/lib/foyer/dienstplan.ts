@@ -281,6 +281,18 @@ export function regelEnde(vorschlag: Array<{ von: string; bis: string }>, nummer
  * braucht. Deshalb schneidet diese Stelle ueberlange Enden zurueck,
  * und zwar beim Anzeigen wie beim Speichern.
  */
+/**
+ * Geht diese Schicht ueber das gewoehnliche Ende hinaus?
+ *
+ * Dann steht im Plan ein Hinweis. Verboten ist es nicht: Florian und
+ * Kevin tragen auch Sonderfaelle ein, und eine Warnung ist dafuer das
+ * richtige Mittel, keine Sperre (Florian, 30.10.2026).
+ */
+export function ueberRegel(bis: string, grenze: string, sonderaufgabe: string): boolean {
+  if (sonderaufgabe.trim() || !bis || !grenze) return false;
+  return alsMinuten(bis) > alsMinuten(grenze);
+}
+
 export function endeBegrenzen(bis: string, grenze: string, sonderaufgabe: string): string {
   if (sonderaufgabe.trim() || !bis || !grenze) return bis;
   return alsMinuten(bis) > alsMinuten(grenze) ? grenze : bis;
@@ -399,10 +411,18 @@ function plaetzeBauen(
 
   const naechste = (zusaetzlich.at(-1)?.nummer ?? PLAETZE.length) + 1;
 
-  return [...fest, ...zusaetzlich, leer(naechste)].map((d) => {
-    const begrenzt = endeBegrenzen(d.bis, regelEnde(vorschlag, d.nummer), d.sonderaufgabe);
-    return begrenzt === d.bis ? d : { ...d, bis: begrenzt };
-  });
+  /*
+    Angezeigt wird, was gespeichert ist.
+
+    Hier wurde bis zum 30.10.2026 gekuerzt, was ueber der Regel lag.
+    Das war gut gemeint und falsch: "bitte beim dienstplan erstellen
+    nur für Kevin und mich ermöglichen, dass man jede Uhrzeit eingeben
+    kann! einfach eine warnung machen" (Florian). Wer eine Zeit
+    eintraegt und sie beim naechsten Laden anders wiederfindet, traut
+    dem Plan nicht mehr. Die Regel steht jetzt als Hinweis daneben,
+    siehe ueberRegel.
+  */
+  return [...fest, ...zusaetzlich, leer(naechste)];
 }
 
 /** Der Plan: zwei feste Plätze je Showtag, dazu beliebig viele weitere. */
