@@ -21,12 +21,34 @@ const heuteIso = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europ
 export default async function RechnungenSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ meldung?: string; nur?: string }>;
+  searchParams: Promise<{
+    meldung?: string;
+    nur?: string;
+    /*
+      Vorbelegung aus einem Vorgang.
+
+      "Ich muss in der Lage sein auch Rechnungen erstellen zu können,
+      für die kein entsprechendes Angebot erstellt wurde" (Kevin über
+      Florian, 30.10.2026). Gab es schon, nur fand es niemand: Der Weg
+      begann hier unten in einem zugeklappten Kasten, während der
+      Vorgang zwei Seiten weiter offen lag. Jetzt führt ein Knopf am
+      Vorgang hierher und bringt den Kunden gleich mit.
+    */
+    kunde?: string;
+    ansprechpartner?: string;
+    email?: string;
+    strasse?: string;
+    plz?: string;
+    ort?: string;
+    leistung?: string;
+  }>;
 }) {
   const b = await angemeldeterBenutzer();
   if (!b) redirect("/anmelden");
   if (!darfKaufmaennisches(b.rolle) && !darfBuchhaltung(b)) redirect("/");
-  const { meldung, nur } = await searchParams;
+  const { meldung, nur, ...vorbelegt } = await searchParams;
+  /* Kam der Aufruf von einem Vorgang, steht der Kasten offen. */
+  const vonVorgang = Boolean(vorbelegt.kunde);
 
   const [alle, e] = await Promise.all([alleRechnungen(), einstellung()]);
   /*
@@ -135,43 +157,43 @@ export default async function RechnungenSeite({
         demselben Kreis und denselben Hausbrief; danach läuft sie den
         gewohnten Weg mit Versand, Zahlungsabgleich und Erinnerung.
       */}
-      <details className="rounded-lg border border-linie bg-flaeche p-5">
+      <details open={vonVorgang} className="rounded-lg border border-linie bg-flaeche p-5">
         <summary className="cursor-pointer font-semibold">Rechnung von Hand schreiben</summary>
         <form action={handRechnungErstellen} className="mt-4 space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Kunde (Rechnungsempfänger)</span>
-              <input name="kunde" required maxLength={200} placeholder="Muster GmbH" />
+              <input name="kunde" required maxLength={200} placeholder="Muster GmbH" defaultValue={vorbelegt.kunde ?? ""} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Ansprechpartner</span>
-              <input name="ansprechpartner" maxLength={120} />
+              <input name="ansprechpartner" maxLength={120} defaultValue={vorbelegt.ansprechpartner ?? ""} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">E-Mail</span>
-              <input name="email" type="email" maxLength={200} />
+              <input name="email" type="email" maxLength={200} defaultValue={vorbelegt.email ?? ""} />
             </label>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Straße</span>
-              <input name="strasse" maxLength={200} />
+              <input name="strasse" maxLength={200} defaultValue={vorbelegt.strasse ?? ""} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">PLZ</span>
-              <input name="plz" maxLength={10} />
+              <input name="plz" maxLength={10} defaultValue={vorbelegt.plz ?? ""} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Ort</span>
-              <input name="ort" maxLength={120} />
+              <input name="ort" maxLength={120} defaultValue={vorbelegt.ort ?? ""} />
             </label>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-xs text-leise">Leistung (Überschrift auf der Rechnung)</span>
-              <input name="leistung" maxLength={300} placeholder="Technikgestellung" />
+              <input name="leistung" maxLength={300} placeholder="Technikgestellung" defaultValue={vorbelegt.leistung ?? ""} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-leise">Leistungszeitraum</span>

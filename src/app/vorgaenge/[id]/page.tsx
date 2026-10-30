@@ -558,6 +558,47 @@ export default async function VorgangSeite({
             }
           />
 
+          {/*
+            Eine Rechnung ohne Angebot.
+
+            "Ich muss in der Lage sein auch Rechnungen erstellen zu
+            können, für die kein entsprechendes Angebot erstellt wurde"
+            (Kevin über Florian, 30.10.2026).
+
+            Gab es schon, nur nicht hier: Der Weg führte über
+            Buchhaltung, Rechnungen und einen zugeklappten Kasten ganz
+            unten, während der Vorgang mit allen Daten offen vor einem
+            lag. Der Knopf nimmt Kunde, Anschrift und Anlass gleich mit,
+            drüben steht der Kasten offen und das Formular ist
+            ausgefüllt.
+          */}
+          <Karte titel="Rechnung ohne Angebot">
+            <p className="text-sm text-leise">
+              Für alles, wofür es kein Angebot gibt: eine Weiterberechnung, eine Technikgestellung,
+              eine Nachforderung. Gleiche Nummer aus demselben Kreis, gleicher Hausbrief, gleicher
+              Abgleich mit dem Konto.
+            </p>
+            <Link
+              href={{
+                pathname: "/rechnungen",
+                query: {
+                  kunde: vorgang.kunde.name,
+                  ansprechpartner: vorgang.kunde.ansprechpartner ?? "",
+                  email: vorgang.kunde.email ?? "",
+                  strasse: vorgang.kunde.strasse ?? "",
+                  plz: vorgang.kunde.plz ?? "",
+                  ort: vorgang.kunde.ort ?? "",
+                  leistung: vorgang.vorstellung?.datum
+                    ? `Firmenevent am ${vorgang.vorstellung.datum.split("-").reverse().join(".")}`
+                    : `Firmenevent ${vorgang.nummer}`,
+                },
+              }}
+              className="mt-3 inline-block rounded-md border border-gold bg-gold-hell px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
+            >
+              Rechnung von Hand schreiben
+            </Link>
+          </Karte>
+
           <Karte titel="Notizen">
             <form action={notizHinzufuegen.bind(null, vorgang.id)} className="mb-4">
               <textarea name="text" rows={2} placeholder="Was gibt es Neues?" />

@@ -308,6 +308,20 @@ export function AngebotBereich({
   const [preisherkunft, setPreisherkunft] = useState<{ datum: string; show: string } | null>(null);
   /* Eigene Preise je Ticketkategorie, als getippter Text. */
   const [eigenePreise, setEigenePreise] = useState<Record<string, string>>({});
+  /*
+    Preise selbst eintragen statt vorbelegen.
+
+    "Ich brauche bei den Sitzplätzen KEINE Voreingestellten Preise.
+    Bevor die KI irgendwelche Preise erfindet, schreibe ich diese
+    innerhalb von Sekunden selber ein!" (Kevin über Florian,
+    30.10.2026).
+
+    Erfunden war nichts: Die Preise kommen aus der Preisliste genau der
+    Vorstellung. Wer sie trotzdem lieber selbst tippt, schaltet hier um.
+    Die Felder stehen dann leer, und der Shoppreis steht nur noch klein
+    daneben, als Anhalt und nicht als Vorgabe.
+  */
+  const [preiseSelbst, setPreiseSelbst] = useState(false);
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
@@ -322,6 +336,41 @@ export function AngebotBereich({
     setNurOptional((bisher) =>
       an ? [...new Set([...bisher, nummer])] : bisher.filter((n) => n !== nummer),
     );
+
+  /*
+    Essen: gar nicht, zur Wahl oder fest.
+
+    "Ich will zu allen Punkten die Möglichkeit haben, diese fest, oder
+    optional zu haben. Oder auch GAR NICHT erwähnt im Angebot. Dies
+    betrifft auch die Menüs!" (Kevin über Florian, 30.10.2026).
+
+    "Gar nicht" gab es schon, aber an einer anderen Stelle: als Fassung
+    "Nur die Show" ganz oben. Wer unten beim Menü stand, fand sie nicht.
+    Der Schalter hier stellt genau diese Fassung um, denn ohne Essen
+    gehören auch Empfang und Menü nicht mehr in den Ablauf. Die zuvor
+    gewählten Fassungen werden gemerkt und kommen zurück, wenn das
+    Essen wieder dazugehört.
+  */
+  const ESSENSFASSUNGEN: Variante[] = ["menue", "fingerfood", "exklusiv_show", "exklusiv_ohne_show"];
+  const gemerkteFassungen = useRef<Variante[]>(["menue"]);
+
+  const essenModus: "weg" | "wahl" | "fest" = !fassungen.some((f) => ESSENSFASSUNGEN.includes(f))
+    ? "weg"
+    : istOptional("4GANG")
+      ? "wahl"
+      : "fest";
+
+  const setzeEssenModus = (w: "weg" | "wahl" | "fest") => {
+    if (w === "weg") {
+      const essen = fassungen.filter((f) => ESSENSFASSUNGEN.includes(f));
+      if (essen.length > 0) gemerkteFassungen.current = essen;
+      setFassungen(["nurshow"]);
+      return;
+    }
+    if (essenModus === "weg") setFassungen(gemerkteFassungen.current);
+    for (const n of ["4GANG", "4GANGLOGE", "FINGERFOOD"]) setzeOptional(n, w === "wahl");
+  };
+
 
   // Aus dem getippten Euro-Text werden Cent. Komma und Punkt gehen beide.
   const preisCent = Math.round((Number(ticketpreis.replace(",", ".")) || 0) * 100);
@@ -710,11 +759,28 @@ export function AngebotBereich({
               <span className="mb-1 block text-xs text-leise">
                 Ticketkategorien und Stückzahl
               </span>
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--gold-dunkel)]"
+                    checked={preiseSelbst}
+                    onChange={(e) => setPreiseSelbst(e.target.checked)}
+                  />
+                  Preise selbst eintragen
+                </label>
+                <span className="text-leise">
+                  {preiseSelbst
+                    ? "Die Felder bleiben leer. Was leer bleibt, wird mit dem Preis der Vorstellung gerechnet."
+                    : "Vorbelegt mit den Preisen der gewählten Vorstellung."}
+                </span>
+              </div>
               <Kategorienwahl
                 mengen={mengen}
                 setzen={setMengen}
                 personen={personen}
                 preise={abendpreise}
+                preiseSelbst={preiseSelbst}
                 istOptional={istOptional}
                 setzeOptional={setzeOptional}
                 eigenePreise={eigenePreise}
@@ -927,14 +993,15 @@ export function AngebotBereich({
             Essen kostet, und das Menue daneben in Klammern sehen.
           */}
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span>Menü im Angebot</span>
-            <DrinSchalter
-              optional={istOptional("4GANG")}
-              setzen={(an) => {
-                for (const n of ["4GANG", "4GANGLOGE", "FINGERFOOD"]) setzeOptional(n, an);
-              }}
-            />
+            <span>Essen im Angebot</span>
+            <DreiWeg wert={essenModus} setzen={setzeEssenModus} weg="ohne Essen" />
           </div>
+          {essenModus === "weg" && (
+            <p className="text-xs text-leise">
+              Das Angebot zeigt nur die Show. Im Ablauf oben stehen dann auch kein Empfang und
+              kein Menü, denn es gibt ja keins.
+            </p>
+          )}
 
           {/*
             Die Loge: gar nicht, zur Wahl oder fest.
@@ -979,22 +1046,15 @@ export function AngebotBereich({
             )}
           </fieldset>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--gold-dunkel)]"
-                checked={mitEmpfang}
-                onChange={(e) => setMitEmpfang(e.target.checked)}
-              />
-              Magicuvée-Empfang berechnen
-            </label>
-            {mitEmpfang && (
-              <DrinSchalter
-                optional={istOptional("EMPFANG")}
-                setzen={(an) => setzeOptional("EMPFANG", an)}
-              />
-            )}
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span>Magicuvée-Empfang</span>
+            <DreiWeg
+              wert={!mitEmpfang ? "weg" : istOptional("EMPFANG") ? "wahl" : "fest"}
+              setzen={(w) => {
+                setMitEmpfang(w !== "weg");
+                setzeOptional("EMPFANG", w === "wahl");
+              }}
+            />
           </div>
 
           <button
@@ -2239,6 +2299,56 @@ function ZustandsAnzeige({ angebot }: { angebot: AngebotDetail }) {
  * Hier steht beides da, und man sieht auf einen Blick, was der Kunde
  * später liest.
  */
+/**
+ * Gar nicht, zur Wahl oder fest drin.
+ *
+ * "Ich will zu allen Punkten die Möglichkeit haben, diese fest, oder
+ * optional zu haben. Oder auch GAR NICHT erwähnt im Angebot. Dies
+ * betrifft auch die Menüs!" (Kevin über Florian, 30.10.2026).
+ *
+ * Zwei Zustände gab es schon, fest und optional. Der dritte steckte
+ * woanders: beim Menü in der Fassung ganz oben, beim Empfang in einem
+ * Häkchen daneben. Wer eine Leistung weglassen wollte, musste also an
+ * einer anderen Stelle suchen als die, an der er gerade stand.
+ *
+ * Drei Knöpfe nebeneinander beantworten die Frage dort, wo sie sich
+ * stellt, und man sieht ohne Klick, welcher Zustand gerade gilt.
+ */
+function DreiWeg({
+  wert,
+  setzen,
+  weg = "nicht im Angebot",
+}: {
+  wert: "weg" | "wahl" | "fest";
+  setzen: (w: "weg" | "wahl" | "fest") => void;
+  weg?: string;
+}) {
+  const knopf = (w: "weg" | "wahl" | "fest", text: string, titel: string) => (
+    <button
+      key={w}
+      type="button"
+      onClick={() => setzen(w)}
+      title={titel}
+      className="rounded-md border px-2 py-0.5 text-xs"
+      style={
+        wert === w
+          ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
+          : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+      }
+    >
+      {text}
+    </button>
+  );
+
+  return (
+    <span className="inline-flex gap-1">
+      {knopf("weg", weg, "Kommt im Angebot gar nicht vor.")}
+      {knopf("wahl", "optional", "Steht beim Kunden in Klammern und zählt nicht zur Summe.")}
+      {knopf("fest", "fest drin", "Zählt zur Summe des Angebots.")}
+    </span>
+  );
+}
+
 function DrinSchalter({
   optional,
   setzen,
@@ -2437,6 +2547,7 @@ function Kategorienwahl({
   setzen,
   personen,
   preise,
+  preiseSelbst,
   istOptional,
   setzeOptional,
   eigenePreise,
@@ -2455,6 +2566,8 @@ function Kategorienwahl({
    * denen der Vorstellung. Jetzt steht beides im Einklang.
    */
   preise: Record<string, number>;
+  /** Felder leer lassen, damit der Preis von Hand kommt. */
+  preiseSelbst: boolean;
   istOptional: (nummer: string) => boolean;
   setzeOptional: (nummer: string, an: boolean) => void;
   /**
@@ -2490,9 +2603,15 @@ function Kategorienwahl({
             />
             <span>
               {t.bezeichnung}
-              <span className="text-leise"> ({eur(cent)})</span>
-              {anders && (
-                <span className="text-leise"> statt {eur(t.bruttoCent)} an anderen Tagen</span>
+              {preiseSelbst ? (
+                <span className="text-leise"> (im Shop {eur(cent)})</span>
+              ) : (
+                <>
+                  <span className="text-leise"> ({eur(cent)})</span>
+                  {anders && (
+                    <span className="text-leise"> statt {eur(t.bruttoCent)} an anderen Tagen</span>
+                  )}
+                </>
               )}
             </span>
             <label className="flex items-center gap-1 text-xs text-leise">
@@ -2502,7 +2621,7 @@ function Kategorienwahl({
                 inputMode="decimal"
                 value={eigenePreise[t.nummer] ?? ""}
                 onChange={(e) => setzeEigenenPreis(t.nummer, e.target.value)}
-                placeholder={(cent / 100).toFixed(2).replace(".", ",")}
+                placeholder={preiseSelbst ? "Preis" : (cent / 100).toFixed(2).replace(".", ",")}
                 style={{ width: "5.5rem" }}
                 className="rounded-md border border-linie px-2 py-1 text-right text-sm tabular-nums"
               />
