@@ -18,7 +18,7 @@
 import { holeSaalplanFlotix } from "./saalplan";
 import { flotixQuelle } from "@/lib/flotix/tuer";
 
-const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 export interface KategorieAuslastung {
   name: string;

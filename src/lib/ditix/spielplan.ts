@@ -21,7 +21,7 @@ import { isoDatum, uhrzeit, ZEITZONE } from "@/lib/zeit";
 import { alleEigenenTermine, beginnAls } from "@/lib/db/eigenertermin";
 import { gemerkteTermine, termineMerken } from "@/lib/ditix/gedaechtnis";
 
-const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 /** Eine Vorstellung, wie der Shop sie liefert. */
 export interface ShopVorstellung {

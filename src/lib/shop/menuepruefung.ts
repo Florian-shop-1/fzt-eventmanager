@@ -20,7 +20,7 @@ import { istEigenerTermin } from "@/lib/db/eigenertermin";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { datumMitWochentag } from "@/lib/zeit";
 
-const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 const APP = process.env.APP_URL ?? "https://eventmanager.florianzimmertheater.de";
 
 /**

@@ -5,7 +5,7 @@ import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { alleSenden, entwurfAktualisieren, mailSenden, rueckrufAbhaken, umbuchungErledigt } from "../aktionen";
 import { holeSpielplan } from "@/lib/ditix/spielplan";
-import { ditixVerkaufLink } from "@/lib/ditix/link";
+import { flotixVorstellungenLink } from "@/lib/flotix/verwaltung";
 
 export const metadata = { title: "Show-Absage | FZT Eventmanager" };
 export const dynamic = "force-dynamic";
@@ -54,16 +54,16 @@ export default async function AbsageDetailSeite({ params }: { params: Promise<{ 
           style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
         >
           <strong>Diese Vorstellung steht im Shop noch zum Verkauf.</strong> Der Eventmanager kann sie dort
-          nicht herausnehmen, das geht nur in Ditix. Bitte zuerst dort schließen, sonst kauft jemand Karten
+          nicht herausnehmen, das geht nur in FloTix. Bitte zuerst dort schließen, sonst kauft jemand Karten
           für einen Abend, den es nicht gibt.
           <div className="mt-2">
             <a
-              href={ditixVerkaufLink(absage.ditixEventId) ?? "#"}
+              href={flotixVorstellungenLink()}
               target="_blank"
               rel="noreferrer"
               className="rounded-md border border-linie bg-flaeche px-3 py-1.5 text-sm font-medium"
             >
-              In Ditix öffnen und Verkauf schließen
+              In FloTix öffnen und Verkauf schließen
             </a>
           </div>
         </div>

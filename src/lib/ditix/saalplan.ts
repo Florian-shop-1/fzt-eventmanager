@@ -24,7 +24,7 @@
  *    Fünfziger statt der echten Nummern.
  */
 
-const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 /** Verkaufsstand eines einzelnen Platzes. */
 export type Sitzstatus = "frei" | "verkauft" | "gesperrt";

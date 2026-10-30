@@ -9,7 +9,7 @@ import {
   type TechnikStoerung,
 } from "@/lib/db/technik-stoerung";
 import { grundText, wasDerGastSah } from "@/lib/stoerung/meldung";
-import { ditixTicketsLink, ditixVerkaufLink } from "@/lib/ditix/link";
+import { flotixSaalplanLink, flotixVorstellungenLink } from "@/lib/flotix/verwaltung";
 import { kommendeTermine, type Vorstellungstermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
 import { mailSchalten, stoerungAbhaken } from "./aktionen";
@@ -61,7 +61,7 @@ export default async function StoerungenSeite({
 
   /*
     Der Shop meldet den Termin so, wie er ihn kennt. Bei "Termin nicht in
-    der Ditix-Liste" kennt er ihn aber gerade nicht, dann stand auf der
+    der Terminliste" kennt er ihn aber gerade nicht, dann stand auf der
     Karte nur die Show ohne Datum, und man musste raten, welcher Abend
     gemeint ist (Florian, 23.09.2026). Deshalb hier gegen den Spielplan
     nachschlagen und Datum und Uhrzeit ergänzen.
@@ -136,7 +136,7 @@ export default async function StoerungenSeite({
           <p className="mt-1 max-w-prose text-sm text-leise">
             Der Shop merkt selbst, wenn bei ULMFASSBAR, Flo-Zirkus oder Magic Memories die
             Warteliste erscheint, obwohl diese Shows bis zum Beginn im Verkauf sind. Dann steht
-            der Termin hier. Die Ursache liegt meistens in Ditix: Verkaufszeitraum, Preise auf
+            der Termin hier. Die Ursache liegt meistens in FloTix: Verkaufszeitraum, Preise auf
             den Kategorien, Ticketarten.
           </p>
         </div>
@@ -370,7 +370,7 @@ function Karte({ meldung, stand }: { meldung: Lead; stand: LeadStand | undefined
  * Eine Meldung des Shops.
  *
  * Wichtig ist hier nicht eine Telefonnummer, sondern der Termin: Mit dem
- * geht Julian in Ditix und sieht nach, warum nichts zu verkaufen war.
+ * geht Julian in FloTix und sieht nach, warum nichts zu verkaufen war.
  */
 function TechnikKarte({
   stoerung,
@@ -382,10 +382,15 @@ function TechnikKarte({
 }) {
   const erledigt = Boolean(stoerung.erledigtAm);
   const farbe = erledigt ? "var(--text-leise)" : "var(--blocker)";
-  // Der Weg zur Behebung führt immer über Ditix, also gleich dorthin verlinken:
-  // auf die Ticketseite des Termins, wo Preise und Verkaufszeiten stehen.
-  const ditix = ditixVerkaufLink(stoerung.eventId);
-  const ditixTickets = ditixTicketsLink(stoerung.eventId);
+  /*
+    Der Weg zur Behebung führt über die Ticketverwaltung, also gleich
+    dorthin verlinken. Seit dem 02.11.2026 ist das FloTix und nicht mehr
+    Ditix (Florian, 30.10.2026: "das schalte ich kommenden Montag bereits
+    ab"). FloTix kennt bisher keine eigene Seite je Termin, deshalb geht
+    es auf das Blatt, nicht auf den einzelnen Abend.
+  */
+  const verkaufLink = flotixVorstellungenLink();
+  const preiseLink = flotixSaalplanLink();
 
   return (
     <article
@@ -450,18 +455,18 @@ function TechnikKarte({
             {grundText(stoerung.grund)}
           </p>
 
-          {ditix && (
+          {verkaufLink && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <a
-                href={ditix}
+                href={verkaufLink}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block rounded-md border border-gold bg-gold-hell px-3 py-1.5 text-sm font-medium text-gold-dunkel hover:bg-gold hover:text-white"
               >
-                Verkaufszeitraum in Ditix
+                Verkaufszeitraum in FloTix
               </a>
-              {ditixTickets && (
-                <a href={ditixTickets} target="_blank" rel="noreferrer" className="text-sm underline hover:text-gold-dunkel">
+              {preiseLink && (
+                <a href={preiseLink} target="_blank" rel="noreferrer" className="text-sm underline hover:text-gold-dunkel">
                   Ticketarten und Preise
                 </a>
               )}
@@ -469,7 +474,7 @@ function TechnikKarte({
           )}
 
           <div className="mt-2 text-xs text-leise">
-            {stoerung.eventId && <>Ditix-Termin-Nr. {stoerung.eventId} · </>}
+            {stoerung.eventId && <>Termin-Nr. {stoerung.eventId} · </>}
             zuerst {vorZeit(stoerung.erstmalsAm)}
             {stoerung.mailAm ? " · Mail ist raus" : " · Mail steht noch aus"}
           </div>

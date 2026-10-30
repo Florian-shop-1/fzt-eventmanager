@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer, darfEinladen } from "@/lib/auth/sitzung";
 import { kommendeTermine, holeSpielplan } from "@/lib/ditix/spielplan";
-import { ditixVerkaufLink } from "@/lib/ditix/link";
+import { flotixVorstellungenLink } from "@/lib/flotix/verwaltung";
 import { absagenListe } from "@/lib/absage/db";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Absendeknopf } from "@/components/Absendeknopf";
@@ -124,13 +124,13 @@ export default async function AbsagenSeite({
                 </Link>
                 {nochImVerkauf.has(a.ditixEventId) ? (
                   <a
-                    href={ditixVerkaufLink(a.ditixEventId) ?? "#"}
+                    href={flotixVorstellungenLink()}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded px-2 py-0.5 text-xs font-semibold"
                     style={{ background: "var(--blocker-hell)", color: "var(--blocker)" }}
                   >
-                    noch im Verkauf: in Ditix schließen
+                    noch im Verkauf: in FloTix schließen
                   </a>
                 ) : (
                   <span className="text-xs" style={{ color: "var(--gut)" }}>

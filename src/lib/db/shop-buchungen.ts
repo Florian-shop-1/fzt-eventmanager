@@ -135,7 +135,7 @@ export async function speichereBuchung(neu: NeueBuchung): Promise<void> {
   }
 }
 
-const SHOP_BASIS = process.env.SHOP_API_URL ?? "https://shop.florianzimmertheater.de";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 /**
  * Fragt beim Shop nach, ob ein Warenkorb bezahlt wurde.

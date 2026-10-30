@@ -18,7 +18,7 @@ import {
   stoerungMailVermerken,
   type TechnikStoerung,
 } from "@/lib/db/technik-stoerung";
-import { ditixTicketsLink, ditixVerkaufLink } from "@/lib/ditix/link";
+import { flotixSaalplanLink, flotixVorstellungenLink } from "@/lib/flotix/verwaltung";
 import { findeTermin } from "@/lib/ditix/spielplan";
 import { datumMitWochentag } from "@/lib/zeit";
 
@@ -98,10 +98,10 @@ export async function stoerungMailen(s: TechnikStoerung): Promise<void> {
     "der Shop ihn auch beim zweiten, stillen Anlauf nicht wegbekommen hat. Meldungen,",
     "die sich von selbst erledigen, stehen nur im Eventmanager und lösen keine Mail aus.",
     "",
-    "Zu prüfen in Ditix: Verkaufszeitraum des Termins, Preise auf den Saalplan-Kategorien",
+    "Zu prüfen in FloTix: Verkaufszeitraum des Termins, Preise auf den Saalplan-Kategorien",
     "und Verkaufszeit der Ticketarten.",
-    ditixVerkaufLink(s.eventId) ? `Verkaufszeitraum: ${ditixVerkaufLink(s.eventId)}` : "",
-    ditixTicketsLink(s.eventId) ? `Ticketarten und Preise: ${ditixTicketsLink(s.eventId)}` : "",
+    `Vorstellungen: ${flotixVorstellungenLink()}`,
+    `Saalplan und Preise: ${flotixSaalplanLink()}`,
     "",
     `Im Eventmanager, mit Zähler und Verlauf: ${ort()}`,
   ].filter((z) => z !== "");
