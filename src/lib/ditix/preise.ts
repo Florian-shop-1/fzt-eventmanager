@@ -154,7 +154,17 @@ const ZUORDNUNG: Array<{ nummer: string; passt: (name: string) => boolean }> = [
 
 /** Kinder- und Kassenvarianten gehören nicht ins Firmenangebot. */
 function istSondervariante(name: string): boolean {
-  return /kids|pos-|pos ticket/i.test(name);
+  /*
+    Kinderpreise gehoeren nicht in ein Firmenangebot.
+
+    "bitte nicht bei den kinderpreisen bedienen. es gilt immer der
+    teurere preis - egal welcher tag. es ist ein event für erwachsene"
+    (Florian, 30.10.2026).
+
+    "kids" stand hier schon, aber der Shop schreibt es verschieden:
+    Kind, Kinder, Family, ermaessigt. Alles davon faellt jetzt heraus.
+  */
+  return /kids?|kinder?|family|ermaessigt|ermäßigt|pos-|pos ticket/i.test(name);
 }
 
 export interface Abendpreise {
@@ -180,7 +190,20 @@ export async function abendpreise(ditixEventId: string): Promise<Abendpreise> {
   const abweichungen: Abendpreise["abweichungen"] = [];
 
   for (const { nummer, passt } of ZUORDNUNG) {
-    const treffer = ausShop.find((p) => !istSondervariante(p.name) && passt(p.name));
+    /*
+      Der teuerste passende Preis, nicht der erste.
+
+      "es gilt immer der teurere preis - egal welcher tag" (Florian,
+      30.10.2026). Stehen zu einer Kategorie mehrere Preise im Shop,
+      etwa ein regulaerer und ein vergünstigter, nahm die Suche bisher
+      den ersten, den sie fand. Welcher das ist, haengt an der
+      Reihenfolge im Shop und damit am Zufall.
+    */
+    const passende = ausShop.filter((p) => !istSondervariante(p.name) && passt(p.name));
+    const treffer = passende.reduce<(typeof passende)[number] | null>(
+      (hoechster, p) => (hoechster === null || p.bruttoCent > hoechster.bruttoCent ? p : hoechster),
+      null,
+    );
     if (!treffer) continue;
 
     cent.set(nummer, treffer.bruttoCent);

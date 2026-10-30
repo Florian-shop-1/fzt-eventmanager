@@ -121,6 +121,7 @@ export function AngebotBereich({
   terminDatum,
   terminZeit,
   wunschzeitraum,
+  terminEventId,
   terminwahl,
 }: {
   vorgangId: string;
@@ -134,6 +135,8 @@ export function AngebotBereich({
   terminDatum?: string | null;
   /** Was der Kunde sich gewuenscht hat, als Text aus der Anfrage. */
   wunschzeitraum?: string | null;
+  /** Die Kennung der Vorstellung am Vorgang, fuer die Preisanzeige. */
+  terminEventId?: string | null;
   /**
    * Die Terminwahl aus dem Spielplan, fertig vom Server.
    *
@@ -266,6 +269,16 @@ export function AngebotBereich({
     baute, sah sie nie.
   */
   const [highlights, setHighlights] = useState<string[]>([]);
+
+  /*
+    Die Preise des gewaehlten Abends, fuer die Anzeige im Baukasten.
+
+    Gerechnet wird beim Erstellen auf dem Server, nach derselben Regel.
+    Hier geht es nur darum, dass Kevin vorher sieht, womit gerechnet
+    wird: "oben sagst du ja schon donnerstag (günstiger) - zeigst aber
+    die preise vom samstag" (Florian, 30.10.2026).
+  */
+  const [abendpreise, setAbendpreise] = useState<Record<string, number>>({});
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
@@ -312,6 +325,32 @@ export function AngebotBereich({
   */
   const [frisch, setFrisch] = useState<string[]>([]);
   const frischRef = useRef<HTMLDivElement | null>(null);
+
+  /*
+    Die Preise des gewaehlten Abends nachladen.
+
+    Dieselbe Regel wie beim Erstellen: fester Termin, sonst die naechste
+    Vorstellung an diesem Wochentag zur passenden Tageszeit. Kommt
+    nichts zurueck, bleiben die Listenpreise stehen.
+  */
+  useEffect(() => {
+    const frage = new URLSearchParams();
+    if (!terminOffen && terminEventId) frage.set("vorstellung", terminEventId);
+    else {
+      frage.set("wochentag", String(wochentag));
+      frage.set("tageszeit", tageszeit);
+    }
+    let abgebrochen = false;
+    fetch(`/api/angebotspreise?${frage.toString()}`, { cache: "no-store" })
+      .then((a) => a.json())
+      .then((d: { preise?: Record<string, number> }) => {
+        if (!abgebrochen) setAbendpreise(d.preise ?? {});
+      })
+      .catch(() => undefined);
+    return () => {
+      abgebrochen = true;
+    };
+  }, [terminOffen, terminEventId, wochentag, tageszeit]);
 
   useEffect(() => {
     if (frisch.length === 0) return;
@@ -623,7 +662,14 @@ export function AngebotBereich({
               <span className="mb-1 block text-xs text-leise">
                 Ticketkategorien und Stückzahl
               </span>
-              <Kategorienwahl mengen={mengen} setzen={setMengen} personen={personen} />
+              <Kategorienwahl
+                mengen={mengen}
+                setzen={setMengen}
+                personen={personen}
+                preise={abendpreise}
+                istOptional={istOptional}
+                setzeOptional={setzeOptional}
+              />
             </div>
           ) : (
             <Exklusivhinweis art={art} preisCent={preisCent} personen={personen} />
@@ -817,6 +863,26 @@ export function AngebotBereich({
               Kasten darunter.
             </span>
           </label>
+
+          {/*
+            Das Menue, fest oder als Wahlmoeglichkeit.
+
+            "es soll bei jeder position eine optionsmöglichkeit geben"
+            (Florian, 30.10.2026). Bei Tickets, Getraenken, Empfang,
+            Fassade und den Highlights gab es den Schalter, beim Menue
+            fehlte er: Es haengt an der Fassung und war damit immer
+            fest. Manche Firma will aber erst wissen, was der Abend ohne
+            Essen kostet, und das Menue daneben in Klammern sehen.
+          */}
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span>Menü im Angebot</span>
+            <DrinSchalter
+              optional={istOptional("4GANG")}
+              setzen={(an) => {
+                for (const n of ["4GANG", "4GANGLOGE", "FINGERFOOD"]) setzeOptional(n, an);
+              }}
+            />
+          </div>
 
           {/*
             Die Loge: gar nicht, zur Wahl oder fest.
@@ -2122,33 +2188,70 @@ function Kategorienwahl({
   mengen,
   setzen,
   personen,
+  preise,
+  istOptional,
+  setzeOptional,
 }: {
   mengen: Record<string, number>;
   setzen: (m: Record<string, number>) => void;
   personen: number;
+  /**
+   * Die Preise des gewaehlten Abends, Artikelnummer zu Cent.
+   *
+   * "dort stehen auch nicht die richtigen preise für eine
+   * donnerstagsshow ... oben sagst du ja schon donnerstag (günstiger) -
+   * zeigst aber die preise vom samstag" (Florian, 30.10.2026). Hier
+   * standen die Listenpreise aus dem Artikelstamm, gerechnet wurde mit
+   * denen der Vorstellung. Jetzt steht beides im Einklang.
+   */
+  preise: Record<string, number>;
+  istOptional: (nummer: string) => boolean;
+  setzeOptional: (nummer: string, an: boolean) => void;
 }) {
   const verteilt = TICKETS.reduce((s, t) => s + (mengen[t.nummer] ?? 0), 0);
   const benutzte = TICKETS.filter((t) => (mengen[t.nummer] ?? 0) > 0).length;
 
   return (
     <div className="space-y-1.5">
-      {TICKETS.map((t) => (
-        <div key={t.nummer} className="flex items-center gap-2 text-sm">
-          <input
-            type="number"
-            min={0}
-            value={mengen[t.nummer] ?? 0}
-            onChange={(e) =>
-              setzen({ ...mengen, [t.nummer]: Math.max(0, Number(e.target.value) || 0) })
-            }
-            className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
-          />
-          <span>
-            {t.bezeichnung}
-            <span className="text-leise"> ({eur(t.bruttoCent)})</span>
-          </span>
-        </div>
-      ))}
+      {TICKETS.map((t) => {
+        const cent = preise[t.nummer] ?? t.bruttoCent;
+        const anders = cent !== t.bruttoCent;
+        return (
+          <div key={t.nummer} className="flex flex-wrap items-center gap-2 text-sm">
+            <input
+              type="number"
+              min={0}
+              value={mengen[t.nummer] ?? 0}
+              onChange={(e) =>
+                setzen({ ...mengen, [t.nummer]: Math.max(0, Number(e.target.value) || 0) })
+              }
+              className="w-20 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+            />
+            <span>
+              {t.bezeichnung}
+              <span className="text-leise"> ({eur(cent)})</span>
+              {anders && (
+                <span className="text-leise"> statt {eur(t.bruttoCent)} an anderen Tagen</span>
+              )}
+            </span>
+            {/*
+              Der Optional-Schalter, auch hier.
+
+              "das mit dem optional muss auch direkt kommen wenn man das
+              erste angebot erstellt. da ist es nicht der fall bei den
+              kategorien" (Florian, 30.10.2026). Bei Menue, Empfang,
+              Getraenken und den Highlights gab es ihn schon, bei den
+              Tickets fehlte er.
+            */}
+            {(mengen[t.nummer] ?? 0) > 0 && (
+              <DrinSchalter
+                optional={istOptional(t.nummer)}
+                setzen={(an) => setzeOptional(t.nummer, an)}
+              />
+            )}
+          </div>
+        );
+      })}
 
       {/*
         Die Kontrollzeile. Dass die Stückzahlen zur Gästezahl passen,

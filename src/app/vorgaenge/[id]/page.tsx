@@ -511,6 +511,7 @@ export default async function VorgangSeite({
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
             terminDatum={vorgang.vorstellung?.datum ?? null}
+            terminEventId={vorgang.vorstellung?.ditixEventId ?? null}
             /*
               Beides zusammen: Der Wochentag steht in einem eigenen Feld,
               der Zeitraum in einem zweiten. Der Baukasten liest den Tag
