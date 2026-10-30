@@ -1094,6 +1094,10 @@ function AngebotKarte({
               <summary className="cursor-pointer text-xs text-leise">
                       Positionen ändern: Preis, Menge, optional, löschen
               </summary>
+              <p className="mt-2 text-xs text-leise">
+                Jede Zeile lässt sich einzeln auf <strong>optional</strong> stellen. Dann steht ihr
+                Preis beim Kunden in Klammern und zählt nicht zur Summe unten.
+              </p>
               <table className="mt-2 w-full text-xs">
                 <tbody>
                   {angebot.positionen
@@ -1147,13 +1151,37 @@ function AngebotKarte({
                           Der Schalter je Zeile. Optional heisst: steht im
                           Angebot mit Preis in Klammern und zaehlt nicht zur
                           Summe (Florian, 14.10.2026).
+
+                          Frueher stand hier ein grauer Link "optional", der
+                          beim Druecken auf "zur Pflicht" umsprang. Man sah
+                          also nicht den Zustand, sondern das Gegenteil, und
+                          im Kleingedruckten ganz rechts hat ihn niemand
+                          gefunden (Florian, 30.10.2026). Jetzt stehen beide
+                          Zustaende nebeneinander, der geltende ist
+                          hervorgehoben, genau wie im Baukasten.
                         */}
                         <td className="py-1 pl-2 text-right">
-                          <form action={positionOptional.bind(null, p.id, vorgangId, !p.optional)}>
-                            <button type="submit" className="whitespace-nowrap underline text-leise">
-                              {p.optional ? "zur Pflicht" : "optional"}
-                            </button>
-                          </form>
+                          <span className="inline-flex gap-1">
+                            {([
+                              [false, "fest drin", "Zählt zur Summe des Angebots."],
+                              [true, "optional", "Steht beim Kunden in Klammern und zählt nicht zur Summe."],
+                            ] as const).map(([an, text, titel]) => (
+                              <form key={text} action={positionOptional.bind(null, p.id, vorgangId, an)}>
+                                <button
+                                  type="submit"
+                                  title={titel}
+                                  className="whitespace-nowrap rounded-md border px-2 py-0.5 text-xs"
+                                  style={
+                                    Boolean(p.optional) === an
+                                      ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
+                                      : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+                                  }
+                                >
+                                  {text}
+                                </button>
+                              </form>
+                            ))}
+                          </span>
                           <form action={positionEntfernen.bind(null, p.id, vorgangId)}>
                             <button type="submit" className="whitespace-nowrap underline text-leise">
                               entfernen
