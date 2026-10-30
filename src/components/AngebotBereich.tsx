@@ -30,7 +30,13 @@ import { MailVorschau } from "@/components/MailVorschau";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
-import { artikel, artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
+import {
+  artikel,
+  artikelDerGruppe,
+  GRUPPENFOLGE,
+  GRUPPENTITEL,
+  THEATER_SITZPLAETZE,
+} from "@/lib/domain/artikel";
 import type { AngebotDetail } from "@/lib/angebot/lesen";
 import { FUSSZEILE_TEXT } from "@/lib/mail/fusszeile";
 
@@ -76,21 +82,9 @@ const HIGHLIGHTS = artikelDerGruppe("highlight");
   Kategorie als Wahlmoeglichkeit zeigen will, braucht sie genau hier.
   Nach Gruppen sortiert bleibt die Liste trotzdem uebersichtlich.
 */
-const ARTIKELGRUPPEN = [
-  ["Menüs", "menue"],
-  ["Tickets", "ticket"],
-  ["Getränke", "getraenke"],
-  ["Empfang", "empfang"],
-  ["Loge", "loge"],
-  ["Foyer und Souvenirs", "foyer"],
-  ["Highlights", "highlight"],
-  ["Technik", "technik"],
-  ["Exklusivbuchung", "exklusiv"],
-  ["Sonstiges", "sonstiges"],
-] as const;
-
-const ZUSATZARTIKEL = ARTIKELGRUPPEN.map(([titel, gruppe]) => ({
-  titel,
+const ZUSATZARTIKEL = GRUPPENFOLGE.map((gruppe) => ({
+  gruppe,
+  titel: GRUPPENTITEL[gruppe],
   artikel: artikelDerGruppe(gruppe),
 })).filter((g) => g.artikel.length > 0);
 

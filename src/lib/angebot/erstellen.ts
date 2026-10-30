@@ -6,7 +6,12 @@
  * Alternativpositionen, damit der Kunde die Kategorie selbst wählen kann.
  */
 
-import { artikel, artikelDerGruppe, THEATER_SITZPLAETZE } from "@/lib/domain/artikel";
+import {
+  artikel,
+  artikelDerGruppe,
+  GRUPPENFOLGE,
+  THEATER_SITZPLAETZE,
+} from "@/lib/domain/artikel";
 import {
   ANGEBOT_GUELTIG_TAGE,
   STANDARD_TICKET,
@@ -606,18 +611,8 @@ export function erzeugePositionen(
  * fuehrt. Alternativen werden hier nicht einsortiert, sie haengen an
  * ihrer Bezugsposition und werden beim Speichern dahinter gesetzt.
  */
-const GRUPPENFOLGE = [
-  "exklusiv",
-  "menue",
-  "ticket",
-  "getraenke",
-  "empfang",
-  "loge",
-  "foyer",
-  "highlight",
-  "technik",
-  "sonstiges",
-];
+/* Die Folge selbst steht in src/lib/domain/artikel.ts, damit das Regal
+   unter dem Angebot dieselbe Reihenfolge benutzt. */
 
 function sortiert(positionen: Position[]): Position[] {
   const rang = (p: Position): number => {

@@ -505,6 +505,46 @@ export function artikel(nummer: string): Artikel {
   return gefunden;
 }
 
+/**
+ * Die Reihenfolge der Gruppen, einmal fuer das ganze Haus.
+ *
+ * "wichtig ist, dass im angebot dann auch immer nach logischem schema
+ * ist ... die sitzplätze stehen immer beieinander" (Florian,
+ * 30.10.2026) und "du musst auch an die korrekte sortierung denken"
+ * (Florian, 30.10.2026).
+ *
+ * Danach sortiert sich beides: die Positionen im fertigen Angebot und
+ * das Regal mit allen Leistungen darunter. Stand die Folge an zwei
+ * Stellen, liefen sie auseinander, und Kevin suchte die
+ * Exklusivbuchung im Regal unten, während sie im Angebot oben steht.
+ */
+export const GRUPPENFOLGE: ArtikelGruppe[] = [
+  "exklusiv",
+  "menue",
+  "ticket",
+  "getraenke",
+  "empfang",
+  "loge",
+  "foyer",
+  "highlight",
+  "technik",
+  "sonstiges",
+];
+
+/** Die Ueberschrift je Gruppe, wie sie dem Nutzer gezeigt wird. */
+export const GRUPPENTITEL: Record<ArtikelGruppe, string> = {
+  exklusiv: "Exklusivbuchung",
+  menue: "Menüs",
+  ticket: "Tickets",
+  getraenke: "Getränke",
+  empfang: "Empfang",
+  loge: "Loge",
+  foyer: "Foyer und Souvenirs",
+  highlight: "Highlights",
+  technik: "Technik",
+  sonstiges: "Sonstiges",
+};
+
 /** Artikel einer Gruppe, standardmäßig ohne stillgelegte. */
 export function artikelDerGruppe(gruppe: ArtikelGruppe, auchStillgelegte = false): Artikel[] {
   return ARTIKEL.filter((a) => a.gruppe === gruppe && (auchStillgelegte || a.aktiv !== false));

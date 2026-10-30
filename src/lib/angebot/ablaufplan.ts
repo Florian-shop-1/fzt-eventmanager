@@ -13,7 +13,12 @@
  *
  * Die Zeiten kommen von Florian (15.10.2026):
  *   Abend:      17:30 Empfang, 18:00 Menü, 20:00 Show, 22:30 Ausklang.
- *   15-Uhr-Show: erst die Show, danach 17:30 Empfang und 18:00 Menü.
+ *   15-Uhr-Show: Einlass ins Foyer um 14:00, dann die Show, danach
+ *               17:30 Empfang und 18:00 Menü (Florian, 30.10.2026).
+ *               Nachmittags werden diese Zeiten aus der Showzeit
+ *               gerechnet, nicht fest eingetragen: Wer die Show auf
+ *               14:00 legt, bekommt den ganzen Tag entsprechend
+ *               verschoben.
  *   Fingerfood: ab 19:00 an den Stehtischen im Foyer, vor der Show
  *               oder in der Pause.
  */
@@ -102,6 +107,11 @@ const AUSKLANG: Station = {
   text: "Danach bleibt Zeit. Der Teil des Abends, an den sich Ihre Gäste am längsten erinnern.",
 };
 
+/** Der Fingerfood-Text, wenn er nach der Show serviert wird. */
+const FINGERFOOD_NACH_SHOW =
+  "Herzhafte und süße Kleinigkeiten auf Etageren zum Teilen, im Stehen und im Gespräch. "
+  + "Serviert nach der Show auf der Eventgalerie.";
+
 const FINGERFOOD: Station = {
   zeit: "19:00",
   titel: "Fingerfood an den Stehtischen im Foyer",
@@ -110,12 +120,45 @@ const FINGERFOOD: Station = {
     + "Serviert vor der Show oder in der Pause, ganz wie ihr mögt.",
 };
 
-function show(zeit: string, name: string): Station {
+/**
+ * Die Showzeile.
+ *
+ * Die Tageszeit steht mit drin, weil "das Highlight des Abends" bei
+ * einer Nachmittagsshow falsch ist. "die vorschau /ablauf des angebots
+ * ist weiterhin für die abendveranstaltung, selbst wenn man nachmittag
+ * eingibt" (Florian, 30.10.2026).
+ */
+function show(zeit: string, name: string, tageszeit: Tageszeit = "abend"): Station {
+  const wann = tageszeit === "nachmittag" ? "Tages" : "Abends";
   return {
     zeit,
     titel: `Die Magieshow „${name}“`,
-    text: "Das Highlight des Abends: live, hautnah und mit bestem Blick zur Bühne.",
+    text: `Das Highlight des ${wann}: live, hautnah und mit bestem Blick zur Bühne.`,
   };
+}
+
+/**
+ * Wie lange eine Vorstellung samt Pause dauert, in Minuten.
+ *
+ * Danach richtet sich bei der Nachmittagsshow alles, was folgt. Mit
+ * einer Show um 15:00 kommt genau das heraus, was Florian am 15.10.2026
+ * genannt hat: 17:30 Empfang, 18:00 Essen, 21:00 Ausklang. Verschiebt
+ * jemand die Show, verschiebt sich der Rest mit.
+ */
+const SHOWDAUER = 150;
+
+/**
+ * Wie lange vor der Mittagsshow das Foyer aufmacht, in Minuten.
+ *
+ * "show beginnt um 15:00 uhr mitags, einlass ins foyer ist um 14:00
+ * Uhr" (Florian, 30.10.2026). Abends sind es 45 Minuten, nachmittags
+ * eine ganze Stunde.
+ */
+const EINLASS_NACHMITTAG = 60;
+
+/** "17:30" aus "15:00" plus 150. */
+function plus(uhrzeit: string, minuten: number): string {
+  return minus(uhrzeit, -minuten);
 }
 
 /**
@@ -143,19 +186,42 @@ export function ablaufFuer(o: {
           "Showroom, Eventgalerie und Foyer stehen allein für Sie bereit, mit unserer Technik "
           + "und unserem Team. Was ihr daraus macht, entscheidet ihr.",
       },
-      AUSKLANG,
+      o.tageszeit === "nachmittag"
+        ? {
+            ...AUSKLANG,
+            zeit: "21:00",
+            text:
+              "Danach bleibt Zeit. Der Teil des Tages, an den sich Ihre Gäste am "
+              + "längsten erinnern.",
+          }
+        : AUSKLANG,
     ];
   }
 
   if (o.variante === "nurshow") {
     return [
       {
-        zeit: o.showzeit ? minus(o.showzeit, 45) : o.tageszeit === "nachmittag" ? "14:15" : "19:15",
-        titel: "Einlass",
+        zeit: minus(
+          o.showzeit ?? (o.tageszeit === "nachmittag" ? "15:00" : "20:00"),
+          o.tageszeit === "nachmittag" ? EINLASS_NACHMITTAG : 45,
+        ),
+        titel: o.tageszeit === "nachmittag" ? "Einlass ins Foyer" : "Einlass",
         text: "Die Türen öffnen, an der Magic Bar gibt es etwas zu trinken.",
       },
-      show(o.showzeit ?? (o.tageszeit === "nachmittag" ? "15:00" : "20:00"), name),
-      AUSKLANG,
+      show(
+        o.showzeit ?? (o.tageszeit === "nachmittag" ? "15:00" : "20:00"),
+        name,
+        o.tageszeit,
+      ),
+      o.tageszeit === "nachmittag"
+        ? {
+            ...AUSKLANG,
+            zeit: plus(o.showzeit ?? "15:00", SHOWDAUER),
+            text:
+              "Danach bleibt Zeit an der Magic Bar. Der Teil des Tages, an den sich Ihre "
+              + "Gäste am längsten erinnern.",
+          }
+        : AUSKLANG,
     ];
   }
 
@@ -165,16 +231,32 @@ export function ablaufFuer(o: {
     (Florian, 15.10.2026).
   */
   if (o.tageszeit === "nachmittag") {
+    const showzeit = o.showzeit ?? "15:00";
+    const nachDerShow = plus(showzeit, SHOWDAUER);
+    const essen = plus(nachDerShow, 30);
     return [
       {
-        zeit: minus(o.showzeit ?? "15:00", 45),
-        titel: "Einlass",
+        zeit: minus(showzeit, EINLASS_NACHMITTAG),
+        titel: "Einlass ins Foyer",
         text: "Die Türen öffnen, an der Magic Bar gibt es etwas zu trinken.",
       },
-      show(o.showzeit ?? "15:00", name),
-      EMPFANG,
-      o.variante === "fingerfood" ? { ...FINGERFOOD, zeit: "18:00" } : MENUE,
-      { ...AUSKLANG, zeit: "21:00" },
+      show(showzeit, name, "nachmittag"),
+      {
+        ...EMPFANG,
+        zeit: nachDerShow,
+        text:
+          "Direkt nach der Show gibt es ein Glas Magicuvée auf der Eventgalerie. "
+          + "Zeit, die Show nachklingen zu lassen.",
+      },
+      o.variante === "fingerfood"
+        ? { ...FINGERFOOD, zeit: essen, text: FINGERFOOD_NACH_SHOW }
+        : { ...MENUE, zeit: essen },
+      {
+        ...AUSKLANG,
+        zeit: plus(essen, 180),
+        text:
+          "Danach bleibt Zeit. Der Teil des Tages, an den sich Ihre Gäste am längsten erinnern.",
+      },
     ];
   }
 
@@ -182,12 +264,12 @@ export function ablaufFuer(o: {
     return [
       { ...EMPFANG, zeit: "18:30" },
       FINGERFOOD,
-      show(o.showzeit ?? "20:00", name),
+      show(o.showzeit ?? "20:00", name, "abend"),
       AUSKLANG,
     ];
   }
 
-  return [EMPFANG, MENUE, show(o.showzeit ?? "20:00", name), AUSKLANG];
+  return [EMPFANG, MENUE, show(o.showzeit ?? "20:00", name, "abend"), AUSKLANG];
 }
 
 /** "19:15" aus "20:00" minus 45. */
