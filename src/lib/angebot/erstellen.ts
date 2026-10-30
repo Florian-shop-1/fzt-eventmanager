@@ -303,8 +303,13 @@ export const SCHLUSSTEXT = [
     "Ihre Menüwahl (Fleisch, Fisch oder Vegan) sowie mögliche Allergien oder Unverträglichkeiten " +
     "mitzuteilen. Unser Küchenteam geht selbstverständlich individuell auf Ihre Wünsche ein.",
   "",
+  /*
+    "Veranstaltung" statt "Abend": Bei einer Nachmittagsshow stand hier
+    sonst eine Zeile über den Abend, obwohl um 21 Uhr Schluss ist
+    (Florian, 30.10.2026).
+  */
   "Gerne berücksichtigen wir auch kurzfristige Ergänzungen oder besondere Arrangements, stets im " +
-    "Rahmen der Verfügbarkeit, damit Ihr Abend perfekt wird.",
+    "Rahmen der Verfügbarkeit, damit Ihre Veranstaltung perfekt wird.",
 ].join("\n");
 
 /**
