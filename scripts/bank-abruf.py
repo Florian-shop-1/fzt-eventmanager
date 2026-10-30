@@ -270,13 +270,14 @@ def main():
         # Diese Zeile steht immer da: Sie zeigt, ob ein gemerkter Zustand geladen wurde und welche Verfahren bekannt sind.
         print(f"Gemerkter Zustand: {'ja' if zustand else 'nein'}. Bekannte TAN-Verfahren: {len(verfahren)}.", flush=True)
         if zustand is None or not verfahren:
-            # Ohne gemerkten Zustand (neue Datei, oder die alte lag beiseite) kennt die Bibliothek die Bankparameter noch
-            # nicht, die Liste ist leer, und es wird kein Verfahren gewaehlt. Dann verlangt die Bank "9075 Starke
-            # Kundenauthentifizierung notwendig", ohne dass das Programm eine Freigabe anfordert (30.10.2026). Dieser Aufruf
-            # holt die Bankparameter ueber einen anonymen Dialog, es wird nichts gelesen und nichts ausgeloest.
-            print("Die Bankparameter werden geholt ...", flush=True)
-            klient.fetch_tan_mechanisms()
-            verfahren = klient.get_tan_mechanisms()
+            # Ohne gemerkten Zustand kennt die Bibliothek die Bankparameter noch nicht, die Liste ist leer, und es wird
+            # kein Verfahren gewaehlt. Der anonyme Weg (Verfahren 999, fetch_tan_mechanisms) wird von der Bank seit dem
+            # 30.10.2026 mit "9075 Starke Kundenauthentifizierung notwendig" abgelehnt. Dieser Zugang kennt nur ein
+            # Verfahren, SecureGo plus (Direktfreigabe) = 946. Mit ihm beginnt der Dialog gleich zweistufig, und die Bank
+            # kann die Freigabe anfordern. Aenderbar ueber FINTS_TAN_VERFAHREN, falls die Bank das Verfahren wechselt.
+            vorgabe = os.environ.get("FINTS_TAN_VERFAHREN", "946").strip() or "946"
+            print(f"Ohne gemerkten Zustand: TAN-Verfahren {vorgabe} (SecureGo plus) wird vorgegeben.", flush=True)
+            klient.set_tan_mechanism(vorgabe)
         if verfahren:
             aktuell = klient.get_current_tan_mechanism()
             if aktuell not in verfahren:
