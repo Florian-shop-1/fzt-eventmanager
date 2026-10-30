@@ -463,3 +463,81 @@ export async function angebotLoeschen(angebotId: string, vorgangId: string): Pro
   await db()`delete from angebot where id = ${angebotId}`;
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
+
+/**
+ * Mehrere Leistungen auf einmal ins Angebot nehmen.
+ *
+ * "ich will hier unter dem angebot alles angezeigt haben was es gibt.
+ * ich will alles dazu oder abwählen können. man sollte einen button
+ * haben 'alle optionen listen' - dann haust du alles rein und man muss
+ * es mit - wieder entfernen können. wichtig ist mir, dass hier auch die
+ * anderen ticketkat. drin sind, dass man die hinzufügen kann. man muss
+ * checken wenn was hinzugefügt ist schon" (Florian, 30.10.2026).
+ *
+ * Was schon im Angebot steht, wird übersprungen. Doppelte Zeilen sind
+ * im Gespräch mit dem Kunden schlimmer als eine fehlende: Sie stehen
+ * zweimal in der Summe.
+ *
+ * Die Menge richtet sich nach der Art. Was je Gast zählt, bekommt die
+ * Gästezahl des Angebots, alles andere eine Einheit. Die Gästezahl
+ * steht nirgends eigens, sie ergibt sich aus der größten Stückzahl
+ * einer Ticket- oder Menüzeile; das ist dieselbe Regel, nach der das
+ * Angebot gebaut wurde.
+ */
+const JE_GAST = new Set(["menue", "ticket", "getraenke", "empfang"]);
+
+export async function positionenErgaenzen(
+  angebotId: string,
+  vorgangId: string,
+  nummern: string[],
+  optional = true,
+): Promise<void> {
+  await verlangeTeam();
+  if (nummern.length === 0) return;
+
+  const vorhanden = (await db()`
+    select artikel_nummer, menge from position where angebot_id = ${angebotId}::uuid
+  `) as Array<{ artikel_nummer: string; menge: number }>;
+
+  const schonDrin = new Set(vorhanden.map((z) => z.artikel_nummer));
+
+  const gaeste = Math.max(
+    1,
+    ...vorhanden
+      .filter((z) => {
+        try {
+          return JE_GAST.has(artikel(z.artikel_nummer).gruppe);
+        } catch {
+          return false;
+        }
+      })
+      .map((z) => Number(z.menge) || 0),
+  );
+
+  const [{ naechste }] = (await db()`
+    select coalesce(max(sortierung), 0) + 1 as naechste from position where angebot_id = ${angebotId}::uuid
+  `) as Array<{ naechste: number }>;
+  let sortierung = Number(naechste);
+
+  for (const nummer of nummern) {
+    if (schonDrin.has(nummer)) continue;
+    let stamm: ReturnType<typeof artikel>;
+    try {
+      stamm = artikel(nummer);
+    } catch {
+      continue;
+    }
+
+    const menge = JE_GAST.has(stamm.gruppe) ? gaeste : 1;
+    await db()`
+      insert into position (angebot_id, artikel_nummer, bezeichnung, beschreibung, menge,
+                            einheit, einzel_brutto_cent, ust, sortierung, optional)
+      values (${angebotId}, ${stamm.nummer}, ${stamm.bezeichnung}, ${stamm.beschreibung ?? null},
+              ${menge}, ${stamm.einheit}, ${stamm.bruttoCent}, ${stamm.ust}, ${sortierung++},
+              ${optional})
+    `;
+    schonDrin.add(nummer);
+  }
+
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}

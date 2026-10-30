@@ -19,6 +19,7 @@ import {
   positionOptional,
   positionPreisSetzen,
   positionEntfernen,
+  positionenErgaenzen,
   positionHinzufuegen,
   positionText,
 } from "@/lib/angebot/speichern";
@@ -1055,6 +1056,95 @@ export function AngebotBereich({
  * das Programm nicht ueber den Unterschied zweier Fassungen, und raten
  * soll es nicht. Kevin schreibt hin, worum es geht.
  */
+/**
+ * Das Regal mit allem, was wir anbieten.
+ *
+ * Ein Knopf je Leistung, nach Gruppen sortiert. Gold mit Haken heisst:
+ * steht schon im Angebot, ein Klick nimmt sie wieder heraus. Grau mit
+ * Pluszeichen heisst: noch nicht drin, ein Klick legt sie als optionale
+ * Zeile dazu.
+ *
+ * Darueber der Knopf, der alles auf einmal hineinlegt. Wer ein Angebot
+ * mit allen Moeglichkeiten bauen will, braucht dann nur noch zu
+ * streichen, was nicht passt, statt vierzig Mal zu suchen.
+ */
+function Leistungsregal({
+  angebot,
+  vorgangId,
+}: {
+  angebot: AngebotDetail;
+  vorgangId: string;
+}) {
+  const [laeuft, starte] = useTransition();
+  const drin = new Set(angebot.positionen.map((p) => p.artikelNummer));
+  const idVon = new Map(angebot.positionen.map((p) => [p.artikelNummer, p.id]));
+
+  const alleNummern = ZUSATZARTIKEL.flatMap((g) => g.artikel.map((a) => a.nummer));
+  const fehlende = alleNummern.filter((n) => !drin.has(n));
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-linie pt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium">Alles, was wir anbieten</span>
+        <button
+          type="button"
+          disabled={laeuft || fehlende.length === 0}
+          onClick={() => starte(() => positionenErgaenzen(angebot.id, vorgangId, fehlende))}
+          className="rounded-md border border-gold bg-gold-hell px-2 py-0.5 text-xs font-medium text-gold-dunkel disabled:opacity-40"
+        >
+          {fehlende.length === 0
+            ? "alles schon drin"
+            : `alle ${fehlende.length} Optionen listen`}
+        </button>
+        {laeuft && <span className="text-xs text-leise">einen Moment...</span>}
+      </div>
+
+      {ZUSATZARTIKEL.map((g) => (
+        <div key={g.titel} className="flex flex-wrap items-center gap-1.5">
+          <span className="w-32 shrink-0 text-xs text-leise">{g.titel}</span>
+          {g.artikel.map((a) => {
+            const istDrin = drin.has(a.nummer);
+            return (
+              <button
+                key={a.nummer}
+                type="button"
+                disabled={laeuft}
+                title={
+                  istDrin
+                    ? "Steht im Angebot. Klicken nimmt die Zeile heraus."
+                    : `${a.bezeichnung}: ${eur(a.bruttoCent)}. Klicken legt sie als Wahlmöglichkeit dazu.`
+                }
+                onClick={() =>
+                  starte(() =>
+                    istDrin
+                      ? positionEntfernen(idVon.get(a.nummer)!, vorgangId)
+                      : positionenErgaenzen(angebot.id, vorgangId, [a.nummer]),
+                  )
+                }
+                className="rounded-md border px-2 py-0.5 text-xs disabled:opacity-40"
+                style={
+                  istDrin
+                    ? { borderColor: "var(--gold)", background: "var(--gold-hell)", fontWeight: 600 }
+                    : { borderColor: "var(--linie)", color: "var(--text-leise)" }
+                }
+              >
+                {istDrin ? "✓ " : "+ "}
+                {a.bezeichnung.length > 26 ? `${a.bezeichnung.slice(0, 25)}…` : a.bezeichnung}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+
+      <p className="text-xs text-leise">
+        Gold mit Haken heißt: steht im Angebot. Ein Klick darauf nimmt die Zeile wieder heraus.
+        Neue Zeilen kommen als Wahlmöglichkeit hinein, oben in der Liste stellst du sie auf fest.
+        Mengen und Preise änderst du ebenfalls oben.
+      </p>
+    </div>
+  );
+}
+
 function SammelMail({
   angebote,
   vorgangId,
@@ -1629,6 +1719,27 @@ function AngebotKarte({
                 Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
                 schon.
               </p>
+              {/*
+                Alles, was es gibt, mit einem Blick und einem Klick.
+
+                "ich will hier unter dem angebot alles angezeigt haben
+                was es gibt. ich will alles dazu oder abwählen können.
+                man sollte einen button haben 'alle optionen listen' ...
+                wichtig ist mir, dass hier auch die anderen ticketkat.
+                drin sind" (Florian, 30.10.2026).
+
+                Darunter stand bisher nur ein Auswahlfeld, in dem man
+                eine Leistung suchen und mit drei weiteren Feldern
+                eintragen musste. Jetzt steht alles als Knopf da, nach
+                Gruppen sortiert. Was schon im Angebot ist, ist gold und
+                traegt ein Haekchen; der Rest wartet grau darauf,
+                angetippt zu werden.
+              */}
+              <Leistungsregal
+                angebot={angebot}
+                vorgangId={vorgangId}
+              />
+
               {/* ------------------------------------------------------------
                   Eine Position dazunehmen, wie bei lexoffice: Artikel wählen
                   oder frei eintippen, Menge, Preis, Haken für optional, dazu
