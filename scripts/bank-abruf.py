@@ -65,6 +65,7 @@ die Bankverbindung neu bestaetigt werden muss.
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -266,10 +267,20 @@ def main():
     # gelesen und nichts ausgeloest.
     try:
         verfahren = klient.get_tan_mechanisms()
+        if not verfahren:
+            # Ohne gemerkten Zustand (neue Datei, oder die alte lag beiseite) kennt die Bibliothek die Bankparameter noch
+            # nicht, die Liste ist leer, und es wird kein Verfahren gewaehlt. Dann verlangt die Bank "9075 Starke
+            # Kundenauthentifizierung notwendig", ohne dass das Programm eine Freigabe anfordert (30.10.2026). Dieser Aufruf
+            # holt die Bankparameter ueber einen anonymen Dialog, es wird nichts gelesen und nichts ausgeloest.
+            print("Die Bankparameter werden geholt ...")
+            klient.fetch_tan_mechanisms()
+            verfahren = klient.get_tan_mechanisms()
         if verfahren:
             aktuell = klient.get_current_tan_mechanism()
             if aktuell not in verfahren:
-                erstes = list(verfahren.keys())[0]
+                # Die App-Freigabe (SecureGo plus) bevorzugen, sonst das erste angebotene Verfahren.
+                app = [k for k, v in verfahren.items() if re.search(r"secure|app|go", str(getattr(v, "name", "")), re.I)]
+                erstes = app[0] if app else list(verfahren.keys())[0]
                 print(f"TAN-Verfahren: {getattr(verfahren[erstes], 'name', erstes)}")
                 klient.set_tan_mechanism(erstes)
     except Exception as f:
