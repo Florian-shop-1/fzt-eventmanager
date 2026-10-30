@@ -88,6 +88,20 @@ export interface FlotixVorstellung {
   beginn: string;
   status: string;
   showTitel: string;
+  /*
+    Die Zeiten des Abends, so wie FloTix sie fuehrt.
+
+    "du kennst doch flotix. da steht genau drin wann was ist.. menue um
+    18:00 uhr show um 20:00 uhr oder um 15 uhr" (Florian, 30.10.2026).
+    Vorher hatte der Eventmanager eine eigene Kopie dieser Regel, und
+    Kopien laufen auseinander.
+  */
+  /** Wann die Tueren oeffnen, falls in FloTix hinterlegt. */
+  einlass: string | null;
+  /** Wann gegessen wird, als "18:00". */
+  menueZeit: string | null;
+  /** Wird nach der Show gegessen? Bei einer Mittagsshow ja. */
+  menueNachDerShow: boolean | null;
 }
 
 export interface FlotixSendung {
@@ -519,6 +533,49 @@ export async function beideKennungen(eine: string): Promise<string[]> {
   return [...new Set([eine, treffer.id, treffer.ditixEventId ?? ""])].filter(Boolean);
 }
 
+/**
+ * Die Zeiten eines Termins, so wie FloTix sie fuehrt.
+ *
+ * "du kennst doch flotix. da steht genau drin wann was ist" (Florian,
+ * 30.10.2026). Genau dafuer: Einlass, Essenszeit und ob vor oder nach
+ * der Show gegessen wird, zu einer Kennung aus FloTix oder aus Ditix.
+ *
+ * Antwortet FloTix nicht, kommt null zurueck und der Ablauf faellt auf
+ * die Hausregel zurueck. Ein Angebot soll nicht daran scheitern, dass
+ * gerade das Netz klemmt.
+ */
+export async function flotixTerminzeiten(kennung: string | null | undefined): Promise<{
+  einlass: string | null;
+  menue: string | null;
+  menueNachDerShow: boolean | null;
+} | null> {
+  if (!kennung) return null;
+  try {
+    const alle = await flotixVorstellungen();
+    const treffer = alle.find((v) => v.id === kennung || v.ditixEventId === kennung);
+    if (!treffer) return null;
+    return {
+      einlass: treffer.einlass ? uhrzeitAus(treffer.einlass) : null,
+      menue: treffer.menueZeit,
+      menueNachDerShow: treffer.menueNachDerShow,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** "2027-01-09T13:00:00Z" wird zu "14:00" in unserer Zeitzone. */
+function uhrzeitAus(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(d);
+}
+
 /** Alle Vorstellungen, die FloTix kennt, mit ihrer alten Ditix-Kennung. */
 export async function flotixVorstellungen(): Promise<FlotixVorstellung[]> {
   const d = await holen("vorstellungen");
@@ -532,6 +589,10 @@ export async function flotixVorstellungen(): Promise<FlotixVorstellung[]> {
     beginn: String(r.beginn ?? ""),
     status: String(r.status ?? ""),
     showTitel: String(r.show_titel ?? ""),
+    einlass: r.einlass ? String(r.einlass) : null,
+    menueZeit: r.menue_zeit ? String(r.menue_zeit) : null,
+    menueNachDerShow:
+      typeof r.menue_nach_der_show === "boolean" ? r.menue_nach_der_show : null,
   }));
 }
 

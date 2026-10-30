@@ -18,6 +18,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
+import { flotixTerminzeiten } from "@/lib/flotix/tuer";
 import { artikel } from "@/lib/domain/artikel";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { holeVorgang } from "@/lib/db/vorgaenge";
@@ -205,6 +206,17 @@ export async function angebotErzeugen(
   if (optionen.mitFassade) schlussteile.push(WERBUNG_TEXT);
   const schlusstext = schlussteile.join(ABSATZ);
 
+  /*
+    Die Zeiten des Abends von FloTix holen.
+
+    "du kennst doch flotix. da steht genau drin wann was ist.. menue um
+    18:00 uhr show um 20:00 uhr oder um 15 uhr" (Florian, 30.10.2026).
+    Steht der Termin, gelten die Zeiten von dort, samt der Ausnahmen an
+    Silvester und bei der RegioTV-Aufzeichnung. Steht er nicht, oder
+    antwortet FloTix gerade nicht, greift die Hausregel im Ablaufplan.
+  */
+  const flotixZeiten = await flotixTerminzeiten(vorgang.vorstellung?.ditixEventId);
+
   const angelegt = (await db()`
     insert into angebot (vorgang_id, nummer, gueltig_bis, einleitung, schlusstext, tracking_token)
     values (${vorgangId}, ${nummer}, ${gueltigBis(jetzt)},
@@ -215,6 +227,7 @@ export async function angebotErzeugen(
               wochentag: optionen.wochentag,
               zeitraum: optionen.zeitraum,
               terminSteht: Boolean(vorgang.vorstellung?.datum) && optionen.wochentag == null,
+              zeiten: flotixZeiten ?? undefined,
             })}, ${schlusstext},
             ${randomBytes(24).toString("base64url")})
     returning id

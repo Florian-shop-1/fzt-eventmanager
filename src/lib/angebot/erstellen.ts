@@ -22,7 +22,15 @@ import {
 } from "@/lib/domain/pricing";
 import type { Position, Vorgang } from "@/lib/domain/vorgang";
 import type { Plan } from "@/lib/seating/types";
-import { ablaufFuer, ablaufUeberschrift, mitEssen, mitShow, type Tageszeit, type Variante } from "./ablaufplan";
+import {
+  ablaufFuer,
+  ablaufUeberschrift,
+  mitEssen,
+  mitShow,
+  type Tageszeit,
+  type Terminzeiten,
+  type Variante,
+} from "./ablaufplan";
 import { datumLang } from "@/lib/zeit";
 
 /**
@@ -267,6 +275,8 @@ export function einleitungstext(
     zeitraum?: string;
     /** Steht ein Termin fest? Dann nennt die Überschrift das Datum. */
     terminSteht?: boolean;
+    /** Die Zeiten aus FloTix, falls der Termin dort steht. */
+    zeiten?: Terminzeiten;
   } = {},
 ): string {
   const variante = optionen.variante ?? "menue";
@@ -277,6 +287,7 @@ export function einleitungstext(
     tageszeit,
     showname: vorgang.vorstellung.show,
     showzeit: optionen.showzeit,
+    zeiten: optionen.zeiten,
   });
 
   const kopf = ablaufUeberschrift({

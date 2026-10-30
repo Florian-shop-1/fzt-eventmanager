@@ -163,6 +163,27 @@ const EMPFANGSZEIT = "17:30";
 const ESSENSZEIT = "18:00";
 
 /**
+ * Was FloTix ueber diesen Termin weiss.
+ *
+ * "du kennst doch flotix. da steht genau drin wann was ist.. menue um
+ * 18:00 uhr show um 20:00 uhr oder um 15 uhr" (Florian, 30.10.2026).
+ *
+ * Steht hier etwas, gilt es. Die Zeiten oben sind nur noch der
+ * Rueckfall fuer ein Angebot ohne festen Termin, bei dem es nichts
+ * nachzuschlagen gibt. Damit ist die Regel an einer Stelle im Haus,
+ * samt der Ausnahmen fuer Silvester und RegioTV, die FloTix kennt und
+ * eine Kopie hier nie kennen wuerde.
+ */
+export interface Terminzeiten {
+  /** Wann die Tueren oeffnen, als "14:00". */
+  einlass?: string | null;
+  /** Wann gegessen wird, als "18:00". */
+  menue?: string | null;
+  /** Wird nach der Show gegessen? */
+  menueNachDerShow?: boolean | null;
+}
+
+/**
  * Ab wann eine Show als Abendshow gilt.
  *
  * Gelesen wird die Uhrzeit der Vorstellung und nicht das Haekchen
@@ -172,8 +193,20 @@ const ESSENSZEIT = "18:00";
  */
 const ABENDS_AB_STUNDE = 16;
 
-/** Beginnt die Show am Nachmittag, wird nach ihr gegessen? */
-function istNachmittagsshow(showzeit: string | undefined, tageszeit: Tageszeit): boolean {
+/**
+ * Wird nach der Show gegessen?
+ *
+ * Drei Quellen, in dieser Reihenfolge: was FloTix zum Termin fuehrt,
+ * sonst die Uhrzeit der Vorstellung, sonst das Haekchen im Baukasten.
+ * Das Haekchen steht zuletzt, weil es sich am leichtesten verklickt;
+ * genau daran ist das Menue um 23:00 Uhr entstanden.
+ */
+function nachDerShowGegessen(
+  showzeit: string | undefined,
+  tageszeit: Tageszeit,
+  zeiten: Terminzeiten,
+): boolean {
+  if (typeof zeiten.menueNachDerShow === "boolean") return zeiten.menueNachDerShow;
   if (!showzeit) return tageszeit === "nachmittag";
   const [stunde] = showzeit.split(":").map(Number);
   return Number.isFinite(stunde) && stunde < ABENDS_AB_STUNDE;
@@ -214,8 +247,11 @@ export function ablaufFuer(o: {
   tageszeit: Tageszeit;
   showname: string;
   showzeit?: string;
+  /** Was FloTix zu diesem Termin fuehrt. Hat Vorrang vor der Hausregel. */
+  zeiten?: Terminzeiten;
 }): Station[] {
   const name = o.showname || "ULMfassbar by Florian Zimmer";
+  const ausFlotix = o.zeiten ?? {};
 
   if (o.variante === "exklusiv_ohne_show") {
     return [
@@ -241,11 +277,11 @@ export function ablaufFuer(o: {
   }
 
   if (o.variante === "nurshow") {
-    const nachmittags = istNachmittagsshow(o.showzeit, o.tageszeit);
+    const nachmittags = nachDerShowGegessen(o.showzeit, o.tageszeit, ausFlotix);
     const showzeit = o.showzeit ?? (nachmittags ? "15:00" : "20:00");
     return [
       {
-        zeit: minus(showzeit, nachmittags ? EINLASS_NACHMITTAG : 45),
+        zeit: ausFlotix.einlass || minus(showzeit, nachmittags ? EINLASS_NACHMITTAG : 45),
         titel: nachmittags ? "Einlass ins Foyer" : "Einlass",
         text: "Die Türen öffnen, an der Magic Bar gibt es etwas zu trinken.",
       },
@@ -267,18 +303,18 @@ export function ablaufFuer(o: {
     gegessen. "bei einer 15 Uhr Show: Empfang und Essen nach der Show"
     (Florian, 15.10.2026).
   */
-  if (istNachmittagsshow(o.showzeit, o.tageszeit)) {
+  if (nachDerShowGegessen(o.showzeit, o.tageszeit, ausFlotix)) {
     const showzeit = o.showzeit ?? "15:00";
     /*
-      Empfang um 17:30 und Essen um 18:00, so wie im Haus ueblich.
-      Zieht sich die Show ausnahmsweise laenger, rutscht beides hinter
-      das Ende: Gegessen wird nicht waehrend der Vorstellung.
+      Die Essenszeit aus FloTix, sonst 18:00. Zieht sich die Show
+      ausnahmsweise laenger, rutscht beides dahinter: Gegessen wird
+      nicht waehrend der Vorstellung.
     */
-    const empfang = spaeter(EMPFANGSZEIT, plus(showzeit, SHOWDAUER));
-    const essen = spaeter(ESSENSZEIT, plus(empfang, 30));
+    const essen = spaeter(ausFlotix.menue || ESSENSZEIT, plus(showzeit, SHOWDAUER + 30));
+    const empfang = minus(essen, 30);
     return [
       {
-        zeit: minus(showzeit, EINLASS_NACHMITTAG),
+        zeit: ausFlotix.einlass || minus(showzeit, EINLASS_NACHMITTAG),
         titel: "Einlass ins Foyer",
         text: "Die Türen öffnen, an der Magic Bar gibt es etwas zu trinken.",
       },
@@ -304,14 +340,19 @@ export function ablaufFuer(o: {
 
   if (o.variante === "fingerfood") {
     return [
-      { ...EMPFANG, zeit: "18:30" },
+      { ...EMPFANG, zeit: ausFlotix.menue ? plus(ausFlotix.menue, 30) : "18:30" },
       FINGERFOOD,
       show(o.showzeit ?? "20:00", name, "abend"),
       AUSKLANG,
     ];
   }
 
-  return [EMPFANG, MENUE, show(o.showzeit ?? "20:00", name, "abend"), AUSKLANG];
+  return [
+    { ...EMPFANG, zeit: ausFlotix.menue ? minus(ausFlotix.menue, 30) : EMPFANG.zeit },
+    { ...MENUE, zeit: ausFlotix.menue || MENUE.zeit },
+    show(o.showzeit ?? "20:00", name, "abend"),
+    AUSKLANG,
+  ];
 }
 
 /** "19:15" aus "20:00" minus 45. */
