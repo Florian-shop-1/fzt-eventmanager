@@ -158,6 +158,27 @@ export function AngebotBereich({
   */
   const [essplatz, setEssplatz] = useState<"automatisch" | "galerie" | "loge">("automatisch");
   const [logeDazu, setLogeDazu] = useState(false);
+
+  /*
+    Die drei Wege zur Loge, aus zwei Zustaenden abgelesen.
+
+    "fest" heisst: alle essen in der Loge, essplatz steht auf "loge".
+    "wahl" heisst: das Menue laeuft auf der Galerie, die Loge steht grau
+    darunter. Mehr gibt es nicht, und beides zugleich waere Unsinn.
+  */
+  const logeModus: "keine" | "wahl" | "fest" =
+    essplatz === "loge" ? "fest" : logeDazu ? "wahl" : "keine";
+
+  const setzeLogeModus = (m: "keine" | "wahl" | "fest") => {
+    if (m === "fest") {
+      setEssplatz("loge");
+      setLogeDazu(false);
+      return;
+    }
+    // Zurueck aus der festen Loge: wieder der Sitzplan entscheidet.
+    if (essplatz === "loge") setEssplatz("automatisch");
+    setLogeDazu(m === "wahl");
+  };
   /*
     Je Leistung: gar nicht, fest drin, oder drin und optional.
 
@@ -574,7 +595,6 @@ export function AngebotBereich({
             >
               <option value="automatisch">Wie im Sitzplan hinterlegt</option>
               <option value="galerie">Alle auf der Eventgalerie</option>
-              <option value="loge">Alle in einer Loge</option>
             </select>
             <span className="mt-1 block text-xs text-leise">
               Der Platz am Tisch hat mit der Ticketkategorie nichts zu tun: Aus der Loge sieht man
@@ -583,22 +603,48 @@ export function AngebotBereich({
             </span>
           </label>
 
-          {essplatz !== "loge" && (
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
-                checked={logeDazu}
-                onChange={(e) => setLogeDazu(e.target.checked)}
-              />
-              <span>
-                Loge zusätzlich als Wahlmöglichkeit anbieten
-                <span className="block text-xs text-leise">
-                  Steht im Angebot unter dem Menü, mit Preis in Klammern und nicht in der Summe.
+          {/*
+            Die Loge: gar nicht, zur Wahl oder fest.
+
+            "ich möchte loge nicht nur als Wahlmöglichkeit für den
+            kunden, sondern auch 'loge fix machen'. dass er nur die loge
+            angeboten bekommt" (Florian, 30.10.2026).
+
+            Gehen tat das schon, aber über ein anderes Feld: "Alle in
+            einer Loge" stand unter "Wo gegessen wird", und die
+            Wahlmöglichkeit als Haken darunter. Zwei Stellen für
+            dieselbe Frage, und wer die eine gewählt hatte, sah die
+            andere nicht mehr. Jetzt steht beides nebeneinander, und
+            "Wo gegessen wird" kümmert sich nur noch um den Rest.
+          */}
+          <fieldset className="rounded-md border border-linie px-3 py-2">
+            <legend className="px-1 text-xs text-leise">Loge</legend>
+            {([
+              ["keine", "Keine Loge", "Alle essen auf der Eventgalerie oder wie im Sitzplan hinterlegt."],
+              ["wahl", "Als Wahlmöglichkeit", "Steht im Angebot unter dem Menü, Preis in Klammern, nicht in der Summe."],
+              ["fest", "Fest, nur die Loge", "Alle essen in der Loge. Es gibt nichts anderes zur Auswahl."],
+            ] as const).map(([wert, titel, erklaerung]) => (
+              <label key={wert} className="flex items-start gap-2 py-1 text-sm">
+                <input
+                  type="radio"
+                  name="logemodus"
+                  className="mt-1 h-4 w-4 accent-[var(--gold-dunkel)]"
+                  checked={logeModus === wert}
+                  onChange={() => setzeLogeModus(wert)}
+                />
+                <span>
+                  {titel}
+                  <span className="block text-xs text-leise">{erklaerung}</span>
                 </span>
-              </span>
-            </label>
-          )}
+              </label>
+            ))}
+            {logeModus === "fest" && personen > 12 && (
+              <p className="mt-1 text-xs" style={{ color: "var(--warnung)" }}>
+                In die größte Loge passen zwölf Gäste. Bei {personen} Personen werden es zwei
+                Logen, das Menü ist dasselbe.
+              </p>
+            )}
+          </fieldset>
 
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
