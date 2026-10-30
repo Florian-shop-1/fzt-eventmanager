@@ -23,7 +23,8 @@ import {
   positionText,
 } from "@/lib/angebot/speichern";
 import { VARIANTEN, wochentagName, type Variante } from "@/lib/angebot/ablaufplan";
-import { angebotPerMail } from "@/lib/angebot/mailversand";
+import { angebotPerMail, angebotePerMail } from "@/lib/angebot/mailversand";
+import { MailVorschau } from "@/components/MailVorschau";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { eur } from "@/lib/domain/pricing";
@@ -283,6 +284,35 @@ export function AngebotBereich({
 
       {angebote.length === 0 && (
         <p className="mb-4 text-sm text-leise">Noch kein Angebot erstellt.</p>
+      )}
+
+      {/*
+        Mehrere Angebote, eine Mail.
+
+        "es sollte auch möglich sein zwei angebote oder mehr zu
+        erstellen und diese mit einer mail zu versenden (zwei links in
+        der mail dann) ... schreib klar drüber Angebot 1, Angebot 2
+        z.b. gerne aber auch was das angebot näher beschreibt (sonntags
+        show.. etc)" (Florian, 30.10.2026).
+
+        Vorher ging je Angebot eine eigene Mail hinaus, und der Kunde
+        bekam zwei fast gleiche Briefe. Jetzt stehen sie untereinander
+        in einer Mail, jedes mit eigener Ueberschrift und eigenem Knopf.
+        Die Ueberschrift ist vorbelegt und laesst sich ueberschreiben.
+      */}
+      {angebote.length > 1 && (
+        <details className="mb-5 rounded-md border border-gold bg-gold-hell/40 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-gold-dunkel">
+            Mehrere Angebote zusammen verschicken
+          </summary>
+          <SammelMail
+            angebote={angebote}
+            vorgangId={vorgangId}
+            appUrl={appUrl}
+            kundeEmail={kundeEmail}
+            ansprechpartner={ansprechpartner}
+          />
+        </details>
       )}
 
       {restliche.length > 0 && (
@@ -864,6 +894,122 @@ export function AngebotBereich({
   );
 }
 
+/**
+ * Mehrere Angebote in einer Mail, mit Ueberschrift je Angebot.
+ *
+ * Vorbelegt ist "Angebot 1" plus, wenn der Termin feststeht, Wochentag
+ * und Show: "Angebot 2: Sonntag, 08.11.2026, ULMFASSBAR". Mehr weiss
+ * das Programm nicht ueber den Unterschied zweier Fassungen, und raten
+ * soll es nicht. Kevin schreibt hin, worum es geht.
+ */
+function SammelMail({
+  angebote,
+  vorgangId,
+  appUrl,
+  kundeEmail,
+  ansprechpartner,
+}: {
+  angebote: AngebotDetail[];
+  vorgangId: string;
+  appUrl: string;
+  kundeEmail: string;
+  ansprechpartner: string | null;
+}) {
+  const vorschlag = (a: AngebotDetail, i: number) => {
+    const wann = a.vorstellung
+      ? `${wochentagName(new Date(`${a.vorstellung.datum}T12:00:00Z`).getUTCDay())}, ` +
+        `${a.vorstellung.datum.split("-").reverse().join(".")}, ${a.vorstellung.show}`
+      : "";
+    return `Angebot ${i + 1}${wann ? `: ${wann}` : ""}`;
+  };
+
+  const anrede = ansprechpartner ? `Hallo ${ansprechpartner},` : "Guten Tag,";
+  const text = [
+    anrede,
+    "",
+    "vielen Dank für Ihr Interesse an einem Abend bei uns. Wir haben Ihnen mehrere Möglichkeiten",
+    "zusammengestellt, damit Sie in Ruhe vergleichen können.",
+    "",
+    "Jedes Angebot lässt sich einzeln ansehen und zusagen. Melden Sie sich gern, wenn etwas noch",
+    "nicht passt, wir ändern es Ihnen.",
+    "",
+    "Herzliche Grüße",
+  ].join(String.fromCharCode(10));
+
+  return (
+    <form action={angebotePerMail.bind(null, vorgangId)} className="mt-3 space-y-3">
+      <div className="space-y-2">
+        {angebote.map((a, i) => (
+          <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-md bg-flaeche px-3 py-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="angebot"
+                value={a.id}
+                defaultChecked={!a.versendetAm}
+                className="h-4 w-4 accent-[var(--gold-dunkel)]"
+              />
+              <span className="font-medium tabular-nums">{a.nummer}</span>
+            </label>
+            <input
+              name={`titel-${a.id}`}
+              defaultValue={vorschlag(a, i)}
+              maxLength={120}
+              className="min-w-[16rem] flex-1 rounded-md border border-linie px-2 py-1 text-sm"
+              placeholder="Überschrift in der Mail"
+            />
+            {a.versendetAm && <span className="text-xs text-leise">schon einmal verschickt</span>}
+          </div>
+        ))}
+      </div>
+
+      <label className="block text-xs">
+        <span className="text-leise">An</span>
+        <input
+          type="email"
+          name="an"
+          defaultValue={kundeEmail}
+          className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs">
+        <span className="text-leise">Betreff</span>
+        <input
+          type="text"
+          name="betreff"
+          defaultValue="Ihre Angebote für den Abend im Florian Zimmer Theater"
+          className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 text-sm"
+        />
+      </label>
+
+      <label className="block text-xs">
+        <span className="text-leise">Text</span>
+        <textarea
+          name="text"
+          rows={10}
+          defaultValue={text}
+          className="mt-1 w-full rounded-md border border-linie px-2 py-1.5 font-sans text-sm"
+        />
+      </label>
+
+      <MailVorschau
+        angebote={angebote.map((a) => ({
+          id: a.id,
+          href: `${appUrl}/ihr-angebot/${a.trackingToken}`,
+        }))}
+      />
+
+      <Sendeknopf />
+      <p className="text-xs text-leise">
+        Eine Mail mit allen angehakten Angeboten, jedes mit eigener Überschrift und eigenem Knopf.
+        Unterschrift und Fußzeile hängen wir darunter. Jedes mitgeschickte Angebot wird als
+        versendet vermerkt.
+      </p>
+    </form>
+  );
+}
+
 function AngebotKarte({
   angebot,
   vorgangId,
@@ -1439,12 +1585,15 @@ function AngebotKarte({
             />
           </label>
 
+          <MailVorschau link={link} />
+
           <Sendeknopf />
           <p className="text-xs text-leise">
             Geht von kevin.steele@florianzimmer.com hinaus und steht danach dort unter Gesendete
             Elemente. Antworten des Kunden landen bei Kevin. Das Angebot wird gleichzeitig als
             versendet vermerkt. Unterschrift, Bewertungslinks und Anschrift hängen wir
-            automatisch darunter, die müssen hier nicht hinein.
+            automatisch darunter, die müssen hier nicht hinein. Ein PDF hängt nicht mehr an, der
+            Kunde öffnet das Angebot über den Knopf.
           </p>
         </form>
       </details>

@@ -38,9 +38,18 @@ export function alsHtml(
     fuss?: string;
     /** Ein zweiter, leiser Weg daneben, etwa der Aenderungswunsch. */
     nebenlink?: { href: string; text: string };
+    /**
+     * Mehrere Angebote in einer Mail, je eines mit eigenem Knopf.
+     *
+     * "schreib klar drüber Angebot 1, Angebot 2 z.b. gerne aber auch
+     * was das angebot näher beschreibt (sonntags show.. etc)"
+     * (Florian, 30.10.2026). Steht hier etwas, tritt es an die Stelle
+     * des einzelnen Knopfes.
+     */
+    angebote?: Array<{ titel: string; href: string }>;
   } = {},
 ): string {
-  const { link, fuss, nebenlink } = o;
+  const { link, fuss, nebenlink, angebote } = o;
   const sicher = link ? entschaerfen(link.trim()) : "";
 
   /*
@@ -73,11 +82,31 @@ export function alsHtml(
     .join("<br>")
     .replace(/(<br>)+$/, "");
 
-  const knopf = link
-    ? `<p style="margin:28px 0 0"><a href="${sicher}" ` +
-      `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
-      `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen und zusagen</a></p>`
-    : "";
+  /*
+    Mehrere Angebote stehen untereinander, jedes mit seiner Ueberschrift.
+
+    Eine Liste von Knoepfen ohne Beschriftung waere fuer den Kunden ein
+    Raten, welcher welcher ist. Deshalb steht ueber jedem, worum es
+    geht, und der Knopf traegt nur noch "ansehen und zusagen".
+  */
+  const knopf = angebote?.length
+    ? angebote
+        .map(
+          (a) =>
+            `<table role="presentation" style="margin:24px 0 0;border-collapse:collapse"><tr><td ` +
+            `style="border-left:3px solid #c9a84c;padding:2px 0 2px 14px">` +
+            `<div style="font-weight:600;font-size:16px">${entschaerfen(a.titel)}</div>` +
+            `<p style="margin:10px 0 0"><a href="${entschaerfen(a.href)}" ` +
+            `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
+            `padding:10px 18px;border-radius:6px;font-weight:600">Ansehen und zusagen</a></p>` +
+            `</td></tr></table>`,
+        )
+        .join("")
+    : link
+      ? `<p style="margin:28px 0 0"><a href="${sicher}" ` +
+        `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
+        `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen und zusagen</a></p>`
+      : "";
 
   /*
     Daneben der zweite Weg (Florian, 28.10.2026): "soll er auch gleich
