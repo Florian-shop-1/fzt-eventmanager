@@ -254,7 +254,7 @@ export async function wand(o: { thema?: string; anzahl?: number } = {}): Promise
 }>> {
   const anzahl = Math.max(1, Math.min(300, o.anzahl ?? 120));
   const zeilen = (await db()`
-    select id, zitat, transkript, bild_oeffentlich, themen, stimmung, bewertung, highlight, show
+    select id, zitat, bild_oeffentlich, themen, stimmung, bewertung, highlight, show
       from postkarte
      where status = 'freigegeben'
        and datenschutz = 'frei'
@@ -267,8 +267,20 @@ export async function wand(o: { thema?: string; anzahl?: number } = {}): Promise
   return zeilen.map((r) => ({
     id: String(r.id),
     zitat: String(r.zitat ?? ""),
-    /* Auf der Wand steht das Zitat. Der ganze Text nur, wenn jemand die Karte öffnet. */
-    transkriptKurz: String(r.transkript ?? "").slice(0, 600),
+    /*
+      Nach draussen geht nur das Zitat, nie das Transkript.
+
+      Gefunden am 30.10.2026: Das Bild war geschwaerzt, der Text nicht.
+      Ueber diese Schnittstelle gingen Anrede, Name und vollstaendige
+      Anschrift im Klartext hinaus, und auf der Gaestewand standen sie,
+      sobald jemand eine Karte antippte.
+
+      Das Zitat ist die einzige Fassung, die ein Mensch gesehen und
+      freigegeben hat; es laesst sich im Eventmanager auch berichtigen.
+      Das Transkript dagegen ist die Rohlesung der ganzen Karte, Adresse
+      inbegriffen. Es bleibt im Haus.
+    */
+    transkriptKurz: String(r.zitat ?? ""),
     bild: String(r.bild_oeffentlich ?? ""),
     themen: Array.isArray(r.themen) ? r.themen.map(String) : [],
     stimmung: String(r.stimmung ?? ""),
