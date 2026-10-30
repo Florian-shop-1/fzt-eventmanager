@@ -1127,11 +1127,25 @@ function AngebotKarte({
             der bessere Tausch.
           */}
           <div className="space-y-3">
+            {/*
+              Die Vorschau darf breiter sein als die Seite.
+
+              "beim entwurfsangebot könnte es doch mehr breite haben.. da
+              ist noch platz rechts.. spricht was dagegen?" (Florian,
+              30.10.2026). Nichts spricht dagegen: Das Arbeitsprogramm
+              ist auf 72rem begrenzt, damit Fliesstext und Tabellen
+              lesbar bleiben. Fuer ein A4-Dokument gilt das Gegenteil,
+              je groesser desto besser.
+
+              Deshalb bricht nur dieser Rahmen aus der Spalte aus, mittig
+              im Fenster und hoechstens 96 Prozent davon breit, damit
+              nichts seitlich herausragt.
+            */}
             <iframe
               key={`${stand}-${abdruck}`}
               src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}&p=${abdruck}`}
               title={`Angebot ${angebot.nummer}`}
-              className="h-[80vh] w-full rounded-md border border-linie bg-white"
+              className="relative left-1/2 h-[85vh] w-[min(96vw,84rem)] -translate-x-1/2 rounded-md border border-linie bg-white"
             />
 
             <div className="space-y-3">
