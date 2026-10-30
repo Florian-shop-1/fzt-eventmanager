@@ -1012,7 +1012,28 @@ function AngebotKarte({
             )}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[23rem_1fr]">
+          {/*
+            Vorschau oben, Aenderungen darunter.
+
+            "leider ist uns das zu klein. baue bitte eine andere
+            variante draus, so dass das vorschau angebot oben zu sehen
+            ist und man drunter die einzelnen punkte ändern kann"
+            (Florian, 30.10.2026).
+
+            Vorher standen beide nebeneinander, und das Dokument hatte
+            nur zwei Drittel der Breite. Ein Angebot ist aber eine
+            Seite: Je breiter sie steht, desto eher sieht man, was der
+            Kunde sieht. Untereinander kostet es Scrollen, und das ist
+            der bessere Tausch.
+          */}
+          <div className="space-y-3">
+            <iframe
+              key={`${stand}-${abdruck}`}
+              src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}&p=${abdruck}`}
+              title={`Angebot ${angebot.nummer}`}
+              className="h-[80vh] w-full rounded-md border border-linie bg-white"
+            />
+
             <div className="space-y-3">
             <details open className="rounded-md border border-linie p-3">
               <summary className="cursor-pointer text-xs text-leise">
@@ -1162,13 +1183,6 @@ function AngebotKarte({
               </form>
             </details>
             </div>
-
-            <iframe
-              key={`${stand}-${abdruck}`}
-              src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}&p=${abdruck}`}
-              title={`Angebot ${angebot.nummer}`}
-              className="h-[85vh] w-full rounded-md border border-linie bg-white"
-            />
           </div>
         </div>
       )}
