@@ -32,6 +32,7 @@ import { angebotPerMail, angebotePerMail } from "@/lib/angebot/mailversand";
 import { MailVorschau } from "@/components/MailVorschau";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
+import { einheitZu } from "@/lib/angebot/einheit";
 import { eur } from "@/lib/domain/pricing";
 import {
   artikel,
@@ -1901,11 +1902,24 @@ function AngebotKarte({
                                   e.currentTarget.form?.requestSubmit();
                                 }
                               }}
-                              title="Stückzahl ändern"
+                              title={`Anzahl ändern, gerechnet in ${einheitZu(2, p.einheit)}`}
                               style={{ width: "3.2rem" }}
                               className="rounded border border-linie px-1 py-0.5 text-right text-xs tabular-nums"
                             />
-                            <span className="text-xs text-leise">x</span>
+                            {/*
+                              Die Einheit statt eines x.
+
+                              "bitte beim eingeben auch nicht 1x sondern
+                              in stunden rechnen" (Florian, 30.10.2026).
+                              Bei der LED-Fassade und der Aftershow-Party
+                              sind es Stunden, nicht Stueck, und wer eine
+                              2 eintippt, soll sehen, worin er rechnet.
+                            */}
+                            <span className="w-12 text-left text-xs text-leise">
+                              {einheitZu(p.menge, p.einheit) === "Stück"
+                                ? "x"
+                                : einheitZu(p.menge, p.einheit)}
+                            </span>
                           </form>
                         </td>
                         {/*

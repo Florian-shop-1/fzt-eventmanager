@@ -4,6 +4,7 @@ import { Cormorant_Garamond } from "next/font/google";
 import { holeAngebotFuerKunden } from "@/lib/angebot/lesen";
 import { angebotssumme, positionsSumme } from "@/lib/angebot/erstellen";
 import { ablaufAusEinleitung, einleitungOhneAblauf } from "@/lib/angebot/ablauf";
+import { einheitZu } from "@/lib/angebot/einheit";
 import { eur } from "@/lib/domain/pricing";
 import { datumMitWochentag } from "@/lib/zeit";
 import { Logo } from "@/components/Logo";
@@ -460,8 +461,8 @@ export default async function KundenAngebot({
                         */}
                         <td className="py-2.5 text-right tabular-nums">
                           {p.menge}
-                          {p.einheit && p.einheit !== "Stück" && (
-                            <span className="text-leise"> {p.einheit}</span>
+                          {einheitZu(p.menge, p.einheit) !== "Stück" && (
+                            <span className="text-leise"> {einheitZu(p.menge, p.einheit)}</span>
                           )}
                         </td>
                         {/*

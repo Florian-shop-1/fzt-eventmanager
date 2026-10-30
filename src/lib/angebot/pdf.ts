@@ -24,6 +24,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { einheitZu } from "./einheit";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
 import type { Position } from "@/lib/domain/vorgang";
@@ -459,7 +460,15 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
     }
 
     rechtsB(String(p.menge), SP_MENGE, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
-    schreib(p.einheit, SP_EINHEIT - 28, oben, 9.5, normal, optional ? GRAU : SCHWARZ);
+    /* "3 Stunden", nicht "3 Stunde" (Florian, 30.10.2026). */
+    schreib(
+      einheitZu(p.menge, p.einheit),
+      SP_EINHEIT - 28,
+      oben,
+      9.5,
+      normal,
+      optional ? GRAU : SCHWARZ,
+    );
     /*
       Beim Nachlass wird der Listenpreis durchgestrichen.
 
