@@ -209,6 +209,9 @@ def main():
     # registriert" antwortete (23.09.2026). Gelesen werden nur Code und
     # Text der Rueckmeldung, keine Kontodaten.
     bankmeldungen = []
+    # Nur zur Diagnose bei einem Fehler: welche Segmentarten zuletzt gesendet wurden und auf welches die Bank sich bezieht.
+    # Es stehen nur Segmentnamen wie HKIDN oder HKTAN darin, nie Inhalte, PIN oder Kontodaten.
+    verlauf = []
 
     def mitschneiden():
         import fints.connection as verbindung
@@ -216,15 +219,23 @@ def main():
         urspruenglich = verbindung.FinTSHTTPSConnection.send
 
         def senden(self, nachricht):
+            try:
+                arten = [str(getattr(getattr(sg, "header", None), "type", type(sg).__name__)) for sg in getattr(nachricht, "segments", [])]
+                verlauf.append("gesendet: " + " ".join(arten))
+            except Exception:  # noqa: BLE001
+                pass
             antwort = urspruenglich(self, nachricht)
             try:
                 for art in ("HIRMG", "HIRMS"):
                     for seg in antwort.find_segments(art):
+                        bezug = getattr(getattr(seg, "header", None), "reference", None)
                         for r in getattr(seg, "responses", []):
                             code = str(getattr(r, "code", ""))
                             text = str(getattr(r, "text", "")).strip()
                             if code.startswith("9") and text:
                                 bankmeldungen.append(f"{code}: {text}")
+                            if code:
+                                verlauf.append(f"Bank {art} {code}" + (f" (Bezug Segment {bezug})" if bezug else ""))
             except Exception:  # noqa: BLE001
                 pass
             return antwort
@@ -409,6 +420,10 @@ def main():
                     "Sie wird von der FinTS-Leitstelle turnusmaessig an die Rechenzentren verteilt."
                 )
         print("Der Abruf ist gescheitert:", fehler, file=sys.stderr)
+        if verlauf:
+            print("Ablauf (nur Segmentnamen und Codes):", file=sys.stderr)
+            for zeile in verlauf[-14:]:
+                print("  " + zeile, file=sys.stderr)
     finally:
         try:
             ZUSTAND_DATEI.write_bytes(klient.deconstruct(including_private=True))
