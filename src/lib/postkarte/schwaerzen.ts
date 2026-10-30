@@ -28,6 +28,34 @@ export interface Fundstelle {
 const VERDECKEN = new Set(["adresse", "telefon", "email"]);
 
 /**
+ * Unsere eigene Anschrift bleibt stehen.
+ *
+ * "wenn unsere eigene adresse (grethe-weiser-str.) draufsteht, dann
+ * darfst du sie zeigen. oft senden die leute direkt an uns wieder"
+ * (Florian, 30.10.2026).
+ *
+ * Geschuetzt wird, was einem Gast gehoert. Die Anschrift des Hauses
+ * gehoert niemandem privat, sie steht im Impressum, auf dem Ticket und
+ * an der Tuer. Verdeckt man sie trotzdem, liegt ein schwarzer Balken
+ * mitten auf der Karte und verdeckt nichts als den eigenen Namen.
+ *
+ * Erkannt wird sie an mehreren Merkmalen, weil eine Handschrift
+ * verschieden gelesen wird: mal "Grethe-Weiser-Str.", mal
+ * "Grethe Weiser Strasse", mal nur die Postleitzahl mit dem Haus.
+ */
+const EIGENE_MERKMALE = [
+  /grethe[\s-]*weiser/i,
+  /florian[\s-]*zimmer[\s-]*theater/i,
+  /89231\s*neu[\s-]*ulm/i,
+];
+
+/** Steht auf dieser Fundstelle unsere eigene Anschrift? */
+export function istUnsereAnschrift(f: Fundstelle): boolean {
+  const text = String(f.text ?? "");
+  return EIGENE_MERKMALE.some((m) => m.test(text));
+}
+
+/**
  * Wie weit ein Name von der Adresse entfernt stehen darf und trotzdem
  * dazugehört, in Prozentpunkten der Bildhöhe.
  *
@@ -61,10 +89,14 @@ function art(f: Fundstelle): string {
  * weiter unten im Text und bleibt stehen, so wie Florian es will.
  */
 export function istAnschrift(f: Fundstelle, alle: Fundstelle[] = []): boolean {
+  /* Die Anschrift des Hauses bleibt lesbar, auch der Name daneben. */
+  if (istUnsereAnschrift(f)) return false;
+
   if (VERDECKEN.has(art(f))) return true;
   if (art(f) !== "name") return false;
 
-  const adressen = alle.filter((x) => art(x) === "adresse");
+  /* Zu unserer eigenen Anschrift gehoert kein zu schuetzender Name. */
+  const adressen = alle.filter((x) => art(x) === "adresse" && !istUnsereAnschrift(x));
   const mitte = f.y + f.h / 2;
   return adressen.some((a) => mitte >= a.y - ZUSCHLAG_OBEN && mitte <= a.y + a.h);
 }
