@@ -100,6 +100,7 @@ export function AngebotBereich({
   personen,
   terminDatum,
   terminZeit,
+  terminwahl,
 }: {
   vorgangId: string;
   angebote: AngebotDetail[];
@@ -110,6 +111,14 @@ export function AngebotBereich({
   personen: number;
   /** Termin des Vorgangs, falls einer feststeht. */
   terminDatum?: string | null;
+  /**
+   * Die Terminwahl aus dem Spielplan, fertig vom Server.
+   *
+   * "es muss hier immer möglich sein den tag zu ändern" (Florian,
+   * 30.10.2026). Sie steht sonst weiter oben auf der Seite, und wer
+   * unten ein Angebot baut, sieht sie nicht.
+   */
+  terminwahl?: React.ReactNode;
   terminZeit?: string | null;
 }) {
   const [laeuft, starte] = useTransition();
@@ -370,6 +379,12 @@ export function AngebotBereich({
             <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-leise">
               1. Wann
             </span>
+
+            {/*
+              Der Tag selbst, zum Aendern an Ort und Stelle.
+              Siehe terminwahl oben.
+            */}
+            {terminwahl && <div className="mb-2">{terminwahl}</div>}
 
             {terminDatum && (
               <label className="flex items-center gap-2 text-sm">
@@ -1274,24 +1289,23 @@ function AngebotKarte({
           */}
           <div className="space-y-3">
             {/*
-              Die Vorschau darf breiter sein als die Seite.
+              Die Breite der Vorschau: ein Mass, das beidem gerecht wird.
 
-              "beim entwurfsangebot könnte es doch mehr breite haben.. da
-              ist noch platz rechts.. spricht was dagegen?" (Florian,
-              30.10.2026). Nichts spricht dagegen: Das Arbeitsprogramm
-              ist auf 72rem begrenzt, damit Fliesstext und Tabellen
-              lesbar bleiben. Fuer ein A4-Dokument gilt das Gegenteil,
-              je groesser desto besser.
+              Erst stand sie in einem Drittel der Spalte und war zu klein
+              (Florian, 30.10.2026), dann ueber die volle Fensterbreite
+              und war zu breit ("ausserdem ist das sehr breit jetzt das
+              angebot"). Beides stimmt: Ein A4-Dokument liest sich am
+              besten etwa so gross wie auf dem Papier, nicht kleiner und
+              nicht quer ueber zwei Bildschirmhaelften.
 
-              Deshalb bricht nur dieser Rahmen aus der Spalte aus, mittig
-              im Fenster und hoechstens 96 Prozent davon breit, damit
-              nichts seitlich herausragt.
+              64rem sind rund 1024 Punkte, also knapp anderthalb A4. Auf
+              schmalen Fenstern nimmt die Vorschau, was da ist.
             */}
             <iframe
               key={`${stand}-${abdruck}`}
               src={`/ihr-angebot/${angebot.trackingToken}?vorschau=1&stand=${stand}&p=${abdruck}`}
               title={`Angebot ${angebot.nummer}`}
-              className="relative left-1/2 h-[85vh] w-[min(96vw,84rem)] -translate-x-1/2 rounded-md border border-linie bg-white"
+              className="mx-auto h-[85vh] w-full max-w-[64rem] rounded-md border border-linie bg-white"
             />
 
             <div className="space-y-3">

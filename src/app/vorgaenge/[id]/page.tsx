@@ -511,6 +511,26 @@ export default async function VorgangSeite({
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
             terminDatum={vorgang.vorstellung?.datum ?? null}
+            /*
+              Die Terminwahl steht auch im Baukasten.
+
+              "der tag ist verschwunden beim angebot erstellen /ändern.
+              es muss hier immer möglich sein den tag zu ändern"
+              (Florian, 30.10.2026). Sie lag weiter oben in der Karte
+              "Termin", und wer unten ein Angebot baute, sah sie nicht.
+
+              Es ist dieselbe Auswahl, nicht eine zweite: Der Termin
+              gehoert zum Vorgang, nicht zum einzelnen Angebot. Geht als
+              fertiger Baustein hinein, weil der Baukasten im Browser
+              laeuft und der Spielplan auf dem Server steht.
+            */
+            terminwahl={
+              <TerminWahl
+                vorgangId={vorgang.id}
+                aktuell={vorgang.vorstellung?.ditixEventId ?? null}
+                wunsch={vorgang.wunschzeitraum}
+              />
+            }
           />
 
           <Karte titel="Notizen">
