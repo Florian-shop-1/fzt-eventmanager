@@ -280,15 +280,30 @@ def main():
         verfahren = klient.get_tan_mechanisms()
         # Diese Zeile steht immer da: Sie zeigt, ob ein gemerkter Zustand geladen wurde und welche Verfahren bekannt sind.
         print(f"Gemerkter Zustand: {'ja' if zustand else 'nein'}. Bekannte TAN-Verfahren: {len(verfahren)}.", flush=True)
-        if zustand is None or not verfahren:
-            # Ohne gemerkten Zustand kennt die Bibliothek die Bankparameter noch nicht, die Liste ist leer, und es wird
-            # kein Verfahren gewaehlt. Der anonyme Weg (Verfahren 999, fetch_tan_mechanisms) wird von der Bank seit dem
-            # 30.10.2026 mit "9075 Starke Kundenauthentifizierung notwendig" abgelehnt. Dieser Zugang kennt nur ein
-            # Verfahren, SecureGo plus (Direktfreigabe) = 946. Mit ihm beginnt der Dialog gleich zweistufig, und die Bank
-            # kann die Freigabe anfordern. Aenderbar ueber FINTS_TAN_VERFAHREN, falls die Bank das Verfahren wechselt.
+        if not verfahren:
+            # Seit dem 29.10.2026 verlangt die Bank die zweite Stufe (HKTAN) schon bei der Anmeldung und lehnt sonst mit
+            # "9075 Starke Kundenauthentifizierung notwendig" ab. python-fints haengt HKTAN nur an, wenn es die
+            # TAN-Verfahren der Bank schon kennt. Ohne gemerkte Bankparameter kennt es sie nicht. Die Bank liefert sie in
+            # einem anonymen Dialog ohne PIN (das ist der oeffentliche Teil), den holen wir zuerst und setzen sie ein.
+            # Der Zugang kennt nur SecureGo plus (Direktfreigabe) = 946, aenderbar ueber FINTS_TAN_VERFAHREN.
+            from fints.client import CUSTOMER_ID_ANONYMOUS
+
+            print("Die Bankparameter werden anonym geholt ...", flush=True)
+            anonym = FinTS3PinTanClient(
+                blz, CUSTOMER_ID_ANONYMOUS, None, endpoint,
+                product_id=produkt, customer_id=CUSTOMER_ID_ANONYMOUS,
+            )
+            anonym.set_tan_mechanism("999")
+            with anonym._new_dialog():
+                pass
+            klient.bpd = anonym.bpd
+            klient.bpd_version = anonym.bpd_version
+            klient.bpa = anonym.bpa
             vorgabe = os.environ.get("FINTS_TAN_VERFAHREN", "946").strip() or "946"
-            print(f"Ohne gemerkten Zustand: TAN-Verfahren {vorgabe} (SecureGo plus) wird vorgegeben.", flush=True)
+            klient.allowed_security_functions = [vorgabe]
             klient.set_tan_mechanism(vorgabe)
+            verfahren = klient.get_tan_mechanisms()
+            print(f"Bankparameter Version {klient.bpd_version}, TAN-Verfahren {vorgabe}: {'bekannt' if vorgabe in verfahren else 'NICHT bekannt'}.", flush=True)
         if verfahren:
             aktuell = klient.get_current_tan_mechanism()
             if aktuell not in verfahren:
