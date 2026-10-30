@@ -511,7 +511,12 @@ export default async function VorgangSeite({
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
             terminDatum={vorgang.vorstellung?.datum ?? null}
-            wunschzeitraum={vorgang.wunschzeitraum}
+            /*
+              Beides zusammen: Der Wochentag steht in einem eigenen Feld,
+              der Zeitraum in einem zweiten. Der Baukasten liest den Tag
+              daraus (Florian, 30.10.2026).
+            */
+            wunschzeitraum={[vorgang.wunschtag, vorgang.wunschzeitraum].filter(Boolean).join(", ")}
             /*
               Die Terminwahl steht auch im Baukasten.
 
