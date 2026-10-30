@@ -673,7 +673,19 @@ function zuPosition(
 const TICKETNUMMERN = new Set(artikelDerGruppe("ticket", true).map((a) => a.nummer));
 const MENUENUMMERN = ["4GANG", "4GANGLOGE", "FINGERFOOD"];
 /** Was im Baukasten als Highlight angehakt werden darf. */
-const HIGHLIGHTNUMMERN = new Set(artikelDerGruppe("highlight").map((a) => a.nummer));
+/*
+  Was ueber die Highlight-Haken ins Angebot kommt.
+
+  Der Nachtzuschlag steht in der Gruppe Sonstiges, wird aber an
+  derselben Stelle angehakt: Er kommt zur Sprache, wenn die
+  Aftershow-Party gewaehlt wird (Florian, 30.10.2026). Ohne ihn hier
+  wuerde der Haken gesetzt und die Zeile trotzdem stillschweigend
+  verworfen.
+*/
+const HIGHLIGHTNUMMERN = new Set([
+  ...artikelDerGruppe("highlight").map((a) => a.nummer),
+  "NACHTZUSCHLAG",
+]);
 
 /**
  * Wie viele Gaeste stehen in diesem Angebot?

@@ -505,6 +505,31 @@ export const ARTIKEL: Artikel[] = [
   },
 
   // Sonstiges
+  /*
+    Der Nachtzuschlag.
+
+    "gibt es nachtzuschlag als position. wenn eine veranstaltung länger
+    als 0:00 Uhr geht berechnen wir Nachtzuschlag von 350 EUR"
+    (Florian, 30.10.2026).
+
+    Als Einheit die Stunde, nicht das Stueck. Eine Veranstaltung, die um
+    00:30 endet, kostet uns eine halbe Nacht; eine bis drei Uhr kostet
+    das Dreifache an Personal, Reinigung und Nachtzuschlaegen fuer das
+    Team. Eine Pauschale waere im ersten Fall zu teuer und im zweiten zu
+    billig. Wer nur die eine Stunde berechnen will, laesst die Menge auf
+    1 stehen; mehr Stunden sind eine andere Zahl im selben Feld.
+  */
+  {
+    nummer: "NACHTZUSCHLAG",
+    bezeichnung: "Nachtzuschlag",
+    beschreibung:
+      "Ab 0:00 Uhr, je angefangene Stunde. Darin enthalten sind die Zuschläge für unser "
+      + "Team, die Spätreinigung und der verlängerte Betrieb des Hauses",
+    einheit: "Stunde",
+    bruttoCent: 35000,
+    ust: 0.19,
+    gruppe: "sonstiges",
+  },
   {
     nummer: "FLEX",
     bezeichnung: "Flex-Option",

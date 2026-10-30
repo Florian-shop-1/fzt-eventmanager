@@ -901,6 +901,60 @@ export function AngebotBereich({
                 )}
               </div>
             ))}
+
+            {/*
+              Der Hinweis auf den Nachtzuschlag.
+
+              "wenn eine veranstaltung länger als 0:00 Uhr geht
+              berechnen wir Nachtzuschlag von 350 EUR! das könnte auch
+              von dir als hinweis kommen, wenn die party gewählt wird"
+              (Florian, 30.10.2026).
+
+              Er erscheint genau dann, wenn die Aftershow-Party
+              angehakt ist: Eine Party, die um 22:30 beginnt, geht in
+              aller Regel über Mitternacht. Der Hinweis fragt, er trägt
+              nichts von selbst ein. Eine Position, die ungefragt im
+              Angebot auftaucht, findet man erst beim Kunden.
+            */}
+            {highlights.includes("AFTERSHOW") && (
+              <div
+                className="mt-2 rounded-md border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+              >
+                <strong>Geht der Abend über 0:00 Uhr hinaus?</strong> Dann gehört der
+                Nachtzuschlag dazu, {eur(artikel("NACHTZUSCHLAG").bruttoCent)} je angefangene
+                Stunde.
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[var(--gold-dunkel)]"
+                      checked={highlights.includes("NACHTZUSCHLAG")}
+                      onChange={(e) =>
+                        setHighlights((bisher) =>
+                          e.target.checked
+                            ? [...new Set([...bisher, "NACHTZUSCHLAG"])]
+                            : bisher.filter((n) => n !== "NACHTZUSCHLAG"),
+                        )
+                      }
+                    />
+                    Nachtzuschlag mit anbieten
+                  </label>
+                  {highlights.includes("NACHTZUSCHLAG") && (
+                    <DrinSchalter
+                      optional={istOptional("NACHTZUSCHLAG")}
+                      setzen={(an) => setzeOptional("NACHTZUSCHLAG", an)}
+                    />
+                  )}
+                </div>
+                {highlights.includes("NACHTZUSCHLAG") && (
+                  <p className="mt-1 text-leise">
+                    Steht mit einer Stunde im Angebot. Dauert es länger, ändere die Zahl unten
+                    in der Positionsliste.
+                  </p>
+                )}
+              </div>
+            )}
           </fieldset>
 
           {/*
