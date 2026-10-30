@@ -64,6 +64,22 @@ export default async function PostkartenSeite({
           ? await karten({ status: "zurueck", anzahl: 120 })
           : (await karten({ status: "gelesen", anzahl: 200 })).filter((k) => k.bewertung >= 9);
 
+  /*
+    Was die Schwelle verschluckt.
+
+    "ich hab bei den postkarten nix angezeigt bekommen wie ich die
+    bewerte. eine ist drin und sie soll auf die hall of fame" (Florian,
+    30.10.2026). Die einzige wartende Karte hatte eine Acht, und damit
+    war die Vorschlagsliste leer: kein Eintrag, kein Hinweis, nichts.
+    Jetzt steht darunter, wie viele es sind und wo sie liegen. Die
+    Schwelle bleibt, sie soll die Arbeit sortieren und nichts
+    verschwinden lassen.
+  */
+  const knappDarunter =
+    sicht === "vorschlag"
+      ? (await karten({ status: "gelesen", anzahl: 200 })).filter((k) => k.bewertung < 9).length
+      : 0;
+
   return (
     <div className="space-y-5">
       <header>
@@ -117,10 +133,27 @@ export default async function PostkartenSeite({
         ))}
       </nav>
 
+      {knappDarunter > 0 && (
+        <p
+          className="rounded-md border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          {knappDarunter === 1
+            ? "Eine weitere Karte wartet auf eine Entscheidung, die KI hat ihr aber weniger als 9 gegeben."
+            : `${knappDarunter} weitere Karten warten auf eine Entscheidung, die KI hat ihnen aber weniger als 9 gegeben.`}{" "}
+          Die Bewertung ist nur ein Vorschlag, entscheiden darfst du anders.{" "}
+          <Link href="/postkarten?zeigen=alle" className="underline">
+            alle Karten ansehen
+          </Link>
+        </p>
+      )}
+
       {liste.length === 0 ? (
         <p className="rounded-lg border border-dashed border-linie p-8 text-center text-sm text-leise">
           {sicht === "vorschlag"
-            ? "Gerade schlägt die KI nichts vor. Alles mit 9 oder 10 ist entschieden."
+            ? knappDarunter > 0
+              ? "Mit 9 oder 10 ist gerade nichts dabei. Was darunter liegt, steht oben."
+              : "Gerade schlägt die KI nichts vor. Alles mit 9 oder 10 ist entschieden."
             : "Hier ist noch nichts."}
         </p>
       ) : (
