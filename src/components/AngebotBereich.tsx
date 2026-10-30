@@ -41,6 +41,9 @@ const WOCHENTAGE = [0, 1, 2, 3, 4, 5, 6].map(wochentagName);
   Highlights. Menues und Tickets stehen nicht dabei, die kommen aus der
   Fassung.
 */
+/** Face to Face, Aftershow, DJ: im Baukasten zum Anhaken. */
+const HIGHLIGHTS = artikelDerGruppe("highlight");
+
 const ZUSATZARTIKEL = [
   ...artikelDerGruppe("highlight"),
   ...artikelDerGruppe("technik"),
@@ -189,6 +192,16 @@ export function AngebotBereich({
   */
   const [nurOptional, setNurOptional] = useState<string[]>([]);
   const [mitFassade, setMitFassade] = useState(false);
+  /*
+    Die Highlights beim Bauen, nicht erst als Nachtrag.
+
+    "kann man face to face show mit anklicken für 1500 in der loge -
+    das ist bei angeboterstellung auch wichtig. wo finde ich den punkt
+    (kevin hatte ihn übersehen)" (Florian, 30.10.2026). Es gab sie nur
+    unter "Position hinzufügen" an einem fertigen Angebot. Wer von vorn
+    baute, sah sie nie.
+  */
+  const [highlights, setHighlights] = useState<string[]>([]);
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
@@ -514,6 +527,47 @@ export function AngebotBereich({
           </div>
 
           {/*
+            Die Highlights: Face to Face, Aftershow, DJ.
+
+            Sie kosten einmal, nicht je Gast, und stehen deshalb als
+            einfache Haken da. Wer eine andere Menge braucht, aendert
+            sie danach an der Position.
+          */}
+          <fieldset className="rounded-md border border-linie px-3 py-2">
+            <legend className="px-1 text-xs text-leise">Highlights</legend>
+            {HIGHLIGHTS.map((h) => (
+              <div key={h.nummer}>
+                <label className="flex items-start gap-2 py-1 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-[var(--gold-dunkel)]"
+                    checked={highlights.includes(h.nummer)}
+                    onChange={(e) =>
+                      setHighlights((bisher) =>
+                        e.target.checked
+                          ? [...new Set([...bisher, h.nummer])]
+                          : bisher.filter((n) => n !== h.nummer),
+                      )
+                    }
+                  />
+                  <span>
+                    {h.bezeichnung} ({eur(h.bruttoCent)})
+                    <span className="block text-xs text-leise">{h.beschreibung}</span>
+                  </span>
+                </label>
+                {highlights.includes(h.nummer) && (
+                  <div className="mb-2 ml-6">
+                    <DrinSchalter
+                      optional={istOptional(h.nummer)}
+                      setzen={(an) => setzeOptional(h.nummer, an)}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </fieldset>
+
+          {/*
             Das Logo auf der LED-Aussenfassade.
 
             Immer eine Wahlmoeglichkeit: Das ist eine Werbepartnerschaft
@@ -687,6 +741,7 @@ export function AngebotBereich({
                   ticketRabatt: rabatt,
                   ticketPreisCent: preisCent > 0 ? preisCent : undefined,
                   getraenkepauschalen: getraenke,
+                  highlights,
                   getraenkeMengen,
                   optionalePositionen: nurOptional,
                   mitFassade,

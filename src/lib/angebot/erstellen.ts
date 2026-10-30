@@ -177,6 +177,19 @@ export interface AngebotsOptionen {
   mitFassade?: boolean;
   /** Wie viele Stunden die Fassade bespielt wird. Ohne Angabe eine. */
   fassadeStunden?: number;
+  /**
+   * Highlights, die beim Bauen angehakt wurden.
+   *
+   * "kann man face to face show mit anklicken für 1500 in der loge -
+   * das ist bei angeboterstellung auch wichtig. wo finde ich den punkt
+   * (kevin hatte ihn übersehen)" (Florian, 30.10.2026).
+   *
+   * Es gab sie nur als Nachtrag, also erst an einem fertigen Angebot
+   * unter "Position hinzufügen". Wer ein Angebot von vorn baute, sah
+   * sie nie. Jetzt stehen sie im Baukasten, je Artikelnummer aus der
+   * Gruppe "highlight".
+   */
+  highlights?: string[];
   /** Magicuvée-Empfang auf der Eventgalerie mit anbieten. */
   mitEmpfang: boolean;
   /** Nicht belegte Logenplätze in Rechnung stellen. */
@@ -504,6 +517,17 @@ export function erzeugePositionen(
     positionen.push(zuPosition(preise, "LEDFASSADE", stunden));
   }
 
+  /*
+    Die Highlights: Face to Face, Aftershow, DJ.
+
+    Immer einmal, nie je Gast: Florian zaubert einmal in der Loge, der
+    DJ spielt einmal. Wer etwas anderes braucht, aendert die Menge
+    danach an der Position.
+  */
+  for (const nummer of optionen.highlights ?? []) {
+    if (HIGHLIGHTNUMMERN.has(nummer)) positionen.push(zuPosition(preise, nummer, 1));
+  }
+
   // 6. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
   //    Bei einer Exklusivbuchung nie: Der Saal ist komplett bezahlt.
   if (optionen.mitUnterbelegung && !exklusiv && plan) {
@@ -583,6 +607,8 @@ function zuPosition(
 
 const TICKETNUMMERN = new Set(artikelDerGruppe("ticket", true).map((a) => a.nummer));
 const MENUENUMMERN = ["4GANG", "4GANGLOGE", "FINGERFOOD"];
+/** Was im Baukasten als Highlight angehakt werden darf. */
+const HIGHLIGHTNUMMERN = new Set(artikelDerGruppe("highlight").map((a) => a.nummer));
 
 /**
  * Wie viele Gaeste stehen in diesem Angebot?
