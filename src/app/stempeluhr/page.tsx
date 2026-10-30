@@ -13,6 +13,7 @@ import { NurAmHandy } from "@/components/NurAmHandy";
 import { WerIstDaLive } from "@/components/WerIstDaLive";
 import {
   antraege,
+  antraegeOhneEintrag,
   antraegeVon,
   einstellungLesen,
   minutenOhnePause,
@@ -304,7 +305,16 @@ async function MeineAntraege({ benutzerId }: { benutzerId: string }) {
 /** Offene Änderungswünsche und die Begründungen zu fehlenden Pausen. */
 async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean }) {
   const alle = await antraege();
-  const offen = alle.filter((a) => a.status === "offen");
+  /*
+    Offen ist auch, was angenommen, aber nie eingetragen wurde.
+
+    "wenn ich es vergesse mir nochmal anzeigen" (Florian, 30.10.2026).
+    Ein Haken allein hat noch keine Zeit geändert, siehe
+    antraegeOhneEintrag in lib/stempel/db.ts. Solche Anträge stehen hier
+    weiter, bis am betreffenden Tag wirklich etwas passiert ist.
+  */
+  const liegengeblieben = await antraegeOhneEintrag().catch(() => []);
+  const offen = [...alle.filter((a) => a.status === "offen"), ...liegengeblieben];
   const gruende = alle.filter((a) => a.art === "pausengrund").slice(0, 8);
   // Wer nach der Pause im Foyer geblieben ist, mit Grund und Freigabe.
   const nachPause = await nachPauseGruende().catch(() => []);
@@ -313,6 +323,11 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
     <section id="antraege" className="scroll-mt-24 space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">
         Änderungswünsche{offen.length > 0 && ` (${offen.length} offen)`}
+        {liegengeblieben.length > 0 && (
+          <span className="ml-2 normal-case" style={{ color: "var(--warnung)" }}>
+            davon {liegengeblieben.length} angenommen, aber noch nicht eingetragen
+          </span>
+        )}
       </h2>
       {offen.length === 0 ? (
         <p className="text-sm text-leise">Nichts offen.</p>
@@ -327,10 +342,43 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
               a.vorschlagGehen && `Gehen ${uhr(a.vorschlagGehen)}`,
             ].filter(Boolean);
 
+            /*
+              Uhrzeiten aus dem freien Text vorschlagen.
+
+              Die meisten schreiben keine Formularfelder aus, sondern
+              einen Satz: "14:00 Einstempeln vergessen" oder "13:30 -
+              17:30 bitte nachtragen". Eine Zeit heißt Kommen, zwei
+              heißen Kommen und Gehen. Mehr wird nicht geraten, und
+              bestätigt wird es ohnehin von Hand.
+            */
+            const ausText = [...a.text.matchAll(/(?<!\d)(\d{1,2}):(\d{2})(?!\d)/g)]
+              .map((m) => `${m[1].padStart(2, "0")}:${m[2]}`)
+              .filter((t) => Number(t.slice(0, 2)) < 24 && Number(t.slice(3)) < 60)
+              .slice(0, 2);
+            const geraten = {
+              kommen: a.vorschlagKommen ? uhr(a.vorschlagKommen) : (ausText[0] ?? ""),
+              pauseStart: a.vorschlagPauseStart ? uhr(a.vorschlagPauseStart) : "",
+              pauseEnde: a.vorschlagPauseEnde ? uhr(a.vorschlagPauseEnde) : "",
+              gehen: a.vorschlagGehen ? uhr(a.vorschlagGehen) : (ausText[1] ?? ""),
+            };
+
             return (
-              <div key={a.id} className="rounded-lg border border-linie bg-flaeche p-4 text-sm">
+              <div
+                key={a.id}
+                className="rounded-lg border p-4 text-sm"
+                style={
+                  a.status === "angenommen"
+                    ? { borderColor: "var(--warnung)", background: "var(--warnung-hell)" }
+                    : { borderColor: "var(--linie)", background: "var(--flaeche)" }
+                }
+              >
                 <p className="font-medium">
                   {a.name} · {a.tag.split("-").reverse().join(".")}
+                  {a.status === "angenommen" && (
+                    <span className="ml-2 text-xs font-normal" style={{ color: "var(--warnung)" }}>
+                      angenommen von {a.entschiedenVon ?? "jemandem"}, aber die Zeit steht noch unverändert da
+                    </span>
+                  )}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
 
@@ -350,22 +398,48 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
                   </form>
                 )}
 
+                {/*
+                  Annehmen heißt eintragen (Florian, 30.10.2026).
+
+                  Die Uhrzeiten stehen deshalb im selben Formular wie der
+                  Knopf. Vorausgefüllt ist, was im Text des Mitarbeiters
+                  steht: "14:00 Einstempeln vergessen" wird zu Kommen
+                  14:00. Geraten wird dabei nur der Vorschlag, gespeichert
+                  wird, was hier steht, wenn jemand auf Annehmen drückt.
+                */}
                 <form action={antragBeantworten} className="mt-3">
                   <input type="hidden" name="id" value={a.id} />
-                  <input name="antwort" maxLength={500} placeholder="Antwort (freiwillig)" className="mt-1" />
-                  <div className="mt-2 flex gap-2">
-                    <button name="status" value="angenommen" className="rounded-lg border border-linie px-4 py-2 font-medium">
-                      Nur annehmen
+                  <div className="flex flex-wrap items-end gap-2">
+                    {([
+                      ["kommen", "Kommen", geraten.kommen],
+                      ["pause_start", "Pause von", geraten.pauseStart],
+                      ["pause_ende", "Pause bis", geraten.pauseEnde],
+                      ["gehen", "Gehen", geraten.gehen],
+                    ] as const).map(([feld, beschriftung, wert]) => (
+                      <label key={feld} className="block">
+                        <span className="mb-1 block text-xs text-leise">{beschriftung}</span>
+                        <input type="time" name={feld} defaultValue={wert} className="w-28" />
+                      </label>
+                    ))}
+                  </div>
+                  <input name="antwort" maxLength={500} placeholder="Antwort (freiwillig)" className="mt-2" />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      name="status"
+                      value="angenommen"
+                      className="rounded-lg px-4 py-2 font-medium text-white"
+                      style={{ background: "var(--gut)" }}
+                    >
+                      Annehmen und eintragen
                     </button>
                     <button name="status" value="abgelehnt" className="rounded-lg border border-linie px-4 py-2 font-medium">
                       Ablehnen
                     </button>
                   </div>
-                  {zeiten.length === 0 && (
-                    <p className="mt-2 text-xs text-leise">
-                      Nach dem Annehmen die Zeit unten unter „Zeiten korrigieren“ eintragen.
-                    </p>
-                  )}
+                  <p className="mt-2 text-xs text-leise">
+                    Ohne Uhrzeit wird nur der Antrag abgehakt, die Zeiten bleiben, wie sie sind. Er
+                    steht dann weiter hier, bis an dem Tag wirklich etwas geändert ist.
+                  </p>
                 </form>
               </div>
             );

@@ -204,7 +204,32 @@ export async function antragBeantworten(f: FormData): Promise<void> {
   const status = text(f, "status", 20) === "angenommen" ? "angenommen" : "abgelehnt";
   const antwort = text(f, "antwort");
 
-  const a = await antragEntscheiden(id, status, antwort, b.name);
+  /*
+    Annehmen heißt eintragen.
+
+    "wenn ich bestätige, muss das auch tatsächlich übernommen werden"
+    (Florian, 30.10.2026). Früher setzte dieser Knopf nur den Haken und
+    bat darum, die Zeit noch von Hand zu korrigieren. Bei Marios
+    4. Oktober ist genau das liegengeblieben, und der Antrag war von der
+    Liste verschwunden, weil er als erledigt galt.
+
+    Jetzt stehen die Uhrzeiten im selben Formular. Wer eine angibt, trägt
+    sie mit demselben Druck ein. Wer keine angibt, nimmt den Antrag zur
+    Kenntnis; das soll es weiter geben, nicht jeder Antrag ändert eine
+    Zeit. Liegengebliebenes zeigt die Seite jetzt ohnehin wieder an,
+    siehe antraegeOhneEintrag.
+  */
+  const zeiten = {
+    kommen: text(f, "kommen", 5),
+    pauseStart: text(f, "pause_start", 5),
+    pauseEnde: text(f, "pause_ende", 5),
+    gehen: text(f, "gehen", 5),
+  };
+  const mitZeiten = status === "angenommen" && Object.values(zeiten).some(Boolean);
+
+  const a = mitZeiten
+    ? await antragUebernehmen(id, b.name, zeiten)
+    : await antragEntscheiden(id, status, antwort, b.name);
   if (!a) zurueck("Diesen Antrag gibt es nicht mehr.", "#antraege");
 
   const p = (await db()`select email from benutzer where id = ${a.benutzerId}`) as Array<{ email: string }>;
@@ -224,7 +249,14 @@ export async function antragBeantworten(f: FormData): Promise<void> {
       ].join("\n"),
     }).catch(() => undefined);
   }
-  zurueck(status === "angenommen" ? "Angenommen. Bitte die Zeit noch eintragen." : "Abgelehnt, der Mitarbeiter hat Bescheid.", "#antraege");
+  zurueck(
+    status !== "angenommen"
+      ? "Abgelehnt, der Mitarbeiter hat Bescheid."
+      : mitZeiten
+        ? "Angenommen und eingetragen."
+        : "Angenommen, ohne Zeitänderung. Der Antrag steht weiter oben, bis am Tag etwas geändert ist.",
+    "#antraege",
+  );
 }
 
 /**

@@ -673,6 +673,40 @@ export async function antraege(nur?: "offen"): Promise<Antrag[]> {
   return z.map(bauAntrag);
 }
 
+/**
+ * Angenommen, aber die Zeit steht immer noch falsch da.
+ *
+ * "wenn ich bestätige, muss das auch tatsächlich übernommen werden"
+ * (Florian, 30.10.2026).
+ *
+ * Es gab zwei Knöpfe: "Übernehmen und bestätigen" trug die Zeiten ein,
+ * "Nur annehmen" setzte bloß den Haken und verließ sich darauf, dass
+ * jemand die Zeit danach von Hand korrigiert. Genau das ging bei Marios
+ * 4. Oktober schief: angenommen am 04.10., die Zeit stand bis zum
+ * 30.10. unverändert auf 15:33, und der Antrag war von der Liste
+ * verschwunden, weil er ja "erledigt" war.
+ *
+ * Erledigt ist ein Antrag deshalb erst, wenn an seinem Tag auch wirklich
+ * etwas geändert wurde. Gemessen wird am Änderungsbuch, nicht an einem
+ * zusätzlichen Haken: So zählen auch die Fälle von früher richtig mit,
+ * und zwar in beide Richtungen, ob nun erst korrigiert und dann
+ * angenommen wurde oder umgekehrt.
+ */
+export async function antraegeOhneEintrag(): Promise<Antrag[]> {
+  const z = (await db()`
+    select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag a
+     where a.status = 'angenommen'
+       and not exists (
+         select 1 from stempel_aenderung w
+          where w.benutzer_id = a.benutzer_id
+            and w.tag = a.tag
+            and w.wann >= a.erstellt_am
+       )
+     order by a.erstellt_am
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map(bauAntrag);
+}
+
 export async function antraegeVon(benutzerId: string, anzahl = 10): Promise<Antrag[]> {
   const z = (await db()`
     select ${db().unsafe(ANTRAG_SPALTEN)} from stempel_antrag
@@ -760,11 +794,47 @@ export async function antragLesen(id: string): Promise<Antrag | null> {
  * keine Pause steht. Jede Zeile bekommt in "geändert von" den Hinweis,
  * dass die Angabe vom Mitarbeiter selbst stammt und wer sie bestätigt hat.
  */
-export async function antragUebernehmen(id: string, von: string): Promise<Antrag | null> {
+export async function antragUebernehmen(
+  id: string,
+  von: string,
+  /**
+   * Zeiten, die das Büro von Hand eingetragen hat, als "HH:MM".
+   *
+   * Steht hier nichts, gelten die Angaben aus dem Antrag. Gebraucht wird
+   * das für Anträge, die der Mitarbeiter als freien Text geschrieben
+   * hat: "14:00 Einstempeln vergessen". Früher blieb für die nur das
+   * bloße Annehmen übrig, und die Zeit wurde vergessen (Florian,
+   * 30.10.2026).
+   */
+  zeiten?: { kommen?: string; pauseStart?: string; pauseEnde?: string; gehen?: string },
+): Promise<Antrag | null> {
   const a = await antragLesen(id);
   if (!a) return null;
   const bereitsAmTag = await stempelAmTag(a.benutzerId, a.tag);
   const vermerk = `Selbstauskunft von ${a.name}, bestätigt von ${von}`;
+
+  /** "14:00" am Tag des Antrags, in hiesiger Zeit, als Zeitpunkt. */
+  const amTag = (uhr?: string): string | null => {
+    if (!uhr || !/^\d{1,2}:\d{2}$/.test(uhr)) return null;
+    const [h, m] = uhr.split(":").map(Number);
+    if (h > 23 || m > 59) return null;
+    /*
+      Über die Zeitzone wird hier nicht gerechnet, sondern gemessen: Aus
+      dem Tag und der Uhrzeit wird ein Zeitpunkt gebaut und geprüft, ob
+      er in Berlin wirklich diese Uhrzeit zeigt. Sonst läge eine Nacht
+      im Oktober eine Stunde daneben, und das fiele erst im Lohn auf.
+    */
+    for (const versatz of [1, 2]) {
+      const kandidat = new Date(`${a.tag}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+0${versatz}:00`);
+      const zeigt = kandidat.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Berlin",
+      });
+      if (zeigt === `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`) return kandidat.toISOString();
+    }
+    return null;
+  };
 
   const uebernehmen = async (art: StempelArt, zeitpunkt: string | null) => {
     if (!zeitpunkt) return;
@@ -775,13 +845,24 @@ export async function antragUebernehmen(id: string, von: string): Promise<Antrag
         insert into stempel (benutzer_id, name, art, zeitpunkt, im_haus, quelle, notiz, geaendert_von, geaendert_am)
         values (${a.benutzerId}, ${a.name}, ${art}, ${zeitpunkt}::timestamptz, true, 'korrektur', ${vermerk}, ${von}, now())
       `;
+      await aenderungMerken({
+        benutzerId: a.benutzerId,
+        name: a.name,
+        tag: a.tag,
+        was: "nachgetragen",
+        art,
+        altZeitpunkt: null,
+        neuZeitpunkt: zeitpunkt,
+        grund: vermerk,
+        wer: von,
+      });
     }
   };
 
-  await uebernehmen("kommen", a.vorschlagKommen);
-  await uebernehmen("pause_start", a.vorschlagPauseStart);
-  await uebernehmen("pause_ende", a.vorschlagPauseEnde);
-  await uebernehmen("gehen", a.vorschlagGehen);
+  await uebernehmen("kommen", amTag(zeiten?.kommen) ?? a.vorschlagKommen);
+  await uebernehmen("pause_start", amTag(zeiten?.pauseStart) ?? a.vorschlagPauseStart);
+  await uebernehmen("pause_ende", amTag(zeiten?.pauseEnde) ?? a.vorschlagPauseEnde);
+  await uebernehmen("gehen", amTag(zeiten?.gehen) ?? a.vorschlagGehen);
 
   return antragEntscheiden(id, "angenommen", `Übernommen: ${vermerk}`, von);
 }
