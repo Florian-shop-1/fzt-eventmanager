@@ -283,6 +283,8 @@ export function AngebotBereich({
   const [abendpreise, setAbendpreise] = useState<Record<string, number>>({});
   /* Von welcher Vorstellung die Preise stammen, fuer die Kontrollzeile. */
   const [preisherkunft, setPreisherkunft] = useState<{ datum: string; show: string } | null>(null);
+  /* Eigene Preise je Ticketkategorie, als getippter Text. */
+  const [eigenePreise, setEigenePreise] = useState<Record<string, string>>({});
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
@@ -692,6 +694,10 @@ export function AngebotBereich({
                 preise={abendpreise}
                 istOptional={istOptional}
                 setzeOptional={setzeOptional}
+                eigenePreise={eigenePreise}
+                setzeEigenenPreis={(nummer, wert) =>
+                  setEigenePreise((bisher) => ({ ...bisher, [nummer]: wert }))
+                }
               />
             </div>
           ) : (
@@ -999,7 +1005,21 @@ export function AngebotBereich({
                   // Von Hand gesetzte Preise. Weitere Artikel lassen sich
                   // hier genauso dazunehmen, ohne dass der Rest etwas
                   // davon merken muss.
-                  eigenePreise: fassadeCent > 0 ? { LEDFASSADE: fassadeCent } : undefined,
+                  /*
+                    Von Hand gesetzte Preise: die Fassade und, seit dem
+                    30.10.2026, jede Ticketkategorie einzeln.
+                  */
+                  eigenePreise: (() => {
+                    const liste: Record<string, number> = {};
+                    if (fassadeCent > 0) liste.LEDFASSADE = fassadeCent;
+                    for (const [nummer, text] of Object.entries(eigenePreise)) {
+                      const zahl = Number(String(text).replace(",", "."));
+                      if (text.trim() && Number.isFinite(zahl) && zahl > 0) {
+                        liste[nummer] = Math.round(zahl * 100);
+                      }
+                    }
+                    return Object.keys(liste).length > 0 ? liste : undefined;
+                  })(),
                   essplatz,
                   logeDazu: logeDazu && essplatz !== "loge",
                   mitEmpfang,
@@ -2373,6 +2393,8 @@ function Kategorienwahl({
   preise,
   istOptional,
   setzeOptional,
+  eigenePreise,
+  setzeEigenenPreis,
 }: {
   mengen: Record<string, number>;
   setzen: (m: Record<string, number>) => void;
@@ -2389,6 +2411,17 @@ function Kategorienwahl({
   preise: Record<string, number>;
   istOptional: (nummer: string) => boolean;
   setzeOptional: (nummer: string, an: boolean) => void;
+  /**
+   * Eigene Preise je Kategorie, als getippter Text.
+   *
+   * "gib einfach hier schon die möglichkeit einfluss auf den preis zu
+   * nehmen" (Florian, 30.10.2026). Darunter stand nur ein Feld fuer
+   * alle Kategorien zusammen; wer den Golden Seats einen anderen Preis
+   * geben wollte, musste das Angebot erst bauen und dann in der
+   * Positionsliste nachbessern.
+   */
+  eigenePreise: Record<string, string>;
+  setzeEigenenPreis: (nummer: string, wert: string) => void;
 }) {
   const verteilt = TICKETS.reduce((s, t) => s + (mengen[t.nummer] ?? 0), 0);
   const benutzte = TICKETS.filter((t) => (mengen[t.nummer] ?? 0) > 0).length;
@@ -2416,6 +2449,19 @@ function Kategorienwahl({
                 <span className="text-leise"> statt {eur(t.bruttoCent)} an anderen Tagen</span>
               )}
             </span>
+            <label className="flex items-center gap-1 text-xs text-leise">
+              eigener Preis
+              <input
+                type="text"
+                inputMode="decimal"
+                value={eigenePreise[t.nummer] ?? ""}
+                onChange={(e) => setzeEigenenPreis(t.nummer, e.target.value)}
+                placeholder={(cent / 100).toFixed(2).replace(".", ",")}
+                style={{ width: "5.5rem" }}
+                className="rounded-md border border-linie px-2 py-1 text-right text-sm tabular-nums"
+              />
+              €
+            </label>
             {/*
               Der Optional-Schalter, auch hier.
 
