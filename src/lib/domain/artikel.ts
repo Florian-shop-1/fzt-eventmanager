@@ -506,27 +506,42 @@ export const ARTIKEL: Artikel[] = [
 
   // Sonstiges
   /*
-    Der Nachtzuschlag.
+    Der Nachtzuschlag, gestaffelt.
 
     "gibt es nachtzuschlag als position. wenn eine veranstaltung länger
-    als 0:00 Uhr geht berechnen wir Nachtzuschlag von 350 EUR"
-    (Florian, 30.10.2026).
+    als 0:00 Uhr geht berechnen wir Nachtzuschlag von 350 EUR" und
+    "mach einfach 350 eur für die erste stunde und dann plus 165 für
+    jede weitere" (Florian, 30.10.2026).
 
-    Als Einheit die Stunde, nicht das Stueck. Eine Veranstaltung, die um
-    00:30 endet, kostet uns eine halbe Nacht; eine bis drei Uhr kostet
-    das Dreifache an Personal, Reinigung und Nachtzuschlaegen fuer das
-    Team. Eine Pauschale waere im ersten Fall zu teuer und im zweiten zu
-    billig. Wer nur die eine Stunde berechnen will, laesst die Menge auf
-    1 stehen; mehr Stunden sind eine andere Zahl im selben Feld.
+    Zwei Artikel statt einer Staffel in einer Zeile: Eine Zeile im
+    Angebot kennt genau einen Preis mal eine Menge. Eine Staffel
+    darin abzubilden hiesse, Summe, PDF und Kundenseite alle drei um
+    einen Sonderfall zu erweitern, den sonst niemand hat. Zwei Zeilen
+    sind ausserdem ehrlicher: Der Kunde sieht, was die erste Stunde
+    kostet und was jede weitere, und kann selbst rechnen.
+
+    Die erste Stunde traegt das Teure: Dass das Haus ueberhaupt nach
+    Mitternacht offen bleibt, kostet einmal Aufschlag, Spaetreinigung
+    und ein Team, das nicht nach Hause kann. Jede weitere Stunde kostet
+    danach nur noch die Zeit selbst.
   */
   {
     nummer: "NACHTZUSCHLAG",
-    bezeichnung: "Nachtzuschlag",
+    bezeichnung: "Nachtzuschlag ab 0:00 Uhr",
     beschreibung:
-      "Ab 0:00 Uhr, je angefangene Stunde. Darin enthalten sind die Zuschläge für unser "
-      + "Team, die Spätreinigung und der verlängerte Betrieb des Hauses",
+      "Erste angefangene Stunde. Darin enthalten sind die Zuschläge für unser Team, die "
+      + "Spätreinigung und der verlängerte Betrieb des Hauses",
     einheit: "Stunde",
     bruttoCent: 35000,
+    ust: 0.19,
+    gruppe: "sonstiges",
+  },
+  {
+    nummer: "NACHTZUSCHLAG2",
+    bezeichnung: "Nachtzuschlag, jede weitere Stunde",
+    beschreibung: "Für jede angefangene Stunde nach der ersten",
+    einheit: "Stunde",
+    bruttoCent: 16500,
     ust: 0.19,
     gruppe: "sonstiges",
   },

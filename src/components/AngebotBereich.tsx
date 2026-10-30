@@ -334,6 +334,13 @@ export function AngebotBereich({
   const [preiseSelbst, setPreiseSelbst] = useState(false);
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
+    Wie weit der Abend ueber Mitternacht geht.
+
+    "mach einfach 350 eur für die erste stunde und dann plus 165 für
+    jede weitere" (Florian, 30.10.2026).
+  */
+  const [nachtStunden, setNachtStunden] = useState(1);
+  /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
     28.10.2026): "bitte die 350 eur pro stunde LED Fassade aenderbar
     machen". Vorbelegt mit dem Listenpreis, leer heisst Listenpreis.
@@ -948,10 +955,41 @@ export function AngebotBereich({
                   )}
                 </div>
                 {highlights.includes("NACHTZUSCHLAG") && (
-                  <p className="mt-1 text-leise">
-                    Steht mit einer Stunde im Angebot. Dauert es länger, ändere die Zahl unten
-                    in der Positionsliste.
-                  </p>
+                  <div className="mt-2">
+                    <label className="flex flex-wrap items-center gap-2">
+                      <span>Wie lange über Mitternacht?</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={8}
+                        value={nachtStunden}
+                        onChange={(e) =>
+                          setNachtStunden(Math.max(1, Math.min(8, Number(e.target.value) || 1)))
+                        }
+                        className="w-16 rounded-md border border-linie px-2 py-1 text-sm tabular-nums"
+                      />
+                      <span>{nachtStunden === 1 ? "Stunde" : "Stunden"}</span>
+                    </label>
+                    <p className="mt-1 text-leise">
+                      {eur(artikel("NACHTZUSCHLAG").bruttoCent)} für die erste Stunde
+                      {nachtStunden > 1 && (
+                        <>
+                          {" "}
+                          und {nachtStunden - 1} ×{" "}
+                          {eur(artikel("NACHTZUSCHLAG2").bruttoCent)} für die weiteren
+                        </>
+                      )}{" "}
+                      ={" "}
+                      <strong>
+                        {eur(
+                          artikel("NACHTZUSCHLAG").bruttoCent
+                            + (nachtStunden - 1) * artikel("NACHTZUSCHLAG2").bruttoCent,
+                        )}
+                      </strong>{" "}
+                      brutto. Steht als {nachtStunden > 1 ? "zwei Zeilen" : "eine Zeile"} im
+                      Angebot.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -1149,6 +1187,7 @@ export function AngebotBereich({
                   optionalePositionen: nurOptional,
                   mitFassade,
                   fassadeStunden,
+                  nachtStunden,
                   // Von Hand gesetzte Preise. Weitere Artikel lassen sich
                   // hier genauso dazunehmen, ohne dass der Rest etwas
                   // davon merken muss.

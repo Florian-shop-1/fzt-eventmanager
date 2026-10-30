@@ -193,6 +193,15 @@ export interface AngebotsOptionen {
   /** Wie viele Stunden die Fassade bespielt wird. Ohne Angabe eine. */
   fassadeStunden?: number;
   /**
+   * Wie weit der Abend ueber Mitternacht hinausgeht, in Stunden.
+   *
+   * "mach einfach 350 eur für die erste stunde und dann plus 165 für
+   * jede weitere" (Florian, 30.10.2026). Eine Stunde heisst: nur der
+   * Grundzuschlag. Drei Stunden heissen: einmal 350 und zweimal 165.
+   * Ohne Angabe bleibt es bei der einen Stunde.
+   */
+  nachtStunden?: number;
+  /**
    * Highlights, die beim Bauen angehakt wurden.
    *
    * "kann man face to face show mit anklicken für 1500 in der loge -
@@ -550,7 +559,17 @@ export function erzeugePositionen(
     danach an der Position.
   */
   for (const nummer of optionen.highlights ?? []) {
-    if (HIGHLIGHTNUMMERN.has(nummer)) positionen.push(zuPosition(preise, nummer, 1));
+    if (!HIGHLIGHTNUMMERN.has(nummer)) continue;
+    positionen.push(zuPosition(preise, nummer, 1));
+    /*
+      Der Nachtzuschlag ist gestaffelt: die erste Stunde teuer, jede
+      weitere guenstiger (Florian, 30.10.2026). Die zweite Zeile
+      entsteht nur, wenn es wirklich laenger geht.
+    */
+    if (nummer === "NACHTZUSCHLAG") {
+      const weitere = Math.max(0, Math.round(optionen.nachtStunden ?? 1) - 1);
+      if (weitere > 0) positionen.push(zuPosition(preise, "NACHTZUSCHLAG2", weitere));
+    }
   }
 
   // 6. Blockierte Logenplätze. Nur, wenn keine Ausnahme hinterlegt ist.
@@ -685,6 +704,7 @@ const MENUENUMMERN = ["4GANG", "4GANGLOGE", "FINGERFOOD"];
 const HIGHLIGHTNUMMERN = new Set([
   ...artikelDerGruppe("highlight").map((a) => a.nummer),
   "NACHTZUSCHLAG",
+  "NACHTZUSCHLAG2",
 ]);
 
 /**
