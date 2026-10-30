@@ -280,6 +280,8 @@ export function AngebotBereich({
     die preise vom samstag" (Florian, 30.10.2026).
   */
   const [abendpreise, setAbendpreise] = useState<Record<string, number>>({});
+  /* Von welcher Vorstellung die Preise stammen, fuer die Kontrollzeile. */
+  const [preisherkunft, setPreisherkunft] = useState<{ datum: string; show: string } | null>(null);
   const [fassadeStunden, setFassadeStunden] = useState(1);
   /*
     Der Stundenpreis der LED-Fassade, aenderbar je Angebot (Florian,
@@ -344,8 +346,10 @@ export function AngebotBereich({
     let abgebrochen = false;
     fetch(`/api/angebotspreise?${frage.toString()}`, { cache: "no-store" })
       .then((a) => a.json())
-      .then((d: { preise?: Record<string, number> }) => {
-        if (!abgebrochen) setAbendpreise(d.preise ?? {});
+      .then((d: { preise?: Record<string, number>; herkunft?: { datum: string; show: string } | null }) => {
+        if (abgebrochen) return;
+        setAbendpreise(d.preise ?? {});
+        setPreisherkunft(d.herkunft ?? null);
       })
       .catch(() => undefined);
     return () => {
@@ -567,6 +571,23 @@ export function AngebotBereich({
                   Für einen anderen Tag baust du einfach ein weiteres Angebot, der Kunde bekommt
                   dann beide in einer Mail.
                 </>
+              )}
+              {/*
+                Woher die Preise kommen.
+
+                "das programm holt sich wohl immer noch die kindertickets"
+                (Florian, 30.10.2026). Es waren keine Kindertickets,
+                sondern ein Weihnachtsspecial: Das Programm nahm den
+                naechstgelegenen Donnerstag als Massstab, und das war
+                der 3. Dezember. Sondershows fallen jetzt heraus, und
+                damit man es nachpruefen kann, steht hier, welcher Abend
+                es geworden ist.
+              */}
+              {preisherkunft && (
+                <span className="mt-1 block text-leise">
+                  Preise vom {preisherkunft.datum.split("-").reverse().join(".")},{" "}
+                  {preisherkunft.show}
+                </span>
               )}
             </p>
           </div>

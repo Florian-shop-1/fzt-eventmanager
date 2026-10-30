@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { abendpreise } from "@/lib/ditix/preise";
+import { abendpreise, istSondershow } from "@/lib/ditix/preise";
 import { showtageAbHeute } from "@/lib/ditix/spielplan";
 
 /**
@@ -40,6 +40,8 @@ export async function GET(request: Request) {
     if (!ziel && Number.isInteger(wochentag)) {
       const passend = (await showtageAbHeute(400)).find((t) => {
         if (new Date(`${t.datum}T12:00:00Z`).getUTCDay() !== wochentag) return false;
+        // Dieselbe Regel wie beim Erstellen, siehe angebot/speichern.ts.
+        if (istSondershow(t.name)) return false;
         return nachmittag ? t.uhrzeit < "17:00" : t.uhrzeit >= "17:00";
       });
       if (passend) {

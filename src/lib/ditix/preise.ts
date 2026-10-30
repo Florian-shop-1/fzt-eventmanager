@@ -234,3 +234,20 @@ export async function abendpreise(ditixEventId: string): Promise<Abendpreise> {
     ausStamm: ["FLATSOFT", "FLATBIERWEIN", "FLATALL", "EMPFANG"],
   };
 }
+
+/**
+ * Ist das eine Sondershow mit eigenen Preisen?
+ *
+ * "das programm holt sich wohl immer noch die kindertickets" (Florian,
+ * 30.10.2026). Es waren keine Kindertickets, sondern ein Special: Als
+ * Vergleichsabend für einen Donnerstag fand das Programm den
+ * "ULMFASSBAR Special" am 3. Dezember und holte sich dessen Preise,
+ * Golden Seats zu 79 statt 139 Euro.
+ *
+ * Für ein Firmenangebot gelten die Preise des Regelprogramms. Eine
+ * Weihnachts-, Silvester- oder Familienvorstellung ist eine eigene
+ * Veranstaltung mit eigener Kalkulation und taugt nicht als Maßstab.
+ */
+export function istSondershow(name: string): boolean {
+  return /special|family|silvester|weihnacht|zusatzshow|premiere|regio ?tv|zirkus/i.test(name);
+}

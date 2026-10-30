@@ -22,7 +22,7 @@ import { artikel } from "@/lib/domain/artikel";
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
 import { holeVorgang } from "@/lib/db/vorgaenge";
 import { planeAbend } from "@/lib/seating/abend";
-import { abendpreise } from "@/lib/ditix/preise";
+import { abendpreise, istSondershow } from "@/lib/ditix/preise";
 import {
   SCHLUSSTEXT,
   WERBUNG_TEXT,
@@ -139,6 +139,13 @@ export async function angebotErzeugen(
       const passend = (await showtageAbHeute(400)).find((t) => {
         const wochentag = new Date(`${t.datum}T12:00:00Z`).getUTCDay();
         if (wochentag !== wochentagZumSuchen) return false;
+        /*
+          Sondershows taugen nicht als Massstab: Das Weihnachtsspecial
+          am 3. Dezember kostet weniger als das Regelprogramm, und ein
+          Firmenangebot daran zu messen waere falsch (Florian,
+          30.10.2026).
+        */
+        if (istSondershow(t.name)) return false;
         // Nachmittag heisst: Vorstellung vor 17 Uhr.
         return optionen.tageszeit === "nachmittag" ? t.uhrzeit < "17:00" : t.uhrzeit >= "17:00";
       });
