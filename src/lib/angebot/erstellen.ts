@@ -567,10 +567,86 @@ export function erzeugePositionen(
     sie ist; sonst stünde sie zweimal in Klammern.
   */
   const nurAngeboten = new Set(optionen.optionalePositionen ?? []);
-  if (nurAngeboten.size === 0) return positionen;
-  return positionen.map((p) =>
-    nurAngeboten.has(p.artikelNummer) && !p.istAlternativeZu ? { ...p, optional: true } : p,
+  if (nurAngeboten.size === 0) return sortiert(positionen);
+  return sortiert(
+    positionen.map((p) =>
+      nurAngeboten.has(p.artikelNummer) && !p.istAlternativeZu ? { ...p, optional: true } : p,
+    ),
   );
+}
+
+/**
+ * Die Reihenfolge im Angebot: erst das Gewaehlte, dann die Optionen.
+ *
+ * "wichtig ist, dass im angebot dann auch immer nach logischem schema
+ * ist. also nicht random die sachen reinwürfeln, sondern die sitzplätze
+ * stehen immer beieinander. oben immer das gewählte (das nicht
+ * optionierte) und dann folgend die anderen optionen wie gehabt in
+ * klammer" (Florian, 30.10.2026).
+ *
+ * Bisher stand alles in der Reihenfolge, in der es oben zusammengebaut
+ * wurde. Das war nicht zufaellig, sah aber so aus: Zwischen dem Menue
+ * und den Tickets konnte eine optionale Zeile stehen, und wer von oben
+ * nach unten liest, verliert dabei den Faden.
+ *
+ * Sortiert wird nach zwei Schluesseln, in dieser Reihenfolge:
+ *
+ *  1. die Gruppe des Artikels, immer dieselbe Folge. Damit stehen alle
+ *     Ticketkategorien beieinander, alle Getraenke, alle Technik.
+ *  2. innerhalb der Gruppe fest vor optional. Oben steht, was der Kunde
+ *     bekommt, darunter in Klammern, was er dazunehmen kann.
+ *
+ * Die Gruppe kommt zuerst, weil die Sitzplaetze zusammengehoeren: Kat.
+ * 2 fest, darunter Golden Seats und Kat. 1 zur Wahl. Andersherum
+ * stuende die gewaehlte Kategorie oben und die beiden anderen
+ * seitenweit darunter bei den Getraenken.
+ *
+ * Innerhalb einer Gruppe bleibt die Reihenfolge, die oben entstanden
+ * ist: Golden Seats vor Kat. 1 vor Kat. 2, weil der Artikelstamm sie so
+ * fuehrt. Alternativen werden hier nicht einsortiert, sie haengen an
+ * ihrer Bezugsposition und werden beim Speichern dahinter gesetzt.
+ */
+const GRUPPENFOLGE = [
+  "exklusiv",
+  "menue",
+  "ticket",
+  "getraenke",
+  "empfang",
+  "loge",
+  "foyer",
+  "highlight",
+  "technik",
+  "sonstiges",
+];
+
+function sortiert(positionen: Position[]): Position[] {
+  const rang = (p: Position): number => {
+    try {
+      const stelle = GRUPPENFOLGE.indexOf(artikel(p.artikelNummer).gruppe);
+      return stelle < 0 ? GRUPPENFOLGE.length : stelle;
+    } catch {
+      // Frei eingetippte Zeilen kennen wir nicht: Die kommen ans Ende.
+      return GRUPPENFOLGE.length;
+    }
+  };
+
+  const haupt = positionen.filter((p) => !p.istAlternativeZu);
+  const alternativen = positionen.filter((p) => p.istAlternativeZu);
+
+  const geordnet = haupt
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const gA = rang(a.p);
+      const gB = rang(b.p);
+      if (gA !== gB) return gA - gB;
+      const optA = a.p.optional ? 1 : 0;
+      const optB = b.p.optional ? 1 : 0;
+      if (optA !== optB) return optA - optB;
+      return a.i - b.i;
+    })
+    .map((x) => x.p);
+
+  return [...geordnet, ...alternativen];
 }
 
 /**
