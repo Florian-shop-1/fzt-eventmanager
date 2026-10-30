@@ -386,8 +386,22 @@ export default async function FoyerPlanSeite({
                                 zusammen eintraegt, darf laenger bleiben.
                                 Das entscheidet die Aktion beim Speichern.
                               */}
+                              {/*
+                                Wer die Regel umgehen darf, bekommt einen
+                                Hinweis. Alle anderen eine Ansage.
+
+                                "das soll nur für kevin und mich möglich
+                                sein die sonderaufgabe zu umgehen. wenn
+                                z.b. veronica was macht, muss der hinweis
+                                kommen und es muss die sonderaufgabe
+                                eingetragen werden" (Florian, 30.10.2026).
+                                Das Foyer darf die Zeiten hier naemlich
+                                selbst aendern, nicht nur das Buero.
+                              */}
                               <span className="mt-1 block text-xs text-leise">
-                                gewöhnlich bis {regelEnde(blk.vorschlag, d.nummer)}
+                                {darfZeiten
+                                  ? `gewöhnlich bis ${regelEnde(blk.vorschlag, d.nummer)}`
+                                  : `höchstens bis ${regelEnde(blk.vorschlag, d.nummer)}, länger nur mit Sonderaufgabe`}
                               </span>
                             </label>
                             <label className="block min-w-[12rem] flex-1">
@@ -544,7 +558,7 @@ function PlatzZeile({
         </>
       )}
 
-      {ueberRegel(d.bis, grenze, d.sonderaufgabe) && (
+      {grenze && ueberRegel(d.bis, grenze, d.sonderaufgabe) && (
         <span
           className="rounded px-1.5 py-0.5 text-xs"
           style={{ background: "var(--warnung-hell)", color: "var(--warnung)" }}
