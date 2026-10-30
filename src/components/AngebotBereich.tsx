@@ -287,6 +287,33 @@ export function AngebotBereich({
         </summary>
 
         <div className="mt-3 space-y-4">
+          {/*
+            Für wie viele Gäste gebaut wird, ganz oben.
+
+            Die Zahl kommt aus den Gruppen des Vorgangs und stand bisher
+            nur als Fließtext unter dem Erstellen-Knopf. Dort liest sie
+            niemand, bevor er drückt. Genau daran ist Kevin am
+            29.10.2026 gescheitert: kein Gast eingetragen, und damit
+            fielen Menü, Empfang, Getränke und die Loge still aus dem
+            Angebot. Jetzt steht sie vor allen Feldern, und bei null
+            steht da, was zu tun ist.
+          */}
+          {personen > 0 ? (
+            <p className="rounded-md border border-linie px-3 py-2 text-sm">
+              Gebaut wird für <strong>{personen} {personen === 1 ? "Gast" : "Gäste"}</strong> aus
+              den Gruppen des Vorgangs. Menü, Empfang und Getränke rechnen je Gast.
+            </p>
+          ) : (
+            <p
+              className="rounded-md border-2 px-3 py-2 text-sm"
+              style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+            >
+              <strong>Es ist noch kein Gast eingetragen.</strong> Dann fallen Menü, Empfang,
+              Getränke und die Loge aus dem Angebot, weil sie an der Personenzahl hängen. Trage die
+              Zahl oben bei der Teilnehmerzahl ein, bevor du hier weitermachst.
+            </p>
+          )}
+
           {/* ------------------------------------------------------------
               Schritt 1: Wann?
               ------------------------------------------------------------ */}
@@ -651,9 +678,8 @@ export function AngebotBereich({
               <option value="galerie">Alle auf der Eventgalerie</option>
             </select>
             <span className="mt-1 block text-xs text-leise">
-              Der Platz am Tisch hat mit der Ticketkategorie nichts zu tun: Aus der Loge sieht man
-              die Show nicht, jeder Logengast hat zusätzlich seinen Sitzplatz im Saal. So lässt
-              sich auch anbieten, in den Golden Seats zu sitzen und in der Loge zu essen.
+              Der Platz am Tisch hat mit der Ticketkategorie nichts zu tun. Die Loge steht im
+              Kasten darunter.
             </span>
           </label>
 
@@ -1242,10 +1268,31 @@ function AngebotKarte({
                   className="w-full text-sm"
                 />
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="optional" value="ja" defaultChecked className="h-4 w-4" />
-                    optional, Preis in Klammern und nicht im Gesamtbetrag
-                  </label>
+                  {/*
+                    Fest oder optional, als sichtbare Wahl.
+
+                    Hier stand ein Haken, der von sich aus gesetzt war.
+                    Wer ihn uebersah, hatte eine optionale Zeile im
+                    Angebot, ohne es zu merken, und beim Nachtragen
+                    ("zwei Menues mehr") ist das genau falsch herum.
+                  */}
+                  <span className="flex flex-wrap items-center gap-3 text-sm">
+                    {([
+                      ["nein", "fest drin", "Zählt zur Summe des Angebots."],
+                      ["ja", "optional", "Preis in Klammern, zählt nicht zur Summe."],
+                    ] as const).map(([wert, text, titel]) => (
+                      <label key={wert} className="flex items-center gap-2" title={titel}>
+                        <input
+                          type="radio"
+                          name="optional"
+                          value={wert}
+                          defaultChecked={wert === "nein"}
+                          className="h-4 w-4 accent-[var(--gold-dunkel)]"
+                        />
+                        {text}
+                      </label>
+                    ))}
+                  </span>
                   <button
                     type="submit"
                     className="rounded-md border border-linie px-3 py-1.5 text-sm hover:border-gold hover:bg-gold-hell"
