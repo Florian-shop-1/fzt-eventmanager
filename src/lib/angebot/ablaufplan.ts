@@ -140,12 +140,54 @@ function show(zeit: string, name: string, tageszeit: Tageszeit = "abend"): Stati
 /**
  * Wie lange eine Vorstellung samt Pause dauert, in Minuten.
  *
- * Danach richtet sich bei der Nachmittagsshow alles, was folgt. Mit
- * einer Show um 15:00 kommt genau das heraus, was Florian am 15.10.2026
- * genannt hat: 17:30 Empfang, 18:00 Essen, 21:00 Ausklang. Verschiebt
- * jemand die Show, verschiebt sich der Rest mit.
+ * Gebraucht nur noch, um zu pruefen, ob eine spaete Nachmittagsshow in
+ * die Essenszeit hineinragt.
  */
 const SHOWDAUER = 150;
+
+/**
+ * Wann gegessen wird. Immer.
+ *
+ * "das essen ist fast immer um 18:00 uhr. bei mittagshow nach der show
+ * und bei abendshow davor" (Florian, 30.10.2026).
+ *
+ * Davor stand hier eine Rechnung: Essen gleich Showzeit plus Showdauer
+ * plus eine halbe Stunde. Bei einer 15-Uhr-Show kam dabei zufaellig
+ * 18:00 heraus, und das sah richtig aus. War aber eine 20-Uhr-Show als
+ * Nachmittag eingetragen, stand das Menue um 23:00 und der Ausklang um
+ * 02:00 im Angebot.
+ *
+ * Eine Hausregel gehoert nicht gerechnet, sondern hingeschrieben.
+ */
+const EMPFANGSZEIT = "17:30";
+const ESSENSZEIT = "18:00";
+
+/**
+ * Ab wann eine Show als Abendshow gilt.
+ *
+ * Gelesen wird die Uhrzeit der Vorstellung und nicht das Haekchen
+ * daneben: Steht im Angebot "nachmittag", die Show beginnt aber um 20
+ * Uhr, dann ist es eine Abendshow, ganz gleich was angekreuzt wurde.
+ * Genau daran ist das 23-Uhr-Menue entstanden.
+ */
+const ABENDS_AB_STUNDE = 16;
+
+/** Beginnt die Show am Nachmittag, wird nach ihr gegessen? */
+function istNachmittagsshow(showzeit: string | undefined, tageszeit: Tageszeit): boolean {
+  if (!showzeit) return tageszeit === "nachmittag";
+  const [stunde] = showzeit.split(":").map(Number);
+  return Number.isFinite(stunde) && stunde < ABENDS_AB_STUNDE;
+}
+
+/** Die spaetere von zwei Uhrzeiten. */
+function spaeter(a: string, b: string): string {
+  return alsMinuten(a) >= alsMinuten(b) ? a : b;
+}
+
+function alsMinuten(uhrzeit: string): number {
+  const [h, m] = uhrzeit.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
 
 /**
  * Wie lange vor der Mittagsshow das Foyer aufmacht, in Minuten.
@@ -199,24 +241,19 @@ export function ablaufFuer(o: {
   }
 
   if (o.variante === "nurshow") {
+    const nachmittags = istNachmittagsshow(o.showzeit, o.tageszeit);
+    const showzeit = o.showzeit ?? (nachmittags ? "15:00" : "20:00");
     return [
       {
-        zeit: minus(
-          o.showzeit ?? (o.tageszeit === "nachmittag" ? "15:00" : "20:00"),
-          o.tageszeit === "nachmittag" ? EINLASS_NACHMITTAG : 45,
-        ),
-        titel: o.tageszeit === "nachmittag" ? "Einlass ins Foyer" : "Einlass",
+        zeit: minus(showzeit, nachmittags ? EINLASS_NACHMITTAG : 45),
+        titel: nachmittags ? "Einlass ins Foyer" : "Einlass",
         text: "Die Türen öffnen, an der Magic Bar gibt es etwas zu trinken.",
       },
-      show(
-        o.showzeit ?? (o.tageszeit === "nachmittag" ? "15:00" : "20:00"),
-        name,
-        o.tageszeit,
-      ),
-      o.tageszeit === "nachmittag"
+      show(showzeit, name, nachmittags ? "nachmittag" : "abend"),
+      nachmittags
         ? {
             ...AUSKLANG,
-            zeit: plus(o.showzeit ?? "15:00", SHOWDAUER),
+            zeit: plus(showzeit, SHOWDAUER),
             text:
               "Danach bleibt Zeit an der Magic Bar. Der Teil des Tages, an den sich Ihre "
               + "Gäste am längsten erinnern.",
@@ -230,10 +267,15 @@ export function ablaufFuer(o: {
     gegessen. "bei einer 15 Uhr Show: Empfang und Essen nach der Show"
     (Florian, 15.10.2026).
   */
-  if (o.tageszeit === "nachmittag") {
+  if (istNachmittagsshow(o.showzeit, o.tageszeit)) {
     const showzeit = o.showzeit ?? "15:00";
-    const nachDerShow = plus(showzeit, SHOWDAUER);
-    const essen = plus(nachDerShow, 30);
+    /*
+      Empfang um 17:30 und Essen um 18:00, so wie im Haus ueblich.
+      Zieht sich die Show ausnahmsweise laenger, rutscht beides hinter
+      das Ende: Gegessen wird nicht waehrend der Vorstellung.
+    */
+    const empfang = spaeter(EMPFANGSZEIT, plus(showzeit, SHOWDAUER));
+    const essen = spaeter(ESSENSZEIT, plus(empfang, 30));
     return [
       {
         zeit: minus(showzeit, EINLASS_NACHMITTAG),
@@ -243,9 +285,9 @@ export function ablaufFuer(o: {
       show(showzeit, name, "nachmittag"),
       {
         ...EMPFANG,
-        zeit: nachDerShow,
+        zeit: empfang,
         text:
-          "Direkt nach der Show gibt es ein Glas Magicuvée auf der Eventgalerie. "
+          "Nach der Show gibt es ein Glas Magicuvée auf der Eventgalerie. "
           + "Zeit, die Show nachklingen zu lassen.",
       },
       o.variante === "fingerfood"
