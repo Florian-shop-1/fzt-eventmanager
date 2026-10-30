@@ -107,8 +107,19 @@ export async function rechnungsMailtext(o: {
 }
 
 /**
- * Erzeugt die Rechnung zum Angebot, falls es noch keine gibt.
- * Danach steht sie im Vorgang und lässt sich verschicken.
+ * Erzeugt die Rechnung zum Angebot und schlägt sie auf.
+ *
+ * "wenn man auf 'einig geworden/ rechnung erstellen' klickt, kommt nix.
+ * es muss die Rechnung aufgehen" (Florian, 30.10.2026).
+ *
+ * Vorher landete man wieder auf dem Vorgang, mit der Rechnungsnummer in
+ * der Adresse, die dort niemand gelesen hat. Die Rechnung entstand also
+ * unsichtbar, und ob sie entstanden ist, sah man erst in der
+ * Rechnungsliste. Jetzt geht sie auf: Dort steht alles, was danach zu
+ * tun ist, Zeilen prüfen, PDF ansehen, Mail an den Kunden.
+ *
+ * Gibt es zum Angebot schon eine Rechnung, führt derselbe Weg zu ihr.
+ * Eine zweite wird nie angelegt, dafür sorgt rechnungAusAngebot.
  */
 export async function rechnungErzeugen(
   angebotId: string,
@@ -119,11 +130,17 @@ export async function rechnungErzeugen(
     throw new Error("Nur Büro und Geschäftsführung dürfen Rechnungen erstellen.");
   }
 
-  let ziel = `/vorgaenge/${vorgangId}`;
+  let ziel: string;
   try {
     const rechnung = await rechnungAusAngebot(angebotId, benutzer.name ?? "Büro");
-    ziel = `/vorgaenge/${vorgangId}?rechnung=${rechnung.nummer}`;
+    ziel = `/rechnungen/${rechnung.id}?meldung=${encodeURIComponent(
+      `Rechnung ${rechnung.nummer} steht. Bitte prüfen und dann verschicken.`,
+    )}`;
   } catch (f) {
+    /*
+      Fehlt etwas, bleibt man beim Vorgang. Dort steht, was fehlt, und
+      dort lässt es sich auch ergänzen: meist die Anschrift des Kunden.
+    */
     const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
     ziel = `/vorgaenge/${vorgangId}?rechnungFehler=${encodeURIComponent(meldung.slice(0, 300))}`;
   }

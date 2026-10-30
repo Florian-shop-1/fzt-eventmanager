@@ -56,10 +56,10 @@ export default async function VorgangSeite({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mail?: string; an?: string; meldung?: string; vorschlag?: string }>;
+  searchParams: Promise<{ mail?: string; an?: string; meldung?: string; vorschlag?: string; rechnungFehler?: string }>;
 }) {
   const { id } = await params;
-  const { mail, an, meldung, vorschlag } = await searchParams;
+  const { mail, an, meldung, vorschlag, rechnungFehler } = await searchParams;
 
   /*
     Ein Adressvorschlag aus dem Netz, noch nicht gespeichert.
@@ -187,6 +187,25 @@ export default async function VorgangSeite({
       )}
 
       {/* Rueckmeldung nach dem Aendern der Kontaktdaten. */}
+      {/*
+        Warum die Rechnung nicht entstehen konnte.
+
+        "wenn man auf 'einig geworden/ rechnung erstellen' klickt, kommt
+        nix" (Florian, 30.10.2026). Klappt es, geht die Rechnung auf.
+        Klappt es nicht, stand der Grund bisher nur in der Adresszeile
+        und war damit unsichtbar. Meist fehlt die Anschrift des Kunden,
+        und die traegt man genau hier ein.
+      */}
+      {rechnungFehler && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+        >
+          <strong style={{ color: "var(--blocker)" }}>Die Rechnung ließ sich nicht erstellen.</strong>
+          <div className="mt-1">{rechnungFehler}</div>
+        </div>
+      )}
+
       {meldung && mail !== "fehler" && (
         <div
           className="rounded-lg border px-4 py-3 text-sm"
