@@ -641,3 +641,63 @@ export async function positionenErgaenzen(
 
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
+
+/**
+ * Die Positionen eines Angebots von Hand ordnen.
+ *
+ * "kevin möchte gerne die einzelnen items in einem angebot per drag and
+ * drop neu sortieren können. bitte tu ihm den gefallen. man soll auf
+ * ein produkt (z.b. golden seats) klicken können, gedrückt halten und
+ * woanders hinziehen. dann soll sich das im pdf angebot auch ändern"
+ * (Florian, 30.10.2026).
+ *
+ * Gespeichert wird die Reihenfolge als Zahlenfolge an den Zeilen, und
+ * am Angebot steht ein Kennzeichen: Ab jetzt ordnet Kevin, nicht das
+ * Haus. Ohne dieses Kennzeichen wuerde die Hausordnung (Tickets zuerst,
+ * fest vor optional) beim naechsten Laden alles zurueckwerfen, und das
+ * Ziehen waere vergeblich gewesen.
+ *
+ * Die Reihenfolge gilt ueberall, wo das Angebot erscheint: in der
+ * Liste, beim Kunden und im PDF. Ein schon verschicktes PDF aendert
+ * sich nicht, der Kundenlink schon, wie bei jeder Aenderung hier.
+ */
+export async function positionenNeuOrdnen(
+  angebotId: string,
+  vorgangId: string,
+  reihenfolge: string[],
+): Promise<void> {
+  await verlangeTeam();
+  if (reihenfolge.length === 0) return;
+
+  /*
+    Nur Zeilen dieses Angebots, und jede hoechstens einmal. Die Liste
+    kommt aus dem Browser; was dort steht, wird nicht geglaubt.
+  */
+  const eigene = (await db()`
+    select id from position where angebot_id = ${angebotId}::uuid
+  `) as Array<{ id: string }>;
+  const erlaubt = new Set(eigene.map((z) => z.id));
+  const sauber = [...new Set(reihenfolge)].filter((id) => erlaubt.has(id));
+  if (sauber.length === 0) return;
+
+  /* Was in der Liste fehlt, haengt hinten an, damit nichts verschwindet. */
+  const fehlend = eigene.map((z) => z.id).filter((id) => !sauber.includes(id));
+  const alle = [...sauber, ...fehlend];
+
+  for (let i = 0; i < alle.length; i++) {
+    await db()`update position set sortierung = ${i} where id = ${alle[i]}`;
+  }
+  await db()`update angebot set reihenfolge_manuell = true where id = ${angebotId}::uuid`;
+
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}
+
+/** Zurueck zur Hausordnung: Tickets zuerst, fest vor optional. */
+export async function reihenfolgeZuruecksetzen(
+  angebotId: string,
+  vorgangId: string,
+): Promise<void> {
+  await verlangeTeam();
+  await db()`update angebot set reihenfolge_manuell = false where id = ${angebotId}::uuid`;
+  revalidatePath(`/vorgaenge/${vorgangId}`);
+}

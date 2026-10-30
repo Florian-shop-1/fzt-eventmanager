@@ -17,6 +17,8 @@ import {
   angebotLoeschen,
   angebotVersendet,
   positionZustand,
+  positionenNeuOrdnen,
+  reihenfolgeZuruecksetzen,
   positionPreisSetzen,
   positionRabattSetzen,
   positionEntfernen,
@@ -98,7 +100,13 @@ const HIGHLIGHTS = artikelDerGruppe("highlight");
  * sie gehoert. Dadurch bleiben die Sitzplaetze beieinander, so wie im
  * Angebot selbst.
  */
-function zumAendern(positionen: AngebotDetail["positionen"]) {
+function zumAendern(positionen: AngebotDetail["positionen"], manuell = false) {
+  /*
+    Hat ein Mensch geordnet, wird hier nichts mehr umgestellt.
+    "kevin möchte gerne die einzelnen items in einem angebot per drag
+    and drop neu sortieren können" (Florian, 30.10.2026).
+  */
+  if (manuell) return positionen;
   const haupt = positionen.filter((p) => !p.istAlternativeZu);
   const weitere = positionen.filter((p) => p.istAlternativeZu);
   const geordnet = haupt.flatMap((h) => [
@@ -1422,6 +1430,32 @@ function AngebotKarte({
   const [vorschau, setVorschau] = useState(frisch);
   const [stand, setStand] = useState(1);
 
+  /*
+    Das Ziehen und Ablegen der Positionen.
+
+    "kevin möchte gerne die einzelnen items in einem angebot per drag
+    and drop neu sortieren können ... dann soll sich das im pdf angebot
+    auch ändern" (Florian, 30.10.2026).
+
+    Drei Merker: welcher Griff angefasst wurde (erst dann ist die Zeile
+    ziehbar), welche Zeile gerade in der Luft ist, und ueber welcher sie
+    schwebt. Letzteres zeichnet den goldenen Strich, der zeigt, wo sie
+    landet.
+  */
+  const [ziehtGriff, setZiehtGriff] = useState<string | null>(null);
+  const [ziehtZeile, setZiehtZeile] = useState<string | null>(null);
+  const [ueber, setUeber] = useState<string | null>(null);
+
+  /** Die gezogene Zeile vor die Zeile setzen, auf der sie landet. */
+  const neuOrdnen = (a: AngebotDetail, gezogen: string, ziel: string) => {
+    const jetzt = zumAendern(a.positionen, a.reihenfolgeManuell).map((x) => x.id);
+    const ohne = jetzt.filter((id) => id !== gezogen);
+    const stelle = ohne.indexOf(ziel);
+    if (stelle < 0) return;
+    const neu = [...ohne.slice(0, stelle), gezogen, ...ohne.slice(stelle)];
+    starte(() => positionenNeuOrdnen(a.id, vorgangId, neu));
+  };
+
   const link = `${appUrl}/ihr-angebot/${angebot.trackingToken}`;
   const summe = angebotssumme(angebot.positionen);
 
@@ -1703,8 +1737,74 @@ function AngebotKarte({
               </p>
               <table className="mt-2 w-full text-xs">
                 <tbody>
-                  {zumAendern(angebot.positionen).map((p) => (
-                      <tr key={p.id} className="border-b border-linie last:border-0">
+                  {zumAendern(angebot.positionen, angebot.reihenfolgeManuell).map((p, i) => (
+                      <tr
+                        key={p.id}
+                        /*
+                          Ziehen und ablegen.
+
+                          "man soll auf ein produkt (z.b. golden seats)
+                          klicken können, gedrückt halten und woanders
+                          hinziehen" (Florian, 30.10.2026).
+
+                          Ziehbar ist die Zeile erst, wenn der Griff
+                          links angefasst wurde. Ohne das liesse sich in
+                          den Preisfeldern kein Text mehr markieren: Der
+                          Browser faengt dann an zu ziehen statt zu
+                          markieren.
+                        */
+                        draggable={ziehtGriff === p.id}
+                        onDragStart={(e) => {
+                          setZiehtZeile(p.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e) => {
+                          if (!ziehtZeile || ziehtZeile === p.id) return;
+                          e.preventDefault();
+                          setUeber(p.id);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (ziehtZeile && ziehtZeile !== p.id) {
+                            neuOrdnen(angebot, ziehtZeile, p.id);
+                          }
+                          setZiehtZeile(null);
+                          setZiehtGriff(null);
+                          setUeber(null);
+                        }}
+                        onDragEnd={() => {
+                          setZiehtZeile(null);
+                          setZiehtGriff(null);
+                          setUeber(null);
+                        }}
+                        className="border-b border-linie last:border-0"
+                        style={{
+                          opacity: ziehtZeile === p.id ? 0.4 : 1,
+                          borderTop:
+                            ueber === p.id ? "2px solid var(--gold)" : undefined,
+                        }}
+                      >
+                        {/*
+                          Der Griff zum Ziehen: drei Striche, wie man es
+                          kennt. Bewusst ein eigenes Feld und nicht die
+                          ganze Zeile, damit Felder und Knoepfe weiter
+                          normal zu bedienen sind.
+                        */}
+                        <td
+                          className="w-5 cursor-grab select-none pr-1 align-top text-leise"
+                          title="Ziehen, um die Reihenfolge zu ändern"
+                          onMouseDown={() => setZiehtGriff(p.id)}
+                          onTouchStart={() => setZiehtGriff(p.id)}
+                        >
+                          <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true">
+                            <g fill="currentColor">
+                              <rect x="1" y="3" width="10" height="1.4" rx="0.7" />
+                              <rect x="1" y="6.3" width="10" height="1.4" rx="0.7" />
+                              <rect x="1" y="9.6" width="10" height="1.4" rx="0.7" />
+                            </g>
+                          </svg>
+                          <span className="sr-only">Position {i + 1}</span>
+                        </td>
                         {/*
                           Der Produktname gross genug, um ihn zu treffen.
 
@@ -1921,6 +2021,28 @@ function AngebotKarte({
                 stehen im Angebot mit dem Preis in Klammern und sind im Gesamtbetrag nicht enthalten.
                 Ein schon verschicktes PDF ändert sich durch Änderungen hier nicht, der Kundenlink
                 schon.
+              </p>
+              {/*
+                Der Hinweis zum Ziehen, und der Weg zurueck.
+
+                "kevin möchte gerne die einzelnen items in einem angebot
+                per drag and drop neu sortieren können" (Florian,
+                30.10.2026). Sobald einmal gezogen wurde, haelt das
+                Programm sich mit dem Sortieren heraus. Wer das nicht
+                will, kommt mit einem Klick zur Hausordnung zurueck.
+              */}
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-leise">
+                <span>
+                  Am Griff links lässt sich jede Zeile woanders hinziehen. Die Reihenfolge gilt
+                  auch beim Kunden und im PDF.
+                </span>
+                {angebot.reihenfolgeManuell && (
+                  <form action={reihenfolgeZuruecksetzen.bind(null, angebot.id, vorgangId)}>
+                    <button type="submit" className="underline">
+                      wieder automatisch sortieren
+                    </button>
+                  </form>
+                )}
               </p>
               {/*
                 Alles, was es gibt, mit einem Blick und einem Klick.

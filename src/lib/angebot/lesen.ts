@@ -20,6 +20,8 @@ export interface AngebotDetail {
   erstelltAm: string;
   gueltigBis: string;
   einleitung: string;
+  /** Hat ein Mensch die Reihenfolge der Positionen festgelegt? */
+  reihenfolgeManuell: boolean;
   schlusstext: string;
   trackingToken: string;
   versendetAm: string | null;
@@ -94,6 +96,7 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
     erstelltAm: new Date(a.erstellt_am as string).toISOString(),
     gueltigBis: String(a.gueltig_bis),
     einleitung: String(a.einleitung),
+    reihenfolgeManuell: Boolean(a.reihenfolge_manuell),
     schlusstext: String(a.schlusstext),
     trackingToken: String(a.tracking_token),
     versendetAm: a.versendet_am ? new Date(a.versendet_am as string).toISOString() : null,
@@ -105,7 +108,18 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
     plaetzeBis: a.plaetze_bis ? new Date(a.plaetze_bis as string).toISOString() : null,
     aenderungWunsch: (a.aenderung_wunsch as string) ?? null,
     aenderungAm: a.aenderung_am ? new Date(a.aenderung_am as string).toISOString() : null,
-    positionen: nachHausordnung(positionen.map(zuPosition)),
+    /*
+      Hat Kevin die Zeilen von Hand geordnet, gilt seine Reihenfolge.
+
+      "kevin möchte gerne die einzelnen items in einem angebot per drag
+      and drop neu sortieren können" (Florian, 30.10.2026). Sonst
+      ordnet das Haus: Tickets zuerst, fest vor optional. Beides
+      zugleich ginge nicht, dann wuerde das Programm sein Ziehen beim
+      naechsten Laden zurueckwerfen.
+    */
+    positionen: a.reihenfolge_manuell
+      ? positionen.map(zuPosition)
+      : nachHausordnung(positionen.map(zuPosition)),
     oeffnungen: oeffnungen.map((o) => ({
       zeitpunkt: new Date(o.zeitpunkt).toISOString(),
       geraet: o.geraet,
@@ -128,6 +142,7 @@ const KOPF_ABFRAGE = `
          a.einleitung, a.schlusstext, a.tracking_token, a.versendet_am,
          a.angenommen_am, a.angenommen_von, a.abgelehnt_am, a.ablehnungsgrund,
          a.plaetze_gehalten, a.plaetze_bis, a.aenderung_wunsch, a.aenderung_am,
+         a.reihenfolge_manuell,
          k.name as kunde_name, k.ansprechpartner, k.email,
          k.strasse, k.plz, k.ort,
          to_char(s.datum, 'YYYY-MM-DD') as datum, s.show
