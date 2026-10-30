@@ -98,6 +98,7 @@ export async function gruppenDesAbends(
       join vorstellung s on s.id = v.vorstellung_id
      where v.vorstellung_id = any(${vorstellungIds})
        and v.status not in ('abgesagt', 'verloren')
+       and v.ablage is distinct from 'papierkorb'
      order by g.personen desc
   `) as Record<string, unknown>[])
       : [];

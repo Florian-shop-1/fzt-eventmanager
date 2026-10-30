@@ -11,6 +11,8 @@ import {
   erledigteArchivieren,
   vorgangArchivieren,
   vorgangHervorholen,
+  vorgangInPapierkorb,
+  vorgangLoeschen,
 } from "@/lib/db/aktionen";
 import { fehlertext } from "@/lib/db/client";
 import { StatusBadge, datumKurz, vorZeit } from "@/components/Status";
@@ -33,6 +35,7 @@ const REITER: Array<{ wert: Vorgangsfilter; text: string }> = [
   { wert: "offen", text: "Offen" },
   { wert: "erledigt", text: "Erledigt" },
   { wert: "archiv", text: "Archiv" },
+  { wert: "papierkorb", text: "Papierkorb" },
   { wert: "alle", text: "Alle" },
 ];
 
@@ -89,7 +92,7 @@ export default async function VorgaengeSeite({
   const imReiter = vorgaenge.filter((v) => vorgangsfilter(v, zeige));
   const gefunden = suche ? imReiter.filter((v) => passt(v, suche)) : imReiter;
   const zuArchivieren = vorgaenge.filter(
-    (v) => v.archiviertAm === null && ERLEDIGT.includes(v.status),
+    (v) => v.ablage === null && ERLEDIGT.includes(v.status),
   ).length;
 
   /** Den Reiter und die Suche beim Blättern behalten. */
@@ -217,6 +220,8 @@ export default async function VorgaengeSeite({
               Nichts gefunden zu &bdquo;{suche}&ldquo;. Gesucht wird in Nummer, Firma,
               Ansprechpartner, Show und Datum.
             </>
+          ) : zeige === "papierkorb" ? (
+            "Der Papierkorb ist leer. Was du löschst, landet hier und lässt sich zurückholen."
           ) : zeige === "archiv" ? (
             "Im Archiv liegt noch nichts. Was du hier ablegst, bleibt vollständig erhalten."
           ) : zeige === "erledigt" ? (
@@ -294,9 +299,10 @@ export default async function VorgaengeSeite({
                     {v.verlorenGrund && (
                       <div className="mt-1 max-w-48 text-xs text-leise">{v.verlorenGrund}</div>
                     )}
-                    {v.archiviertAm && (
+                    {v.archiviertAm && v.ablage && (
                       <div className="mt-1 text-xs text-leise">
-                        archiviert {vorZeit(v.archiviertAm)}
+                        {v.ablage === "papierkorb" ? "im Papierkorb" : "archiviert"}{" "}
+                        {vorZeit(v.archiviertAm)}
                       </div>
                     )}
                   </td>
@@ -335,12 +341,26 @@ export default async function VorgaengeSeite({
                         ablegen
                       </summary>
                       <div className="mt-2 space-y-2 rounded-md border border-linie bg-flaeche p-2 text-xs">
-                        {v.archiviertAm ? (
-                          <form action={vorgangHervorholen.bind(null, v.id)}>
-                            <button type="submit" className="underline">
-                              zurück in die Liste
-                            </button>
-                          </form>
+                        {v.ablage ? (
+                          <>
+                            <form action={vorgangHervorholen.bind(null, v.id)}>
+                              <button type="submit" className="underline">
+                                zurück in die Liste
+                              </button>
+                            </form>
+                            {v.ablage === "papierkorb" && (
+                              <form action={vorgangLoeschen.bind(null, v.id)}>
+                                <button
+                                  type="submit"
+                                  title="Löscht den Vorgang mitsamt Gruppen, Angeboten und Notizen. Geht nicht, wenn eine Rechnung oder Zahlung daran hängt."
+                                  className="underline"
+                                  style={{ color: "var(--blocker)" }}
+                                >
+                                  endgültig löschen
+                                </button>
+                              </form>
+                            )}
+                          </>
                         ) : (
                           <>
                             {v.status !== "verloren" && (
@@ -364,11 +384,25 @@ export default async function VorgaengeSeite({
                                 ins Archiv
                               </button>
                             </form>
+                            {/*
+                              "mach am besten so, dass es gleich löscht..
+                              aber du speicherst es im archiv oder
+                              papierkorb" (Florian, 30.10.2026). Für den,
+                              der klickt, ist es weg. Tatsächlich liegt es
+                              im Papierkorb.
+                            */}
+                            <form action={vorgangInPapierkorb.bind(null, v.id)}>
+                              <button
+                                type="submit"
+                                title="Verschwindet aus der Liste und liegt im Papierkorb. Von dort jederzeit zurückzuholen."
+                                className="underline"
+                                style={{ color: "var(--blocker)" }}
+                              >
+                                löschen
+                              </button>
+                            </form>
                           </>
                         )}
-                        <Link href={`/vorgaenge/${v.id}`} className="block underline text-leise">
-                          öffnen, zum Löschen
-                        </Link>
                       </div>
                     </details>
                   </td>

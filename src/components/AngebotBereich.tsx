@@ -1645,13 +1645,32 @@ function AngebotKarte({
                 <tbody>
                   {zumAendern(angebot.positionen).map((p) => (
                       <tr key={p.id} className="border-b border-linie last:border-0">
-                        <td className={`py-1 ${p.istAlternativeZu ? "pl-5" : ""}`}>
+                        {/*
+                          Der Produktname gross genug, um ihn zu treffen.
+
+                          "zeig die Tickets wie Golden Seats usw. groesser
+                          an fuer den Mitarbeiter. das soll gleich ins auge
+                          fallen, der produktname auch bei magic menue"
+                          (Florian, 30.10.2026). Vorher stand alles in
+                          derselben kleinen Schrift wie die Hinweise
+                          darunter, und beim Durchgehen von zehn Zeilen
+                          musste man jedes Mal genau hinschauen, welche
+                          Kategorie gerade dran ist.
+
+                          Die Vorsilbe "Optional" und "Wahlmoeglichkeit"
+                          bleibt klein und grau: Sie sagt etwas ueber die
+                          Zeile, sie ist nicht der Name.
+                        */}
+                        <td className={`py-1.5 ${p.istAlternativeZu ? "pl-5" : ""}`}>
                           {p.istAlternativeZu ? (
-                            <span className="text-leise">Wahlmöglichkeit: </span>
+                            <div className="text-xs text-leise">Wahlmöglichkeit</div>
                           ) : (
-                            p.optional && <span className="text-leise">Optional: </span>
+                            p.optional && <div className="text-xs text-leise">Optional</div>
                           )}
-                          <span className={p.optional || p.istAlternativeZu ? "text-leise" : ""}>
+                          <span
+                            className="text-sm font-medium"
+                            style={p.optional || p.istAlternativeZu ? { color: "var(--text-leise)" } : undefined}
+                          >
                             {p.bezeichnung}
                           </span>
                           {/*

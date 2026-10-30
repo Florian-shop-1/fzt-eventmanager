@@ -8,6 +8,7 @@
  *    den Aufruf.
  */
 
+import { nachHausordnung } from "./reihenfolge";
 import { db } from "@/lib/db/client";
 import type { Position } from "@/lib/domain/vorgang";
 import { oeffnungMelden } from "./oeffnungsmeldung";
@@ -104,7 +105,7 @@ async function baueAngebot(zeilen: Record<string, unknown>[]): Promise<AngebotDe
     plaetzeBis: a.plaetze_bis ? new Date(a.plaetze_bis as string).toISOString() : null,
     aenderungWunsch: (a.aenderung_wunsch as string) ?? null,
     aenderungAm: a.aenderung_am ? new Date(a.aenderung_am as string).toISOString() : null,
-    positionen: positionen.map(zuPosition),
+    positionen: nachHausordnung(positionen.map(zuPosition)),
     oeffnungen: oeffnungen.map((o) => ({
       zeitpunkt: new Date(o.zeitpunkt).toISOString(),
       geraet: o.geraet,

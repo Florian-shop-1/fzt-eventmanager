@@ -599,9 +599,10 @@ export default async function VorgangSeite({
                 <strong>Verloren</strong>. Dann bleibt nachvollziehbar, dass es die Anfrage gab.
               </p>
               <p className="mb-3 text-leise">
-                Soll der Vorgang nur aus der Liste verschwinden, leg ihn ins{" "}
-                <strong>Archiv</strong>: in der Vorgangsliste rechts auf &bdquo;ablegen&ldquo;.
-                Dort bleibt alles erhalten und lässt sich jederzeit zurückholen.
+                Soll der Vorgang nur aus der Liste verschwinden, nimm in der Vorgangsliste
+                rechts &bdquo;ablegen&ldquo;: <strong>ins Archiv</strong> für Erledigtes,{" "}
+                <strong>löschen</strong> für alles andere. Gelöschtes liegt im Papierkorb und
+                lässt sich von dort zurückholen.
               </p>
               <p className="mb-3 text-leise">
                 Hängt eine festgeschriebene Rechnung oder eine Zahlung daran, geht Löschen

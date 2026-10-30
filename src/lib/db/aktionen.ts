@@ -992,24 +992,51 @@ export async function alsVerlorenMarkieren(
 
 /** Aus der taeglichen Liste nehmen. Alles bleibt erhalten. */
 export async function vorgangArchivieren(vorgangId: string): Promise<void> {
+  await ablegen(vorgangId, "archiv");
+}
+
+/**
+ * In den Papierkorb, sofort und ohne Zwischenschritt.
+ *
+ * "oeffnen zum loeschen? hab nach dem oeffnen nix gefunden. mach am
+ * besten so, dass es gleich loescht.. aber du speicherst es im archiv
+ * oder papierkorb.. so dass man zur not nochmal hinkommt" (Florian,
+ * 30.10.2026).
+ *
+ * Fuer den, der klickt, ist es geloescht: Der Vorgang ist aus der
+ * Liste. Tatsaechlich liegt er im Papierkorb und laesst sich mit einem
+ * Klick zurueckholen. Endgueltig weg ist er erst, wenn dort jemand
+ * ausdruecklich leert.
+ */
+export async function vorgangInPapierkorb(vorgangId: string): Promise<void> {
+  await ablegen(vorgangId, "papierkorb");
+}
+
+async function ablegen(vorgangId: string, wohin: "archiv" | "papierkorb"): Promise<void> {
   const wer = await verlangeTeam();
   await db()`
     update vorgang
-       set archiviert_am = now(), archiviert_von = ${wer}, geaendert_am = now()
+       set archiviert_am = now(), archiviert_von = ${wer}, ablage = ${wohin},
+           geaendert_am = now()
      where id = ${vorgangId}
   `;
+  /* Im Papierkorb soll der Vorgang keine Plaetze mehr halten und nicht
+     mehr auf dem Kuechenblatt stehen. */
+  if (wohin === "papierkorb") await vormerkungNachziehen(vorgangId);
   revalidatePath("/vorgaenge");
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
 
-/** Zurueck in die Liste. */
+/** Zurueck in die Liste, aus dem Archiv wie aus dem Papierkorb. */
 export async function vorgangHervorholen(vorgangId: string): Promise<void> {
   await verlangeTeam();
   await db()`
     update vorgang
-       set archiviert_am = null, archiviert_von = null, geaendert_am = now()
+       set archiviert_am = null, archiviert_von = null, ablage = null,
+           geaendert_am = now()
      where id = ${vorgangId}
   `;
+  await vormerkungNachziehen(vorgangId);
   revalidatePath("/vorgaenge");
   revalidatePath(`/vorgaenge/${vorgangId}`);
 }
@@ -1026,7 +1053,8 @@ export async function erledigteArchivieren(): Promise<void> {
   const wer = await verlangeTeam();
   await db()`
     update vorgang
-       set archiviert_am = now(), archiviert_von = ${wer}, geaendert_am = now()
+       set archiviert_am = now(), archiviert_von = ${wer}, ablage = 'archiv',
+           geaendert_am = now()
      where archiviert_am is null
        and status in ('durchgefuehrt', 'abgesagt', 'verloren')
   `;

@@ -38,6 +38,8 @@ export interface VorgangZeile {
   offeneAufgaben: number;
   /** Wann der Vorgang aus der taeglichen Liste genommen wurde. */
   archiviertAm: string | null;
+  /** Wo er seitdem liegt: im Archiv oder im Papierkorb. */
+  ablage: Ablage | null;
   /** Warum das Angebot nicht zustande kam, bei Status "verloren". */
   verlorenGrund: string | null;
 }
@@ -51,7 +53,20 @@ export interface VorgangZeile {
  * und verlorene Vorgaenge sind erledigt und stehen unter "Erledigt",
  * archivierte unter "Archiv".
  */
-export type Vorgangsfilter = "offen" | "erledigt" | "archiv" | "alle";
+export type Vorgangsfilter = "offen" | "erledigt" | "archiv" | "papierkorb" | "alle";
+
+/**
+ * Wo ein abgelegter Vorgang liegt.
+ *
+ * "mach am besten so, dass es gleich loescht.. aber du speicherst es
+ * im archiv oder papierkorb.. so dass man zur not nochmal hinkommt"
+ * (Florian, 30.10.2026).
+ *
+ * Archiv heisst: erledigt und weggeraeumt, alles in Ordnung.
+ * Papierkorb heisst: sollte weg. Beides ist umkehrbar, und erst im
+ * Papierkorb steht der Knopf, der wirklich loescht.
+ */
+export type Ablage = "archiv" | "papierkorb";
 
 /** Welche Staende als erledigt gelten. */
 export const ERLEDIGT: VorgangStatus[] = ["durchgefuehrt", "abgesagt", "verloren"];
@@ -86,6 +101,7 @@ export async function listeVorgaenge(
       (select count(*) from aufgabe f
         where f.vorgang_id = v.id and f.erledigt = false)::int        as offene_aufgaben,
       v.archiviert_am,
+      v.ablage,
       v.verloren_grund
     from vorgang v
     join kunde k            on k.id = v.kunde_id
@@ -122,6 +138,7 @@ export async function listeVorgaenge(
     gezahltCent: Number(z.gezahlt_cent),
     offeneAufgaben: Number(z.offene_aufgaben),
     archiviertAm: (z.archiviert_am as string) ?? null,
+    ablage: (z.ablage as Ablage) ?? null,
     verlorenGrund: (z.verloren_grund as string) ?? null,
   }));
 
@@ -130,12 +147,15 @@ export async function listeVorgaenge(
 
 /** Gehoert dieser Vorgang in diesen Reiter? */
 export function vorgangsfilter(
-  v: Pick<VorgangZeile, "status" | "archiviertAm">,
+  v: Pick<VorgangZeile, "status" | "ablage">,
   filter: Vorgangsfilter,
 ): boolean {
+  /* "Alle" heisst wirklich alle, auch der Papierkorb: Wer sucht, soll
+     finden, egal wo es liegt. */
   if (filter === "alle") return true;
-  if (filter === "archiv") return v.archiviertAm !== null;
-  if (v.archiviertAm !== null) return false;
+  if (filter === "archiv") return v.ablage === "archiv";
+  if (filter === "papierkorb") return v.ablage === "papierkorb";
+  if (v.ablage !== null) return false;
   const erledigt = ERLEDIGT.includes(v.status);
   return filter === "erledigt" ? erledigt : !erledigt;
 }
@@ -163,7 +183,8 @@ export async function listeVorstellungen(): Promise<VorstellungZeile[]> {
                   from gruppe g
                   join vorgang v on v.id = g.vorgang_id
                  where v.vorstellung_id = s.id
-                   and v.status not in ('abgesagt', 'verloren')), 0)::int as personen
+                   and v.status not in ('abgesagt', 'verloren')
+                   and v.ablage is distinct from 'papierkorb'), 0)::int as personen
     from vorstellung s
     order by s.datum asc
   `) as Record<string, unknown>[];
@@ -326,6 +347,7 @@ export async function gruppenDerVorstellung(vorstellungId: string): Promise<Buch
       join vorgang v on v.id = g.vorgang_id
      where v.vorstellung_id = ${vorstellungId}
        and v.status not in ('abgesagt', 'verloren')
+       and v.ablage is distinct from 'papierkorb'
      order by g.personen desc
   `) as Record<string, unknown>[];
   return zeilen.map((z) => zuBuchungsgruppe(z, z.status as VorgangStatus));

@@ -58,7 +58,9 @@ export const ARTIKEL: Artikel[] = [
     bezeichnung: "Magic Menü by Osman Kavak (Classic, Sea oder Veggy)",
     beschreibung:
       "Vier Gänge Fine Dining inklusive Welcome-Drink. Suppe, Salat, Hauptgang nach Wahl " +
-      "und Dessert. Sonderpreis in Verbindung mit der Show.",
+      "und Dessert. Sonderpreis in Verbindung mit der Show. Classic, Sea oder Veggy wählt " +
+      "jeder Gast für sich, der Preis ist überall derselbe; die Wahl braucht ihr erst " +
+      "kurz vor dem Termin zu nennen.",
     einheit: "Stück",
     bruttoCent: 6900,
     ust: 0.07,
@@ -519,9 +521,18 @@ export function artikel(nummer: string): Artikel {
  * Exklusivbuchung im Regal unten, während sie im Angebot oben steht.
  */
 export const GRUPPENFOLGE: ArtikelGruppe[] = [
+  /*
+    Die Tickets stehen oben. "die tickets muessen IMMER als erstes
+    kommen im Angebot" (Florian, 30.10.2026): Der Platz im Saal ist
+    das, was der Kunde kauft, alles andere kommt dazu. Vorher stand das
+    Essen davor und die Sitzplaetze rutschten in die Mitte der Seite.
+
+    Bei einer Exklusivbuchung gibt es keine einzelnen Tickets, dort
+    steht die Buchung des Hauses von selbst oben.
+  */
+  "ticket",
   "exklusiv",
   "menue",
-  "ticket",
   "getraenke",
   "empfang",
   "loge",

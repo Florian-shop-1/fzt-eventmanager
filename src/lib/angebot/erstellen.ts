@@ -6,10 +6,10 @@
  * Alternativpositionen, damit der Kunde die Kategorie selbst wählen kann.
  */
 
+import { nachHausordnung } from "./reihenfolge";
 import {
   artikel,
   artikelDerGruppe,
-  GRUPPENFOLGE,
   THEATER_SITZPLAETZE,
 } from "@/lib/domain/artikel";
 import {
@@ -615,33 +615,7 @@ export function erzeugePositionen(
    unter dem Angebot dieselbe Reihenfolge benutzt. */
 
 function sortiert(positionen: Position[]): Position[] {
-  const rang = (p: Position): number => {
-    try {
-      const stelle = GRUPPENFOLGE.indexOf(artikel(p.artikelNummer).gruppe);
-      return stelle < 0 ? GRUPPENFOLGE.length : stelle;
-    } catch {
-      // Frei eingetippte Zeilen kennen wir nicht: Die kommen ans Ende.
-      return GRUPPENFOLGE.length;
-    }
-  };
-
-  const haupt = positionen.filter((p) => !p.istAlternativeZu);
-  const alternativen = positionen.filter((p) => p.istAlternativeZu);
-
-  const geordnet = haupt
-    .map((p, i) => ({ p, i }))
-    .sort((a, b) => {
-      const gA = rang(a.p);
-      const gB = rang(b.p);
-      if (gA !== gB) return gA - gB;
-      const optA = a.p.optional ? 1 : 0;
-      const optB = b.p.optional ? 1 : 0;
-      if (optA !== optB) return optA - optB;
-      return a.i - b.i;
-    })
-    .map((x) => x.p);
-
-  return [...geordnet, ...alternativen];
+  return nachHausordnung(positionen);
 }
 
 /**
