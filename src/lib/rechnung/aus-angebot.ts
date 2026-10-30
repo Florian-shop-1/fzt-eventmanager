@@ -81,7 +81,20 @@ export async function rechnungAusAngebot(angebotId: string, wer: string): Promis
 
   const summe = angebotssumme(positionen);
   const absender = await angebotsAbsender();
-  const nummer = await naechsteRechnungsnummer();
+  /*
+    Ein Entwurf bekommt noch keine Rechnungsnummer.
+
+    "man muss die rechnung ändern oder verwerfen können. erst wenn man
+    bestätigt soll die rechnung tatsächlich eingebucht werden"
+    (Florian, 30.10.2026).
+
+    Wer eine Nummer vergibt und den Entwurf danach wegwirft, reisst ein
+    Loch in den Nummernkreis, und das muss man dem Steuerberater
+    hinterher erklaeren. Die Nummer entsteht deshalb erst beim
+    Festschreiben, siehe entwurfFestschreiben in rechnung/entwurf.ts.
+    Bis dahin steht hier ein Platzhalter, den niemand verwechseln kann.
+  */
+  const nummer = `ENTWURF-${Date.now().toString(36).toUpperCase()}`;
 
   const leistung = angebot.vorstellung
     ? `Veranstaltung am ${angebot.vorstellung.datum.split("-").reverse().join(".")}, ${angebot.vorstellung.show}`
@@ -98,6 +111,7 @@ export async function rechnungAusAngebot(angebotId: string, wer: string): Promis
     leistung,
     notiz: `Aus Angebot ${angebot.nummer}`,
     von: wer,
+    status: "DRAFT",
   });
 
   /*

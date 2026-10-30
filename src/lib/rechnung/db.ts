@@ -299,16 +299,19 @@ export async function rechnungAnlegen(o: {
   leistung?: string;
   notiz?: string;
   von: string;
+  /** "DRAFT" fuer einen Entwurf, der erst noch bestaetigt wird. */
+  status?: Status;
 }): Promise<Rechnung> {
   const ziel = o.zahlungszielTage ?? (await einstellung()).zahlungszielTage;
   const datum = o.rechnungsdatum ?? heute();
   const z = (await db()`
     insert into rechnung (nummer, quelle, vorgang_id, wein_rechnung_id, kunde, kunde_email,
                           betrag_cent, rechnungsdatum, zahlungsziel_tage, faellig_am, leistung,
-                          notiz, erstellt_von)
+                          notiz, erstellt_von, status)
     values (${o.nummer}, ${o.quelle ?? "frei"}, ${o.vorgangId ?? null}, ${o.weinRechnungId ?? null},
             ${o.kunde}, ${o.kundeEmail ?? ""}, ${o.betragCent}, ${datum}::date, ${ziel},
-            (${datum}::date + ${ziel}::int), ${o.leistung ?? ""}, ${o.notiz ?? ""}, ${o.von})
+            (${datum}::date + ${ziel}::int), ${o.leistung ?? ""}, ${o.notiz ?? ""}, ${o.von},
+            ${o.status ?? "CREATED"})
     on conflict (nummer) do update set betrag_cent = excluded.betrag_cent, geaendert_am = now()
     returning id
   `) as Array<{ id: string }>;

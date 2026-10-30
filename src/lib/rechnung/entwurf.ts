@@ -1,0 +1,150 @@
+/**
+ * Der Rechnungsentwurf: ändern, verwerfen, festschreiben.
+ *
+ * "man muss aber die beträge in der rechnung auch noch von hand ändern
+ * können! z.b. ein menü teuerer machen usw. man muss die rechnung ändern
+ * oder verwerfen können. erst wenn man bestätigt soll die rechnung
+ * tatsächlich eingebucht werden" (Florian, 30.10.2026).
+ *
+ * Bis dahin entstand aus dem Angebot sofort eine fertige Rechnung, mit
+ * Nummer und allem. Am Telefon einigt man sich aber oft noch auf etwas
+ * anderes: ein Menü teurer, zwei Gäste mehr, ein Nachlass. Dafür gab es
+ * nur den Weg zurück ins Angebot oder eine Gutschrift hinterher.
+ *
+ * Jetzt ist der erste Schritt ein Entwurf. Er trägt noch keine
+ * Rechnungsnummer, sondern einen Platzhalter, und er zählt für nichts:
+ * nicht für die offenen Posten, nicht für den Kontoabgleich, nicht für
+ * die Bücher. Erst das Festschreiben zieht die nächste Nummer und macht
+ * eine Rechnung daraus. Wer ihn wegwirft, hinterlässt keine Lücke im
+ * Nummernkreis, und genau darum geht es: Eine Lücke muss man dem
+ * Steuerberater erklären.
+ */
+
+import { db } from "@/lib/db/client";
+import { naechsteRechnungsnummer } from "./aus-angebot";
+import { merken, rechnungLesen, type Rechnung } from "./db";
+
+/** Eine Zeile der Rechnung, so wie sie in positionen steht. */
+export interface Entwurfszeile {
+  id: string;
+  bezeichnung: string;
+  menge: number;
+  einheit: string;
+  einzelBruttoCent: number;
+  ust: number;
+  artikelNummer: string;
+}
+
+export class EntwurfFehler extends Error {
+  constructor(nachricht: string) {
+    super(nachricht);
+    this.name = "EntwurfFehler";
+  }
+}
+
+/** Nur ein Entwurf darf geändert werden. Alles andere ist gebucht. */
+async function entwurfHolen(id: string): Promise<Rechnung> {
+  const r = await rechnungLesen(id);
+  if (!r) throw new EntwurfFehler("Diese Rechnung gibt es nicht.");
+  if (r.status !== "DRAFT") {
+    throw new EntwurfFehler(
+      "Diese Rechnung ist schon festgeschrieben. Ändern lässt sie sich nur noch über eine Gutschrift.",
+    );
+  }
+  return r;
+}
+
+export function summeAusZeilen(zeilen: Entwurfszeile[]): number {
+  return zeilen.reduce((n, z) => n + Math.round(z.menge * z.einzelBruttoCent), 0);
+}
+
+/**
+ * Die Zeilen des Entwurfs ersetzen.
+ *
+ * Gerechnet wird hier, nicht im Browser: Die Summe der Rechnung muss zu
+ * ihren Zeilen passen, auch wenn jemand das Formular von Hand schickt.
+ */
+export async function zeilenSpeichern(
+  id: string,
+  zeilen: Entwurfszeile[],
+  wer: string,
+): Promise<Rechnung> {
+  // Wirft, wenn die Rechnung schon festgeschrieben ist.
+  await entwurfHolen(id);
+  const sauber = zeilen
+    .map((z, i) => ({
+      id: z.id || `zeile-${i + 1}`,
+      bezeichnung: z.bezeichnung.trim().slice(0, 200),
+      menge: Math.max(0, Math.min(9999, Number(z.menge) || 0)),
+      einheit: (z.einheit || "Stück").trim().slice(0, 30),
+      einzelBruttoCent: Math.max(0, Math.round(Number(z.einzelBruttoCent) || 0)),
+      ust: [0, 7, 19].includes(Number(z.ust)) ? Number(z.ust) : 19,
+      artikelNummer: (z.artikelNummer ?? "").trim().slice(0, 40),
+    }))
+    .filter((z) => z.bezeichnung && z.menge > 0);
+
+  if (sauber.length === 0) throw new EntwurfFehler("Ohne Zeilen gibt es nichts zu berechnen.");
+
+  const summe = summeAusZeilen(sauber);
+  await db()`
+    update rechnung
+       set positionen = ${JSON.stringify(sauber)}::jsonb,
+           betrag_cent = ${summe},
+           geaendert_am = now()
+     where id = ${id} and status = 'DRAFT'
+  `;
+  await merken({
+    rechnungId: id,
+    art: "entwurf",
+    text: `Entwurf geändert: ${sauber.length} ${sauber.length === 1 ? "Zeile" : "Zeilen"}, ${(summe / 100).toFixed(2)} Euro`,
+    wer,
+  }).catch(() => undefined);
+
+  return (await rechnungLesen(id))!;
+}
+
+/**
+ * Aus dem Entwurf wird eine Rechnung.
+ *
+ * Hier und nur hier entsteht die Nummer. Danach ist die Rechnung
+ * gebucht: Sie steht in den offenen Posten, der Kontoabgleich sucht sie,
+ * und ändern lässt sie sich nur noch über eine Gutschrift.
+ */
+export async function entwurfFestschreiben(id: string, wer: string): Promise<Rechnung> {
+  const r = await entwurfHolen(id);
+  if (r.betragCent <= 0) throw new EntwurfFehler("Eine Rechnung über null Euro geht nicht.");
+
+  const nummer = await naechsteRechnungsnummer();
+  await db()`
+    update rechnung
+       set nummer = ${nummer},
+           status = 'CREATED',
+           rechnungsdatum = (now() at time zone 'Europe/Berlin')::date,
+           faellig_am = ((now() at time zone 'Europe/Berlin')::date + zahlungsziel_tage::int),
+           geaendert_am = now()
+     where id = ${id} and status = 'DRAFT'
+  `;
+  await merken({
+    rechnungId: id,
+    art: "festgeschrieben",
+    text: `Rechnung ${nummer} festgeschrieben über ${(r.betragCent / 100).toFixed(2)} Euro`,
+    wer,
+  }).catch(() => undefined);
+
+  return (await rechnungLesen(id))!;
+}
+
+/**
+ * Den Entwurf wegwerfen.
+ *
+ * Wirklich löschen, nicht stornieren: Er war nie eine Rechnung, hat nie
+ * eine Nummer getragen und soll in keiner Liste stehen bleiben. Was
+ * gebucht ist, wird dagegen storniert und bleibt sichtbar.
+ */
+export async function entwurfVerwerfen(id: string, wer: string): Promise<{ vorgangId: string | null }> {
+  const r = await entwurfHolen(id);
+  await db()`delete from rechnung_ereignis where rechnung_id = ${id}`.catch(() => undefined);
+  await db()`delete from rechnung where id = ${id} and status = 'DRAFT'`;
+  console.info(`[rechnung] Entwurf ${r.nummer} verworfen von ${wer}`);
+  return { vorgangId: r.vorgangId ?? null };
+}

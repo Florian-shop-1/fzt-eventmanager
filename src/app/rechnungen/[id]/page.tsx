@@ -8,6 +8,9 @@ import { StatusSchild, euro, faelligText, tagKurz } from "@/components/RechnungS
 import { Absendeknopf } from "@/components/Absendeknopf";
 import { zeitpunkt } from "@/lib/zeit";
 import {
+  entwurfBestaetigen,
+  entwurfWegwerfen,
+  entwurfZeilenSpeichern,
   erinnerungSenden,
   faelligAendern,
   manuellBezahlt,
@@ -43,7 +46,8 @@ export default async function RechnungSeite({
   const verlauf = await ereignisse(id);
 
   // Nur Rechnungen aus einem Angebot haben Positionen und damit ein PDF.
-  const hatPositionen = (await rechnungsPdfDaten(id)) !== null;
+  const pdfDaten = await rechnungsPdfDaten(id);
+  const hatPositionen = pdfDaten !== null;
   /*
     Das Anschreiben steht offen da, bevor die Mail rausgeht.
 
@@ -64,6 +68,30 @@ export default async function RechnungSeite({
     zahlungszielTage: r.zahlungszielTage,
   });
 
+  /*
+    Ein Entwurf ist noch keine Rechnung: keine Nummer, kein Versand,
+    nichts in den offenen Posten (Florian, 30.10.2026).
+  */
+  const entwurf = r.status === "DRAFT";
+  const zeilen = (pdfDaten?.positionen ?? []).map((z, i) => ({
+    id: String(z.id ?? `zeile-${i + 1}`),
+    bezeichnung: String(z.bezeichnung ?? ""),
+    menge: Number(z.menge ?? 0),
+    einheit: String(z.einheit ?? "Stück"),
+    einzelBruttoCent: Number(z.einzelBruttoCent ?? 0),
+    ust: Number(z.ust ?? 19),
+  }));
+
+  /** Die leere Zeile am Ende, damit immer etwas dazukommen kann. */
+  const leereZeile = (n: number) => ({
+    id: `neu-${n}`,
+    bezeichnung: "",
+    menge: 0,
+    einheit: "Stück",
+    einzelBruttoCent: 0,
+    ust: 19,
+  });
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -71,7 +99,9 @@ export default async function RechnungSeite({
           <Link href="/rechnungen" className="text-sm text-leise underline">
             Alle Rechnungen
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{r.nummer}</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+            {entwurf ? "Rechnungsentwurf" : r.nummer}
+          </h1>
           <p className="text-sm text-leise">
             {r.kunde}
             {r.kundeEmail ? ` · ${r.kundeEmail}` : ""}
@@ -88,6 +118,99 @@ export default async function RechnungSeite({
       )}
 
       {/*
+        Der Entwurf: erst prüfen, dann einbuchen.
+
+        "man muss aber die beträge in der rechnung auch noch von hand
+        ändern können! z.b. ein menü teuerer machen usw. man muss die
+        rechnung ändern oder verwerfen können. erst wenn man bestätigt
+        soll die rechnung tatsächlich eingebucht werden"
+        (Florian, 30.10.2026).
+
+        Solange hier ein Entwurf steht, gibt es keine Rechnungsnummer,
+        keinen Versand und keinen Eintrag in den offenen Posten. Die
+        Zeilen lassen sich frei ändern, und wer den Entwurf wegwirft,
+        reisst keine Lücke in den Nummernkreis.
+      */}
+      {entwurf && (
+        <section className="space-y-3 rounded-lg border-2 p-4" style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}>
+          <div>
+            <h2 className="text-lg font-semibold">Noch nicht eingebucht</h2>
+            <p className="mt-1 text-sm">
+              Prüfe die Zeilen und ändere, was ihr anders vereinbart habt. Erst mit
+              &quot;Einbuchen&quot; bekommt die Rechnung ihre Nummer und kann an den Kunden gehen.
+            </p>
+          </div>
+
+          <form action={entwurfZeilenSpeichern} className="space-y-2">
+            <input type="hidden" name="id" value={r.id} />
+            <div className="space-y-2">
+              {[...zeilen, leereZeile(zeilen.length + 1)].map((z, i) => (
+                <div key={z.id} className="flex flex-wrap items-end gap-2 rounded-md bg-flaeche px-3 py-2">
+                  <input type="hidden" name={`zeile${i + 1}`} value={z.id} />
+                  <label className="min-w-[14rem] flex-1">
+                    <span className="mb-1 block text-xs text-leise">Bezeichnung</span>
+                    <input
+                      name={`bezeichnung${i + 1}`}
+                      defaultValue={z.bezeichnung}
+                      maxLength={200}
+                      placeholder={i === zeilen.length ? "weitere Zeile" : ""}
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="w-20">
+                    <span className="mb-1 block text-xs text-leise">Menge</span>
+                    <input name={`menge${i + 1}`} defaultValue={z.menge || ""} inputMode="decimal" className="w-full" />
+                  </label>
+                  <label className="w-24">
+                    <span className="mb-1 block text-xs text-leise">Einheit</span>
+                    <input name={`einheit${i + 1}`} defaultValue={z.einheit} maxLength={30} className="w-full" />
+                  </label>
+                  <label className="w-28">
+                    <span className="mb-1 block text-xs text-leise">Preis (brutto)</span>
+                    <input
+                      name={`preis${i + 1}`}
+                      defaultValue={z.einzelBruttoCent ? (z.einzelBruttoCent / 100).toFixed(2).replace(".", ",") : ""}
+                      inputMode="decimal"
+                      className="w-full tabular-nums"
+                    />
+                  </label>
+                  <label className="w-20">
+                    <span className="mb-1 block text-xs text-leise">USt</span>
+                    <select name={`ust${i + 1}`} defaultValue={String(z.ust)} className="w-full">
+                      <option value="19">19 %</option>
+                      <option value="7">7 %</option>
+                      <option value="0">0 %</option>
+                    </select>
+                  </label>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-leise">
+              Eine Zeile ohne Bezeichnung oder mit Menge null fällt beim Speichern weg. Unten steht
+              immer eine leere Zeile für etwas Zusätzliches.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Absendeknopf text="Entwurf speichern" laeuftText="Wird gespeichert..." />
+              <span className="text-sm font-semibold tabular-nums">Summe: {euro(r.betragCent)}</span>
+            </div>
+          </form>
+
+          <div className="flex flex-wrap gap-2 border-t border-linie pt-3">
+            <form action={entwurfBestaetigen}>
+              <input type="hidden" name="id" value={r.id} />
+              <Absendeknopf text="Einbuchen und Nummer vergeben" laeuftText="Wird eingebucht..." />
+            </form>
+            <form action={entwurfWegwerfen}>
+              <input type="hidden" name="id" value={r.id} />
+              <button type="submit" className="rounded-lg border border-linie bg-flaeche px-4 py-2 text-sm">
+                Entwurf verwerfen
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+
+      {/*
         Das PDF und der Versand.
 
         Nur fuer Rechnungen mit Positionen, also die aus einem Angebot.
@@ -95,7 +218,7 @@ export default async function RechnungSeite({
         eine Rechnung ohne Positionen laesst sich nicht setzen
         (Florian, 25.09.2026).
       */}
-      {hatPositionen && (
+      {hatPositionen && !entwurf && (
         <section className="space-y-3 rounded-lg border border-linie p-4">
           <div className="flex flex-wrap items-center gap-3">
             <a

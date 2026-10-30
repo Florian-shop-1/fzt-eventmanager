@@ -28,6 +28,7 @@ import { auszugsleserEingerichtet, kartenauszugLesen } from "@/lib/rechnung/kart
 import { auszugMitAbdruck, auszugVermerken, dateiAbdruck } from "@/lib/rechnung/auszuege";
 import { kontoFreischalten, kontoStilllegen } from "@/lib/rechnung/konten";
 import { mailVerschicken } from "@/lib/mail/versand";
+import { entwurfFestschreiben, entwurfVerwerfen, zeilenSpeichern } from "@/lib/rechnung/entwurf";
 import { handRechnungAnlegen } from "@/lib/rechnung/hand";
 import { erinnerungVerschicken } from "@/lib/rechnung/erinnerung";
 
@@ -419,4 +420,78 @@ export async function erinnerungSenden(f: FormData): Promise<void> {
     }
     throw fehler;
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Der Entwurf: ändern, verwerfen, festschreiben.
+ *
+ * "man muss aber die beträge in der rechnung auch noch von hand ändern
+ * können ... erst wenn man bestätigt soll die rechnung tatsächlich
+ * eingebucht werden" (Florian, 30.10.2026). Siehe lib/rechnung/entwurf.ts.
+ * ------------------------------------------------------------------ */
+
+/** Die Zeilen des Entwurfs speichern, so wie sie im Formular stehen. */
+export async function entwurfZeilenSpeichern(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = String(f.get("id") ?? "");
+
+  /*
+    Das Formular schickt je Zeile vier Felder mit derselben Nummer.
+    Gezählt wird über die Bezeichnungen: Wer eine Zeile leer lässt,
+    streicht sie damit, das Speichern wirft sie weg.
+  */
+  const nummern = [...f.keys()]
+    .map((k) => /^bezeichnung(\d+)$/.exec(k)?.[1])
+    .filter((n): n is string => Boolean(n))
+    .map(Number)
+    .sort((x, y) => x - y);
+
+  const zeilen = nummern.map((n) => ({
+    id: String(f.get(`zeile${n}`) ?? `zeile-${n}`),
+    bezeichnung: String(f.get(`bezeichnung${n}`) ?? ""),
+    menge: Number(String(f.get(`menge${n}`) ?? "0").replace(",", ".")) || 0,
+    einheit: String(f.get(`einheit${n}`) ?? "Stück"),
+    einzelBruttoCent: centAus(String(f.get(`preis${n}`) ?? "")) ?? 0,
+    ust: Number(f.get(`ust${n}`) ?? 19),
+    artikelNummer: "",
+  }));
+
+  try {
+    await zeilenSpeichern(id, zeilen, b.name ?? "Büro");
+  } catch (fehler) {
+    zurueck(`/rechnungen/${id}`, fehler instanceof Error ? fehler.message : "Das ging nicht.");
+  }
+  revalidatePath(`/rechnungen/${id}`);
+  zurueck(`/rechnungen/${id}`, "Entwurf gespeichert. Noch nicht eingebucht.");
+}
+
+/** Aus dem Entwurf wird eine Rechnung mit Nummer. */
+export async function entwurfBestaetigen(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = String(f.get("id") ?? "");
+  let nummer = "";
+  try {
+    nummer = (await entwurfFestschreiben(id, b.name ?? "Büro")).nummer;
+  } catch (fehler) {
+    zurueck(`/rechnungen/${id}`, fehler instanceof Error ? fehler.message : "Das ging nicht.");
+  }
+  revalidatePath(`/rechnungen/${id}`);
+  zurueck(`/rechnungen/${id}`, `Rechnung ${nummer} ist eingebucht. Jetzt kann sie raus.`);
+}
+
+/** Den Entwurf wegwerfen und zurück zum Vorgang. */
+export async function entwurfWegwerfen(f: FormData): Promise<void> {
+  const b = await darf();
+  const id = String(f.get("id") ?? "");
+  let vorgangId: string | null = null;
+  try {
+    vorgangId = (await entwurfVerwerfen(id, b.name ?? "Büro")).vorgangId;
+  } catch (fehler) {
+    zurueck(`/rechnungen/${id}`, fehler instanceof Error ? fehler.message : "Das ging nicht.");
+  }
+  revalidatePath("/rechnungen");
+  zurueck(
+    vorgangId ? `/vorgaenge/${vorgangId}` : "/rechnungen",
+    "Entwurf verworfen. Es wurde nichts eingebucht.",
+  );
 }

@@ -29,7 +29,14 @@ export default async function RechnungenSeite({
   const { meldung, nur } = await searchParams;
 
   const [alle, e] = await Promise.all([alleRechnungen(), einstellung()]);
-  const offen = alle.filter((r) => !["PAID", "CANCELLED"].includes(r.status));
+  /*
+    Ein Entwurf zaehlt nicht als offener Posten.
+
+    Er hat noch keine Nummer, ist nie verschickt worden und schuldet uns
+    niemand etwas (Florian, 30.10.2026). In der Liste steht er trotzdem,
+    damit er nicht vergessen wird, aber die Summe oben bleibt ehrlich.
+  */
+  const offen = alle.filter((r) => !["PAID", "CANCELLED", "DRAFT"].includes(r.status));
   const offenSumme = offen.reduce((n, r) => n + r.offenCent, 0);
   const ueberfaellig = offen.filter((r) => r.status === "OVERDUE");
   const verzugSumme = ueberfaellig.reduce((n, r) => n + r.offenCent, 0);
