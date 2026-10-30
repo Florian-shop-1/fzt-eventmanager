@@ -37,6 +37,26 @@ const GETRAENKE = artikelDerGruppe("getraenke");
 const EXKLUSIV = artikelDerGruppe("exklusiv");
 const WOCHENTAGE = [0, 1, 2, 3, 4, 5, 6].map(wochentagName);
 
+/**
+ * Den Wochentag aus dem Wunsch des Kunden lesen.
+ *
+ * Im Wunschzeitraum steht, was der Kunde angegeben hat, etwa
+ * "Donnerstag, In 1 bis 3 Monaten". Gefunden wird der erste genannte
+ * Wochentag, auch verkuerzt geschrieben.
+ */
+function wochentagAusWunsch(wunsch?: string | null): number | null {
+  const text = (wunsch ?? "").toLowerCase();
+  if (!text) return null;
+  const kurz = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
+  let treffer: { nummer: number; wo: number } | null = null;
+  for (let i = 0; i < kurz.length; i++) {
+    const wo = text.indexOf(kurz[i]);
+    if (wo >= 0 && (treffer === null || wo < treffer.wo)) treffer = { nummer: i, wo };
+  }
+  // Sonnabend sagt bei uns niemand, Sa und So waeren zu kurz zum Raten.
+  return treffer?.nummer ?? null;
+}
+
 /** Face to Face, Aftershow, DJ: im Baukasten zum Anhaken. */
 const HIGHLIGHTS = artikelDerGruppe("highlight");
 
@@ -100,6 +120,7 @@ export function AngebotBereich({
   personen,
   terminDatum,
   terminZeit,
+  wunschzeitraum,
   terminwahl,
 }: {
   vorgangId: string;
@@ -111,6 +132,8 @@ export function AngebotBereich({
   personen: number;
   /** Termin des Vorgangs, falls einer feststeht. */
   terminDatum?: string | null;
+  /** Was der Kunde sich gewuenscht hat, als Text aus der Anfrage. */
+  wunschzeitraum?: string | null;
   /**
    * Die Terminwahl aus dem Spielplan, fertig vom Server.
    *
@@ -169,7 +192,19 @@ export function AngebotBereich({
   const [fassungen, setFassungen] = useState<Variante[]>(["menue"]);
   // Steht der Termin noch nicht fest, wird für einen Wochentag angeboten.
   const [terminOffen, setTerminOffen] = useState(!terminDatum);
-  const [wochentag, setWochentag] = useState(5);
+  /*
+    Der Wochentag kommt aus dem Wunsch des Kunden.
+
+    "kevin hatte donnerstag eingegeben und im angebot hat es dann einen
+    freitag draus gemacht" (Florian, 30.10.2026). Kevin hatte den
+    Donnerstag oben beim Vorgang eingetragen, der Baukasten aber startete
+    stur mit Freitag, und wer die Zeile nicht noch einmal anfasst,
+    verschickt ein Angebot fuer den falschen Tag.
+
+    Steht im Wunsch ein Wochentag, ist er hier vorgewaehlt. Steht keiner
+    da, bleibt es bei Freitag, dem haeufigsten Abend.
+  */
+  const [wochentag, setWochentag] = useState(() => wochentagAusWunsch(wunschzeitraum) ?? 5);
   const [zeitraum, setZeitraum] = useState("");
   const [tageszeit, setTageszeit] = useState<"nachmittag" | "abend">(
     terminZeit && terminZeit < "17:00" ? "nachmittag" : "abend",
@@ -334,6 +369,7 @@ export function AngebotBereich({
               appUrl={appUrl}
               kundeEmail={kundeEmail}
               ansprechpartner={ansprechpartner}
+              terminwahl={terminwahl}
             />
           ))}
         </div>
@@ -382,9 +418,12 @@ export function AngebotBereich({
 
             {/*
               Der Tag selbst, zum Aendern an Ort und Stelle.
-              Siehe terminwahl oben.
+
+              Nur beim festen Termin: Wer fuer einen Wochentag anbietet,
+              braucht keinen Abend aus dem Spielplan, und zwei Stellen
+              fuer dasselbe stiften mehr Verwirrung als Nutzen.
             */}
-            {terminwahl && <div className="mb-2">{terminwahl}</div>}
+            {terminwahl && !terminOffen && <div className="mb-2">{terminwahl}</div>}
 
             {terminDatum && (
               <label className="flex items-center gap-2 text-sm">
@@ -457,6 +496,38 @@ export function AngebotBereich({
             <p className="mt-1 text-xs text-leise">
               Danach richtet sich der Ablauf im Angebot. Bei der Nachmittagsshow kommen Empfang und
               Menü nach der Show.
+            </p>
+
+            {/*
+              Die Kontrollzeile.
+
+              "was hier ausgewählt wird hat relevanz für das ganze
+              angebot" (Florian, 30.10.2026). Genau deshalb steht hier,
+              was oben im Angebot stehen wird. Ein falscher Tag faellt
+              sonst erst auf, wenn der Kunde zurueckschreibt.
+            */}
+            <p
+              className="mt-2 rounded-md px-3 py-2 text-xs"
+              style={{ background: "var(--gold-hell)" }}
+            >
+              Im Angebot steht:{" "}
+              <strong>
+                {terminOffen
+                  ? `Ihr Event an einem ${WOCHENTAGE[wochentag]}${zeitraum.trim() ? ` ${zeitraum.trim()}` : ""}`
+                  : terminDatum
+                    ? `Ihr Event am ${WOCHENTAGE[new Date(`${terminDatum}T12:00:00Z`).getUTCDay()]}, dem ${terminDatum
+                        .split("-")
+                        .reverse()
+                        .join(".")}`
+                    : "Ihr Event im Florian Zimmer Theater"}
+              </strong>
+              {terminOffen && (
+                <>
+                  {" "}
+                  Für einen anderen Tag baust du einfach ein weiteres Angebot, der Kunde bekommt
+                  dann beide in einer Mail.
+                </>
+              )}
             </p>
           </div>
 
@@ -897,6 +968,7 @@ export function AngebotBereich({
                     appUrl={appUrl}
                     kundeEmail={kundeEmail}
                     ansprechpartner={ansprechpartner}
+                    terminwahl={terminwahl}
                     frisch
                   />
                 ))
@@ -1031,6 +1103,7 @@ function AngebotKarte({
   appUrl,
   kundeEmail,
   ansprechpartner,
+  terminwahl,
   frisch = false,
 }: {
   angebot: AngebotDetail;
@@ -1038,6 +1111,8 @@ function AngebotKarte({
   appUrl: string;
   kundeEmail: string;
   ansprechpartner: string | null;
+  /** Die Terminwahl, damit der Tag auch beim Aendern erreichbar ist. */
+  terminwahl?: React.ReactNode;
   /** Gerade eben entstanden: kurz hervorheben. */
   frisch?: boolean;
 }) {
@@ -1288,6 +1363,34 @@ function AngebotKarte({
             der bessere Tausch.
           */}
           <div className="space-y-3">
+            {/*
+              Der Termin, auch beim Aendern.
+
+              "der tag ist verschwunden beim angebot erstellen /ändern.
+              es muss hier immer möglich sein den tag zu ändern"
+              (Florian, 30.10.2026). Der Termin haengt am Vorgang, nicht
+              am einzelnen Angebot: Wer ihn hier aendert, aendert ihn
+              fuer alle. Fuer einen anderen Tag baut man besser ein
+              weiteres Angebot, dann hat der Kunde beide zur Wahl.
+            */}
+            {terminwahl && (
+              <div className="rounded-md border border-linie bg-flaeche px-3 py-2 text-xs">
+                <p>
+                  Termin:{" "}
+                  <strong>
+                    {angebot.vorstellung
+                      ? `${angebot.vorstellung.datum.split("-").reverse().join(".")} · ${angebot.vorstellung.show}`
+                      : "steht noch nicht fest"}
+                  </strong>
+                </p>
+                {terminwahl}
+                <p className="mt-1 text-leise">
+                  Gilt für den ganzen Vorgang. Für einen anderen Tag lieber ein weiteres Angebot
+                  bauen, der Kunde bekommt dann beide in einer Mail.
+                </p>
+              </div>
+            )}
+
             {/*
               Die Breite der Vorschau: ein Mass, das beidem gerecht wird.
 

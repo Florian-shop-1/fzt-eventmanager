@@ -511,6 +511,7 @@ export default async function VorgangSeite({
             ansprechpartner={vorgang.kunde.ansprechpartner}
             personen={personen}
             terminDatum={vorgang.vorstellung?.datum ?? null}
+            wunschzeitraum={vorgang.wunschzeitraum}
             /*
               Die Terminwahl steht auch im Baukasten.
 
