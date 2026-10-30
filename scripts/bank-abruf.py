@@ -255,6 +255,25 @@ def main():
 
     mitschneiden()
 
+    # Sicherheitsprofil der Signatur bei zweistufigem TAN (30.10.2026).
+    #
+    # python-fints schreibt in die Signatur (HNSHK) fest die Version 1 des Sicherheitsprofils PIN/TAN, in die
+    # Verschluesselungs-Kopfzeile (HNVSK) derselben Nachricht bei zweistufigem Verfahren aber die Version 2. Das war lange
+    # egal. Seit dem 29.10.2026 lehnt die Bank die Anmeldung deshalb mit "9340 unzulaessige Signatur" ab (mit 9050 und
+    # 9800). Fuer das zweistufige Verfahren muss auch die Signatur Version 2 tragen. Nur das Profil wird geaendert, sonst
+    # nichts an der Nachricht.
+    import fints.security as sicherheit
+    from fints.formals import SecurityMethod, SecurityProfile
+
+    urspruengliche_signatur = sicherheit.PinTanTwoStepAuthenticationMechanism.sign_prepare
+
+    def signatur_version_zwei(self, nachricht):
+        urspruengliche_signatur(self, nachricht)
+        if self.pending_signature is not None:
+            self.pending_signature.security_profile = SecurityProfile(SecurityMethod.PIN, 2)
+
+    sicherheit.PinTanTwoStepAuthenticationMechanism.sign_prepare = signatur_version_zwei
+
     zustand = ZUSTAND_DATEI.read_bytes() if ZUSTAND_DATEI.exists() else None
     klient = FinTS3PinTanClient(
         blz,
