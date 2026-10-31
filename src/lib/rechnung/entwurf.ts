@@ -220,15 +220,20 @@ export async function rechnungKorrigieren(
     Storno von EV-1026-0004 entstand die Korrektur 0005, deren Storno
     die 0007, deren Storno die 0008. Eine Kette ohne Ende.
 
-    Eine Korrektur hebt eine Rechnung auf. Sie selbst aufzuheben hiesse,
-    die alte Rechnung wieder gelten zu lassen, und das sagt niemand, der
-    auf "stornieren" drueckt. Wer sich vertan hat, schreibt die Rechnung
-    neu.
+    Eine Korrektur hebt eine Rechnung auf. Liegt sie beim Kunden und man
+    hebt sie wieder auf, stuende die alte Rechnung wieder im Raum, und
+    das sagt niemand, der auf "stornieren" drueckt.
+
+    War die Korrektur nie versendet, ist sie nur ein Zettel im Haus. Den
+    darf man wegraeumen, und weiter unten geschieht das auch: ohne neuen
+    Beleg, nur als storniert gekennzeichnet. Sonst liesse sich ein
+    Irrlaeufer wie EV-1026-0008 nie aus der Liste nehmen.
   */
-  if (Number(r.betragCent) < 0) {
+  if (Number(r.betragCent) < 0 && r.versendetAm) {
     throw new EntwurfFehler(
-      "Das ist eine Korrekturrechnung, die hebt schon eine andere auf. Sie lässt sich nicht "
-      + "noch einmal stornieren. Stimmt etwas nicht, schreib die Rechnung neu.",
+      "Das ist eine Korrekturrechnung, die beim Kunden liegt. Sie lässt sich nicht noch einmal "
+      + "stornieren, sonst stünde die alte Rechnung wieder im Raum. Stimmt etwas nicht, schreib "
+      + "die Rechnung neu.",
     );
   }
 
