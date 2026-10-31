@@ -416,6 +416,35 @@ export function TicketScanner() {
     <div className="space-y-4">
       {fehler && <p className="rounded-lg border border-blocker bg-blocker-hell px-4 py-3 text-sm">{fehler}</p>}
 
+      {/*
+        Die Schlemmerblock-Regel steht da, bevor der erste Gast kommt.
+
+        "beim einlass machst du auf der upgrade seite bitte einen
+        hinweis, dass tickets mit 'schlemmerblock' also 0 EUR nur gültig
+        sind mit dem original-abriss aus dem schlemmerblock. wer das
+        nicht vorweisen kann, bitte zur bar schicken, dass er das ticket
+        noch bezahlen kann" (Florian, 31.10.2026).
+
+        Beim Scan sagt es der Bildschirm ohnehin, Ticket für Ticket. Das
+        hilft aber erst, wenn der Gast schon davorsteht. Wer hier liest,
+        bevor die Tür aufgeht, muss nicht im Moment der Schlange
+        entscheiden.
+
+        Der Hinweis steht im Scanner selbst und nicht auf der
+        Upgrade-Seite: Dann steht er auf beiden Wegen dorthin, bei den
+        Upgrades und unter /ticketscan, und das an genau einer Stelle im
+        Programm.
+      */}
+      <div
+        className="rounded-lg border px-3 py-2 text-sm"
+        style={{ borderColor: "var(--warnung)", background: "var(--warnung-hell)" }}
+      >
+        <strong>Schlemmerblock: Abriss einsammeln.</strong> Ein Ticket über 0 Euro gilt nur mit
+        dem Original-Abriss aus dem Schlemmerblock, ein Abriss für ein Ticket. Wer keinen dabei
+        hat, geht zur Bar und löst das Ticket dort nach. Dann hier unten &bdquo;Entwerten
+        zurücknehmen&ldquo; tippen, sonst zählt es als eingelassen.
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block text-xs text-leise">Station</span>
