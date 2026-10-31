@@ -127,6 +127,38 @@ export function Vertragstext({
             </div>
           </div>
         </div>
+
+        {/*
+          Der Vermerk unter den Unterschriften.
+
+          "baue am besten in die beschreibung ein, dass dieser vertrag
+          gültig ist, zeitstempel usw. falls man ihn für eine behörde
+          braucht" (Florian, 31.10.2026).
+
+          Was hier steht, sind Tatsachen: wann unterschrieben wurde, von
+          wem, und dass der Wortlaut seitdem unveraendert gespeichert
+          ist. Bewusst steht hier NICHT "dieser Ausdruck ist
+          rechtsgueltig". Ob ein Vertrag gilt, entscheidet kein Satz, den
+          das Programm selbst darunterschreibt, sondern das Gesetz, und
+          bei einer Befristung verlangt § 14 Abs. 4 TzBfG die
+          Schriftform. Ein Satz, der mehr verspricht als er halten kann,
+          schadet vor einer Behoerde mehr, als er nuetzt.
+        */}
+        {unterschriebenAm && (
+          <div className="mt-8 border-t border-linie pt-3 text-xs leading-relaxed text-leise">
+            <strong>Vermerk zur Ausfertigung.</strong> Dieser Vertrag wurde am{" "}
+            {new Date(unterschriebenAm).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin",
+              dateStyle: "long",
+              timeStyle: "short",
+            })}{" "}
+            Uhr von {luecken.name} und der Florian Zimmer Theater GmbH elektronisch
+            unterzeichnet. Der Wortlaut wird seit diesem Zeitpunkt unverändert gespeichert; diese
+            Ausfertigung gibt ihn vollständig wieder. Jeder Abruf wird mit Datum und Uhrzeit
+            festgehalten. Rückfragen beantwortet das Büro unter info@florianzimmer.com oder
+            0731 7906110.
+          </div>
+        )}
       </section>
     </article>
   );
