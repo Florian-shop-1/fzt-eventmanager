@@ -258,6 +258,21 @@ const GRUPPEN: Array<{ titel: string; punkte: Punkt[] }> = [
     titel: "Mitarbeiter",
     punkte: [
       { href: "/personalbogen", label: "Personalbogen", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung", "nebenjob"] },
+      /*
+        Der eigene Arbeitsvertrag, dauerhaft erreichbar.
+
+        Es gab die Seite schon, aber den Weg dorthin nur solange der
+        Vertrag unterschrieben werden musste: Dann stand oben ein
+        Hinweisbalken. Sobald jemand unterschrieben hatte, verschwand
+        der Balken, und die Seite war nur noch zu erreichen, indem man
+        die Adresse abtippt. Wer seine Ausfertigung ein halbes Jahr
+        spaeter fuer die Bank oder das Amt braucht, findet sie so nicht
+        (gefunden am 31.10.2026).
+
+        Liegt kein Vertrag vor, sagt die Seite das in einem Satz. Das
+        ist besser als ein Menuepunkt, der mal da ist und mal nicht.
+      */
+      { href: "/vertrag", label: "Mein Arbeitsvertrag", rollen: ["chef", "team", "gastro", "foyer", "showteam", "kiosk", "buchhaltung", "nebenjob"] },
       { href: "/geheimhaltung", label: "Geheimhaltung", rollen: ["chef", "team", "gastro", "foyer", "showteam"] },
       // Hasenpost: nur Florian, siehe app/hasenpost/aktionen.ts.
       { href: "/hasenpost", label: "Hasenpost", rollen: ["chef"] },
