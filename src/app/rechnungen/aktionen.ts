@@ -515,10 +515,11 @@ export async function rechnungAendern(f: FormData): Promise<void> {
   let meldung = "";
   try {
     const e = await rechnungKorrigieren(id, b.name ?? "Büro");
-    ziel = `/rechnungen/${e.entwurfId}`;
-    meldung =
-      `Korrekturrechnung ${e.stornoNummer} ist gebucht, sie hebt die alte auf. ` +
-      "Hier ist der neue Entwurf: ändern und dann einbuchen.";
+    if (e.entwurfId) ziel = `/rechnungen/${e.entwurfId}`;
+    meldung = e.stornoNummer
+      ? `Korrekturrechnung ${e.stornoNummer} ist gebucht, sie hebt die alte auf. `
+        + "Hier ist der neue Entwurf: ändern und dann einbuchen."
+      : "Die Rechnung ist storniert. Ein Korrekturbeleg war nicht nötig, sie war nie beim Kunden.";
   } catch (fehler) {
     meldung = fehler instanceof Error ? fehler.message : "Das ging nicht.";
   }
@@ -541,7 +542,9 @@ export async function rechnungStornoBeleg(f: FormData): Promise<void> {
   let meldung = "";
   try {
     const e = await rechnungKorrigieren(id, b.name ?? "Büro", true);
-    meldung = `Storniert. Die Korrekturrechnung ${e.stornoNummer} hebt sie auf.`;
+    meldung = e.stornoNummer
+      ? `Storniert. Die Korrekturrechnung ${e.stornoNummer} hebt sie auf.`
+      : "Storniert. Ein Korrekturbeleg war nicht nötig, die Rechnung war nie beim Kunden.";
   } catch (fehler) {
     meldung = fehler instanceof Error ? fehler.message : "Das ging nicht.";
   }

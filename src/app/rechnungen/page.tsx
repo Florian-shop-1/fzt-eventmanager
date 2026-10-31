@@ -65,6 +65,22 @@ export default async function RechnungenSeite({
   const bezahlt = alle.filter((r) => r.status === "PAID");
   const nochOffen = offen.filter((r) => r.status !== "OVERDUE");
 
+  /*
+    Stornierte Rechnungen, die nie hinausgingen, stehen nicht in der
+    Liste.
+
+    "die rechnung 5 etc soll einfach aus dem system verschwinden"
+    (Florian, 31.10.2026). Loeschen geht nicht, die Nummer ist vergeben
+    und der Nummernkreis muss lueckenlos erklaerbar bleiben. Aus dem
+    Blick nehmen geht sehr wohl: Ein Beleg, der nie beim Kunden war und
+    storniert wurde, ist fuer die taegliche Arbeit nichts als Laerm.
+
+    Eine stornierte Rechnung, die versendet wurde, bleibt stehen. Der
+    Kunde hat sie, also muss man sie sehen koennen.
+  */
+  const stille = alle.filter((r) => r.status === "CANCELLED" && !r.versendetAm);
+  const sichtbar = nur === "storniert" ? stille : alle.filter((r) => !stille.includes(r));
+
   const liste =
     nur === "verzug"
       ? ueberfaellig
@@ -72,7 +88,7 @@ export default async function RechnungenSeite({
         ? offen
         : nur === "bezahlt"
           ? bezahlt
-          : alle;
+          : sichtbar;
 
   /*
     Wie alt ist der Blick aufs Konto?
@@ -245,12 +261,17 @@ export default async function RechnungenSeite({
       </details>
 
       <nav className="flex flex-wrap gap-1 text-sm">
-        {[
+        {([
           ["", "Alle"],
           ["verzug", "In Verzug"],
           ["offen", "Offen"],
           ["bezahlt", "Bezahlt"],
-        ].map(([wert, titel]) => (
+          /* Der Ablagekorb fuer stornierte Belege, die nie hinausgingen.
+             Steht da, damit sie auffindbar bleiben, aber nicht im Weg. */
+          ...(stille.length > 0
+            ? [["storniert", `Storniert (${stille.length})`] as [string, string]]
+            : []),
+        ] as Array<[string, string]>).map(([wert, titel]) => (
           <Link
             key={wert}
             href={wert ? `/rechnungen?nur=${wert}` : "/rechnungen"}

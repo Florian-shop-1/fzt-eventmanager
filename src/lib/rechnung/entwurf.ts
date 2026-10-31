@@ -201,7 +201,7 @@ export async function rechnungKorrigieren(
    * keine neue Rechnung mehr, die Leistung fällt ja weg.
    */
   nurStorno = false,
-): Promise<{ stornoNummer: string; entwurfId: string | null }> {
+): Promise<{ stornoNummer: string | null; entwurfId: string | null }> {
   const r = await rechnungLesen(id);
   if (!r) throw new EntwurfFehler("Diese Rechnung gibt es nicht.");
   if (r.status === "DRAFT") {
@@ -210,6 +210,28 @@ export async function rechnungKorrigieren(
   if (r.status === "CANCELLED") {
     throw new EntwurfFehler("Diese Rechnung ist bereits storniert.");
   }
+  /*
+    Eine Korrekturrechnung laesst sich nicht stornieren.
+
+    "wenn ich eine rechnung im eventmanager storniere, dann wird eine
+    neue rechnung kreeirt ... ich will die rechnung 5 stornieren.
+    drücke auf stornieren und es wird eine rechnung 7 erstellt und so
+    weiter" (Florian, 31.10.2026). Genau so ist es passiert: Aus dem
+    Storno von EV-1026-0004 entstand die Korrektur 0005, deren Storno
+    die 0007, deren Storno die 0008. Eine Kette ohne Ende.
+
+    Eine Korrektur hebt eine Rechnung auf. Sie selbst aufzuheben hiesse,
+    die alte Rechnung wieder gelten zu lassen, und das sagt niemand, der
+    auf "stornieren" drueckt. Wer sich vertan hat, schreibt die Rechnung
+    neu.
+  */
+  if (Number(r.betragCent) < 0) {
+    throw new EntwurfFehler(
+      "Das ist eine Korrekturrechnung, die hebt schon eine andere auf. Sie lässt sich nicht "
+      + "noch einmal stornieren. Stimmt etwas nicht, schreib die Rechnung neu.",
+    );
+  }
+
   if (r.status === "PAID" || r.status === "PARTIALLY_PAID") {
     /*
       Auf einer bezahlten Rechnung liegt Geld. Die Korrektur erzeugt
@@ -228,6 +250,38 @@ export async function rechnungKorrigieren(
   `) as Array<Record<string, unknown>>;
   const zeilen = (Array.isArray(alt?.positionen) ? alt.positionen : []) as Entwurfszeile[];
   if (zeilen.length === 0) throw new EntwurfFehler("Diese Rechnung hat keine Zeilen zum Umkehren.");
+
+  /*
+    Eine Rechnung, die nie hinausging, braucht keinen Korrekturbeleg.
+
+    "die rechnung 5 etc soll einfach aus dem system verschwinden"
+    (Florian, 31.10.2026). Ganz verschwinden kann sie nicht, die Nummer
+    ist vergeben und der Nummernkreis muss lueckenlos erklaerbar
+    bleiben. Aber ein Gegenbeleg ist Unsinn, wenn der Beleg selbst nie
+    beim Kunden war: Es gibt nichts aufzuheben, der Kunde hat nie etwas
+    gesehen. Sie wird also nur als storniert gekennzeichnet, mit Grund,
+    und verschwindet aus der taeglichen Liste.
+
+    War sie versendet, bleibt es beim Korrekturbeleg. Dann hat der Kunde
+    ein Dokument in der Hand, und dem muss ein zweites gegenueberstehen.
+  */
+  if (!r.versendetAm) {
+    await db()`
+      update rechnung
+         set status = 'CANCELLED', storniert_am = now(),
+             storniert_grund = ${"Storniert, war nie versendet"}, geaendert_am = now()
+       where id = ${id}
+    `;
+    await merken({
+      rechnungId: id,
+      art: "storniert",
+      text: "Storniert. Kein Korrekturbeleg, die Rechnung war nie beim Kunden.",
+      wer,
+    }).catch(() => undefined);
+    console.info(`[rechnung] ${r.nummer} storniert ohne Beleg (war nie versendet)`);
+    /* Kein Beleg, also auch keine Nummer, die man nennen koennte. */
+    return { stornoNummer: null, entwurfId: null };
+  }
 
   // 1. Die Korrekturrechnung: dieselben Zeilen, Vorzeichen umgedreht.
   const stornoNummer = await naechsteRechnungsnummer();

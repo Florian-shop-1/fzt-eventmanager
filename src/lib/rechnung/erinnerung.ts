@@ -41,7 +41,11 @@ export function erinnerungsText(r: Rechnung, nummer: number): { betreff: string;
     Steht hinter dem Namen eine Rechtsform, gruessen wir ohne Namen.
   */
   const firma = /\b(gmbh|ug|ag|kg|ohg|e\. ?v\.?|mbh|gbr|ltd|inc|co\.)\b/i.test(r.kunde);
-  const anrede = r.kunde && !firma ? `Hallo ${r.kunde.split(" ")[0]},` : "Hallo,";
+  /*
+    Gesiezt, wie alles Geschaeftliche (Florian, 31.10.2026). Eine
+    Mahnung mit "Hallo Marc" nimmt sich selbst die Kraft.
+  */
+  const anrede = r.kunde && !firma ? `Guten Tag ${r.kunde},` : "Guten Tag,";
   const offen = euro(r.offenCent);
 
   const mitte =
@@ -55,12 +59,12 @@ export function erinnerungsText(r: Rechnung, nummer: number): { betreff: string;
         ? [
             `wir möchten noch einmal freundlich an unsere Rechnung ${r.nummer} vom ${datum(r.rechnungsdatum)} erinnern. Sie war am ${datum(r.faelligAm)} fällig, offen sind ${offen} Euro.`,
             "",
-            "Falls die Rechnung nicht angekommen ist oder etwas nicht stimmt, sagt uns bitte kurz Bescheid, dann klären wir das gleich.",
+            "Falls die Rechnung nicht angekommen ist oder etwas nicht stimmt, sagen Sie uns bitte kurz Bescheid, dann klären wir das gleich.",
           ]
         : [
             `unsere Rechnung ${r.nummer} vom ${datum(r.rechnungsdatum)} ist weiterhin offen, inzwischen seit ${r.tageUeberfaellig} Tagen. Offen sind ${offen} Euro.`,
             "",
-            "Bitte überweist den Betrag in den nächsten Tagen oder meldet euch bei uns, damit wir gemeinsam eine Lösung finden.",
+            "Bitte überweisen Sie den Betrag in den nächsten Tagen oder melden Sie sich bei uns, damit wir gemeinsam eine Lösung finden.",
           ];
 
   return {
@@ -70,7 +74,7 @@ export function erinnerungsText(r: Rechnung, nummer: number): { betreff: string;
       "",
       ...mitte,
       "",
-      "Hat sich das mit eurer Überweisung überschnitten? Dann ist dieses Schreiben hinfällig, und wir danken euch.",
+      "Hat sich das mit Ihrer Überweisung überschnitten? Dann ist dieses Schreiben hinfällig, und wir danken Ihnen.",
       "",
       "Herzliche Grüße",
       "Florian Zimmer Theater",

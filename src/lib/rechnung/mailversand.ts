@@ -51,7 +51,14 @@ export async function rechnungsMailtext(o: {
   const betrag = (o.betragCent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 });
   const faellig = o.faelligAm.split("-").reverse().join(".");
   const ziel = o.zahlungszielTage ?? ZAHLUNGSZIEL_TAGE;
-  const anrede = o.ansprechpartner ? `Hallo ${o.ansprechpartner},` : "Hallo,";
+  /*
+    Die Anrede gesiezt (Florian, 31.10.2026).
+
+    "Hallo Herr Friedrich" geht, "Hallo Marc" nicht: Im Feld steht mal
+    der volle Name, mal nur der Vorname. Deshalb "Guten Tag", das passt
+    zu beidem und klingt in keiner Fassung zu vertraulich.
+  */
+  const anrede = o.ansprechpartner ? `Guten Tag ${o.ansprechpartner},` : "Guten Tag,";
   const unterschrift = [o.absender, "Florian Zimmer Theater"].filter(Boolean) as string[];
 
   if (o.quelle === "hand") {
@@ -63,20 +70,29 @@ export async function rechnungsMailtext(o: {
       angegeben" (Florian, 01.10.2026). Steht eine Leistung in der
       Rechnung, steht sie auch im Betreff.
     */
+    /*
+      Gesiezt, wie alles Geschaeftliche.
+
+      "Bitte den Text Anschreiben von rechnungsversand auch auf 'Sie'
+      korrigieren" und "die Mail die begleitend kommt mit der RG soll
+      ebenfalls mit Sie sein" (Florian, 31.10.2026). Dieselbe Regel wie
+      beim Angebot vom 28.10.2026: Im Haus und im Shop wird geduzt, was
+      an eine Firma geht, nicht.
+    */
     return {
       betreff: o.leistung
-        ? `Eure Rechnung ${o.nummer} für ${o.leistung}`
-        : `Eure Rechnung ${o.nummer} vom Florian Zimmer Theater`,
+        ? `Ihre Rechnung ${o.nummer} für ${o.leistung}`
+        : `Ihre Rechnung ${o.nummer} vom Florian Zimmer Theater`,
       text: [
         anrede,
         "",
         o.leistung
-          ? `vielen Dank für die gute Zusammenarbeit. Im Anhang findet ihr unsere Rechnung ${o.nummer} für ${o.leistung}.`
-          : `vielen Dank für die gute Zusammenarbeit. Im Anhang findet ihr unsere Rechnung ${o.nummer}.`,
+          ? `vielen Dank für die gute Zusammenarbeit. Im Anhang finden Sie unsere Rechnung ${o.nummer} für ${o.leistung}.`
+          : `vielen Dank für die gute Zusammenarbeit. Im Anhang finden Sie unsere Rechnung ${o.nummer}.`,
         "",
-        `Bitte überweist die ${betrag} Euro bis zum ${faellig}.`,
+        `Bitte überweisen Sie die ${betrag} Euro bis zum ${faellig}.`,
         "",
-        "Wenn etwas unklar ist oder nicht stimmt, meldet euch einfach, wir klären das gern.",
+        "Wenn etwas unklar ist oder nicht stimmt, melden Sie sich einfach, wir klären das gern.",
         "",
         "Herzliche Grüße",
         ...unterschrift,
@@ -85,20 +101,20 @@ export async function rechnungsMailtext(o: {
   }
 
   return {
-    betreff: `Eure Rechnung ${o.nummer} für den Abend im Florian Zimmer Theater`,
+    betreff: `Ihre Rechnung ${o.nummer} für den Abend im Florian Zimmer Theater`,
     text: [
       anrede,
       "",
-      "schön, dass wir uns einig sind. Im Anhang findet ihr die Rechnung.",
+      "schön, dass wir uns einig sind. Im Anhang finden Sie die Rechnung.",
       "",
       o.datum && o.show
-        ? `Euer Termin am ${o.datum.split("-").reverse().join(".")} für ${o.show} ist reserviert.`
-        : "Euer Termin ist reserviert.",
-      `Bitte überweist die ${betrag} Euro innerhalb von ${ziel} Tagen, also bis zum ${faellig}.`,
-      "Sobald das Geld bei uns ist, ist eure Veranstaltung fest gebucht, und ihr bekommt von uns",
+        ? `Ihr Termin am ${o.datum.split("-").reverse().join(".")} für ${o.show} ist reserviert.`
+        : "Ihr Termin ist reserviert.",
+      `Bitte überweisen Sie die ${betrag} Euro innerhalb von ${ziel} Tagen, also bis zum ${faellig}.`,
+      "Sobald das Geld bei uns ist, ist Ihre Veranstaltung fest gebucht, und Sie bekommen von uns",
       "noch einmal eine Bestätigung.",
       "",
-      "Bei Fragen sind wir gerne für euch da.",
+      "Bei Fragen sind wir gerne für Sie da.",
       "",
       "Herzliche Grüße",
       ...unterschrift,
