@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { abendpreise, istSondershow } from "@/lib/ditix/preise";
-import { showtageAbHeute } from "@/lib/ditix/spielplan";
+import { abendpreise } from "@/lib/ditix/preise";
+import { preisquelleFuerWochentag } from "@/lib/angebot/preisquelle";
 
 /**
  * Die Ticketpreise des gewählten Abends, für den Baukasten.
@@ -35,22 +35,23 @@ export async function GET(request: Request) {
 
   try {
     let ziel = eventId;
-    let herkunft: { datum: string; show: string } | null = null;
+    let herkunft: { datum: string; show: string; weitWeg?: boolean } | null = null;
 
     if (!ziel && Number.isInteger(wochentag)) {
-      const passend = (await showtageAbHeute(400)).find((t) => {
-        if (new Date(`${t.datum}T12:00:00Z`).getUTCDay() !== wochentag) return false;
-        // Dieselbe Regel wie beim Erstellen, siehe angebot/speichern.ts.
-        if (istSondershow(t.name)) return false;
-        return nachmittag ? t.uhrzeit < "17:00" : t.uhrzeit >= "17:00";
-      });
-      if (passend) {
-        ziel = passend.ditixEventId;
-        herkunft = { datum: passend.datum, show: passend.name };
+      // Dieselbe Regel wie beim Erstellen, siehe lib/angebot/preisquelle.ts.
+      const quelle = await preisquelleFuerWochentag(wochentag, nachmittag);
+      if (quelle) {
+        ziel = quelle.ditixEventId;
+        herkunft = { datum: quelle.datum, show: quelle.show, weitWeg: quelle.weitWeg };
       }
     }
 
-    if (!ziel) return NextResponse.json({ preise: {}, herkunft: null });
+    /*
+      Nichts gefunden heisst: Listenpreise. Das steht jetzt in der
+      Antwort, damit die Oberflaeche es hinschreiben kann statt still
+      die Preise aus dem Artikelstamm zu zeigen (Florian, 02.11.2026).
+    */
+    if (!ziel) return NextResponse.json({ preise: {}, herkunft: null, keineVorstellung: true });
 
     const { cent } = await abendpreise(ziel);
     return NextResponse.json({

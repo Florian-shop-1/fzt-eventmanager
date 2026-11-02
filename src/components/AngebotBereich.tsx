@@ -315,7 +315,13 @@ export function AngebotBereich({
   */
   const [abendpreise, setAbendpreise] = useState<Record<string, number>>({});
   /* Von welcher Vorstellung die Preise stammen, fuer die Kontrollzeile. */
-  const [preisherkunft, setPreisherkunft] = useState<{ datum: string; show: string } | null>(null);
+  const [preisherkunft, setPreisherkunft] = useState<{
+    datum: string;
+    show: string;
+    weitWeg?: boolean;
+  } | null>(null);
+  /* Fuer diesen Wochentag steht keine passende Vorstellung im Spielplan. */
+  const [keineVorstellung, setKeineVorstellung] = useState(false);
   /* Eigene Preise je Ticketkategorie, als getippter Text. */
   const [eigenePreise, setEigenePreise] = useState<Record<string, string>>({});
   /*
@@ -438,11 +444,18 @@ export function AngebotBereich({
     let abgebrochen = false;
     fetch(`/api/angebotspreise?${frage.toString()}`, { cache: "no-store" })
       .then((a) => a.json())
-      .then((d: { preise?: Record<string, number>; herkunft?: { datum: string; show: string } | null }) => {
-        if (abgebrochen) return;
-        setAbendpreise(d.preise ?? {});
-        setPreisherkunft(d.herkunft ?? null);
-      })
+      .then(
+        (d: {
+          preise?: Record<string, number>;
+          herkunft?: { datum: string; show: string; weitWeg?: boolean } | null;
+          keineVorstellung?: boolean;
+        }) => {
+          if (abgebrochen) return;
+          setAbendpreise(d.preise ?? {});
+          setPreisherkunft(d.herkunft ?? null);
+          setKeineVorstellung(Boolean(d.keineVorstellung));
+        },
+      )
       .catch(() => undefined);
     return () => {
       abgebrochen = true;
@@ -676,9 +689,40 @@ export function AngebotBereich({
                 es geworden ist.
               */}
               {preisherkunft && (
-                <span className="mt-1 block text-leise">
+                <span
+                  className="mt-1 block"
+                  style={{ color: preisherkunft.weitWeg ? "var(--warnung)" : "var(--text-leise)" }}
+                >
                   Preise vom {preisherkunft.datum.split("-").reverse().join(".")},{" "}
                   {preisherkunft.show}
+                  {/*
+                    Der naechste regulaere Donnerstag kann weit weg sein.
+
+                    "wenn man z.b. donnerstag als wunschtag eingibt ohne
+                    konkretes datum, dann zieht es sich trotzdem die
+                    preise von freitag" (Florian, 02.11.2026). Die
+                    Preise kamen nicht vom Freitag, aber von einer Show
+                    im Maerz 2027: Die naechsten Donnerstage sind alle
+                    ULMFASSBAR Special und fallen als Sondershow heraus.
+                    Wer das nicht sieht, verschickt einen Preis, den er
+                    nie gewaehlt haette.
+                  */}
+                  {preisherkunft.weitWeg && (
+                    <strong>
+                      {" "}
+                      – das ist der nächste reguläre Termin an diesem Wochentag und liegt weit
+                      voraus. Bitte die Preise prüfen und gegebenenfalls selbst eintragen.
+                    </strong>
+                  )}
+                </span>
+              )}
+              {keineVorstellung && (
+                <span className="mt-1 block" style={{ color: "var(--warnung)" }}>
+                  <strong>
+                    Für diesen Wochentag steht keine reguläre Vorstellung im Spielplan.
+                  </strong>{" "}
+                  Es gelten die Listenpreise. Trag die Preise bitte selbst ein, wenn sie an
+                  diesem Tag anders sind.
                 </span>
               )}
             </p>
