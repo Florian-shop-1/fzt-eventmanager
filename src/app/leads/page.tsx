@@ -380,8 +380,29 @@ function Karte({ lead, stand }: { lead: Lead; stand: LeadStand | undefined }) {
         >
           <label className="block">
             <span className="mb-1 block text-xs text-leise">Stand</span>
+            {/*
+              Die Liste steht immer in derselben Reihenfolge.
+
+              "wenn ich einen anderen stand auswähle, sichern klicke,
+              speichert es das nicht und geht wieder zurück auf das
+              ursprüngliche" (Florian, 02.11.2026).
+
+              Gespeichert wurde sehr wohl, nachgeprüft in der Datenbank.
+              Zurück sprang die Anzeige: Der aktuelle Stand stand bisher
+              ganz oben in der Liste, vor allen anderen. Nach dem
+              Sichern ist es ein anderer Stand, also eine andere
+              Reihenfolge, und der Browser setzt beim Umsortieren der
+              Einträge die Auswahl zurück. Für den, der davorsitzt,
+              sieht das aus wie "nicht gespeichert".
+
+              Jetzt stehen die Stände immer gleich. Nur ein Wert, den
+              wir nicht kennen, weil er aus der alten Tabelle stammt,
+              hängt hinten an.
+            */}
             <select name="status" defaultValue={lead.status}>
-              {[...new Set([lead.status, ...LEAD_STATUS])].filter(Boolean).map((s) => (
+              {[...LEAD_STATUS, ...(lead.status && !LEAD_STATUS.includes(lead.status as never)
+                ? [lead.status]
+                : [])].map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
