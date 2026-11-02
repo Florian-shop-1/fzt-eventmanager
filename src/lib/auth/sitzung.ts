@@ -361,7 +361,10 @@ export function darfBenutzerVerwalten(rolle: Rolle): boolean {
  */
 const GETEILTE_SEITEN: Record<string, string[]> = {
   // Foyer: Parkplatzschilder drucken, Geschenke nachsehen, Karten scannen.
-  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check", "/versand", "/zauberstab"],
+  // Postkarten seit dem 02.11.2026: Sie werden im Foyer eingesammelt,
+  // also auch dort fotografiert. Freigeben kann der geteilte Zugang
+  // nicht, das bleibt im Buero.
+  foyer: ["/parkplaetze", "/geschenke", "/scanner", "/tipps", "/foyer/check", "/versand", "/zauberstab", "/postkarten"],
   // Show: der Abend im Saal.
   showteam: ["/upgrades", "/hoerezu", "/tipps", "/showcheck"],
   // Die Putzfirma: stempeln, mehr nicht.
@@ -530,6 +533,20 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
       // Sarah macht seit 21.09.2026 auch im Showteam mit und braucht
       // deshalb die Upgrades wie die anderen am Abend.
       pfad.startsWith("/upgrades") ||
+      /*
+        Postkarten scannen gehoert ins Foyer.
+
+        "im eventmanager hat wohl das Foyer keinen Zugriff auf
+        'postkarten scannen'" (Florian, 02.11.2026). Stimmt, und zwar
+        derselbe Fehler wie am 05.10. beim Show-Check: Der Menuepunkt
+        war fuer das Foyer freigegeben, der Pfad hier nicht. Wer darauf
+        tippte, landete auf der Startseite.
+
+        Gescannt wird im Foyer, dort liegen die Karten. Entschieden
+        wird weiter nur im Buero: Die Knoepfe zum Freigeben und
+        Verwerfen haengen an darfKaufmaennisches und bleiben weg.
+      */
+      pfad.startsWith("/postkarten") ||
       // Anleitungen fuer Kaffeemaschine, Kasse und Popcorn.
       pfad.startsWith("/tipps") ||
       pfad.startsWith("/shortcuts") ||
