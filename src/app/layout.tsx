@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { vertragVon } from "@/lib/db/arbeitsvertrag";
-import { GRUPPEN, type Punkt } from "@/lib/auth/menue";
+import { GRUPPEN } from "@/lib/auth/menue";
 import { hasensatz } from "@/lib/personal/hasensatz";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfUeberallStempeln, darfZeitenAendern, darfVertraege, startseiteFuer, type Rolle } from "@/lib/auth/sitzung";
+import { angemeldeterBenutzer, darfBuchhaltung, darfEinladen, darfSeite, darfStempeln, darfUeberallStempeln, darfZeitenAendern, darfVertraege, startseiteFuer } from "@/lib/auth/sitzung";
 import { anmeldenMitZiel } from "@/lib/auth/weiter";
 import { ScanErinnerung } from "@/components/ScanErinnerung";
 import { ChecklistenErinnerung } from "@/components/ChecklistenErinnerung";

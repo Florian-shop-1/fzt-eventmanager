@@ -109,6 +109,19 @@ export function PostkartenScanner() {
   const [fertig, setFertig] = useState(0);
   const [liste, setListe] = useState<Ergebnis[]>([]);
   const [blitz, setBlitz] = useState(false);
+  /*
+    Die Rueckmeldung nach einer gelesenen Karte.
+
+    "wenn gescannt wurde, es geklappt hat, muss ein feedback kommen.
+    z.b. daumen hoch oder was auch immer.. dann scannt man nicht
+    zweimal die selbe karte" (Florian, 02.11.2026).
+
+    Die Liste darunter waechst zwar, aber wer die Karte unter die
+    Kamera haelt, schaut auf die Kamera und nicht auf eine Zeile Text.
+    Deshalb gross, mitten ins Bild, und nach ein paar Sekunden wieder
+    weg.
+  */
+  const [quittung, setQuittung] = useState<Ergebnis | null>(null);
   const [bereit, setBereit] = useState(false);
 
   const video = useRef<HTMLVideoElement | null>(null);
@@ -167,12 +180,16 @@ export function PostkartenScanner() {
             };
           }
           setListe((l) => [e, ...l]);
+          setQuittung(e);
           if (e.ok) setFertig((n) => n + 1);
         } catch (f) {
-          setListe((l) => [
-            { id, ok: false, text: f instanceof Error ? f.message : "Fehler beim Hochladen" },
-            ...l,
-          ]);
+          const schiefgegangen: Ergebnis = {
+            id,
+            ok: false,
+            text: f instanceof Error ? f.message : "Fehler beim Hochladen",
+          };
+          setListe((l) => [schiefgegangen, ...l]);
+          setQuittung(schiefgegangen);
         } finally {
           setOffen((n) => n - 1);
         }
@@ -279,6 +296,19 @@ export function PostkartenScanner() {
     return () => window.clearInterval(uhr);
   }, [kameraAn, automatisch, bereit, ausloesen]);
 
+  /*
+    Die Quittung bleibt ein paar Sekunden stehen.
+
+    Lang genug, um sie im Vorbeigehen zu sehen, kurz genug, um die
+    naechste Karte nicht zu verdecken. Bei einem Fehler laenger: Den
+    soll man wirklich lesen.
+  */
+  useEffect(() => {
+    if (!quittung) return;
+    const t = window.setTimeout(() => setQuittung(null), quittung.ok ? 2200 : 5000);
+    return () => window.clearTimeout(t);
+  }, [quittung]);
+
   /* Die Liste unten zeigt neue Karten erst nach dem Nachladen. */
   useEffect(() => {
     if (fertig === 0 || offen > 0) return;
@@ -313,6 +343,56 @@ export function PostkartenScanner() {
             />
             {blitz && <div className="absolute inset-0 bg-white/70" />}
             <div className="pointer-events-none absolute inset-4 rounded-md border-2 border-white/40" />
+
+            {/*
+              Der Haken ueber dem Bild, gross genug fuers Foyer.
+
+              "wenn gescannt wurde, es geklappt hat, muss ein feedback
+              kommen. z.b. daumen hoch oder was auch immer.. dann scannt
+              man nicht zweimal die selbe karte" (Florian, 02.11.2026).
+
+              Gezeichnet, nicht als Zeichen aus der Schrift: Ein Haken,
+              der sich selbst malt, sieht man auch aus zwei Metern und
+              mit dem Telefon in der Hand.
+            */}
+            {quittung && (
+              <div
+                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
+                style={{ background: quittung.ok ? "rgba(21,128,61,.82)" : "rgba(153,27,27,.82)" }}
+              >
+                <svg width="104" height="104" viewBox="0 0 48 48" aria-hidden="true">
+                  <circle cx="24" cy="24" r="21" fill="none" stroke="#fff" strokeWidth="2.5" opacity="0.65" />
+                  {quittung.ok ? (
+                    <path
+                      d="M14 24.5 L21 31.5 L34.5 17"
+                      fill="none"
+                      stroke="#fff"
+                      strokeWidth="4.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ strokeDasharray: 40, strokeDashoffset: 40, animation: "fzt-haken .35s ease-out forwards" }}
+                    />
+                  ) : (
+                    <g stroke="#fff" strokeWidth="4.5" strokeLinecap="round">
+                      <path d="M16 16 L32 32" />
+                      <path d="M32 16 L16 32" />
+                    </g>
+                  )}
+                </svg>
+                <div className="px-6 text-white">
+                  <p className="text-2xl font-semibold">
+                    {quittung.ok ? "Karte gelesen" : "Nicht gelesen"}
+                  </p>
+                  <p className="mt-1 text-sm opacity-90">{quittung.text}</p>
+                  <p className="mt-2 text-sm font-medium">
+                    {quittung.ok
+                      ? "Die nächste Karte kann darüber."
+                      : "Bitte noch einmal fotografieren."}
+                  </p>
+                </div>
+                <style>{"@keyframes fzt-haken{to{stroke-dashoffset:0}}"}</style>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
