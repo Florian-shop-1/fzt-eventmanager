@@ -31,10 +31,6 @@ import { useRouter } from "next/navigation";
 
 const BREITE = 1600;
 
-/* Das kleine Bild, an dem Ruhe und Wechsel gemessen werden. */
-const PRUEFBREITE = 64;
-const PRUEFHOEHE = 48;
-
 /**
  * Das Seitenverhaeltnis einer Postkarte, hochkant.
  *
@@ -51,31 +47,14 @@ const PRUEFHOEHE = 48;
  */
 const POSTKARTE = 105 / 148;
 
-/** Wie oft nachgesehen wird, ob das Bild steht. */
-const TAKT = 300;
-
-/**
- * Ab wann das Bild als ruhig gilt, im mittleren Helligkeitsunterschied
- * zum vorigen Blick. Eine Hand, die noch über der Karte liegt, kommt
- * deutlich darüber.
- */
-const RUHE = 3.5;
-
-/**
- * Ab wann eine neue Karte darunter liegt. Dieselbe Karte, nur etwas
- * verrutscht, bleibt darunter und wird nicht zweimal aufgenommen.
- */
-const WECHSEL = 11;
-
-/** Wie lange nach einer Aufnahme nichts Neues ausgelöst wird. */
-const PAUSE_MS = 1200;
-
 interface Ergebnis {
   id: number;
   ok: boolean;
   text: string;
   bewertung?: number;
   zitat?: string;
+  /** Die Kennung der abgelegten Karte, fuer "Nochmal aufnehmen". */
+  kartenId?: string;
 }
 
 async function verkleinern(datei: Blob): Promise<Blob> {
@@ -109,16 +88,6 @@ function sichtbarerStreifen(v: HTMLVideoElement): { x: number; y: number; b: num
   return { x: (v.videoWidth - b) / 2, y: (v.videoHeight - h) / 2, b, h };
 }
 
-/** Mittlerer Helligkeitsunterschied zweier Prüfbilder, 0 bis 255. */
-function unterschied(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
-  let summe = 0;
-  for (let i = 0; i < a.length; i += 4) {
-    const hellA = (a[i] + a[i + 1] + a[i + 2]) / 3;
-    const hellB = (b[i] + b[i + 1] + b[i + 2]) / 3;
-    summe += Math.abs(hellA - hellB);
-  }
-  return summe / (a.length / 4);
-}
 
 /*
   Keine Frage nach der Einwilligung beim Scannen.
@@ -133,7 +102,6 @@ export function PostkartenScanner() {
   const router = useRouter();
 
   const [kameraAn, setKameraAn] = useState(false);
-  const [automatisch, setAutomatisch] = useState(true);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [offen, setOffen] = useState(0);
   const [fertig, setFertig] = useState(0);
@@ -153,6 +121,24 @@ export function PostkartenScanner() {
   */
   const [quittung, setQuittung] = useState<Ergebnis | null>(null);
   /*
+    Die zuletzt gespeicherte Karte, zum Verwerfen.
+
+    "es braucht auch einen zurück (bzw. nochmal) button, wenn man mit
+    der aufnahme nicht zufrieden ist! bitte einblenden nach dem scan"
+    (Florian, 02.11.2026).
+
+    Seit die Karten nachts gelesen werden, sieht beim Scannen niemand
+    mehr, ob das Foto etwas taugt. Verwackelt, Schatten quer ueber der
+    Schrift, Finger im Bild: Das faellt sonst erst am naechsten Morgen
+    auf, und dann liegt die Karte nicht mehr auf dem Tisch.
+
+    Der Knopf bleibt stehen, bis die naechste Karte aufgenommen ist.
+    Die Quittung im Bild ist nach zwei Sekunden weg, und so lange
+    bekommt niemand eine Entscheidung hin.
+  */
+  const [letzte, setLetzte] = useState<string | null>(null);
+  const [verwirft, setVerwirft] = useState(false);
+  /*
     Wie oft hintereinander es schiefging.
 
     Am 02.11.2026 stand im Foyer fuenfmal untereinander derselbe
@@ -162,15 +148,10 @@ export function PostkartenScanner() {
     allein behebt, wird durch Wiederholen nur teurer.
   */
   const [pannen, setPannen] = useState(0);
-  const [bereit, setBereit] = useState(false);
 
   const video = useRef<HTMLVideoElement | null>(null);
   const feld = useRef<HTMLInputElement | null>(null);
   const strom = useRef<MediaStream | null>(null);
-  const pruefbild = useRef<HTMLCanvasElement | null>(null);
-  const vorher = useRef<Uint8ClampedArray | null>(null);
-  const zuletztAufgenommen = useRef<Uint8ClampedArray | null>(null);
-  const gesperrtBis = useRef(0);
   /* Die Hochladungen laufen nacheinander, damit das Lesen am Server
      nicht fuenf Karten gleichzeitig bekommt. */
   const schlange = useRef<Promise<void>>(Promise.resolve());
@@ -194,9 +175,9 @@ export function PostkartenScanner() {
             gelesen?: boolean;
             dublette?: boolean;
             wartet?: boolean;
+            karte?: { id?: string };
             fehler?: string;
             hinweis?: string;
-            karte?: { bewertung: number; zitat: string; stimmung: string; personenbezug: number };
           };
 
           let e: Ergebnis;
@@ -212,23 +193,19 @@ export function PostkartenScanner() {
               deshalb kein Zitat mehr, sondern nur, dass die Karte
               sicher liegt.
             */
-            e = { id, ok: true, text: "Gespeichert. Gelesen wird sie heute Nacht." };
-          } else {
-            const k = d.karte!;
             e = {
               id,
               ok: true,
-              bewertung: k.bewertung,
-              zitat: k.zitat,
-              text:
-                `${k.bewertung}/10, ${k.stimmung}`
-                + (k.personenbezug > 0
-                  ? `, ${k.personenbezug} Stelle${k.personenbezug === 1 ? "" : "n"} mit Persönlichem`
-                  : ", nichts Persönliches gefunden"),
+              text: "Gespeichert. Gelesen wird sie heute Nacht.",
+              kartenId: d.karte?.id,
             };
+          } else {
+            /* Seit der Nachtlesung sollte dieser Fall nicht mehr vorkommen. */
+            e = { id, ok: true, text: "Gespeichert.", kartenId: d.karte?.id };
           }
           setListe((l) => [e, ...l]);
           setQuittung(e);
+          if (e.kartenId) setLetzte(e.kartenId);
           if (e.ok) {
             setFertig((n) => n + 1);
             setPannen(0);
@@ -237,7 +214,6 @@ export function PostkartenScanner() {
               /* Nach drei Fehlschlaegen in Folge loest nichts mehr von
                  selbst aus: Ein Fehler, der sich nicht von allein
                  behebt, wird durch Wiederholen nur teurer. */
-              if (n + 1 >= 3) setAutomatisch(false);
               return n + 1;
             });
           }
@@ -250,7 +226,6 @@ export function PostkartenScanner() {
           setListe((l) => [schiefgegangen, ...l]);
           setQuittung(schiefgegangen);
           setPannen((n) => {
-            if (n + 1 >= 3) setAutomatisch(false);
             return n + 1;
           });
         } finally {
@@ -280,8 +255,6 @@ export function PostkartenScanner() {
     const stift = leinwand.getContext("2d");
     if (!stift) return;
     stift.drawImage(v, a.x, a.y, a.b, a.h, 0, 0, leinwand.width, leinwand.height);
-    gesperrtBis.current = Date.now() + PAUSE_MS;
-    zuletztAufgenommen.current = vorher.current;
     setBlitz(true);
     window.setTimeout(() => setBlitz(false), 180);
     leinwand.toBlob((b) => b && hochladen(b), "image/jpeg", 0.92);
@@ -307,7 +280,6 @@ export function PostkartenScanner() {
           video.current.srcObject = s;
           await video.current.play().catch(() => undefined);
         }
-        setBereit(true);
       } catch {
         setMeldung(
           "Die Kamera lässt sich nicht öffnen. Erlaube den Zugriff im Browser, oder nimm den "
@@ -319,72 +291,11 @@ export function PostkartenScanner() {
 
     return () => {
       abgebrochen = true;
-      setBereit(false);
       strom.current?.getTracks().forEach((t) => t.stop());
       strom.current = null;
-      vorher.current = null;
-      zuletztAufgenommen.current = null;
     };
   }, [kameraAn]);
 
-  /*
-    Die automatische Auslösung.
-
-    Zwei Bedingungen, beide müssen stimmen: Das Bild steht still (die
-    Hand ist weg), und es zeigt etwas anderes als bei der letzten
-    Aufnahme (es liegt wirklich eine neue Karte da). Ohne die zweite
-    Bedingung würde dieselbe Karte im Sekundentakt aufgenommen.
-  */
-  useEffect(() => {
-    if (!kameraAn || !automatisch || !bereit) return;
-    const uhr = window.setInterval(() => {
-      const v = video.current;
-      if (!v || v.videoWidth === 0) return;
-      let p = pruefbild.current;
-      if (!p) {
-        p = document.createElement("canvas");
-        p.width = PRUEFBREITE;
-        p.height = PRUEFHOEHE;
-        pruefbild.current = p;
-      }
-      const stift = p.getContext("2d", { willReadFrequently: true });
-      if (!stift) return;
-      /*
-        Geprueft wird derselbe Streifen, der zu sehen ist.
-
-        Sonst loest eine Hand am Bildrand aus, die der Mitarbeiter gar
-        nicht im Bild hat, und er versteht nicht, warum es geblitzt hat
-        (Florian, 02.11.2026, zum Postkartenformat).
-      */
-      const ausschnitt = sichtbarerStreifen(v);
-      stift.drawImage(
-        v,
-        ausschnitt.x,
-        ausschnitt.y,
-        ausschnitt.b,
-        ausschnitt.h,
-        0,
-        0,
-        PRUEFBREITE,
-        PRUEFHOEHE,
-      );
-      const jetzt = stift.getImageData(0, 0, PRUEFBREITE, PRUEFHOEHE).data;
-
-      const letztes = vorher.current;
-      vorher.current = jetzt;
-      if (!letztes) return;
-      if (Date.now() < gesperrtBis.current) return;
-
-      const bewegung = unterschied(jetzt, letztes);
-      if (bewegung > RUHE) return;
-
-      const alt = zuletztAufgenommen.current;
-      if (alt && unterschied(jetzt, alt) < WECHSEL) return;
-
-      ausloesen();
-    }, TAKT);
-    return () => window.clearInterval(uhr);
-  }, [kameraAn, automatisch, bereit, ausloesen]);
 
   /*
     Die Quittung bleibt ein paar Sekunden stehen.
@@ -531,14 +442,49 @@ export function PostkartenScanner() {
             >
               Jetzt aufnehmen
             </button>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={automatisch}
-                onChange={(e) => setAutomatisch(e.target.checked)}
-              />
-              von selbst auslösen
-            </label>
+            {/*
+              Nicht zufrieden? Die letzte Aufnahme wieder weg.
+
+              "es braucht auch einen zurück (bzw. nochmal) button, wenn
+              man mit der aufnahme nicht zufrieden ist! bitte einblenden
+              nach dem scan" (Florian, 02.11.2026).
+            */}
+            {letzte && (
+              <button
+                type="button"
+                disabled={verwirft}
+                onClick={() => {
+                  const id = letzte;
+                  setVerwirft(true);
+                  void fetch("/postkarten/nochmal", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ id }),
+                  })
+                    .then(async (a) => {
+                      const d = (await a.json().catch(() => ({}))) as { ok?: boolean; fehler?: string };
+                      if (!a.ok || !d.ok) throw new Error(d.fehler ?? "Das ging nicht.");
+                      setLetzte(null);
+                      setListe((l) => l.filter((x) => x.kartenId !== id));
+                      setFertig((n) => Math.max(0, n - 1));
+                      setQuittung({
+                        id: Date.now(),
+                        ok: true,
+                        text: "Aufnahme verworfen. Bitte noch einmal fotografieren.",
+                      });
+                    })
+                    .catch((f: unknown) =>
+                      setMeldung(f instanceof Error ? f.message : "Das ging nicht."),
+                    )
+                    .finally(() => setVerwirft(false));
+                }}
+                className="rounded-md border px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+                style={{ borderColor: "var(--blocker)", color: "var(--blocker)" }}
+              >
+                {verwirft ? "wird verworfen..." : "Letzte Aufnahme verwerfen"}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setKameraAn(false)}
@@ -564,12 +510,24 @@ export function PostkartenScanner() {
             </p>
           )}
 
+          {/*
+            Nur noch auf Knopfdruck.
+
+            "diese automatisch scannen funktion ist nicht gut - schau
+            mal rein, es sind einige scans die schrott sind - diese
+            bitte raus wo in die luft gescant wurde. bitte nur noch auf
+            knopfdruck scannen" (Florian, 02.11.2026).
+
+            Die Automatik loeste aus, sobald das Bild stillstand und
+            anders aussah als bei der letzten Aufnahme. Beides stimmte
+            auch dann, wenn gerade gar keine Karte dalag: Der leere
+            Tisch steht still und sieht anders aus als die Karte davor.
+            So entstanden Aufnahmen von nichts, und die kosten in der
+            Nachtlesung dasselbe wie eine echte Karte.
+          */}
           <p className="text-xs text-leise">
-            {automatisch
-              ? "Leg eine Karte hin und nimm die Hand weg: Es löst von selbst aus, sobald das Bild "
-                + "steht. Dann die nächste Karte darüberlegen."
-              : "Leg eine Karte hin und tippe auf aufnehmen. Die Kamera bleibt offen, die nächste "
-                + "Karte kommt einfach darüber."}
+            Leg eine Karte hin und tippe auf aufnehmen. Die Kamera bleibt offen, die nächste
+            Karte kommt einfach darüber.
           </p>
         </div>
       )}
