@@ -122,6 +122,16 @@ export function PostkartenScanner() {
     weg.
   */
   const [quittung, setQuittung] = useState<Ergebnis | null>(null);
+  /*
+    Wie oft hintereinander es schiefging.
+
+    Am 02.11.2026 stand im Foyer fuenfmal untereinander derselbe
+    Fehler: Das Guthaben beim Lesedienst war leer, und die automatische
+    Ausloesung schoss munter weiter. Nach drei Fehlschlaegen in Folge
+    schaltet sie sich deshalb selbst ab. Ein Fehler, der sich nicht von
+    allein behebt, wird durch Wiederholen nur teurer.
+  */
+  const [pannen, setPannen] = useState(0);
   const [bereit, setBereit] = useState(false);
 
   const video = useRef<HTMLVideoElement | null>(null);
@@ -181,7 +191,18 @@ export function PostkartenScanner() {
           }
           setListe((l) => [e, ...l]);
           setQuittung(e);
-          if (e.ok) setFertig((n) => n + 1);
+          if (e.ok) {
+            setFertig((n) => n + 1);
+            setPannen(0);
+          } else {
+            setPannen((n) => {
+              /* Nach drei Fehlschlaegen in Folge loest nichts mehr von
+                 selbst aus: Ein Fehler, der sich nicht von allein
+                 behebt, wird durch Wiederholen nur teurer. */
+              if (n + 1 >= 3) setAutomatisch(false);
+              return n + 1;
+            });
+          }
         } catch (f) {
           const schiefgegangen: Ergebnis = {
             id,
@@ -190,6 +211,10 @@ export function PostkartenScanner() {
           };
           setListe((l) => [schiefgegangen, ...l]);
           setQuittung(schiefgegangen);
+          setPannen((n) => {
+            if (n + 1 >= 3) setAutomatisch(false);
+            return n + 1;
+          });
         } finally {
           setOffen((n) => n - 1);
         }
@@ -424,6 +449,17 @@ export function PostkartenScanner() {
               </span>
             )}
           </div>
+
+          {pannen >= 3 && (
+            <p
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--blocker)", background: "var(--blocker-hell)" }}
+            >
+              <strong>Dreimal hintereinander ging es schief.</strong> Die automatische Auslösung
+              ist aus, damit nicht weiter ins Leere fotografiert wird. Lies die Meldung darunter,
+              und versuch es danach von Hand noch einmal.
+            </p>
+          )}
 
           <p className="text-xs text-leise">
             {automatisch

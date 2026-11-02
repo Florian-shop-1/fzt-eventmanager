@@ -89,8 +89,35 @@ export async function POST(request: Request) {
   } catch (f) {
     console.error("[postkarte] Hochladen:", f);
     return NextResponse.json(
-      { ok: false, fehler: f instanceof Error ? f.message : "Unbekannter Fehler" },
+      { ok: false, fehler: lesbarerFehler(f) },
       { status: 500 },
     );
   }
+}
+
+/**
+ * Aus einem Fehler des Lesedienstes einen Satz machen, den man versteht.
+ *
+ * "der scanner hat wohl probleme.. muss ich was aufladen bei
+ * antrophic?" (Florian, 02.11.2026). Im Foyer stand funfmal
+ * untereinander ein 400er mit JSON und einer request_id. Darin steckte
+ * die Antwort, nur eben auf Englisch und zwischen geschweiften
+ * Klammern: Das Guthaben war leer.
+ *
+ * Wer am Tablet steht, soll lesen, was zu tun ist, nicht die Antwort
+ * eines fremden Servers.
+ */
+function lesbarerFehler(f: unknown): string {
+  const roh = f instanceof Error ? f.message : String(f ?? "");
+  if (/credit balance is too low|insufficient_quota|billing/i.test(roh)) {
+    return "Das Guthaben beim Lesedienst ist aufgebraucht. Bitte im Büro Bescheid geben, "
+      + "dann wird es aufgeladen. Die Karten bitte liegen lassen, sie gehen nicht verloren.";
+  }
+  if (/rate.?limit|429|overloaded/i.test(roh)) {
+    return "Der Lesedienst ist gerade überlastet. Bitte in einer Minute noch einmal versuchen.";
+  }
+  if (/api.?key|authentication|401|403/i.test(roh)) {
+    return "Der Zugang zum Lesedienst stimmt nicht. Bitte im Büro Bescheid geben.";
+  }
+  return roh || "Unbekannter Fehler";
 }
