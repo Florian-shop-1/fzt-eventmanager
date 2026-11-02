@@ -8,11 +8,23 @@
  * nur für angemeldete Leute.
  */
 
+import { createHash } from "node:crypto";
 import { db } from "@/lib/db/client";
 import type { Fundstelle, Kartenbefund } from "./lesen";
 import { fingerabdruck } from "./lesen";
 
-export type Kartenstand = "neu" | "gelesen" | "freigegeben" | "zurueck" | "verworfen";
+/*
+  "wartet" kam am 02.11.2026 dazu: Das Foto liegt da, gelesen wird es
+  in der Nacht (Florian: "wie bei den emojis einfach über nacht ...
+  weil es günstiger ist").
+*/
+export type Kartenstand =
+  | "neu"
+  | "wartet"
+  | "gelesen"
+  | "freigegeben"
+  | "zurueck"
+  | "verworfen";
 export type Datenschutz = "offen" | "frei" | "gesperrt";
 
 export interface Postkarte {
@@ -116,6 +128,50 @@ export async function karteAblegen(o: {
            erstellt_am, veroeffentlicht_am
   `) as Array<Record<string, unknown>>;
   return baue(z);
+}
+
+/**
+ * Ein Foto ablegen, ohne es zu lesen.
+ *
+ * "bitte mach das so, dass du dir die fotos speicherst und dann den
+ * antrophic scanner wie bei den emojis einfach über nacht nutzt, weil
+ * es günstiger ist" (Florian, 02.11.2026).
+ *
+ * Gelesen wird im Nachtbatch, siehe postkarte/nachtlesung.ts. Hier
+ * landet nur das Bild, mit Stand "wartet".
+ *
+ * Dasselbe Foto zweimal faellt schon hier auf, ueber die Pruefsumme.
+ * Der Abgleich ueber den Text kann das noch nicht leisten, den Text
+ * gibt es ja noch nicht.
+ */
+export async function fotoAblegen(o: {
+  bild: Buffer;
+  bildTyp: string;
+  von: string;
+  einwilligung?: string;
+}): Promise<{ id: string; schonDa: boolean }> {
+  const md5 = createHash("md5").update(o.bild).digest("hex");
+
+  const [vorhanden] = (await db()`
+    select id from postkarte where bild_md5 = ${md5} and status <> 'verworfen' limit 1
+  `) as Array<{ id: string }>;
+  if (vorhanden) return { id: String(vorhanden.id), schonDa: true };
+
+  const [z] = (await db()`
+    insert into postkarte (status, bild, bild_typ, bild_md5, einwilligung, gescannt_von)
+    values ('wartet', ${o.bild}, ${o.bildTyp}, ${md5},
+            ${o.einwilligung ?? "unbekannt"}, ${o.von})
+    returning id
+  `) as Array<{ id: string }>;
+  return { id: String(z.id), schonDa: false };
+}
+
+/** Wie viele Karten auf die Nachtlesung warten. */
+export async function wartendeKarten(): Promise<number> {
+  const [z] = (await db()`
+    select count(*)::int as n from postkarte where status = 'wartet'
+  `) as Array<{ n: number }>;
+  return Number(z?.n ?? 0);
 }
 
 /** Das Original einer Karte. Nur für angemeldete Leute. */

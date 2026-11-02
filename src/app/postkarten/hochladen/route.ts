@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
-import { karteAblegen } from "@/lib/postkarte/db";
-import { lesenEingerichtet, postkarteLesen } from "@/lib/postkarte/lesen";
+import { fotoAblegen } from "@/lib/postkarte/db";
+import { lesenEingerichtet } from "@/lib/postkarte/lesen";
 
 /**
  * Nimmt das Foto einer Gästepostkarte entgegen, liest sie und legt sie ab.
@@ -50,21 +50,23 @@ export async function POST(request: Request) {
   }
 
   try {
+    /*
+      Nur ablegen, nicht lesen.
+
+      "bitte mach das so, dass du dir die fotos speicherst und dann den
+      antrophic scanner wie bei den emojis einfach über nacht nutzt,
+      weil es günstiger ist" (Florian, 02.11.2026). Im Batch kostet
+      dieselbe Lesung die Haelfte, und gebraucht wird das Ergebnis erst
+      am naechsten Tag.
+
+      Fuer das Foyer heisst das: Der Scan ist sofort fertig und kann
+      nicht mehr an einem leeren Guthaben scheitern. Wie gut eine Karte
+      ist, steht am naechsten Morgen da.
+    */
     const inhalt = Buffer.from(await datei.arrayBuffer());
-    const befund = await postkarteLesen(inhalt.toString("base64"), datei.type);
-
-    if (!befund.karteOk) {
-      return NextResponse.json({
-        ok: true,
-        gelesen: false,
-        hinweis: befund.hinweis || "Darauf ist keine Gästepostkarte zu erkennen.",
-      });
-    }
-
-    const karte = await karteAblegen({
+    const abgelegt = await fotoAblegen({
       bild: inhalt,
       bildTyp: datei.type,
-      befund,
       von: benutzer.name,
       einwilligung: einwilligung === "unbekannt" ? "unbekannt" : "erteilt",
     });
@@ -72,19 +74,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       gelesen: true,
-      dublette: Boolean(karte.dubletteVon),
-      karte: {
-        id: karte.id,
-        zitat: karte.zitat,
-        bewertung: karte.bewertung,
-        stimmung: karte.stimmung,
-        begruendung: karte.begruendung,
-        themen: karte.themen,
-        datenschutz: karte.datenschutz,
-        personenbezug: karte.personenbezug.length,
-        status: karte.status,
-      },
-      hinweis: befund.hinweis || null,
+      dublette: abgelegt.schonDa,
+      wartet: !abgelegt.schonDa,
+      karte: { id: abgelegt.id },
+      hinweis: null,
     });
   } catch (f) {
     console.error("[postkarte] Hochladen:", f);

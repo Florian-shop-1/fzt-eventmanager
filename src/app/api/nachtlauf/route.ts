@@ -13,6 +13,7 @@ import { taeglicherBewertungslauf } from "@/lib/bewertung/lauf";
 import { taeglicheErinnerung } from "@/lib/dienstplan/laden";
 import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
 import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
+import { postkartenAbholen, postkartenAbschicken } from "@/lib/postkarte/nachtlesung";
 import { taeglicheMenuepruefung } from "@/lib/shop/menuepruefung";
 import { parkplatzMahnung } from "@/lib/shop/parkplatz-wache";
 import { nachPauseMahnen } from "@/lib/foyer/pause-mail";
@@ -64,6 +65,21 @@ const NACHT: Teil[] = [
     einmal, damit die Ergebnisse der Nacht frueh da sind.
   */
   { name: "scanner", tun: () => scannerlauf() },
+  /*
+    Die Postkarten des Abends lesen lassen.
+
+    "bitte mach das so, dass du dir die fotos speicherst und dann den
+    antrophic scanner wie bei den emojis einfach über nacht nutzt, weil
+    es günstiger ist" (Florian, 02.11.2026). Abgeschickt wird nachts,
+    abgeholt am Morgen. Im Batch kostet dieselbe Lesung die Haelfte.
+  */
+  {
+    name: "postkarten",
+    tun: async () => ({
+      abgeholt: await postkartenAbholen(),
+      abgeschickt: await postkartenAbschicken(),
+    }),
+  },
   {
     name: "stempeluhr",
     tun: async () => ({
@@ -116,6 +132,14 @@ const PARKPLAETZE: Teil[] = [{ name: "parkplaetze", tun: () => parkplatzMahnung(
 
 const MORGEN: Teil[] = [
   { name: "scanner", tun: () => scannerlauf() },
+  /* Die Ergebnisse der Nacht abholen, damit sie morgens dastehen. */
+  {
+    name: "postkarten",
+    tun: async () => ({
+      abgeholt: await postkartenAbholen(),
+      abgeschickt: await postkartenAbschicken(),
+    }),
+  },
   { name: "wein", tun: () => taeglicherRechnungslauf() },
   { name: "dienstplan", tun: () => taeglicheErinnerung() },
   {

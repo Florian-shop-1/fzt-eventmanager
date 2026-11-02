@@ -163,6 +163,7 @@ export function PostkartenScanner() {
             ok: boolean;
             gelesen?: boolean;
             dublette?: boolean;
+            wartet?: boolean;
             fehler?: string;
             hinweis?: string;
             karte?: { bewertung: number; zitat: string; stimmung: string; personenbezug: number };
@@ -174,7 +175,14 @@ export function PostkartenScanner() {
           } else if (!d.gelesen) {
             e = { id, ok: false, text: d.hinweis ?? "Keine Postkarte erkannt." };
           } else if (d.dublette) {
-            e = { id, ok: true, text: "Dublette, schon vorhanden." };
+            e = { id, ok: true, text: "Diese Karte ist schon da." };
+          } else if (d.wartet) {
+            /*
+              Gelesen wird nachts (Florian, 02.11.2026). Hier steht
+              deshalb kein Zitat mehr, sondern nur, dass die Karte
+              sicher liegt.
+            */
+            e = { id, ok: true, text: "Gespeichert. Gelesen wird sie heute Nacht." };
           } else {
             const k = d.karte!;
             e = {
@@ -508,8 +516,9 @@ export function PostkartenScanner() {
       )}
 
       <p className="text-xs text-leise">
-        Die Bilder werden im Browser verkleinert und einzeln gelesen. Das Original bleibt intern,
-        öffentlich wird später nur eine geschwärzte Fassung.
+        Die Bilder werden im Browser verkleinert und gespeichert. Gelesen und bewertet werden
+        sie in der Nacht, am nächsten Morgen stehen die Ergebnisse unter &bdquo;Postkarten&ldquo;.
+        Das Original bleibt intern, öffentlich wird später nur eine geschwärzte Fassung.
       </p>
 
       {/*

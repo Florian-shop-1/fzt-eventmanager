@@ -187,6 +187,19 @@ export async function postkarteLesen(bildBase64: string, art = "image/jpeg"): Pr
   });
 
   const text = antwort.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  return befundAusText(text);
+}
+
+/**
+ * Die Antwort des Modells in einen Befund umrechnen.
+ *
+ * Steht fuer sich, weil es zwei Wege zur selben Antwort gibt: die
+ * sofortige Lesung und der Nachtbatch (Florian, 02.11.2026: "wie bei
+ * den emojis einfach über nacht ... weil es günstiger ist"). Beide
+ * muessen dasselbe daraus machen, sonst haengt die Qualitaet davon ab,
+ * zu welcher Tageszeit jemand scannt.
+ */
+export function befundAusText(text: string): Kartenbefund {
   const d = JSON.parse(text) as Record<string, unknown>;
   const s = (k: string) => String(d[k] ?? "").trim();
 
@@ -234,4 +247,37 @@ export function fingerabdruck(transkript: string): string {
     .toLowerCase()
     .replace(/[^a-zäöüß]+/g, "")
     .slice(0, 120);
+}
+
+/**
+ * Die Anfrage an das Modell, wie sie im Nachtbatch steht.
+ *
+ * Dieselben Vorgaben wie bei der sofortigen Lesung, nur ohne
+ * Verbindung: Der Batch schickt viele davon auf einmal und kostet die
+ * Haelfte (Florian, 02.11.2026).
+ */
+export function leseAnfrage(bildBase64: string, art = "image/jpeg") {
+  return {
+    model: MODELL,
+    max_tokens: 2000,
+    system: SYSTEM,
+    output_config: { format: { type: "json_schema" as const, schema: SCHEMA } },
+    messages: [
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "image" as const,
+            source: { type: "base64" as const, media_type: art as "image/jpeg", data: bildBase64 },
+          },
+          { type: "text" as const, text: "Lies diese Gästepostkarte." },
+        ],
+      },
+    ],
+  };
+}
+
+/** Der Zugang zum Modell, fuer den Nachtlauf. */
+export function modellZugang(): Anthropic {
+  return anthropic();
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { angemeldeterBenutzer, darfKaufmaennisches } from "@/lib/auth/sitzung";
-import { karten, stand, type Postkarte } from "@/lib/postkarte/db";
+import { karten, stand, wartendeKarten, type Postkarte } from "@/lib/postkarte/db";
 import { lesenEingerichtet } from "@/lib/postkarte/lesen";
 import { PostkartenScanner } from "@/components/PostkartenScanner";
 import { PostkarteSchwaerzen } from "@/components/PostkarteSchwaerzen";
@@ -60,6 +60,7 @@ export default async function PostkartenSeite({
     Was darunter liegt, verschwindet deshalb nicht mehr, es kommt nur
     hinter den Empfehlungen. Entschieden wird ohnehin von Hand.
   */
+  const wartend = await wartendeKarten();
   const sicht = zeigen ?? "vorschlag";
   const liste =
     sicht === "alle"
@@ -106,6 +107,29 @@ export default async function PostkartenSeite({
       )}
 
       <PostkartenScanner />
+
+      {/*
+        Was noch auf die Nachtlesung wartet.
+
+        "bitte mach das so, dass du dir die fotos speicherst und dann
+        den antrophic scanner wie bei den emojis einfach über nacht
+        nutzt" (Florian, 02.11.2026). Wer am Abend zwanzig Karten
+        scannt und am naechsten Morgen nichts Neues findet, denkt, es
+        sei etwas schiefgegangen. Deshalb steht hier, dass sie da sind
+        und wann sie gelesen werden.
+      */}
+      {wartend > 0 && (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gold)", background: "var(--gold-hell)" }}
+        >
+          <strong>
+            {wartend} {wartend === 1 ? "Karte wartet" : "Karten warten"} auf die Lesung.
+          </strong>{" "}
+          Gelesen und bewertet wird in der Nacht, im Stapel. Das kostet die Hälfte, und die
+          Ergebnisse stehen am nächsten Morgen hier.
+        </p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Zahl wert={z.gesamt} text="Karten gescannt" />
