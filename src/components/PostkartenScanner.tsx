@@ -35,6 +35,20 @@ const BREITE = 1600;
 const PRUEFBREITE = 64;
 const PRUEFHOEHE = 48;
 
+/**
+ * Das Seitenverhaeltnis einer Postkarte, quer.
+ *
+ * "der scanner bei postkarten sollte auf postkartenformat eingestellt
+ * sein. aktuell links und rechts ein schwarzer balken" (Florian,
+ * 02.11.2026). Das Bild stand in voller Kamerabreite, die Karte lag
+ * mittendrin, und links und rechts blieb Schwarz.
+ *
+ * A6 quer misst 148 auf 105 Millimeter. Der Ausschnitt zeigt genau
+ * diesen Streifen, und aufgenommen wird derselbe: Was man sieht, ist
+ * was gespeichert wird.
+ */
+const POSTKARTE = 148 / 105;
+
 /** Wie oft nachgesehen wird, ob das Bild steht. */
 const TAKT = 300;
 
@@ -77,6 +91,20 @@ async function verkleinern(datei: Blob): Promise<Blob> {
   return await new Promise<Blob>((fertig, schief) =>
     leinwand.toBlob((x) => (x ? fertig(x) : schief(new Error("Kein Bild"))), "image/jpeg", 0.88),
   );
+}
+
+/**
+ * Der Teil des Kamerabilds, der im Postkartenrahmen zu sehen ist.
+ *
+ * Das Bild der Kamera ist meist 16:9 oder 4:3, die Karte ist flacher.
+ * Gezeigt und aufgenommen wird deshalb ein mittiger Streifen, und
+ * dieselbe Rechnung braucht auch die automatische Auslösung.
+ */
+function sichtbarerStreifen(v: HTMLVideoElement): { x: number; y: number; b: number; h: number } {
+  const breit = v.videoWidth / v.videoHeight > POSTKARTE;
+  const b = breit ? v.videoHeight * POSTKARTE : v.videoWidth;
+  const h = breit ? v.videoHeight : v.videoWidth / POSTKARTE;
+  return { x: (v.videoWidth - b) / 2, y: (v.videoHeight - h) / 2, b, h };
 }
 
 /** Mittlerer Helligkeitsunterschied zweier Prüfbilder, 0 bis 255. */
@@ -235,12 +263,21 @@ export function PostkartenScanner() {
   const ausloesen = useCallback(() => {
     const v = video.current;
     if (!v || v.videoWidth === 0) return;
+    /*
+      Aufgenommen wird genau der Streifen, der zu sehen ist.
+
+      Das Bild der Kamera ist meist 16:9 oder 4:3, die Karte ist
+      flacher. Ohne diesen Zuschnitt lieferte die Aufnahme den vollen
+      Kamerablick samt Tischkante, waehrend auf dem Bildschirm die
+      Karte formatfuellend stand (Florian, 02.11.2026).
+    */
+    const a = sichtbarerStreifen(v);
     const leinwand = document.createElement("canvas");
-    leinwand.width = v.videoWidth;
-    leinwand.height = v.videoHeight;
+    leinwand.width = Math.round(a.b);
+    leinwand.height = Math.round(a.h);
     const stift = leinwand.getContext("2d");
     if (!stift) return;
-    stift.drawImage(v, 0, 0);
+    stift.drawImage(v, a.x, a.y, a.b, a.h, 0, 0, leinwand.width, leinwand.height);
     gesperrtBis.current = Date.now() + PAUSE_MS;
     zuletztAufgenommen.current = vorher.current;
     setBlitz(true);
@@ -310,7 +347,25 @@ export function PostkartenScanner() {
       }
       const stift = p.getContext("2d", { willReadFrequently: true });
       if (!stift) return;
-      stift.drawImage(v, 0, 0, PRUEFBREITE, PRUEFHOEHE);
+      /*
+        Geprueft wird derselbe Streifen, der zu sehen ist.
+
+        Sonst loest eine Hand am Bildrand aus, die der Mitarbeiter gar
+        nicht im Bild hat, und er versteht nicht, warum es geblitzt hat
+        (Florian, 02.11.2026, zum Postkartenformat).
+      */
+      const ausschnitt = sichtbarerStreifen(v);
+      stift.drawImage(
+        v,
+        ausschnitt.x,
+        ausschnitt.y,
+        ausschnitt.b,
+        ausschnitt.h,
+        0,
+        0,
+        PRUEFBREITE,
+        PRUEFHOEHE,
+      );
       const jetzt = stift.getImageData(0, 0, PRUEFBREITE, PRUEFHOEHE).data;
 
       const letztes = vorher.current;
@@ -356,6 +411,31 @@ export function PostkartenScanner() {
 
   return (
     <div className="space-y-3 rounded-lg border border-gold bg-gold-hell/40 p-4">
+      {/*
+        Welche Karten ueberhaupt gescannt werden.
+
+        "schreib bei den postkarten rein, dass bitte außergewöhnlich
+        lobende Karten, besonders aussehende usw. gescannt werden. nur
+        viele grüße - oder war toll ist zu wenig!" (Florian,
+        02.11.2026).
+
+        Steht ganz oben und nicht unter "So werden die Karten am besten
+        lesbar": Das dort beantwortet, WIE fotografiert wird. Hier geht
+        es um die Frage davor, ob diese Karte ueberhaupt eine ist. Wer
+        jede Karte scannt, fuellt die Liste mit "War schoen" und die
+        wirklich guten gehen darin unter.
+      */}
+      <div className="rounded-md border border-gold bg-flaeche px-3 py-2 text-sm">
+        <strong>Welche Karten kommen hier hinein?</strong> Die außergewöhnlichen: wer
+        schwärmt, wer eine Geschichte erzählt, wer schreibt, was der Abend mit ihm gemacht
+        hat. Auch die besonders schön gestalteten, mit Zeichnung oder in bunter Schrift.
+        <div className="mt-1 text-leise">
+          Nicht jede Karte. &bdquo;Viele Grüße&ldquo; oder &bdquo;war toll&ldquo; ist zu wenig,
+          das steht auf hunderten. Lieber fünf Karten, die man gerne liest, als fünfzig, die
+          niemand zu Ende liest.
+        </div>
+      </div>
+
       {meldung && (
         <p
           className="rounded-md border px-3 py-2 text-sm"
@@ -367,15 +447,27 @@ export function PostkartenScanner() {
 
       {kameraAn && (
         <div className="space-y-2">
-          <div className="relative overflow-hidden rounded-lg bg-black">
+          {/*
+            Der Rahmen hat das Format einer Postkarte, quer.
+
+            So fuellt die Karte das Bild aus, und links und rechts
+            bleibt kein Schwarz mehr stehen (Florian, 02.11.2026).
+            Aufgenommen wird genau dieser Streifen, siehe ausloesen.
+          */}
+          <div
+            className="relative overflow-hidden rounded-lg bg-black"
+            style={{ aspectRatio: "148 / 105", maxHeight: "60vh" }}
+          >
             <video
               ref={video}
               playsInline
               muted
-              className="block max-h-[60vh] w-full object-contain"
+              className="block h-full w-full object-cover"
             />
             {blitz && <div className="absolute inset-0 bg-white/70" />}
-            <div className="pointer-events-none absolute inset-4 rounded-md border-2 border-white/40" />
+            {/* Die Hilfslinie sitzt knapp innen: Legt man die Karte daran
+                aus, ist sie ganz drauf und nichts wird abgeschnitten. */}
+            <div className="pointer-events-none absolute inset-3 rounded-md border-2 border-white/40" />
 
             {/*
               Der Haken ueber dem Bild, gross genug fuers Foyer.
