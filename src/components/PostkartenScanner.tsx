@@ -36,18 +36,20 @@ const PRUEFBREITE = 64;
 const PRUEFHOEHE = 48;
 
 /**
- * Das Seitenverhaeltnis einer Postkarte, quer.
+ * Das Seitenverhaeltnis einer Postkarte, hochkant.
  *
  * "der scanner bei postkarten sollte auf postkartenformat eingestellt
- * sein. aktuell links und rechts ein schwarzer balken" (Florian,
- * 02.11.2026). Das Bild stand in voller Kamerabreite, die Karte lag
- * mittendrin, und links und rechts blieb Schwarz.
+ * sein. aktuell links und rechts ein schwarzer balken" und "die
+ * scanneransicht bitte hochformat postkarte" (Florian, 02.11.2026).
  *
- * A6 quer misst 148 auf 105 Millimeter. Der Ausschnitt zeigt genau
- * diesen Streifen, und aufgenommen wird derselbe: Was man sieht, ist
- * was gespeichert wird.
+ * A6 misst 105 auf 148 Millimeter. Der Ausschnitt zeigt genau diesen
+ * Streifen, und aufgenommen wird derselbe: Was man sieht, ist was
+ * gespeichert wird.
+ *
+ * Hochkant passt zum Telefon, das ohnehin so in der Hand liegt. Wer
+ * eine quer beschriebene Karte hat, dreht sie unter der Kamera.
  */
-const POSTKARTE = 148 / 105;
+const POSTKARTE = 105 / 148;
 
 /** Wie oft nachgesehen wird, ob das Bild steht. */
 const TAKT = 300;
@@ -96,9 +98,9 @@ async function verkleinern(datei: Blob): Promise<Blob> {
 /**
  * Der Teil des Kamerabilds, der im Postkartenrahmen zu sehen ist.
  *
- * Das Bild der Kamera ist meist 16:9 oder 4:3, die Karte ist flacher.
- * Gezeigt und aufgenommen wird deshalb ein mittiger Streifen, und
- * dieselbe Rechnung braucht auch die automatische Auslösung.
+ * Das Bild der Kamera hat ein anderes Mass als die Karte. Gezeigt und
+ * aufgenommen wird deshalb ein mittiger Ausschnitt, und dieselbe
+ * Rechnung braucht auch die automatische Auslösung.
  */
 function sichtbarerStreifen(v: HTMLVideoElement): { x: number; y: number; b: number; h: number } {
   const breit = v.videoWidth / v.videoHeight > POSTKARTE;
@@ -266,10 +268,10 @@ export function PostkartenScanner() {
     /*
       Aufgenommen wird genau der Streifen, der zu sehen ist.
 
-      Das Bild der Kamera ist meist 16:9 oder 4:3, die Karte ist
-      flacher. Ohne diesen Zuschnitt lieferte die Aufnahme den vollen
-      Kamerablick samt Tischkante, waehrend auf dem Bildschirm die
-      Karte formatfuellend stand (Florian, 02.11.2026).
+      Das Bild der Kamera hat ein anderes Mass als die Karte. Ohne
+      diesen Zuschnitt lieferte die Aufnahme den vollen Kamerablick
+      samt Tischkante, waehrend auf dem Bildschirm die Karte
+      formatfuellend stand (Florian, 02.11.2026).
     */
     const a = sichtbarerStreifen(v);
     const leinwand = document.createElement("canvas");
@@ -448,15 +450,16 @@ export function PostkartenScanner() {
       {kameraAn && (
         <div className="space-y-2">
           {/*
-            Der Rahmen hat das Format einer Postkarte, quer.
+            Der Rahmen hat das Format einer Postkarte, hochkant.
 
-            So fuellt die Karte das Bild aus, und links und rechts
-            bleibt kein Schwarz mehr stehen (Florian, 02.11.2026).
+            So fuellt die Karte das Bild aus, und es bleibt kein Schwarz
+            mehr stehen (Florian, 02.11.2026). Hochkant, weil das Telefon
+            ohnehin so in der Hand liegt.
             Aufgenommen wird genau dieser Streifen, siehe ausloesen.
           */}
           <div
             className="relative overflow-hidden rounded-lg bg-black"
-            style={{ aspectRatio: "148 / 105", maxHeight: "60vh" }}
+            style={{ aspectRatio: "105 / 148", maxHeight: "65vh", margin: "0 auto" }}
           >
             <video
               ref={video}
