@@ -87,7 +87,13 @@ export function alsHtml(
 
     Eine Liste von Knoepfen ohne Beschriftung waere fuer den Kunden ein
     Raten, welcher welcher ist. Deshalb steht ueber jedem, worum es
-    geht, und der Knopf traegt nur noch "ansehen und zusagen".
+    geht, und der Knopf traegt nur noch "Ansehen".
+
+    Bewusst nicht "ansehen und zusagen" (Florian, 02.11.2026): "wir
+    wollen den kunden nicht nötigen. vielleicht traut er sich auch gar
+    nicht zu klicken". Zusagen kann er auf der Seite selbst, dort steht
+    der Knopf dafuer. Ein Knopf in der Mail, der das Zusagen schon im
+    Namen traegt, haelt denjenigen ab, der nur schauen will.
   */
   const knopf = angebote?.length
     ? angebote
@@ -98,14 +104,14 @@ export function alsHtml(
             `<div style="font-weight:600;font-size:16px">${entschaerfen(a.titel)}</div>` +
             `<p style="margin:10px 0 0"><a href="${entschaerfen(a.href)}" ` +
             `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
-            `padding:10px 18px;border-radius:6px;font-weight:600">Ansehen und zusagen</a></p>` +
+            `padding:10px 18px;border-radius:6px;font-weight:600">Angebot ansehen</a></p>` +
             `</td></tr></table>`,
         )
         .join("")
     : link
       ? `<p style="margin:28px 0 0"><a href="${sicher}" ` +
         `style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;` +
-        `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen und zusagen</a></p>`
+        `padding:12px 20px;border-radius:6px;font-weight:600">Angebot ansehen</a></p>`
       : "";
 
   /*

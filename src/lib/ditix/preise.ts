@@ -238,16 +238,31 @@ export async function abendpreise(ditixEventId: string): Promise<Abendpreise> {
 /**
  * Ist das eine Sondershow mit eigenen Preisen?
  *
- * "das programm holt sich wohl immer noch die kindertickets" (Florian,
- * 30.10.2026). Es waren keine Kindertickets, sondern ein Special: Als
- * Vergleichsabend für einen Donnerstag fand das Programm den
- * "ULMFASSBAR Special" am 3. Dezember und holte sich dessen Preise,
- * Golden Seats zu 79 statt 139 Euro.
- *
  * Für ein Firmenangebot gelten die Preise des Regelprogramms. Eine
  * Weihnachts-, Silvester- oder Familienvorstellung ist eine eigene
  * Veranstaltung mit eigener Kalkulation und taugt nicht als Maßstab.
+ *
+ * Das Wort "Special" allein reicht dafür nicht.
+ *
+ * "gehe hier einfach von einem Donnerstag aus der kein special ist. die
+ * preise findest du z.b. beim nächsten donnerstag der im spielplan
+ * steht. es ist ganz normal Ulmfassbar. das mit dem special steht nur
+ * versehentlich dort" (Florian, 02.11.2026).
+ *
+ * Am 30.10. hatte ich genau umgekehrt geschlossen: Der Donnerstag fand
+ * den "ULMFASSBAR Special" am 3. Dezember mit Golden Seats zu 79 statt
+ * 139 Euro, und das sah nach einer anderen Kalkulation aus. Es ist
+ * aber der normale Donnerstagspreis, und donnerstags ist es bei uns
+ * günstiger. Das Wort im Titel ist ein Versehen im Spielplan.
+ *
+ * Stand die Erkennung zu weit, war die Folge schlimmer als der Fehler,
+ * den sie verhindern sollte: Es gab dann gar keinen regulären
+ * Donnerstag mehr, und das Programm griff bis zu einer Magic Memories
+ * im März 2027.
  */
 export function istSondershow(name: string): boolean {
-  return /special|family|silvester|weihnacht|zusatzshow|premiere|regio ?tv|zirkus/i.test(name);
+  const t = String(name ?? "");
+  /* ULMFASSBAR bleibt ULMFASSBAR, auch mit "Special" im Titel. */
+  if (/ulmfassbar/i.test(t) && !/silvester|weihnacht|family|zirkus/i.test(t)) return false;
+  return /special|family|silvester|weihnacht|zusatzshow|premiere|regio ?tv|zirkus/i.test(t);
 }

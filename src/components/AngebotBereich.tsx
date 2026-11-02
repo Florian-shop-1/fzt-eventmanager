@@ -355,6 +355,72 @@ export function AngebotBereich({
     (artikel("LEDFASSADE").bruttoCent / 100).toFixed(2).replace(".", ","),
   );
   const istOptional = (nummer: string) => nurOptional.includes(nummer);
+
+  /* Nach dem Speichern weiterbauen statt zum Ergebnis springen. */
+  const [nochEins, setNochEins] = useState(false);
+
+  /*
+    Was das Angebot ausmacht, an einer Stelle.
+
+    Darunter speichern zwei Knoepfe dasselbe (Florian, 02.11.2026).
+    Stuende der Aufruf zweimal da, liefe er beim naechsten Zusatz
+    auseinander, und einer der beiden Wege haette ihn nicht.
+  */
+  const angeboteSpeichern = () =>
+    angeboteErzeugen(
+      vorgangId,
+      {
+      art,
+      tageszeit,
+      wochentag: terminOffen ? wochentag : null,
+      zeitraum: terminOffen ? zeitraum : "",
+      showzeit: !terminOffen && terminZeit ? terminZeit : undefined,
+      ticket: "TK2",
+      kategorien:
+        art === "einzelplaetze"
+          ? TICKETS.map((t) => ({
+              nummer: t.nummer,
+              menge: mengen[t.nummer] ?? 0,
+            })).filter((k) => k.menge > 0)
+          : [],
+      ticketRabatt: rabatt,
+      ticketPreisCent: preisCent > 0 ? preisCent : undefined,
+      getraenkepauschalen: getraenke,
+      highlights,
+      getraenkeMengen,
+      optionalePositionen: nurOptional,
+      mitFassade,
+      fassadeStunden,
+      nachtStunden,
+      // Von Hand gesetzte Preise. Weitere Artikel lassen sich
+      // hier genauso dazunehmen, ohne dass der Rest etwas
+      // davon merken muss.
+      /*
+        Von Hand gesetzte Preise: die Fassade und, seit dem
+        30.10.2026, jede Ticketkategorie einzeln.
+      */
+      eigenePreise: (() => {
+        const liste: Record<string, number> = {};
+        if (fassadeCent > 0) liste.LEDFASSADE = fassadeCent;
+        for (const [nummer, text] of Object.entries(eigenePreise)) {
+          const zahl = Number(String(text).replace(",", "."));
+          if (text.trim() && Number.isFinite(zahl) && zahl > 0) {
+            liste[nummer] = Math.round(zahl * 100);
+          }
+        }
+        return Object.keys(liste).length > 0 ? liste : undefined;
+      })(),
+      essplatz,
+      logeDazu: logeDazu && essplatz !== "loge",
+      mitEmpfang,
+      // Bei einer Exklusivbuchung ist der ganze Saal bezahlt,
+      // leere Logenplaetze werden nicht noch einmal berechnet.
+      mitUnterbelegung: art === "einzelplaetze",
+      },
+      fassungen,
+      arten,
+    );
+
   const setzeOptional = (nummer: string, an: boolean) =>
     setNurOptional((bisher) =>
       an ? [...new Set([...bisher, nummer])] : bisher.filter((n) => n !== nummer),
@@ -1203,74 +1269,66 @@ export function AngebotBereich({
             />
           </div>
 
-          <button
-            disabled={laeuft}
-            onClick={() => {
-              starte(async () => {
-                const ergebnis = await angeboteErzeugen(
-                  vorgangId,
-                  {
-                  art,
-                  tageszeit,
-                  wochentag: terminOffen ? wochentag : null,
-                  zeitraum: terminOffen ? zeitraum : "",
-                  showzeit: !terminOffen && terminZeit ? terminZeit : undefined,
-                  ticket: "TK2",
-                  kategorien:
-                    art === "einzelplaetze"
-                      ? TICKETS.map((t) => ({
-                          nummer: t.nummer,
-                          menge: mengen[t.nummer] ?? 0,
-                        })).filter((k) => k.menge > 0)
-                      : [],
-                  ticketRabatt: rabatt,
-                  ticketPreisCent: preisCent > 0 ? preisCent : undefined,
-                  getraenkepauschalen: getraenke,
-                  highlights,
-                  getraenkeMengen,
-                  optionalePositionen: nurOptional,
-                  mitFassade,
-                  fassadeStunden,
-                  nachtStunden,
-                  // Von Hand gesetzte Preise. Weitere Artikel lassen sich
-                  // hier genauso dazunehmen, ohne dass der Rest etwas
-                  // davon merken muss.
-                  /*
-                    Von Hand gesetzte Preise: die Fassade und, seit dem
-                    30.10.2026, jede Ticketkategorie einzeln.
-                  */
-                  eigenePreise: (() => {
-                    const liste: Record<string, number> = {};
-                    if (fassadeCent > 0) liste.LEDFASSADE = fassadeCent;
-                    for (const [nummer, text] of Object.entries(eigenePreise)) {
-                      const zahl = Number(String(text).replace(",", "."));
-                      if (text.trim() && Number.isFinite(zahl) && zahl > 0) {
-                        liste[nummer] = Math.round(zahl * 100);
-                      }
-                    }
-                    return Object.keys(liste).length > 0 ? liste : undefined;
-                  })(),
-                  essplatz,
-                  logeDazu: logeDazu && essplatz !== "loge",
-                  mitEmpfang,
-                  // Bei einer Exklusivbuchung ist der ganze Saal bezahlt,
-                  // leere Logenplaetze werden nicht noch einmal berechnet.
-                  mitUnterbelegung: art === "einzelplaetze",
-                  },
-                  fassungen,
-                  arten,
-                );
-                setFrisch(ergebnis.ids);
-              });
-            }}
-            className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-dunkel disabled:opacity-50"
-          >
-            {laeuft
-              ? "wird erstellt..."
-              : fassungen.length * arten.length > 1
-                ? `${fassungen.length * arten.length} Angebote erstellen`
-                : "Angebot erstellen"}
-          </button>
+          {/*
+            Speichern, und wahlweise gleich weitermachen.
+
+            "wenn ein angebot erstellt wurde, also alles eingegeben
+            wurde, dass dann direkt drunter kommt SPEICHERN, dass das
+            Angebot gespeichert ist. und ein weiterer Button 'Speichern
+            und weiteres Angebot erstellen' - wir erstellen meistens 2-3
+            Angebote" (Florian, 02.11.2026).
+
+            Vorher hiess der Knopf "Angebot erstellen", und danach stand
+            der Baukasten offen wie zuvor. Wer ein zweites Angebot
+            wollte, wusste nicht, ob das erste sicher ist. Jetzt sagen
+            die Knoepfe, was danach passiert. Beide speichern dasselbe,
+            und die Eingaben bleiben stehen: Fuer das zweite Angebot ist
+            nur der Unterschied zu tippen, etwa ein anderer Wochentag.
+          */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              disabled={laeuft}
+              onClick={() => {
+                starte(async () => {
+                  const ergebnis = await angeboteSpeichern();
+                  setFrisch(ergebnis.ids);
+                  setNochEins(false);
+                });
+              }}
+              className="rounded-md border border-gold bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-dunkel disabled:opacity-50"
+            >
+              {laeuft
+                ? "wird gespeichert..."
+                : fassungen.length * arten.length > 1
+                  ? `${fassungen.length * arten.length} Angebote speichern`
+                  : "Angebot speichern"}
+            </button>
+
+            <button
+              disabled={laeuft}
+              onClick={() => {
+                starte(async () => {
+                  const ergebnis = await angeboteSpeichern();
+                  setFrisch((bisher) => [...bisher, ...ergebnis.ids]);
+                  setNochEins(true);
+                });
+              }}
+              className="rounded-md border border-gold px-4 py-2 text-sm font-medium text-gold-dunkel hover:bg-gold-hell disabled:opacity-50"
+            >
+              Speichern und weiteres Angebot erstellen
+            </button>
+          </div>
+
+          {nochEins && !laeuft && (
+            <p
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}
+            >
+              <strong>Gespeichert.</strong> Die Eingaben stehen noch da. Ändere, was beim
+              nächsten Angebot anders sein soll, etwa den Wochentag oder die Fassung, und
+              speichere erneut. Verschickt werden am Ende alle zusammen in einer Mail.
+            </p>
+          )}
 
           <p className="text-xs text-leise">
             Menüs und blockierte Logenplätze übernimmt das Programm aus den Gruppen des Vorgangs
@@ -1445,7 +1503,7 @@ function SammelMail({
     "vielen Dank für Ihr Interesse an einem Abend bei uns. Wir haben Ihnen mehrere Möglichkeiten",
     "zusammengestellt, damit Sie in Ruhe vergleichen können.",
     "",
-    "Jedes Angebot lässt sich einzeln ansehen und zusagen. Melden Sie sich gern, wenn etwas noch",
+    "Jedes Angebot lässt sich einzeln ansehen. Melden Sie sich gern, wenn etwas noch",
     "nicht passt, wir ändern es Ihnen.",
     "",
     "Herzliche Grüße",
