@@ -12,6 +12,7 @@ import { cache } from "react";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db/client";
+import { GRUPPEN } from "./menue";
 
 const COOKIE_NAME = "fzt_sitzung";
 const GUELTIG_TAGE = 30;
@@ -406,6 +407,36 @@ export function darfGeld(b: { rolle: Rolle; email: string } | null | undefined):
   return darfZeitenAendern(b);
 }
 
+/**
+ * Die Pfade, die das Menü dieser Rolle anbietet.
+ *
+ * "ja mach das mit den rechten aus dem menü" (Florian, 02.11.2026).
+ *
+ * Zweimal dieselbe Frage zu beantworten ging zweimal schief: Der
+ * Show-Check am 05.10.2026 und das Postkartenscannen am 02.11.2026
+ * standen im Menü, fehlten aber in der Prüfung darunter, und wer darauf
+ * tippte, landete auf der Startseite.
+ *
+ * Bewusst nur ergänzend: Was im Menü steht, ist erlaubt. Was dort nicht
+ * steht, bleibt von den Regeln weiter unten abhängig, denn es gibt
+ * Seiten ohne Menüpunkt. Entzogen wird über diese Liste nie; sonst wäre
+ * eine vergessene Zeile im Menü ein stilles Loch in der Rechteprüfung.
+ *
+ * Einmal gerechnet und dann gemerkt: Das Menü ändert sich nicht zur
+ * Laufzeit, und darfSeite läuft bei jedem Seitenaufruf.
+ */
+const AUS_DEM_MENUE = new Map<Rolle, string[]>();
+
+function menuepfade(rolle: Rolle): string[] {
+  const schon = AUS_DEM_MENUE.get(rolle);
+  if (schon) return schon;
+  const pfade = GRUPPEN.flatMap((g) =>
+    g.punkte.filter((p) => p.rollen.includes(rolle)).map((p) => p.href),
+  );
+  AUS_DEM_MENUE.set(rolle, pfade);
+  return pfade;
+}
+
 export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = ""): boolean {
   // Geld zuerst, vor allen anderen Regeln: Was hier nicht durchkommt,
   // kommt gar nicht durch.
@@ -416,6 +447,14 @@ export function darfSeite(rolle: Rolle, pfad: string, geteilt = false, email = "
   if (geteilt) {
     const erlaubt = GETEILTE_SEITEN[rolle] ?? [];
     return pfad === "/" || erlaubt.some((o) => pfad.startsWith(o));
+  }
+
+  /*
+    Was das Menü dieser Rolle anbietet, ist erreichbar. Siehe
+    menuepfade: Diese Liste erlaubt, sie verbietet nicht.
+  */
+  if (menuepfade(rolle).some((o) => pfad === o || pfad.startsWith(`${o}/`) || pfad.startsWith(`${o}?`))) {
+    return true;
   }
 
   // Der WhatsApp-Posteingang hängt nicht an der Rolle, sondern an einer
