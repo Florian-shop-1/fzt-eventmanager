@@ -1,0 +1,24 @@
+# Was beim Hochladen nicht mitmuss.
+#
+# Eigentlich steht das schon in der .gitignore, und daran haelt sich die
+# Vercel-Befehlszeile normalerweise auch. In den Arbeitskopien
+# (git worktrees) ist node_modules aber eine Verknuepfung auf den
+# Hauptordner, und eine Verknuepfung erkennt sie dort nicht als den
+# ignorierten Ordner wieder: Sie laeuft hinein und liest alle 629 MB
+# durch. Auf einem OneDrive-Laufwerk dauert das eine knappe Stunde,
+# waehrend die Anzeige nur den Strich dreht (Florian, 03.11.2026).
+#
+# Hier steht es deshalb noch einmal ausdruecklich. Gebaut wird ohnehin
+# bei Vercel, von hier geht nur der Quelltext hinaus.
+
+node_modules
+.next
+out
+coverage
+.git
+
+# Nichts Geheimes mitschicken. Die Werte stehen in den
+# Projekteinstellungen bei Vercel, nicht in einer hochgeladenen Datei.
+.env
+.env.*
+!.env.example
