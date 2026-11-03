@@ -360,18 +360,31 @@ export async function tagBerichtigenAktion(f: FormData): Promise<void> {
   const tag = text(f, "tag", 10);
   const kommen = text(f, "kommen", 5);
   const gehen = text(f, "gehen", 5);
-  const pauseVon = text(f, "pauseVon", 5);
-  const pauseBis = text(f, "pauseBis", 5);
+  const pauseVonRoh = text(f, "pauseVon", 5);
+  const pauseBisRoh = text(f, "pauseBis", 5);
   const grund = text(f, "grund", 200);
 
   const zeit = /^\d{2}:\d{2}$/;
   if (!zeit.test(kommen) || !zeit.test(gehen)) {
     stockt("Kommen und Gehen brauchen beide eine Uhrzeit (zum Beispiel 17:30).", "#korrektur", f);
   }
-  // Eine halbe Pause ist keine: Beides oder keines.
-  if (Boolean(pauseVon) !== Boolean(pauseBis)) {
-    stockt("Bei der Pause fehlt eine der beiden Uhrzeiten.", "#korrektur", f);
-  }
+
+  /*
+    Eine halbe Pause ist keine, haelt den Tag aber nicht auf.
+
+    "bei nicole kam das, obwohl ich ja keine pause zum eintragen hatte.
+    das muss auch ohne pause gehen" (Florian, 03.11.2026). Vorher wies
+    das Formular den ganzen Tag ab, wenn in einem der beiden Pausenfelder
+    etwas stand und im anderen nicht. Der Tag wurde dann gar nicht
+    eingetragen, wegen einer Angabe, die ohnehin nicht zu rechnen ist.
+
+    Jetzt zaehlt die Pause nur, wenn beide Zeiten dastehen. Die einzelne
+    faellt weg, und in der Rueckmeldung steht, dass sie weggefallen ist:
+    weggelassen wird nichts heimlich.
+  */
+  const halbePause = Boolean(pauseVonRoh) !== Boolean(pauseBisRoh);
+  const pauseVon = halbePause ? "" : pauseVonRoh;
+  const pauseBis = halbePause ? "" : pauseBisRoh;
   if (!grund) {
     stockt("Bitte einen Grund angeben, zum Beispiel: Ausstempeln vergessen.", "#korrektur", f);
   }
@@ -394,8 +407,11 @@ export async function tagBerichtigenAktion(f: FormData): Promise<void> {
       : e.kommentareErledigt === 1
         ? " Der Kommentar dazu ist damit beantwortet."
         : ` Die ${e.kommentareErledigt} Kommentare dazu sind damit beantwortet.`;
+  const pausenhinweis = halbePause
+    ? " Die einzelne Pausenzeit habe ich weggelassen, dafür braucht es beide."
+    : "";
   zurueck(
-    `Tag übernommen. Gestempelt war ${e.altText}, eingetragen ist ${e.neuText}. ${unterschied}${kommentare}`,
+    `Tag übernommen. Gestempelt war ${e.altText}, eingetragen ist ${e.neuText}. ${unterschied}${kommentare}${pausenhinweis}`,
     "#korrektur",
     f,
   );
