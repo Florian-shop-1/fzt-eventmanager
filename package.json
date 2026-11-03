@@ -36,7 +36,7 @@
     "codes:einlesen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/codes-einlesen.ts",
     "test:whatsapp": "tsx scripts/test-whatsapp.ts",
     "test:allergien": "tsx scripts/test-allergien.ts",
-    "deploy": "npx --yes vercel@54.7.1 deploy --prod --yes",
+    "deploy": "vercel deploy --prod --yes",
     "test:postkarten": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/test-postkarten.ts",
     "verteiler:pruefen": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/verteiler-pruefen.ts"
   },
