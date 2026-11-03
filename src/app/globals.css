@@ -249,6 +249,30 @@ textarea:focus {
 }
 
 /*
+  Der Rand kommt vom Blatt, nicht vom Programm.
+
+  "bei drucken der anschreiben/tickets nicht jedes mal nach einem
+  bedruckten blatt ein blanko blatt rausgeht" (Florian, 03.11.2026).
+
+  Der Inhalt steht im Programm in einem Rahmen mit Innenabstand, damit
+  am Bildschirm nichts am Fensterrand klebt. Beim Drucken kommt dieser
+  Abstand zu dem aus @page hinzu. Ein Bogen, der fast so hoch ist wie
+  das Blatt, passt dann nicht mehr darauf, und der Drucker wirft hinter
+  jedem Blatt ein leeres aus.
+
+  Auf Papier gibt @page den Rand vor, hier also keiner. Fuer die
+  gewoehnlichen Listen aendert sich dadurch nichts Sichtbares: Sie
+  bekommen ihre 14 Millimeter weiterhin vom Blatt.
+*/
+@media print {
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}
+
+/*
   Die Reservierungsschilder fuer die Parkplaetze quer drucken. Sie liegen
   auf dem Parkplatz oder hinter der Scheibe, da ist Querformat lesbarer,
   und der Name passt groesser drauf.
@@ -328,10 +352,41 @@ textarea:focus {
   Tickets (components/TicketSeiten.tsx).
 */
 @media print {
+  /*
+    Kein Aussenabstand, und die Hoehe bleibt unter dem Blatt.
+
+    "bei drucken der anschreiben/tickets nicht jedes mal nach einem
+    bedruckten blatt ein blanko blatt rausgeht" (Florian, 03.11.2026).
+
+    Beim Anschreiben war genau das am 29.10. schon behoben, siehe
+    .briefseiten weiter oben: Der Druckbereich steht im Programm
+    zwischen anderen Abschnitten und erbt von dort einen Abstand nach
+    oben. Auf Papier schiebt der das Blatt ueber die Kante, und der
+    Drucker wirft eine leere zweite Seite aus. Bei den Tickets fehlte
+    dieselbe Zeile.
+
+    Dazu die Hoehe: Das Ticketbild kommt aus dem PDF und ist beim
+    Zeichnen um Bruchteile eines Punktes groesser geworden. Mit
+    "Breite 100 Prozent" ergibt das eine Hoehe knapp ueber A4, und
+    schon ein einziger Punkt zu viel macht aus jedem Blatt zwei. Die
+    Komponente setzt die Hoehe deshalb fest, siehe TicketSeiten.tsx.
+  */
+  .ticketseiten {
+    margin: 0 !important;
+  }
+
   .ticketblatt {
     margin: 0 !important;
     break-inside: avoid;
     page-break-inside: avoid;
+    overflow: hidden;
+  }
+
+  .ticketblatt img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .ticketblatt + .ticketblatt {

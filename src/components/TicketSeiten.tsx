@@ -133,8 +133,21 @@ export function TicketSeiten({
         nichts, nimmt der Browser Hochformat, und ein quer angelegtes
         Ticket wuerde auf dem Blatt abgeschnitten.
       */}
+      {/*
+        Das Blattformat und die Blatthoehe.
+
+        Die Hoehe steht hier und nicht im Stylesheet, weil nur die
+        Komponente weiss, ob das Ticket quer liegt. Knapp unter dem
+        Blattmass, denn genau 297mm rechnet der Browser in Bildpunkte
+        um, und ein Punkt zu viel macht aus jedem Blatt zwei (Florian,
+        03.11.2026: "nicht jedes mal nach einem bedruckten blatt ein
+        blanko blatt").
+      */}
       <style>{`@page ticket { size: A4 ${quer ? "landscape" : "portrait"}; margin: 0 }
-        @media print { .ticketseiten { page: ticket } }`}</style>
+        @media print {
+          .ticketseiten { page: ticket }
+          .ticketblatt { width: ${quer ? "296.9mm" : "209.9mm"}; height: ${quer ? "209.9mm" : "296.9mm"} }
+        }`}</style>
 
       <div className="ticketseiten">
         {seiten.map((bild, i) => (
