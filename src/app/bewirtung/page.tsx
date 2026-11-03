@@ -175,9 +175,7 @@ export default async function BewirtungSeite({
                     Beleg
                   </Link>
                 ) : (
-                  <span className="text-leise">
-                    {m.stand === "kein_anhang" ? "keine Rechnung dabei" : m.stand}
-                  </span>
+                  <span className="text-leise">{standInWorten(m.stand)}</span>
                 )}
               </li>
             ))}
@@ -689,4 +687,27 @@ async function AmazonKasten() {
       )}
     </details>
   );
+}
+
+/**
+ * Was im Posteingang steht, wenn kein Beleg daraus wurde.
+ *
+ * Bisher stand da der Schlüssel aus der Datenbank, also "kein_anhang"
+ * oder "eigene_rechnung". Das liest niemand gern.
+ */
+function standInWorten(stand: string): string {
+  switch (stand) {
+    case "kein_anhang":
+      return "keine Rechnung dabei";
+    case "eigene_rechnung":
+      return "unsere eigene Rechnung";
+    case "kein_beleg":
+      return "kein Zahlungsvorgang";
+    case "lesung_ausgefallen":
+      return "Lesen ausgefallen, wird wiederholt";
+    case "fehler":
+      return "Fehler beim Holen";
+    default:
+      return stand;
+  }
 }

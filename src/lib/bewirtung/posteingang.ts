@@ -112,10 +112,22 @@ async function graph<T>(pfad: string): Promise<T> {
 }
 
 /** Welche Mails haben wir schon geholt? */
+/** Stand fuer eine Mail, deren Anhang nicht gelesen werden konnte. */
+const AUSGEFALLEN = "lesung_ausgefallen";
+
 async function schonGeholt(ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
+  /*
+    Eine ausgefallene Lesung gilt nicht als erledigt.
+
+    Sonst waere die Mail fuer immer abgehakt, obwohl nie jemand ihren
+    Anhang gesehen hat (Florian, 03.11.2026). So nimmt der naechste Lauf
+    sie wieder mit, und sobald die Lesehilfe wieder arbeitet, entsteht
+    der Entwurf nachtraeglich.
+  */
   const z = (await db()`
-    select nachricht_id from rechnungspost where nachricht_id = any(${ids}::text[])
+    select nachricht_id from rechnungspost
+     where nachricht_id = any(${ids}::text[]) and stand <> ${AUSGEFALLEN}
   `) as Array<{ nachricht_id: string }>;
   return new Set(z.map((r) => r.nachricht_id));
 }
@@ -241,11 +253,35 @@ export async function postAbholen(o: {
       }
 
       let letzterBeleg: string | null = null;
+      /* Warum nichts angelegt wurde, falls nichts angelegt wurde. */
+      let grund: { stand: string; notiz: string } | null = null;
       for (const a of brauchbar) {
         if (!a.contentBytes) continue;
         const typ = (a.contentType ?? "application/pdf").toLowerCase();
 
         const lesung = await belegLesen(a.contentBytes, typ).catch(() => null);
+
+        /*
+          Faellt das Lesen aus, entsteht kein Entwurf.
+
+          Am 02.11.2026 war das Anthropic-Guthaben leer. Der Aufruf ist
+          mit .catch() abgesichert und laeuft still weiter, also wurden
+          an dem Morgen alle fuenf Dokumente als leere Entwuerfe
+          angelegt: ohne Betrag, ohne Lieferant, und mit der Vorgabe
+          "Bewirtung" angekreuzt, auch bei einer Ausgangsrechnung. Das
+          sah aus wie eine falsche Entscheidung der Lesehilfe, dabei
+          hatte sie gar nicht gearbeitet.
+
+          Die Mail bleibt deshalb unerledigt stehen und wird beim
+          naechsten Lauf noch einmal versucht, siehe schonGeholt.
+        */
+        if (!lesung) {
+          grund = {
+            stand: AUSGEFALLEN,
+            notiz: "Das Lesen ist ausgefallen. Die Mail wird beim nächsten Lauf noch einmal versucht.",
+          };
+          continue;
+        }
 
         /*
           Unsere eigenen Rechnungen sind keine Belege.
@@ -256,12 +292,11 @@ export async function postAbholen(o: {
           der Belegliste standen elf davon herum und warteten auf eine
           Zuordnung, die nie kommen konnte (gefunden am 30.09.2026).
         */
-        if (lesung?.eigene_rechnung || EIGENER_NAME.test(lesung?.restaurant ?? "")) {
-          await vermerken({
-            id: n.id, von, betreff, empfangen,
+        if (lesung.eigene_rechnung || EIGENER_NAME.test(lesung.restaurant ?? "")) {
+          grund = {
             stand: "eigene_rechnung",
             notiz: "Unsere eigene Ausgangsrechnung, kein Beleg für eine Ausgabe.",
-          });
+          };
           continue;
         }
 
@@ -274,12 +309,11 @@ export async function postAbholen(o: {
           zugeordnet werden und hat die echten Belege zugedeckt
           (Florian, 03.11.2026).
         */
-        if (lesung?.kein_zahlungsbeleg) {
-          await vermerken({
-            id: n.id, von, betreff, empfangen,
+        if (lesung.kein_zahlungsbeleg) {
+          grund = {
             stand: "kein_beleg",
             notiz: `Kein Zahlungsvorgang, daher kein Beleg.${lesung.hinweis ? ` ${lesung.hinweis.slice(0, 200)}` : ""}`,
-          });
+          };
           continue;
         }
 
@@ -301,7 +335,22 @@ export async function postAbholen(o: {
         `;
       }
 
-      await vermerken({ id: n.id, von, betreff, empfangen, stand: "angelegt", belegId: letzterBeleg });
+      /*
+        Der Schlussvermerk hat die Gruende frueher wieder ueberschrieben.
+
+        Er stand unbedingt hier und setzte jede Mail auf "angelegt", auch
+        die, bei der im Durchlauf gerade "eigene_rechnung" vermerkt worden
+        war. Jetzt gewinnt der Grund, wenn nichts angelegt wurde.
+      */
+      if (letzterBeleg) {
+        await vermerken({ id: n.id, von, betreff, empfangen, stand: "angelegt", belegId: letzterBeleg });
+      } else {
+        await vermerken({
+          id: n.id, von, betreff, empfangen,
+          stand: grund?.stand ?? "kein_beleg",
+          notiz: grund?.notiz ?? "Aus den Anhängen ließ sich kein Beleg machen.",
+        });
+      }
     } catch (f) {
       lauf.fehler++;
       const meldung = f instanceof Error ? f.message : "Unbekannter Fehler";
