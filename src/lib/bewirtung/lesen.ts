@@ -50,7 +50,8 @@ Gib genau wieder, was auf dem Beleg steht. Erfinde nichts. Wenn etwas nicht auf 
 - tse_vorhanden: true, wenn Angaben der technischen Sicherheitseinrichtung (TSE, Signatur, Transaktionsnummer, Seriennummer der Kasse) aufgedruckt sind.
 - maschinell: true, wenn der Beleg maschinell erstellt ist (Kassenbon, Rechnungsdrucker), false bei einer handschriftlichen Quittung.
 - geschenk: true, wenn der Beleg ein Geschenk belegt. Das sind vor allem Gutscheine jeder Art (Tankgutschein, Geschenkkarte, Wertgutschein, Guthabenkarte, "Gutschein", "Geschenkkarte", "Gift Card"), aber auch Blumen, Pralinen, Wein oder Praesentkoerbe, wenn nichts darauf hindeutet, dass sie fuer den Betrieb selbst gekauft wurden. Sonst false.
-- eigene_rechnung: true, wenn das Florian Zimmer Theater bzw. die Florian Zimmer Theater GmbH selbst die Rechnung STELLT, also Absender und Rechnungssteller ist. Das sind unsere eigenen Ausgangsrechnungen an Kunden; sie sind keine Belege fuer Ausgaben. Sonst false.
+- eigene_rechnung: true, wenn das Florian Zimmer Theater bzw. die Florian Zimmer Theater GmbH selbst die Rechnung STELLT, also Absender und Rechnungssteller ist. Das sind unsere eigenen Ausgangsrechnungen an Kunden; sie sind keine Belege fuer Ausgaben. Entscheidend ist allein, WER die Rechnung stellt, nicht wessen Name oder Logo oben steht. Achte darauf: Auf unseren eigenen Rechnungen steht unser Logo im Briefkopf, und der Empfänger kann dieselbe Anschrift tragen wie wir (Grethe-Weiser-Str. 2/1, 89231 Neu-Ulm), weil mehrere Firmen im Haus sitzen. Steht "Florian Zimmer Theater" als Rechnungssteller und eine andere Firma als Empfänger, ist eigene_rechnung true. Sonst false.
+- kein_zahlungsbeleg: true, wenn das Dokument gar keinen Zahlungsvorgang belegt. Das sind Jahresabschluss, Erstellungsbericht, Bilanz, Gewinn- und Verlustrechnung, BWA, Summen- und Saldenliste, Steuerbescheid, Steuererklärung, Angebot, Kostenvoranschlag, Auftragsbestätigung, Lieferschein, Mahnung, Kontoauszug, Vertrag, Versicherungsschein, Anschreiben und Werbung. Solche Unterlagen sind keine Belege für eine Ausgabe, auch wenn Beträge darauf stehen. Sonst false.
 - beleg_ok: false, wenn das Bild kein Kassenbeleg und keine Rechnung ist oder so unscharf, dass die Beträge nicht sicher lesbar sind.
 - hinweis: kurz auf Deutsch, was unsicher oder auffällig war. Leer, wenn alles klar ist.`;
 
@@ -60,6 +61,7 @@ const SCHEMA = {
   required: [
     "beleg_ok",
     "eigene_rechnung",
+    "kein_zahlungsbeleg",
     "geschenk",
     "art",
     "zweck",
@@ -81,6 +83,7 @@ const SCHEMA = {
   properties: {
     beleg_ok: { type: "boolean" },
     eigene_rechnung: { type: "boolean" },
+    kein_zahlungsbeleg: { type: "boolean" },
     geschenk: { type: "boolean" },
     art: { type: "string", enum: ["bewirtung", "einkauf"] },
     zweck: { type: "string" },
@@ -105,6 +108,8 @@ export interface BelegLesung {
   beleg_ok: boolean;
   /** Unsere eigene Ausgangsrechnung, kein Beleg fuer eine Ausgabe. */
   eigene_rechnung: boolean;
+  /** Unterlage ohne Zahlungsvorgang, etwa ein Jahresabschluss oder eine Bilanz. */
+  kein_zahlungsbeleg: boolean;
   /** Sieht nach einem Geschenk aus, etwa ein Gutschein. */
   geschenk: boolean;
   art: "bewirtung" | "einkauf";

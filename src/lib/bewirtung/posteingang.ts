@@ -24,6 +24,29 @@ import type { Gesellschaft } from "./gesellschaft";
 /** Das Postfach, in dem die Rechnungen einlaufen. */
 export const RECHNUNGSPOSTFACH = process.env.RECHNUNGS_POSTFACH ?? "rechnung@florianzimmer.com";
 
+/**
+ * Adressen, aus denen nie ein Beleg wird.
+ *
+ * Aus tickets@florianzimmer.com kommen unsere eigenen Ausgangsrechnungen
+ * an Kunden, verschickt vom Ticketbuero und von FloTix. Zu ihnen gibt es
+ * keine Abbuchung, sie koennen also nie zugeordnet werden und bleiben
+ * fuer immer als Entwurf in der Liste stehen (Florian, 03.11.2026).
+ *
+ * Bewusst nicht die ganze Hausdomaene: Kevin und das Buero leiten echte
+ * Lieferantenrechnungen aus ihren eigenen Adressen weiter, die muessen
+ * weiter ankommen. Weggeworfen wird auch hier nichts, die Mail steht mit
+ * Grund im Posteingangsprotokoll.
+ */
+const EIGENE_ABSENDER = new Set(
+  (process.env.BELEG_EIGENE_ABSENDER ?? "tickets@florianzimmer.com")
+    .split(",")
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/** Unser eigener Name, falls die Leseroutine ihn als Rechnungssteller ausweist. */
+const EIGENER_NAME = /florian\s*zimmer\s*theater/i;
+
 /** Anhaenge, aus denen ein Beleg werden kann. */
 const TAUGLICH = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"];
 
@@ -179,6 +202,15 @@ export async function postAbholen(o: {
     const betreff = (n.subject ?? "").slice(0, 300);
     const empfangen = n.receivedDateTime ?? null;
 
+    if (EIGENE_ABSENDER.has(von.toLowerCase())) {
+      await vermerken({
+        id: n.id, von, betreff, empfangen,
+        stand: "eigene_rechnung",
+        notiz: "Aus einer eigenen Adresse, das ist unsere Ausgangsrechnung und kein Beleg für eine Ausgabe.",
+      });
+      continue;
+    }
+
     try {
       const anhaenge = await graph<{ value: GraphAnhang[] }>(
         `/users/${encodeURIComponent(RECHNUNGSPOSTFACH)}/messages/${n.id}/attachments`,
@@ -224,11 +256,29 @@ export async function postAbholen(o: {
           der Belegliste standen elf davon herum und warteten auf eine
           Zuordnung, die nie kommen konnte (gefunden am 30.09.2026).
         */
-        if (lesung?.eigene_rechnung) {
+        if (lesung?.eigene_rechnung || EIGENER_NAME.test(lesung?.restaurant ?? "")) {
           await vermerken({
             id: n.id, von, betreff, empfangen,
             stand: "eigene_rechnung",
             notiz: "Unsere eigene Ausgangsrechnung, kein Beleg für eine Ausgabe.",
+          });
+          continue;
+        }
+
+        /*
+          Unterlagen ohne Zahlungsvorgang sind auch keine Belege.
+
+          Jahresabschluss, Bilanz, Steuerbescheid, Angebot, Lieferschein:
+          Die Leseroutine hat das vorher schon erkannt und in den Hinweis
+          geschrieben, angelegt wurde der Entwurf trotzdem. Er konnte nie
+          zugeordnet werden und hat die echten Belege zugedeckt
+          (Florian, 03.11.2026).
+        */
+        if (lesung?.kein_zahlungsbeleg) {
+          await vermerken({
+            id: n.id, von, betreff, empfangen,
+            stand: "kein_beleg",
+            notiz: `Kein Zahlungsvorgang, daher kein Beleg.${lesung.hinweis ? ` ${lesung.hinweis.slice(0, 200)}` : ""}`,
           });
           continue;
         }

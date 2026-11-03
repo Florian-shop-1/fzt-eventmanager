@@ -14,6 +14,7 @@
 import { db } from "@/lib/db/client";
 import { nachFamilienname } from "@/lib/domain/namen";
 import { nachtschichtenAnhaengen, tagRechnen } from "@/lib/stempel/tag";
+import { heimarbeitImZeitraum } from "@/lib/stempel/heimarbeit";
 import type { Zeitraum } from "./zeitraum";
 
 export type Abwesenheitsart = "urlaub" | "krank" | "privat";
@@ -38,6 +39,14 @@ export interface Tagesprotokoll {
   pauseMinuten: number;
   /** Offen heißt: gekommen, aber nie gegangen. Dann fehlt die Zeit. */
   offen: boolean;
+  /**
+   * Gesetzt, wenn dieser Tag Heimarbeit ist und nicht gestempelte Zeit.
+   *
+   * Dann ist "stempel" leer, denn es gibt keine Uhrzeit. Im Protokoll
+   * bleiben Kommen und Gehen frei, die Zeile traegt die Art
+   * "Heimarbeit" und im Hinweis steht, von wem die Angabe stammt.
+   */
+  heimarbeit?: { zweck: string; nachAngabeVon: string };
   /** Wie viele Fehlstempel herausgefallen sind, etwa dreimal Einstempeln. */
   fehlstempel: number;
   /** Warum der Tag nicht plausibel ist, sonst null. */
@@ -410,6 +419,34 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
         person.unplausibleTage.push({ datum: g.datum, grund: r.unplausibel });
       }
     }
+  }
+
+  /*
+    Heimarbeit: Stunden ohne Uhrzeit.
+
+    Sie zaehlen wie gestempelte Arbeit, nur steht keine Uhr dahinter
+    (Florian, 03.11.2026). Als Arbeitstag zaehlt der Tag nur, wenn an
+    ihm nicht ohnehin schon gestempelt wurde; sonst waere derselbe Tag
+    zweimal in der Spalte Arbeitstage.
+  */
+  for (const h of await heimarbeitImZeitraum(z.von, z.bis).catch(() => [])) {
+    if (!imZeitraum(h.datum)) continue;
+    const person = hole(h.benutzerId, h.name, h.email);
+    const schonGestempelt = person.protokoll.some((t) => t.datum === h.datum);
+    person.protokoll.push({
+      datum: h.datum,
+      stempel: [],
+      arbeitMinuten: h.minuten,
+      pauseMinuten: 0,
+      offen: false,
+      fehlstempel: 0,
+      unplausibel: null,
+      bestaetigt: true,
+      gewertet: true,
+      heimarbeit: { zweck: h.zweck, nachAngabeVon: h.nachAngabeVon },
+    });
+    person.arbeitMinuten += h.minuten;
+    if (!schonGestempelt) person.arbeitstage += 1;
   }
 
   // Urlaub und Krankheit tageweise, nur innerhalb des Zeitraums.

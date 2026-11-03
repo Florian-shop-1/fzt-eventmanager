@@ -36,6 +36,7 @@ import {
   antragBeantworten,
   nachPauseEntscheidenAktion,
   antragUebernehmenAktion,
+  heimarbeitEintragenAktion,
   korrekturBeantragen,
   nachmeldungSenden,
   pausengrundSenden,
@@ -76,11 +77,11 @@ const BEZEICHNUNG: Record<Stempel["art"], string> = {
 export default async function StempeluhrSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ monat?: string; meldung?: string; wer?: string; tag?: string }>;
+  searchParams: Promise<{ monat?: string; meldung?: string; art?: string; wer?: string; tag?: string }>;
 }) {
   const b = await angemeldeterBenutzer();
   if (!b) redirect("/anmelden");
-  const { monat, meldung, wer, tag } = await searchParams;
+  const { monat, meldung, art, wer, tag } = await searchParams;
   const buero = darfZeitenAendern(b);
   const stempelt = darfStempeln(b);
   // Gestempelt wird nur am Handy, siehe lib/stempel/geraet.ts.
@@ -110,11 +111,7 @@ export default async function StempeluhrSeite({
         </p>
       </header>
 
-      {meldung && (
-        <p className="rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--gut)", background: "var(--gut-hell)" }}>
-          {meldung}
-        </p>
-      )}
+      {meldung && <Meldungskasten text={meldung} art={art === "hinweis" ? "hinweis" : "gut"} />}
 
       {stempelt && stand && (
         /*
@@ -159,7 +156,7 @@ export default async function StempeluhrSeite({
 
       {buero && <WerIstDaKasten />}
       {buero && <Antraege duerfenUebernehmen={darfSelbstauskunftUebernehmen(b)} />}
-      {buero && <Korrektur wer={wer} tag={tag} />}
+      {buero && <Korrektur wer={wer} tag={tag} meldung={meldung} art={art} />}
       {buero && <Arbeitszeitkonto />}
       {buero && <Monatsuebersicht monat={monat} />}
       {b.rolle === "chef" && <Einrichtung />}
@@ -441,6 +438,56 @@ async function Antraege({ duerfenUebernehmen }: { duerfenUebernehmen: boolean })
                     steht dann weiter hier, bis an dem Tag wirklich etwas geändert ist.
                   </p>
                 </form>
+
+                {/*
+                  Heimarbeit: Stunden ohne Uhrzeit.
+
+                  Für alles, was nicht an der Uhr passiert ist, und für
+                  Anträge, die über mehrere Tage gehen. Das Formular
+                  oben kann nur einen Tag, Artems 38 Stunden über
+                  sechzehn Tage passten da nicht hinein
+                  (Florian, 03.11.2026).
+                */}
+                {duerfenUebernehmen && (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      Stattdessen Stunden nach Angabe eintragen (Heimarbeit)
+                    </summary>
+                    <form action={heimarbeitEintragenAktion} className="mt-2">
+                      <input type="hidden" name="id" value={a.id} />
+                      <div className="flex flex-wrap items-end gap-2">
+                        <label className="block">
+                          <span className="mb-1 block text-xs text-leise">Stunden gesamt</span>
+                          <input name="stunden" inputMode="decimal" placeholder="38" className="w-24" />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs text-leise">Von</span>
+                          <input type="date" name="von" defaultValue={a.tag} className="w-40" />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs text-leise">Bis</span>
+                          <input type="date" name="bis" defaultValue={a.tag} className="w-40" />
+                        </label>
+                        <label className="block grow">
+                          <span className="mb-1 block text-xs text-leise">Wofür</span>
+                          <input name="zweck" maxLength={200} placeholder="Videodreh und Videobearbeitung" />
+                        </label>
+                      </div>
+                      <label className="mt-2 flex items-center gap-2 text-sm">
+                        <input type="checkbox" name="wochenende" value="ja" />
+                        Samstag und Sonntag mitzählen
+                      </label>
+                      <button className="mt-2 rounded-lg px-4 py-2 font-medium text-white" style={{ background: "var(--gut)" }}>
+                        Nach Angabe eintragen
+                      </button>
+                      <p className="mt-2 text-xs text-leise">
+                        Die Stunden werden gleichmäßig auf die Werktage des Zeitraums verteilt und ohne
+                        Uhrzeit gebucht. Im Protokoll ans Lohnbüro stehen sie als „Heimarbeit“ mit dem
+                        Vermerk, von wem die Angabe stammt.
+                      </p>
+                    </form>
+                  </details>
+                )}
               </div>
             );
           })}
@@ -539,7 +586,7 @@ function unterschiedText(minuten: number): string {
   return `${minuten > 0 ? "+" : "−"}${zahl} Stunden`;
 }
 
-async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
+async function Korrektur({ wer, tag, meldung, art }: { wer?: string; tag?: string; meldung?: string; art?: string }) {
   const leute = await stempelnde();
   const person = leute.find((p) => p.id === wer) ?? leute[0];
   // Wer überall stempeln darf, siehe lib/auth/sitzung: Dann ist
@@ -595,6 +642,16 @@ async function Korrektur({ wer, tag }: { wer?: string; tag?: string }) {
   return (
     <section id="korrektur" className="scroll-mt-24 space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-leise">Zeiten korrigieren</h2>
+
+      {/*
+        Die Rueckmeldung steht hier ein zweites Mal.
+
+        "hat es das nun genommen oder nicht. mach es deutlicher, wenn es
+        uebernommen ist" (Florian, 03.11.2026). Oben am Seitenkopf hat er
+        sie nie gesehen: Das Formular springt auf #korrektur, und der
+        Kasten bleibt weit darueber ausserhalb des Bildes stehen.
+      */}
+      {meldung && <Meldungskasten text={meldung} art={art === "hinweis" ? "hinweis" : "gut"} />}
 
       <form action={korrekturAnzeigen} className="flex flex-wrap items-end gap-3 text-sm">
         <label className="block">
@@ -1228,5 +1285,56 @@ async function Einrichtung() {
         <Absendeknopf text="Speichern" laeuftText="..." />
       </form>
     </details>
+  );
+}
+
+/**
+ * Die Rueckmeldung nach einer Korrektur.
+ *
+ * "hat es das nun genommen oder nicht. mach es deutlicher, wenn es
+ * uebernommen ist" (Florian, 03.11.2026).
+ *
+ * Vorher war das eine graue Zeile in kleiner Schrift, und abgewiesene
+ * Formulare sahen genauso gruen aus wie uebernommene. Jetzt sagt die
+ * Ueberschrift als Erstes, was Sache ist, und ein Hinweis traegt die
+ * Warnfarbe statt der guten.
+ *
+ * Das Zeichen daneben ist gezeichnet, kein Emoji: ein Haken, wenn es
+ * geklappt hat, ein Ausrufezeichen, wenn nicht.
+ */
+function Meldungskasten({ text, art }: { text: string; art: "gut" | "hinweis" }) {
+  const gut = art === "gut";
+  const farbe = gut ? "var(--gut)" : "var(--warnung)";
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-3 rounded-xl border-2 px-4 py-4"
+      style={{ borderColor: farbe, background: gut ? "var(--gut-hell)" : "var(--warnung-hell)" }}
+    >
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" className="mt-0.5 shrink-0">
+        <circle cx="14" cy="14" r="12.5" fill="none" stroke={farbe} strokeWidth="2" />
+        {gut ? (
+          <polyline
+            points="8,14.5 12.5,19 20,10"
+            fill="none"
+            stroke={farbe}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : (
+          <>
+            <line x1="14" y1="7.5" x2="14" y2="15.5" stroke={farbe} strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="14" cy="20" r="1.5" fill={farbe} />
+          </>
+        )}
+      </svg>
+      <div>
+        <p className="text-base font-semibold" style={{ color: farbe }}>
+          {gut ? "Übernommen" : "Das hat noch nicht geklappt"}
+        </p>
+        <p className="mt-1 text-sm">{text}</p>
+      </div>
+    </div>
   );
 }

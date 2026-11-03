@@ -78,12 +78,16 @@ export function protokollListe(z: Zeitraum, leute: Mitarbeiterzeiten[]): string 
         zeile([
           p.name,
           t.datum.split("-").reverse().join("."),
-          "Arbeit",
+          t.heimarbeit ? "Heimarbeit" : "Arbeit",
           kommen,
           gehen,
           alsStunden(t.arbeitMinuten),
           alsStunden(t.pauseMinuten),
-          t.offen
+          t.heimarbeit
+            ? [t.heimarbeit.zweck, t.heimarbeit.nachAngabeVon ? `nach Angabe von ${t.heimarbeit.nachAngabeVon}` : ""]
+                .filter(Boolean)
+                .join(", ")
+            : t.offen
             ? "Ausstempeln fehlt, nicht gezaehlt"
             : t.unplausibel && !t.bestaetigt
               ? `${t.unplausibel}, noch zu bestaetigen, nicht gezaehlt`

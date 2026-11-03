@@ -702,6 +702,15 @@ export async function antraegeOhneEintrag(): Promise<Antrag[]> {
             and w.tag = a.tag
             and w.wann >= a.erstellt_am
        )
+       /*
+         Heimarbeit zaehlt auch als Eintrag.
+
+         Sie hinterlaesst keinen Stempel und damit auch keine Zeile im
+         Aenderungsbuch. Ohne diese Zeile stuende ein Antrag, der
+         ordentlich als Heimarbeit gebucht wurde, fuer immer als
+         liegengeblieben da (Florian, 03.11.2026).
+       */
+       and not exists (select 1 from heimarbeit h where h.antrag_id = a.id)
      order by a.erstellt_am
   `.catch(() => [])) as Array<Record<string, unknown>>;
   return z.map(bauAntrag);

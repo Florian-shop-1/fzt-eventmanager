@@ -28,17 +28,36 @@ import { melden } from "@/lib/stempel/wache";
 import { zeitpunktAusBerlin } from "@/lib/zeit";
 import { nachPauseEntscheiden } from "@/lib/foyer/pause";
 import { sollzeitEntfernen, sollzeitSpeichern } from "@/lib/lohn/konto";
+import {
+  heimarbeitEintragen,
+  nurWerktage,
+  tageZwischen,
+  verteilen,
+  HOECHSTE_MINUTEN,
+} from "@/lib/stempel/heimarbeit";
 
 const text = (f: FormData, k: string, max = 1000) => String(f.get(k) ?? "").trim().slice(0, max);
 
-function zurueck(meldung: string, anker = "", f?: FormData): never {
+function zurueck(meldung: string, anker = "", f?: FormData, art: "gut" | "hinweis" = "gut"): never {
   revalidatePath("/stempeluhr");
   // Bei einer Korrektur bleibt die Ansicht auf derselben Person und
   // demselben Tag stehen, sonst müsste man jedes Mal neu auswählen.
   const wer = f ? String(f.get("benutzerId") ?? f.get("wer") ?? "") : "";
   const tag = f ? String(f.get("tag") ?? "") : "";
   const dazu = `${wer ? `&wer=${encodeURIComponent(wer)}` : ""}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}`;
-  redirect(`/stempeluhr?meldung=${encodeURIComponent(meldung)}${dazu}${anker}`);
+  const wie = art === "gut" ? "" : "&art=hinweis";
+  redirect(`/stempeluhr?meldung=${encodeURIComponent(meldung)}${dazu}${wie}${anker}`);
+}
+
+/**
+ * Dasselbe, aber als Hinweis statt als Erfolg.
+ *
+ * "hat es das nun genommen oder nicht" (Florian, 03.11.2026). Vorher sah
+ * ein abgewiesenes Formular genauso gruen aus wie eine uebernommene
+ * Korrektur, man konnte beides nicht auseinanderhalten.
+ */
+function stockt(meldung: string, anker = "", f?: FormData): never {
+  return zurueck(meldung, anker, f, "hinweis");
 }
 
 async function verlangeBuero() {
@@ -230,7 +249,7 @@ export async function antragBeantworten(f: FormData): Promise<void> {
   const a = mitZeiten
     ? await antragUebernehmen(id, b.name, zeiten)
     : await antragEntscheiden(id, status, antwort, b.name);
-  if (!a) zurueck("Diesen Antrag gibt es nicht mehr.", "#antraege");
+  if (!a) stockt("Diesen Antrag gibt es nicht mehr.", "#antraege");
 
   const p = (await db()`select email from benutzer where id = ${a.benutzerId}`) as Array<{ email: string }>;
   if (p[0]?.email) {
@@ -347,14 +366,14 @@ export async function tagBerichtigenAktion(f: FormData): Promise<void> {
 
   const zeit = /^\d{2}:\d{2}$/;
   if (!zeit.test(kommen) || !zeit.test(gehen)) {
-    zurueck("Kommen und Gehen brauchen beide eine Uhrzeit (zum Beispiel 17:30).", "#korrektur", f);
+    stockt("Kommen und Gehen brauchen beide eine Uhrzeit (zum Beispiel 17:30).", "#korrektur", f);
   }
   // Eine halbe Pause ist keine: Beides oder keines.
   if (Boolean(pauseVon) !== Boolean(pauseBis)) {
-    zurueck("Bei der Pause fehlt eine der beiden Uhrzeiten.", "#korrektur", f);
+    stockt("Bei der Pause fehlt eine der beiden Uhrzeiten.", "#korrektur", f);
   }
   if (!grund) {
-    zurueck("Bitte einen Grund angeben, zum Beispiel: Ausstempeln vergessen.", "#korrektur", f);
+    stockt("Bitte einen Grund angeben, zum Beispiel: Ausstempeln vergessen.", "#korrektur", f);
   }
 
   const e = await tagBerichtigen({
@@ -412,4 +431,102 @@ export async function nachPauseEntscheidenAktion(f: FormData): Promise<void> {
   if (!/^[0-9a-f-]{36}$/.test(id)) zurueck("Diesen Eintrag finden wir nicht.");
   await nachPauseEntscheiden({ id, genehmigt: text(f, "wie", 10) === "ja", von: b.name });
   zurueck(text(f, "wie", 10) === "ja" ? "Freigegeben, die Zeit wird bezahlt." : "Nicht freigegeben.");
+}
+
+/**
+ * Heimarbeit nach Angabe des Mitarbeiters eintragen.
+ *
+ * "ich will einfach die zeiten ins system, dass er die bekommt ... dass
+ * ich darauf vertraue einfach mitarbeiter angabe" (Florian, 03.11.2026).
+ *
+ * Der Anlass war Artems Antrag ueber 38 Stunden fuer sechzehn Tage. Das
+ * Antragsformular kennt nur einen Tag mit vier Uhrzeiten, deshalb stand
+ * der Antrag als angenommen da, ohne dass eine Stunde gebucht war.
+ *
+ * Gebucht wird ohne Uhrzeit: Wer zu Hause schneidet, steht an keiner
+ * Uhr, und erfundene Kommen- und Gehen-Zeiten haetten im Stundennachweis
+ * nichts verloren. Die Summe wird gleichmaessig auf die Werktage des
+ * Zeitraums verteilt, der Rest landet auf dem letzten Tag.
+ */
+export async function heimarbeitEintragenAktion(f: FormData): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!darfSelbstauskunftUebernehmen(b)) throw new Error("Eintragen darf nur die Geschäftsführung.");
+
+  const antragId = text(f, "id", 40) || null;
+  const von = text(f, "von", 10);
+  const bis = text(f, "bis", 10);
+  const zweck = text(f, "zweck", 200);
+  const stundenText = text(f, "stunden", 10).replace(",", ".");
+  const stundenZahl = Number(stundenText);
+  const wochenende = String(f.get("wochenende") ?? "") === "ja";
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(von) || !/^\d{4}-\d{2}-\d{2}$/.test(bis) || bis < von) {
+    stockt("Bitte einen gültigen Zeitraum angeben.", "#antraege");
+  }
+  if (!Number.isFinite(stundenZahl) || stundenZahl <= 0) {
+    stockt("Bitte die Stunden angeben, zum Beispiel 38 oder 7,5.", "#antraege");
+  }
+
+  const alle = tageZwischen(von, bis);
+  const tage = wochenende ? alle : nurWerktage(alle);
+  if (tage.length === 0) stockt("In dem Zeitraum liegt kein Werktag.", "#antraege");
+
+  const verteilt = verteilen(Math.round(stundenZahl * 60), tage);
+  const zuViel = verteilt.find((t) => t.minuten > HOECHSTE_MINUTEN);
+  if (zuViel) {
+    stockt(
+      `So kommen auf den ${zuViel.datum.split("-").reverse().join(".")} mehr als zehn Stunden. Bitte den Zeitraum weiter fassen.`,
+      "#antraege",
+    );
+  }
+
+  const wer = antragId ? await antragPerson(antragId) : null;
+  if (!wer) stockt("Zu diesem Antrag finde ich die Person nicht.", "#antraege");
+
+  const gesetzt = await heimarbeitEintragen({
+    benutzerId: wer.benutzerId,
+    name: wer.name,
+    tage: verteilt,
+    zweck,
+    nachAngabeVon: wer.name,
+    eingetragenVon: b!.name,
+    antragId,
+  });
+
+  if (antragId) {
+    await antragEntscheiden(
+      antragId,
+      "angenommen",
+      `Als Heimarbeit eingetragen: ${stundenText} Stunden auf ${gesetzt} Tage.`,
+      b!.name,
+    ).catch(() => undefined);
+  }
+
+  if (wer.email) {
+    await mailVerschicken({
+      an: wer.email,
+      betreff: "Deine Stunden sind eingetragen",
+      text: [
+        `Hallo ${wer.name.split(" ")[0]},`,
+        "",
+        `deine Angabe über ${stundenText} Stunden${zweck ? ` für ${zweck}` : ""} ist eingetragen,`,
+        `verteilt auf ${gesetzt} Tage vom ${von.split("-").reverse().join(".")} bis ${bis.split("-").reverse().join(".")}.`,
+        "",
+        "Danke dir!",
+      ].join("\n"),
+    }).catch(() => undefined);
+  }
+
+  zurueck(`${stundenText} Stunden als Heimarbeit auf ${gesetzt} Tage eingetragen.`, "#antraege");
+}
+
+/** Person und Mailadresse zu einem Antrag. */
+async function antragPerson(antragId: string): Promise<{ benutzerId: string; name: string; email: string } | null> {
+  const z = (await db()`
+    select a.benutzer_id, a.name, coalesce(b.email, '') as email
+      from stempel_antrag a left join benutzer b on b.id = a.benutzer_id
+     where a.id = ${antragId}::uuid
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  if (!z[0]) return null;
+  return { benutzerId: String(z[0].benutzer_id), name: String(z[0].name ?? ""), email: String(z[0].email ?? "") };
 }
