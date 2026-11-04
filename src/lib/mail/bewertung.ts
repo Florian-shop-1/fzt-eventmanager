@@ -433,9 +433,14 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
  * (Florian, 04.11.2026).
  *
  * Steht ein Einlader dabei, wird er genannt: Eine Bitte im Namen von
- * Veronika wiegt schwerer als eine vom Haus. Der Hinweis, dass die Karte
- * geschenkt war, muss in der Bewertung stehen; das ist bei einer
- * Gegenleistung vorgeschrieben und steht deshalb auch hier.
+ * Veronika wiegt schwerer als eine vom Haus.
+ *
+ * Der Hinweis "Erwaehne bitte, dass du als Gast eingeladen warst" steht
+ * bewusst NICHT mehr in der Mail und auch nicht auf der Bewertungsseite im
+ * Shop (Florian, 04.11.2026: "es ist kein Problem, das sind unsere
+ * Leute"). Er war urspruenglich vorgesehen, weil bei einer Bewertung mit
+ * Gegenleistung die Offenlegung vorgeschrieben ist. Wird die Liste auch fuer
+ * fremde Gaeste genutzt, sollte er wieder rein.
  */
 export function baueGastMail(gast: {
   name: string;
@@ -472,7 +477,7 @@ export function baueGastMail(gast: {
       : [
           eroeffnung,
           "Wir laden unsere Gäste sehr gerne ein, und bei uns gehört eine kleine Nettigkeit dazu: Wer von uns eingeladen wird, erzählt anschließend davon. Mehr erwarten wir nicht, nur ein paar ehrliche Zeilen.",
-          "Schreib einfach, wie es dir wirklich gefallen hat. Erwähne dabei bitte kurz, dass du als Gast eingeladen warst. Das gehört zur Ehrlichkeit und ist bei Bewertungen so vorgeschrieben.",
+          "Schreib einfach, wie es dir wirklich gefallen hat.",
         ],
     link,
     abmelden: `${EVENTMANAGER}/bewerten/${gast.token}?abmelden=1`,  // Abmelden bleibt im Eventmanager, dort steht die Liste.
