@@ -1,6 +1,6 @@
 /** Ergebnistypen des Sitzplaners. */
 
-import type { BereichId, Buchungsgruppe, Sicherheit } from "@/lib/domain/types";
+import type { BereichId, Buchungsgruppe, MenueVariante, Sicherheit } from "@/lib/domain/types";
 
 /** Eine Gruppe sitzt in einer oder mehreren zusammengelegten Logen. */
 export interface LogenZuteilung {
@@ -40,6 +40,15 @@ export interface GalerieZuteilung {
   personen: number;
   plaetzeGesamt: number;
   freiePlaetze: number;
+  /**
+   * Was diese Gruppe bestellt hat, nach Varianten.
+   *
+   * "Waer gut wenn statt der Tischzuweisung die Bestellten Menues
+   * stehen wuerden, z.B. 1x Classic, 3x Sea" (Kevin ueber Florian,
+   * 04.11.2026). Im Funktionsheet liest die Gastro Tisch fuer Tisch ab,
+   * was herauskommt; die Tischnamen braucht sie dafuer nicht.
+   */
+  menues: Partial<Record<MenueVariante, number>>;
 }
 
 export type HinweisArt =

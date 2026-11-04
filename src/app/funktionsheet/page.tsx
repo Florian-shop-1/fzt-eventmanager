@@ -574,6 +574,21 @@ export default async function FunktionsheetSeite({
   );
 }
 
+/**
+ * Was eine Gruppe bestellt hat, in einer Zeile: "1× Classic · 3× Sea".
+ *
+ * "Waer gut wenn statt der Tischzuweisung die Bestellten Menues stehen
+ * wuerden" (Kevin ueber Florian, 04.11.2026). Die Gastro geht im
+ * Funktionsheet Tisch fuer Tisch durch und will wissen, was herauskommt.
+ * Der Tischname steht ohnehin im Saalplan daneben.
+ */
+function menuesInWorten(menues: Partial<Record<MenueVariante, number>>): string {
+  // Dieselbe Reihenfolge und dieselben Namen wie oben im Blatt.
+  return VARIANTEN.filter((v) => (menues[v.wert] ?? 0) > 0)
+    .map((v) => `${menues[v.wert]}× ${v.label}`)
+    .join(" · ");
+}
+
 /** Zeigt Loge für Loge und die Eventgalerie, inklusive freier Plätze. */
 function Sitzverteilung({
   plan,
@@ -724,7 +739,9 @@ function Sitzverteilung({
                     )}
                     <AllergieAmTisch hinweise={hinweise.get(g.gruppeId) ?? []} />
                   </td>
-                  <td className="py-1.5 text-leise">{g.tischBeschreibung}</td>
+                  <td className="py-1.5 text-leise">
+                    {menuesInWorten(g.menues) || <span className="italic">kein Menü bestellt</span>}
+                  </td>
                   <td className="w-24 py-1.5 text-right tabular-nums">{g.personen} Pers.</td>
                 </tr>
               ))}

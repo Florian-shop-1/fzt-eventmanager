@@ -173,6 +173,7 @@ export function planeGalerie(
       personen: g.personen,
       plaetzeGesamt: kombi.plaetze,
       freiePlaetze: kombi.plaetze - g.personen,
+      menues: g.menues ?? {},
     });
   }
   return { zuteilungen, nichtPlatziert };
