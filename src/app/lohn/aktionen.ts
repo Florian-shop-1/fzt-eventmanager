@@ -213,3 +213,65 @@ export async function schnupperSchalter(f: FormData): Promise<void> {
   `;
   zurueck(zeitraum, "Schnupperzeit beendet. Ab heute werden die Stunden gemeldet.");
 }
+
+/**
+ * Liegengebliebene Anmeldungen ans Lohnbüro nachreichen.
+ *
+ * Der automatische Versand kam erst am 15.10.2026 dazu. Alles, was
+ * vorher unterschrieben wurde, ist deshalb nie hinausgegangen, und von
+ * Hand hat es niemand nachgeholt: Anfang November lagen zehn
+ * unterschriebene Verträge beim Lohnbüro nicht vor (gefunden am
+ * 04.11.2026).
+ *
+ * Der Knopf schickt sie in einem Durchgang. Er bleibt danach stehen,
+ * denn dieselbe Lücke entsteht wieder, sobald jemand den Vertrag auf
+ * Papier unterschreibt oder der Versand einmal klemmt.
+ *
+ * Verschickt wird nur, wozu Personalbogen und Vertrag vorliegen. Jedes
+ * Paket merkt sich sein Datum, zweimal geht nichts hinaus.
+ */
+export async function paketeNachreichen(): Promise<void> {
+  const b = await angemeldeterBenutzer();
+  if (!darfZeitenAendern(b)) throw new Error("Das dürfen nur Werner, Kevin und Florian.");
+
+  const { lohnbueroPaket } = await import("@/lib/personal/lohnbuero-paket");
+  const offen = (await db()`
+    select distinct b.id, b.name
+      from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
+     where v.unterschrieben_am is not null and v.lohnbuero_am is null
+       and v.zurueckgezogen_am is null and v.abgeloest_am is null
+     order by b.name
+  `.catch(() => [])) as Array<{ id: string; name: string }>;
+
+  const raus: string[] = [];
+  const liegt: string[] = [];
+  for (const p of offen) {
+    const stand = await lohnbueroPaket(String(p.id)).catch((e) => ({
+      verschickt: false,
+      grund: e instanceof Error ? e.message : "Fehler",
+    }));
+    if (stand.verschickt) raus.push(p.name);
+    else liegt.push(`${p.name}: ${stand.grund}`);
+  }
+
+  revalidatePath("/lohn");
+  const meldung =
+    raus.length === 0
+      ? liegt.length === 0
+        ? "Es lag nichts offen."
+        : `Nichts verschickt. ${liegt.join(" · ")}`
+      : `${raus.length} ${raus.length === 1 ? "Anmeldung" : "Anmeldungen"} verschickt: ${raus.join(", ")}.` +
+        (liegt.length > 0 ? ` Liegen geblieben: ${liegt.join(" · ")}` : "");
+  redirect(`/lohn?meldung=${encodeURIComponent(meldung)}`);
+}
+
+/** Wie viele Anmeldungen noch beim Lohnbüro fehlen. Für die Anzeige. */
+export async function offeneAnmeldungen(): Promise<number> {
+  const z = (await db()`
+    select count(distinct v.benutzer_id)::int as n
+      from arbeitsvertrag v
+     where v.unterschrieben_am is not null and v.lohnbuero_am is null
+       and v.zurueckgezogen_am is null and v.abgeloest_am is null
+  `.catch(() => [{ n: 0 }])) as Array<{ n: number }>;
+  return Number(z[0]?.n ?? 0);
+}

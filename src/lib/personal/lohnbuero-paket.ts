@@ -197,3 +197,43 @@ export async function lohnbueroPaketStill(benutzerId: string): Promise<void> {
     console.error("[lohnbuero] Paket nicht verschickt:", e);
   }
 }
+
+/**
+ * Was liegengeblieben ist, nachholen. Laeuft jede Nacht.
+ *
+ * "du musst es so bauen, dass die verträge wenn unterschrieben
+ * automatisch DIREKT versendet werden. so wars mal gedacht und klappte
+ * ja auch bei den meisten. bitte das so machen, dass das dann nun
+ * nachgeholt wird jetzt automatisch" (Florian, 04.11.2026).
+ *
+ * Direkt beim Unterschreiben geht es schon hinaus, an drei Stellen. Nur
+ * half das denen nicht, die vor dem 15.10.2026 unterschrieben haben, als
+ * es diesen Versand noch gar nicht gab: Anfang November lagen zehn
+ * unterschriebene Vertraege beim Lohnbuero nicht vor.
+ *
+ * Dieser Lauf schliesst solche Luecken von allein. Er bleibt danach
+ * stehen, denn dieselbe Luecke entsteht wieder, sobald jemand auf Papier
+ * unterschreibt, der Personalbogen spaeter nachkommt oder der Versand
+ * einmal klemmt. Verschickt wird je Vertrag nur einmal.
+ */
+export async function lohnbueroNachholen(): Promise<{ verschickt: string[]; liegt: string[] }> {
+  const offen = (await db()`
+    select distinct b.id, b.name
+      from arbeitsvertrag v join benutzer b on b.id = v.benutzer_id
+     where v.unterschrieben_am is not null and v.lohnbuero_am is null
+       and v.zurueckgezogen_am is null and v.abgeloest_am is null
+     order by b.name
+  `.catch(() => [])) as Array<{ id: string; name: string }>;
+
+  const verschickt: string[] = [];
+  const liegt: string[] = [];
+  for (const p of offen) {
+    const stand = await lohnbueroPaket(String(p.id)).catch((e) => ({
+      verschickt: false,
+      grund: e instanceof Error ? e.message : "Fehler",
+    }));
+    if (stand.verschickt) verschickt.push(p.name);
+    else liegt.push(`${p.name}: ${stand.grund}`);
+  }
+  return { verschickt, liegt };
+}

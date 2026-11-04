@@ -920,3 +920,47 @@ export async function zusatzEntfernen(f: FormData): Promise<void> {
   await einsatzLoeschen(eventId, position);
   zurueck(eventId, "Der zusätzliche Platz ist weg.");
 }
+
+/**
+ * "Bin da" des eingeweihten Zuschauers.
+ *
+ * "Ein zuschauer im Dienstplan zählt künftig alleine, aber er sollte
+ * bestätigen, dass er da ist" (Florian, 04.11.2026).
+ *
+ * Statt zu stempeln klickt er einmal. Damit zählen die zwei Stunden, und
+ * zwar ohne dass er am Eingang mit dem Handy hantiert; genau das wäre
+ * bei seiner Aufgabe auffällig. Der Dienstplan allein genügt dafür
+ * nicht, er sagt nur, wer eingeteilt war.
+ *
+ * Bestätigen kann nur, wer selbst eingeteilt ist, und nur für sich.
+ */
+export async function zuschauerBinDa(f: FormData): Promise<void> {
+  const benutzer = await angemeldeterBenutzer();
+  if (!benutzer) redirect("/anmelden");
+  const eventId = text(f, "vorstellung");
+  const datum = text(f, "datum");
+
+  // Eine Haelfte oder beide. Ohne Angabe die ganze Show, das ist der Regelfall.
+  const haelften = text(f, "haelften") === "1" ? 1 : 2;
+
+  const z = (await db()`
+    update dienst_einsatz
+       set zuschauer_bestaetigt_am = coalesce(zuschauer_bestaetigt_am, now()),
+           zuschauer_haelften = ${haelften}
+     where ditix_event_id = ${eventId}
+       and position = 'ZUSCHAUER'
+       and benutzer_id = ${benutzer.id}
+       and abgesagt_von is null
+    returning datum::text as datum
+  `.catch(() => [] as Array<{ datum: string }>)) as Array<{ datum: string }>;
+
+  if (z.length === 0) {
+    zurueck(eventId, "Für diese Vorstellung bist du nicht als Zuschauer eingeteilt.");
+  }
+  zurueck(
+    eventId,
+    `Danke, notiert. Für den ${(z[0]?.datum ?? datum).split("-").reverse().join(".")} ${
+      haelften === 1 ? "ist eine Stunde" : "sind zwei Stunden"
+    } eingetragen.`,
+  );
+}

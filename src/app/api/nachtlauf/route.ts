@@ -11,6 +11,7 @@ import { postlaufMerken } from "@/lib/bewirtung/eingangsrechnung";
 import { abbrecherLauf } from "@/lib/abbrecher/lauf";
 import { taeglicherBewertungslauf } from "@/lib/bewertung/lauf";
 import { gaesteInMagicNews } from "@/lib/marketing/brevo-kontakte";
+import { lohnbueroNachholen } from "@/lib/personal/lohnbuero-paket";
 import { taeglicheErinnerung } from "@/lib/dienstplan/laden";
 import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
 import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
@@ -150,6 +151,15 @@ const MORGEN: Teil[] = [
     fehlen (Florian, 04.11.2026).
   */
   { name: "magicnews", tun: () => gaesteInMagicNews() },
+  /*
+    Anmeldungen ans Lohnbuero, die liegengeblieben sind.
+
+    Beim Unterschreiben geht der Vertrag schon hinaus. Dieser Lauf
+    faengt die Faelle auf, bei denen das nicht passiert ist: vor dem
+    15.10.2026 gab es den Versand noch nicht, und auch danach kann der
+    Personalbogen spaeter nachkommen (Florian, 04.11.2026).
+  */
+  { name: "lohnbuero", tun: () => lohnbueroNachholen() },
   { name: "dienstplan", tun: () => taeglicheErinnerung() },
   {
     name: "belege",

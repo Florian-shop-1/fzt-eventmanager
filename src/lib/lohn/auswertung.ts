@@ -135,6 +135,37 @@ function tageZwischen(von: string, bis: string): string[] {
  * Sonst fiele eine Schicht, die um 23:30 Uhr endet, im Winter in den
  * falschen Tag.
  */
+/**
+ * Zuschauer-Dienste, die der Eingeweihte selbst bestaetigt hat.
+ *
+ * Nur die bestaetigten: Der Dienstplan allein sagt, wer eingeteilt war,
+ * nicht wer da war (Florian, 04.11.2026).
+ */
+async function bestaetigteZuschauer(
+  von: string,
+  bis: string,
+): Promise<Array<{ benutzerId: string; name: string; email: string; datum: string; haelften: number }>> {
+  const z = (await db()`
+    select e.benutzer_id, b.name, coalesce(b.email, '') as email,
+           e.datum::text as datum, coalesce(e.zuschauer_haelften, 2) as haelften
+      from dienst_einsatz e
+      join benutzer b on b.id = e.benutzer_id
+     where e.position = 'ZUSCHAUER'
+       and e.zuschauer_bestaetigt_am is not null
+       and e.abgesagt_von is null
+       and e.datum between ${von}::date and ${bis}::date
+       and coalesce(b.ohne_lohnmeldung, false) = false
+     order by e.datum
+  `.catch(() => [])) as Array<Record<string, unknown>>;
+  return z.map((r) => ({
+    benutzerId: String(r.benutzer_id),
+    name: String(r.name ?? ""),
+    email: String(r.email ?? ""),
+    datum: String(r.datum),
+    haelften: Number(r.haelften ?? 2),
+  }));
+}
+
 export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]> {
   const stempel = (await db()`
     select s.benutzer_id, s.name, s.art, s.zeitpunkt, s.quelle, s.im_haus, s.geaendert_von, b.email,
@@ -447,6 +478,45 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
     });
     person.arbeitMinuten += h.minuten;
     if (!schonGestempelt) person.arbeitstage += 1;
+  }
+
+  /*
+    Der eingeweihte Zuschauer, der selbst bestaetigt hat.
+
+    "Ein zuschauer im Dienstplan zählt künftig alleine, aber er sollte
+    bestätigen, dass er da ist" (Florian, 04.11.2026). Er stempelt nicht,
+    denn wer im Publikum sitzt, soll am Eingang nicht mit dem Handy
+    hantieren. Bis hierher hiess das: keine Stunden. Roman stand von Ende
+    September bis Ende Oktober einundzwanzig Mal im Plan und hatte zwei
+    Stunden gutgeschrieben.
+
+    Eine Haelfte ist eine Stunde, beide sind zwei, und zwar pauschal:
+    "als noch eine haelfte der show war = 1 Stunde zahlen, beide haelften
+    da = 2 Stunden bezahlen" (Florian, 04.11.2026). Nicht nach der Uhr,
+    weil sich eine Stunde sonst nicht lohnen wuerde.
+
+    Hat er an dem Tag doch gestempelt, zaehlt der Stempel und nicht
+    dieser Eintrag: Sonst stuende der Tag zweimal da.
+  */
+  for (const b of await bestaetigteZuschauer(z.von, z.bis)) {
+    if (!imZeitraum(b.datum)) continue;
+    const person = hole(b.benutzerId, b.name, b.email);
+    if (person.protokoll.some((t) => t.datum === b.datum)) continue;
+    const minuten = (b.haelften === 1 ? 1 : 2) * 60;
+    person.protokoll.push({
+      datum: b.datum,
+      stempel: [],
+      arbeitMinuten: minuten,
+      pauseMinuten: 0,
+      offen: false,
+      fehlstempel: 0,
+      unplausibel: null,
+      bestaetigt: true,
+      gewertet: true,
+      zuschauer: true,
+    });
+    person.arbeitMinuten += minuten;
+    person.arbeitstage += 1;
   }
 
   // Urlaub und Krankheit tageweise, nur innerhalb des Zeitraums.

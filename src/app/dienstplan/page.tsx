@@ -37,6 +37,7 @@ import {
   mitlernen,
   nochmalFragen,
   schichtUebernehmenAnbieten,
+  zuschauerBinDa,
   schichtUebernahmeEntscheiden,
   uebernehmen,
   urlaubEintragen,
@@ -589,6 +590,49 @@ function SlotZeile({
                 Showtag nochmal (Florian, 12.10.2026). */}
             {slot.position === "ZUSCHAUER" && (
               <span className="mt-1 block text-xs text-leise">{ZUSCHAUER_KLEIDUNG}</span>
+            )}
+            {/*
+              "Bin da" statt stempeln.
+
+              "Ein zuschauer im Dienstplan zählt künftig alleine, aber er
+              sollte bestätigen, dass er da ist" (Florian, 04.11.2026).
+              Wer im Publikum sitzt, soll am Eingang nicht mit dem Handy
+              hantieren; ein Klick genügt, und daraus kommen die Stunden.
+
+              Eine Hälfte ist eine Stunde, beide sind zwei. Gezahlt wird
+              pauschal, nicht nach der Uhr: Eine Stunde allein lohnt den
+              Weg nicht.
+            */}
+            {slot.position === "ZUSCHAUER" && meins && !abgesagt && (
+              slot.zuschauerBestaetigtAm ? (
+                <span className="mt-1 block text-xs" style={{ color: "var(--gut)" }}>
+                  Bestätigt, {slot.zuschauerHaelften === 1 ? "eine Stunde" : "zwei Stunden"} eingetragen.
+                </span>
+              ) : (
+                <div className="mt-2 rounded-md border border-linie p-2 text-xs">
+                  <p className="font-medium">Warst du da? Dann sag kurz Bescheid.</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-leise">
+                    <li>In der Pause bitte nicht ins Foyer. Geh lieber kurz die Beine vertreten, damit dich niemand ins Gespräch zieht.</li>
+                    <li>Nach der Show nicht im Foyer bleiben, sondern gleich gehen. Sonst fällst du auf.</li>
+                  </ul>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <form action={zuschauerBinDa}>
+                      <input type="hidden" name="vorstellung" value={eventId} />
+                      <input type="hidden" name="haelften" value="2" />
+                      <button className="rounded-md px-3 py-1.5 font-medium text-white" style={{ background: "var(--gut)" }}>
+                        Bin da, ganze Show (2 Std.)
+                      </button>
+                    </form>
+                    <form action={zuschauerBinDa}>
+                      <input type="hidden" name="vorstellung" value={eventId} />
+                      <input type="hidden" name="haelften" value="1" />
+                      <button className="rounded-md border border-linie px-3 py-1.5">
+                        Nur eine Hälfte (1 Std.)
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )
             )}
           </>
         ) : (

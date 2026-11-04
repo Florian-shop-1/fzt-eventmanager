@@ -206,6 +206,9 @@ export interface Einsatz {
   /** Wann die Kollegen gefragt wurden, und wie viele. */
   ersatzGefragtAm: string | null;
   ersatzGefragtAnzahl: number;
+  /** Nur beim Zuschauer: selbst bestaetigt, und fuer wie viele Haelften. */
+  zuschauerBestaetigtAm: string | null;
+  zuschauerHaelften: number | null;
 }
 
 /** Alle aktiven Benutzer (außer dem Food-Kiosk), mit dem, was sie können. */
@@ -244,7 +247,8 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
   const z = (await db()`
     select ditix_event_id, position, datum::text as datum, benutzer_id, sucht_ersatz, grund, erinnert_stufe,
            notnagel, notnagel_grund, bezeichnung, treffzeit,
-           angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl
+           angefragt_id, angefragt_von_id, angefragt_notiz, ersatz_gefragt_am, ersatz_gefragt_anzahl,
+           zuschauer_bestaetigt_am, zuschauer_haelften
       from dienst_einsatz where datum >= ${datum}::date
   `) as Array<Record<string, unknown>>;
   return z.map((r) => ({
@@ -264,6 +268,10 @@ export async function einsaetzeAb(datum: string): Promise<Einsatz[]> {
     angefragtNotiz: (r.angefragt_notiz as string) ?? null,
     ersatzGefragtAm: r.ersatz_gefragt_am ? new Date(r.ersatz_gefragt_am as string).toISOString() : null,
     ersatzGefragtAnzahl: Number(r.ersatz_gefragt_anzahl ?? 0),
+    zuschauerBestaetigtAm: r.zuschauer_bestaetigt_am
+      ? new Date(r.zuschauer_bestaetigt_am as string).toISOString()
+      : null,
+    zuschauerHaelften: r.zuschauer_haelften == null ? null : Number(r.zuschauer_haelften),
   }));
 }
 
@@ -433,6 +441,13 @@ export interface Slot {
   angefragt: Person | null;
   angefragtVon: Person | null;
   angefragtNotiz: string | null;
+  /**
+   * Nur beim eingeweihten Zuschauer: Er hat selbst bestaetigt, dass er
+   * da ist, und fuer wie viele Showhaelften (Florian, 04.11.2026).
+   * Daraus kommen seine Stunden, denn er stempelt nicht.
+   */
+  zuschauerBestaetigtAm?: string | null;
+  zuschauerHaelften?: number | null;
 }
 
 export interface Schicht {
@@ -484,6 +499,8 @@ export function planBauen(
           angefragt: e?.angefragtId ? (person.get(e.angefragtId) ?? null) : null,
           angefragtVon: e?.angefragtVonId ? (person.get(e.angefragtVonId) ?? null) : null,
           angefragtNotiz: e?.angefragtNotiz ?? null,
+          zuschauerBestaetigtAm: e?.zuschauerBestaetigtAm ?? null,
+          zuschauerHaelften: e?.zuschauerHaelften ?? null,
         });
       }
       /*
