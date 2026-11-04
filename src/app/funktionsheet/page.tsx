@@ -738,6 +738,17 @@ function Sitzverteilung({
                       </span>
                     )}
                     <AllergieAmTisch hinweise={hinweise.get(g.gruppeId) ?? []} />
+                    {/*
+                      Der Tisch bleibt lesbar, nur klein.
+
+                      "ja setze dahinter klein" (Florian, 04.11.2026).
+                      Die Gastro liest die Menues, der Service braucht
+                      trotzdem den Tisch; beides nebeneinander, mit
+                      deutlich unterschiedlichem Gewicht.
+                    */}
+                    {g.tischBeschreibung && (
+                      <span className="ml-1.5 text-xs text-leise">{g.tischBeschreibung}</span>
+                    )}
                   </td>
                   <td className="py-1.5 text-leise">
                     {menuesInWorten(g.menues) || <span className="italic">kein Menü bestellt</span>}
