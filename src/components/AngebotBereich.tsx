@@ -27,7 +27,7 @@ import {
   positionHinzufuegen,
   positionText,
 } from "@/lib/angebot/speichern";
-import { VARIANTEN, wochentagName, type Variante } from "@/lib/angebot/ablaufplan";
+import { VARIANTEN, ablaufFuer, wochentagName, type Variante } from "@/lib/angebot/ablaufplan";
 import { angebotPerMail, angebotePerMail } from "@/lib/angebot/mailversand";
 import { MailVorschau } from "@/components/MailVorschau";
 import { rechnungErzeugen } from "@/lib/rechnung/mailversand";
@@ -858,6 +858,55 @@ export function AngebotBereich({
                 ? `Es entstehen ${fassungen.length * arten.length} Angebote nebeneinander, jedes mit eigener Nummer, eigenem Link und eigenem PDF.`
                 : "Mehrere ankreuzen heißt: Der Kunde bekommt mehrere Angebote zur Auswahl."}
             </p>
+
+            {/*
+              Der Ablauf, sofort beim Ankreuzen.
+
+              "dann ändert sich der ablauf (vorschau pdf) nicht. dort
+              sollte dann natürlich auch direkt fingerfood angezeigt
+              werden anstelle dem menü" (Florian, 04.11.2026).
+
+              Die grosse Vorschau weiter unten zeigt immer ein bereits
+              gespeichertes Angebot; sie kann gar nicht mitgehen, bevor
+              gespeichert ist. Wer nach "weiteres Angebot erstellen" die
+              Fassung umstellt, sah deshalb weiter das Menü und hielt das
+              fuer den neuen Stand. Hier steht jetzt sofort, was aus der
+              Auswahl wird.
+            */}
+            {fassungen.length > 0 && (
+              <div className="mt-3 rounded-md border border-linie bg-flaeche p-3 text-xs">
+                <span className="font-medium">So wird der Ablauf aussehen</span>
+                {fassungen.map((v) => {
+                  const stationen = ablaufFuer({
+                    variante: v,
+                    tageszeit,
+                    showname: angebote[0]?.vorstellung?.show ?? "",
+                    showzeit: !terminOffen && terminZeit ? terminZeit : undefined,
+                  });
+                  return (
+                    <div key={v} className="mt-2">
+                      {fassungen.length > 1 && (
+                        <div className="font-medium text-leise">
+                          {VARIANTEN.find((x) => x.wert === v)?.titel ?? v}
+                        </div>
+                      )}
+                      <ul className="mt-1 space-y-0.5">
+                        {stationen.map((s) => (
+                          <li key={`${s.zeit}-${s.titel}`} className="flex gap-2">
+                            <span className="w-12 shrink-0 tabular-nums text-leise">{s.zeit}</span>
+                            <span>{s.titel}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+                <p className="mt-2 text-leise">
+                  Steht der Termin in FloTix, gelten beim Speichern dessen Uhrzeiten. Hier steht
+                  so lange die Hausregel.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>

@@ -189,6 +189,41 @@ export const ARTIKEL: Artikel[] = [
     gruppe: "getraenke",
     proPerson: true,
   },
+  /*
+    Die VIP-Getraenkeflat, dieselbe wie im Ticketshop.
+
+    "es gibt die Getränkeflat (19 eur alk-free, 29 mit alk) nicht als
+    auswahlmöglichkeit fürs angebot bei events. die soll es aber auch
+    geben! das sind die Bändchen silver und gold" (Florian, 04.11.2026).
+
+    Der Gast kennt sie aus dem Shop als Bändchen: Silber ohne Alkohol,
+    Gold mit. Im Haus ist es dasselbe Band, Gold kostet zehn Euro mehr.
+    Sie stehen neben den alten Pauschalen aus der lexoffice-Liste und
+    ersetzen sie nicht: Die Softdrink-Flat gilt bis einschliesslich
+    Pause, das Band den ganzen Abend an der Magic Bar.
+  */
+  {
+    nummer: "FLATVIPSILBER",
+    bezeichnung: "VIP-Getränkeflat Silber (Bändchen, ohne Alkohol)",
+    beschreibung:
+      "Unbegrenzt alkoholfreie Getränke an der Magic Bar, den ganzen Abend. Als Bändchen am Handgelenk.",
+    einheit: "Stück",
+    bruttoCent: 1900,
+    ust: 0.19,
+    gruppe: "getraenke",
+    proPerson: true,
+  },
+  {
+    nummer: "FLATVIPGOLD",
+    bezeichnung: "VIP-Getränkeflat Gold (Bändchen, mit Alkohol)",
+    beschreibung:
+      "Unbegrenzt Getränke an der Magic Bar, den ganzen Abend. Aperol Spritz, Bier, Wein, Sekt und unser hauseigener Magicuvée sind dabei. Als Bändchen am Handgelenk.",
+    einheit: "Stück",
+    bruttoCent: 2900,
+    ust: 0.19,
+    gruppe: "getraenke",
+    proPerson: true,
+  },
   {
     nummer: "FLATALL",
     bezeichnung: "ALL-INKLUSIVE-FLAT",
