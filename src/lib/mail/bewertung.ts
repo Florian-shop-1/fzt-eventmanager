@@ -448,7 +448,9 @@ export function baueGastMail(gast: {
   const zeit = tageszeit(gast.uhrzeit);
   const wann = wannWarDerAbend(gast.datum, zeit, heute);
   const von = gast.eingeladenVon.trim();
-  const link = `${EVENTMANAGER}/bewerten/${gast.token}`;
+  // Die schoene Seite liegt im Shop; die Knoepfe dort fuehren ueber den
+  // Eventmanager, der den Klick vermerkt und weiterleitet.
+  const link = `${SHOP}/bewerten/${gast.token}`;
 
   const eroeffnung = von
     ? `${wann[0].toUpperCase() + wann.slice(1)} warst du auf Einladung von ${von} bei uns im Florian Zimmer Theater. Ich hoffe sehr, es hat dir gefallen!`
@@ -473,7 +475,7 @@ export function baueGastMail(gast: {
           "Schreib einfach, wie es dir wirklich gefallen hat. Erwähne dabei bitte kurz, dass du als Gast eingeladen warst. Das gehört zur Ehrlichkeit und ist bei Bewertungen so vorgeschrieben.",
         ],
     link,
-    abmelden: `${EVENTMANAGER}/bewerten/${gast.token}?abmelden=1`,
+    abmelden: `${EVENTMANAGER}/bewerten/${gast.token}?abmelden=1`,  // Abmelden bleibt im Eventmanager, dort steht die Liste.
     schluss: "Danke dir, und bis zum nächsten Mal!",
     grund: "Du erhältst diese E-Mail, weil du als unser Gast im Florian Zimmer Theater warst.",
   });

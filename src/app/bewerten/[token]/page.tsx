@@ -19,9 +19,12 @@ import { widerspruchEintragen } from "@/lib/db/werbewiderspruch";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bewertung | Florian Zimmer Theater" };
 
-const GOOGLE = "https://search.google.com/local/writereview?placeid=ChIJM7SUXk3fm0cRLDoip8t0DRQ";
-const TRIPADVISOR =
-  "https://www.tripadvisor.de/UserReviewEdit-g198468-d24151397-Florian_Zimmer_Theater-Neu_Ulm_Swabia_Bavaria.html";
+/*
+  Die Knoepfe gehen ueber die Weiterleitung nebenan, nicht direkt zur
+  Plattform. So wird der Klick auf demselben Weg gezaehlt wie von der
+  Shopseite aus, und es gibt nur eine Stelle, die zaehlt.
+*/
+const ZU = (token: string, ziel: "google" | "tripadvisor") => `/bewerten/${token}/zu/${ziel}`;
 
 export default async function BewertenSeite({
   params,
@@ -87,7 +90,7 @@ export default async function BewertenSeite({
 
           <div className="space-y-3">
             <a
-              href={GOOGLE}
+              href={ZU(token, "google")}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg border px-4 py-4 text-center font-medium"
@@ -96,7 +99,7 @@ export default async function BewertenSeite({
               Bei Google bewerten
             </a>
             <a
-              href={TRIPADVISOR}
+              href={ZU(token, "tripadvisor")}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg border border-linie px-4 py-4 text-center font-medium"
