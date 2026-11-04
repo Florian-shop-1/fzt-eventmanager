@@ -67,10 +67,32 @@ export default async function GaestelisteSeite({
           <span className="mb-1 block text-xs text-leise">Showtickets</span>
           <input name="anzahl" type="number" min={1} max={30} defaultValue={2} required />
         </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Eingeladen von (freiwillig)</span>
+          <input name="eingeladenVon" maxLength={60} placeholder="zum Beispiel Veronika" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-leise">Mailadresse (freiwillig)</span>
+          <input name="email" type="email" maxLength={160} placeholder="zum Beispiel gast@web.de" />
+        </label>
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-xs text-leise">Notiz (freiwillig)</span>
           <input name="notiz" placeholder="zum Beispiel Presse, Freund von Florian, Gewinner" />
         </label>
+        {/*
+          Warum hier nichts angekreuzt werden muss.
+
+          "sie kommen ja erst nach deren zustimmung auf die gästeliste..
+          die frage ist also bereits beantwortet und verwirrt den einlass
+          nur" (Florian, 04.11.2026). Wer die Adresse einträgt, hat den
+          Gast gefragt. Ohne Adresse geht gar nichts hinaus.
+        */}
+        <p className="text-xs text-leise sm:col-span-2">
+          Steht eine Mailadresse da, bekommt der Gast am Morgen nach der Show die Bitte um eine
+          Bewertung, bei Bedarf einen Tag später noch eine Erinnerung, und er wandert in die
+          Magic News. Der Name unter „Eingeladen von“ steht in der Mail. Ohne Adresse passiert
+          nichts davon.
+        </p>
         <div className="sm:col-span-2">
           <Absendeknopf text="Auf die Gästeliste" laeuftText="Wird eingetragen..." />
         </div>

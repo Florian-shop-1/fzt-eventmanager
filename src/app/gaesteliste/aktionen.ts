@@ -39,6 +39,8 @@ export async function gastEintragen(formular: FormData): Promise<void> {
     anzahl,
     notiz: text(formular, "notiz").slice(0, 200),
     von: b.name,
+    email: text(formular, "email").slice(0, 160),
+    eingeladenVon: text(formular, "eingeladenVon").slice(0, 60),
   });
   neu();
   redirect(`/gaesteliste?v=${vorstellung}&meldung=${encodeURIComponent(`${name} (${anzahl}) steht auf der Gästeliste.`)}`);

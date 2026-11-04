@@ -23,6 +23,16 @@ import type { ShopBuchung } from "@/lib/db/shop-buchungen";
 import { vorname } from "@/lib/mail/vorfreude";
 
 const SHOP = process.env.SHOP_URL ?? "https://florianzimmertheater.de";
+/**
+ * Der Eventmanager selbst: Dort liegt der Bewertungslink der Gaesteliste.
+ *
+ * Bewusst nicht EVENTMANAGER_URL: Die steht auf dem Entwicklungsrechner
+ * auf der vercel.app-Adresse, und so ein Link hat in einer Mail an einen
+ * Gast nichts verloren. Hier gilt die oeffentliche Adresse, ueberschreiben
+ * laesst sie sich mit einer eigenen Variablen.
+ */
+const EVENTMANAGER =
+  process.env.EVENTMANAGER_OEFFENTLICH ?? "https://eventmanager.florianzimmertheater.de";
 
 const NL = String.fromCharCode(10);
 
@@ -267,28 +277,27 @@ function baueHtml(d: { anrede: string; wann: string; zeit: string; token: string
  *
  * Nach drei Tagen ohne Tipp geht einmal eine freundliche Erinnerung hinterher.
  */
-export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heute = new Date()): Bewertungsmail {
-  const vn = vorname(buchung.name);
-  const anrede = vn ? `Hallo ${vn},` : "Hallo,";
-  const zeit = tageszeit(buchung.uhrzeit);
-  const wann = wannWarDerAbend(buchung.datum, zeit, heute);
-  const link = `${SHOP}/bewertung/${buchung.zugangToken}`;
-  const abmelden = `${SHOP}/abmelden/${buchung.zugangToken}`;
-
-  const betreff = erinnerung
-    ? "Kurze Erinnerung: deine Bewertung als Supporter"
-    : `Deine Bewertung als Supporter: wie war dein ${zeit} bei uns?`;
-
-  const absaetze = erinnerung
-    ? [
-        "ich wollte dich nur kurz an deine Bewertung erinnern. Du warst als Supporter bei uns, und eine ehrliche Bewertung auf Google oder Tripadvisor ist unsere kleine Gegenleistung dafür.",
-        "Es dauert keine Minute und hilft uns wirklich enorm.",
-      ]
-    : [
-        `${wann[0].toUpperCase() + wann.slice(1)} warst du als Supporter bei uns im Theater. Ich hoffe, es hat dir gefallen!`,
-        "Wie besprochen bitten wir dich als Gegenleistung um eine ehrliche Bewertung auf Google oder Tripadvisor. Viele Gäste finden uns über Bewertungen, und deine Worte helfen ihnen bei der Entscheidung.",
-        "Schreib, wie es dir wirklich gefallen hat. Wichtig: Erwähne bitte kurz, dass du das Ticket als Supporter bekommen hast. Das gehört zur Ehrlichkeit und ist für Bewertungen mit Gegenleistung so vorgeschrieben.",
-      ];
+/**
+ * Der gemeinsame Rahmen fuer die Bitte um eine Bewertung.
+ *
+ * Supporter und eingeladene Gaeste bekommen dieselbe Mail, nur mit
+ * anderer Ueberschrift, anderem Text und anderer Begruendung in der
+ * Fusszeile. Der Rahmen stand frueher nur in baueSupporterMail; als die
+ * Gaesteliste dazukam, waeren es achtzig Zeilen HTML zweimal gewesen
+ * (Florian, 04.11.2026).
+ */
+function baueBitte(o: {
+  betreff: string;
+  ueberschrift: string;
+  anrede: string;
+  absaetze: string[];
+  link: string;
+  abmelden: string;
+  schluss: string;
+  /** Warum der Empfaenger diese Mail bekommt. Steht in der Fusszeile. */
+  grund: string;
+}): Bewertungsmail {
+  const { betreff, ueberschrift, anrede, absaetze, link, abmelden, schluss, grund } = o;
 
   const text = [
     anrede,
@@ -297,12 +306,12 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
     "Hier kannst du direkt bewerten (Google oder Tripadvisor zur Wahl):",
     link,
     "",
-    "Danke, dass du uns unterstützt!",
+    schluss,
     "",
     "Florian",
     "",
     "--",
-    "Du erhältst diese E-Mail, weil du ein Supporter-Ticket von uns bekommen hast. Wenn du keine Hinweise dieser Art mehr",
+    `${grund} Wenn du keine Hinweise dieser Art mehr`,
     "erhalten möchtest, kannst du dich hier abmelden:",
     abmelden,
     "",
@@ -345,7 +354,7 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
       <div style="margin-top:12px;font-family:${sans};font-size:10px;letter-spacing:0.34em;text-transform:uppercase;color:${GOLD};">Home of Magic</div>
     </td></tr>
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:10px 40px 4px;">
-      <h1 class="ueberschrift" style="margin:0;font-family:${serif};font-size:30px;line-height:1.22;font-weight:400;color:${WEISS};">${erinnerung ? "Eine kleine Erinnerung" : `Danke, dass du<br />Supporter bist`}</h1>
+      <h1 class="ueberschrift" style="margin:0;font-family:${serif};font-size:30px;line-height:1.22;font-weight:400;color:${WEISS};">${ueberschrift}</h1>
     </td></tr>
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 0;">
       ${p(h(anrede), "color:" + WEISS + ";font-size:17px;")}
@@ -360,12 +369,12 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
       <p style="margin:12px 0 0;font-family:${sans};font-size:12.5px;color:${LEISE};">Auf Google oder Tripadvisor, du hast die Wahl.</p>
     </td></tr>
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 8px;">
-      ${p("Danke, dass du uns unterstützt!")}
+      ${p(h(schluss))}
       <p style="margin:0 0 30px;font-family:${serif};font-size:23px;line-height:1.3;color:${GOLD_HELL};">Florian</p>
     </td></tr>
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:20px 40px 34px;border-top:1px solid #262626;">
       <p style="margin:0 0 14px;font-family:${sans};font-size:12px;line-height:1.6;color:${LEISE};">
-        Du erhältst diese E-Mail, weil du ein Supporter-Ticket von uns bekommen hast. Wenn du keine Hinweise dieser Art mehr erhalten möchtest, kannst du dich hier
+        ${h(grund)} Wenn du keine Hinweise dieser Art mehr erhalten möchtest, kannst du dich hier
         <a href="${h(abmelden)}" style="color:${LEISE};text-decoration:underline;">abmelden</a>.
       </p>
       <p style="margin:0;font-family:${sans};font-size:12px;line-height:1.7;color:${LEISE};">
@@ -381,4 +390,91 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
 </html>`;
 
   return { betreff, text, html };
+}
+
+/**
+ * Die Bitte an einen Supporter. Ohne Sternefrage: Wer ein Supporter-Ticket
+ * bekommen hat, ist um die Bewertung gebeten worden, nicht um eine Note.
+ */
+export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heute = new Date()): Bewertungsmail {
+  const vn = vorname(buchung.name);
+  const zeit = tageszeit(buchung.uhrzeit);
+  const wann = wannWarDerAbend(buchung.datum, zeit, heute);
+
+  return baueBitte({
+    betreff: erinnerung
+      ? "Kurze Erinnerung: deine Bewertung als Supporter"
+      : `Deine Bewertung als Supporter: wie war dein ${zeit} bei uns?`,
+    ueberschrift: erinnerung ? "Eine kleine Erinnerung" : "Danke, dass du<br />Supporter bist",
+    anrede: vn ? `Hallo ${vn},` : "Hallo,",
+    absaetze: erinnerung
+      ? [
+          "ich wollte dich nur kurz an deine Bewertung erinnern. Du warst als Supporter bei uns, und eine ehrliche Bewertung auf Google oder Tripadvisor ist unsere kleine Gegenleistung dafür.",
+          "Es dauert keine Minute und hilft uns wirklich enorm.",
+        ]
+      : [
+          `${wann[0].toUpperCase() + wann.slice(1)} warst du als Supporter bei uns im Theater. Ich hoffe, es hat dir gefallen!`,
+          "Wie besprochen bitten wir dich als Gegenleistung um eine ehrliche Bewertung auf Google oder Tripadvisor. Viele Gäste finden uns über Bewertungen, und deine Worte helfen ihnen bei der Entscheidung.",
+          "Schreib, wie es dir wirklich gefallen hat. Wichtig: Erwähne bitte kurz, dass du das Ticket als Supporter bekommen hast. Das gehört zur Ehrlichkeit und ist für Bewertungen mit Gegenleistung so vorgeschrieben.",
+        ],
+    link: `${SHOP}/bewertung/${buchung.zugangToken}`,
+    abmelden: `${SHOP}/abmelden/${buchung.zugangToken}`,
+    schluss: "Danke, dass du uns unterstützt!",
+    grund: "Du erhältst diese E-Mail, weil du ein Supporter-Ticket von uns bekommen hast.",
+  });
+}
+
+/**
+ * Die Bitte an einen eingeladenen Gast von der Gaesteliste.
+ *
+ * "du kannst dann psychologisch druck machen. z.b. Wir haben dich sehr
+ * gerne eingeladen und haben so eine Nettikette, dass die Gaeste die
+ * kostenlose Tickets bekommen uns anschliessend bewerten"
+ * (Florian, 04.11.2026).
+ *
+ * Steht ein Einlader dabei, wird er genannt: Eine Bitte im Namen von
+ * Veronika wiegt schwerer als eine vom Haus. Der Hinweis, dass die Karte
+ * geschenkt war, muss in der Bewertung stehen; das ist bei einer
+ * Gegenleistung vorgeschrieben und steht deshalb auch hier.
+ */
+export function baueGastMail(gast: {
+  name: string;
+  eingeladenVon: string;
+  token: string;
+  datum: string;
+  uhrzeit: string | null;
+}, erinnerung = false, heute = new Date()): Bewertungsmail {
+  const vn = vorname(gast.name);
+  const zeit = tageszeit(gast.uhrzeit);
+  const wann = wannWarDerAbend(gast.datum, zeit, heute);
+  const von = gast.eingeladenVon.trim();
+  const link = `${EVENTMANAGER}/bewerten/${gast.token}`;
+
+  const eroeffnung = von
+    ? `${wann[0].toUpperCase() + wann.slice(1)} warst du auf Einladung von ${von} bei uns im Florian Zimmer Theater. Ich hoffe sehr, es hat dir gefallen!`
+    : `${wann[0].toUpperCase() + wann.slice(1)} warst du als unser Gast im Florian Zimmer Theater. Ich hoffe sehr, es hat dir gefallen!`;
+
+  return baueBitte({
+    betreff: erinnerung
+      ? "Hast du uns schon bewertet?"
+      : `Wie war dein ${zeit} bei uns?`,
+    ueberschrift: erinnerung ? "Eine kleine Erinnerung" : "Schön, dass du<br />da warst",
+    anrede: vn ? `Hallo ${vn},` : "Hallo,",
+    absaetze: erinnerung
+      ? [
+          von
+            ? `ich wollte dich nur kurz erinnern: ${von} hatte dich zu uns eingeladen, und über ein paar Zeilen von dir würden wir uns sehr freuen.`
+            : "ich wollte dich nur kurz erinnern: Über ein paar Zeilen von dir würden wir uns sehr freuen.",
+          "Es dauert keine Minute, und für ein Haus wie unseres ist jede ehrliche Bewertung Gold wert.",
+        ]
+      : [
+          eroeffnung,
+          "Wir laden unsere Gäste sehr gerne ein, und bei uns gehört eine kleine Nettigkeit dazu: Wer von uns eingeladen wird, erzählt anschließend davon. Mehr erwarten wir nicht, nur ein paar ehrliche Zeilen.",
+          "Schreib einfach, wie es dir wirklich gefallen hat. Erwähne dabei bitte kurz, dass du als Gast eingeladen warst. Das gehört zur Ehrlichkeit und ist bei Bewertungen so vorgeschrieben.",
+        ],
+    link,
+    abmelden: `${EVENTMANAGER}/bewerten/${gast.token}?abmelden=1`,
+    schluss: "Danke dir, und bis zum nächsten Mal!",
+    grund: "Du erhältst diese E-Mail, weil du als unser Gast im Florian Zimmer Theater warst.",
+  });
 }

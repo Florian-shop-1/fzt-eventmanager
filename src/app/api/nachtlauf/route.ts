@@ -10,6 +10,7 @@ import { postAbholen } from "@/lib/bewirtung/posteingang";
 import { postlaufMerken } from "@/lib/bewirtung/eingangsrechnung";
 import { abbrecherLauf } from "@/lib/abbrecher/lauf";
 import { taeglicherBewertungslauf } from "@/lib/bewertung/lauf";
+import { gaesteInMagicNews } from "@/lib/marketing/brevo-kontakte";
 import { taeglicheErinnerung } from "@/lib/dienstplan/laden";
 import { taeglicherLauf } from "@/lib/mail/vorfreudelauf";
 import { nachtlauf as scannerlauf } from "@/lib/scanner/ablauf";
@@ -141,6 +142,14 @@ const MORGEN: Teil[] = [
     }),
   },
   { name: "wein", tun: () => taeglicherRechnungslauf() },
+  /*
+    Eingeladene Gaeste in die Magic News.
+
+    Hier und nicht beim Eintragen auf der Gaesteliste: Steht Brevo
+    gerade nicht zur Verfuegung, soll deshalb niemand auf der Liste
+    fehlen (Florian, 04.11.2026).
+  */
+  { name: "magicnews", tun: () => gaesteInMagicNews() },
   { name: "dienstplan", tun: () => taeglicheErinnerung() },
   {
     name: "belege",

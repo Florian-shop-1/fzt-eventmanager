@@ -436,3 +436,56 @@ export async function kundeNachBrevo(o: {
     return `Brevo nicht erreicht: ${f instanceof Error ? f.message : "unbekannter Fehler"}`;
   }
 }
+
+/**
+ * Eingeladene Gaeste in die Magic News uebernehmen.
+ *
+ * "frag die email adresse ab und trag die leute in die magic-news ein"
+ * (Florian, 04.11.2026). Gelaufen wird im Nachtlauf, nicht beim
+ * Eintragen: Steht Brevo gerade nicht zur Verfuegung, soll deshalb
+ * niemand auf der Gaesteliste fehlen.
+ *
+ * Die Einwilligung liegt vor dem Eintrag auf der Gaesteliste, siehe den
+ * Kommentar an gaesteliste.email. Wer der Werbung widersprochen hat,
+ * wird trotzdem uebersprungen, der Widerspruch sticht immer.
+ */
+export async function gaesteInMagicNews(listeId = 7): Promise<{ uebertragen: string[]; fehler: string[] }> {
+  const { gaesteFuerNewsletter, merkeGastNewsletter } = await import("@/lib/db/gaesteliste");
+  const { widersprochene, adresse } = await import("@/lib/db/werbewiderspruch");
+  const ergebnis = { uebertragen: [] as string[], fehler: [] as string[] };
+
+  const gaeste = await gaesteFuerNewsletter();
+  if (gaeste.length === 0) return ergebnis;
+  const abgemeldet = await widersprochene(gaeste.map((g) => g.email));
+
+  for (const g of gaeste) {
+    if (abgemeldet.has(adresse(g.email))) {
+      // Kein Eintrag, aber abgehakt: Sonst versucht es der Lauf jede Nacht neu.
+      await merkeGastNewsletter(g.id).catch(() => undefined);
+      continue;
+    }
+    try {
+      const antwort = await fetch(`${BREVO}/contacts`, {
+        method: "POST",
+        headers: { "api-key": schluessel(), "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          email: g.email,
+          listIds: [listeId],
+          updateEnabled: true,
+          attributes: { VORNAME: g.name.trim().split(/\s+/)[0] ?? "" },
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      // 400 mit "Contact already exist" ist kein Fehler, dann steht er schon da.
+      if (!antwort.ok && antwort.status !== 400) {
+        ergebnis.fehler.push(`${g.email}: Brevo hat abgelehnt (${antwort.status})`);
+        continue;
+      }
+      await merkeGastNewsletter(g.id);
+      ergebnis.uebertragen.push(g.email);
+    } catch (f) {
+      ergebnis.fehler.push(`${g.email}: ${f instanceof Error ? f.message : "unbekannter Fehler"}`);
+    }
+  }
+  return ergebnis;
+}

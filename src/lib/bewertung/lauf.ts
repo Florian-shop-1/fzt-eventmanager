@@ -13,7 +13,13 @@ import { buchungenFuerTag, type ShopBuchung } from "@/lib/db/shop-buchungen";
 import { widersprochene, adresse } from "@/lib/db/werbewiderspruch";
 import { bewertungAktiv, merkeBewertungMail, supporterIds, supporterZuErinnern, merkeErinnerung } from "@/lib/db/bewertung";
 import { kassenbuchungenNachtragen } from "@/lib/flotix/kassenbuchungen";
-import { baueBewertungsmail, baueSupporterMail } from "@/lib/mail/bewertung";
+import { baueBewertungsmail, baueGastMail, baueSupporterMail } from "@/lib/mail/bewertung";
+import {
+  gaesteZuBewerten,
+  gaesteZuErinnern,
+  merkeGastBewertungsmail,
+  merkeGastErinnerung,
+} from "@/lib/db/gaesteliste";
 import { mailVerschicken } from "@/lib/mail/versand";
 import { isoDatum } from "@/lib/zeit";
 import { db } from "@/lib/db/client";
@@ -154,5 +160,110 @@ export async function taeglicherBewertungslauf(): Promise<BewertungsLauf> {
   const lauf = await bewertungenVerschicken(datum);
   // Danach die Erinnerung an Supporter, die sich nach drei Tagen nicht gerührt haben.
   await supporterErinnern().catch((e) => console.warn("[bewertung] Supporter-Erinnerung:", e));
+  // Und die eingeladenen Gäste von der Gästeliste, samt ihrer Erinnerung am Tag darauf.
+  await gaesteBewerten(datum).catch((e) => console.warn("[bewertung] Gästeliste:", e));
+  await gaesteErinnern().catch((e) => console.warn("[bewertung] Gästeliste-Erinnerung:", e));
   return lauf;
+}
+
+/* ------------------------------------------------------------------ *
+ * Die eingeladenen Gäste von der Gästeliste.
+ *
+ * Sie haben keine Buchung im Shop, deshalb laufen sie nicht durch
+ * bewertungenVerschicken. Die Bitte ist dieselbe wie beim Supporter, nur
+ * mit dem Namen dessen davor, der eingeladen hat (Florian, 04.11.2026).
+ *
+ * Die eingetragene Mailadresse ist die Einwilligung: Wer auf der Liste
+ * steht, wurde vorher gefragt. Ein Widerspruch sticht sie trotzdem.
+ * ------------------------------------------------------------------ */
+
+export interface GaesteLauf {
+  verschickt: string[];
+  uebersprungen: Array<{ email: string; grund: string }>;
+  fehler: Array<{ email: string; meldung: string }>;
+}
+
+const ABMELDEN = (token: string) =>
+  `${process.env.EVENTMANAGER_OEFFENTLICH ?? "https://eventmanager.florianzimmertheater.de"}/bewerten/${token}?abmelden=1`;
+
+export async function gaesteBewerten(datum: string, probelauf = false): Promise<GaesteLauf> {
+  const ergebnis: GaesteLauf = { verschickt: [], uebersprungen: [], fehler: [] };
+  const gaeste = await gaesteZuBewerten(datum);
+  if (gaeste.length === 0) return ergebnis;
+
+  const abgemeldet = await widersprochene(gaeste.map((g) => g.email));
+  for (const g of gaeste) {
+    if (abgemeldet.has(adresse(g.email))) {
+      ergebnis.uebersprungen.push({ email: g.email, grund: "abgemeldet" });
+      continue;
+    }
+    if (probelauf) {
+      ergebnis.verschickt.push(g.email);
+      continue;
+    }
+    const mail = baueGastMail({
+      name: g.name,
+      eingeladenVon: g.eingeladenVon,
+      token: g.token ?? "",
+      datum: g.datum,
+      uhrzeit: g.uhrzeit,
+    });
+    try {
+      await mailVerschicken({
+        an: g.email,
+        betreff: mail.betreff,
+        text: mail.text,
+        html: mail.html,
+        antwortAn: "tickets@florianzimmer.com",
+        ueberBrevo: true,
+        schlagwort: "gaesteliste",
+        abmeldenLink: ABMELDEN(g.token ?? ""),
+      });
+      await merkeGastBewertungsmail(g.id);
+      ergebnis.verschickt.push(g.email);
+    } catch (f) {
+      ergebnis.fehler.push({ email: g.email, meldung: f instanceof Error ? f.message : "Unbekannter Fehler" });
+    }
+  }
+  return ergebnis;
+}
+
+/** Einen Tag später noch einmal, aber nur an die, die nicht getippt haben. */
+export async function gaesteErinnern(probelauf = false): Promise<GaesteLauf> {
+  const ergebnis: GaesteLauf = { verschickt: [], uebersprungen: [], fehler: [] };
+  const gaeste = await gaesteZuErinnern();
+  if (gaeste.length === 0) return ergebnis;
+
+  const abgemeldet = await widersprochene(gaeste.map((g) => g.email));
+  for (const g of gaeste) {
+    if (abgemeldet.has(adresse(g.email))) {
+      ergebnis.uebersprungen.push({ email: g.email, grund: "abgemeldet" });
+      continue;
+    }
+    if (probelauf) {
+      ergebnis.verschickt.push(g.email);
+      continue;
+    }
+    const mail = baueGastMail(
+      { name: g.name, eingeladenVon: g.eingeladenVon, token: g.token ?? "", datum: g.datum, uhrzeit: g.uhrzeit },
+      true,
+    );
+    try {
+      await mailVerschicken({
+        an: g.email,
+        betreff: mail.betreff,
+        text: mail.text,
+        html: mail.html,
+        antwortAn: "tickets@florianzimmer.com",
+        ueberBrevo: true,
+        schlagwort: "gaesteliste",
+        abmeldenLink: ABMELDEN(g.token ?? ""),
+      });
+      await merkeGastErinnerung(g.id);
+      ergebnis.verschickt.push(g.email);
+    } catch (f) {
+      ergebnis.fehler.push({ email: g.email, meldung: f instanceof Error ? f.message : "Unbekannter Fehler" });
+    }
+  }
+  return ergebnis;
 }
