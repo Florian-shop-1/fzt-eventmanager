@@ -114,6 +114,15 @@ export const metadata: Metadata = {
 const OHNE_ANMELDUNG = [
   "/anmelden",
   "/ihr-angebot",
+  /*
+    Die Bewertungsseite der eingeladenen Gaeste.
+
+    Der Gast ist kein Benutzer des Eventmanagers; der lange Zufalls-
+    schluessel im Link ist sein Ausweis. Ohne diesen Eintrag landet er
+    auf der Anmeldeseite statt bei Google (gefunden am 04.11.2026, beim
+    ersten Test der fertigen Shopseite).
+  */
+  "/bewerten",
   "/einladung",
   "/warum",
   "/angebot",

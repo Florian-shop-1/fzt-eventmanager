@@ -43,6 +43,15 @@ import { anmeldenMitZiel } from "@/lib/auth/weiter";
 const OHNE_ANMELDUNG = [
   "/anmelden",
   "/ihr-angebot",
+  /*
+    Die Bewertungsseite der eingeladenen Gaeste.
+
+    Der Gast ist kein Benutzer des Eventmanagers; der lange Zufalls-
+    schluessel im Link ist sein Ausweis. Ohne diesen Eintrag landet er
+    auf der Anmeldeseite statt bei Google (gefunden am 04.11.2026, beim
+    ersten Test der fertigen Shopseite).
+  */
+  "/bewerten",
   // Einladungslink fürs Showteam: selbst eintragen, siehe app/einladung.
   "/einladung",
   /*
