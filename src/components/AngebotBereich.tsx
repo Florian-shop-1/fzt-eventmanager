@@ -191,7 +191,27 @@ export function AngebotBereich({
     fuer die Geschaeftsleitung und 15 Karten Kat. 2 fuer den Rest
     (Florian, 15.10.2026).
   */
-  const [mengen, setMengen] = useState<Record<string, number>>({ TK2: personen });
+  const [mengen, setMengen] = useState<Record<string, number>>({});
+  /*
+    Hat jemand die Stückzahlen der Tickets selbst angefasst?
+
+    Vorher stand die Vorbelegung fest im Zustand: { TK2: personen }.
+    useState merkt sich aber nur den ersten Wert. Änderte man danach die
+    Teilnehmerzahl oben, zogen alle Zeilen mit, nur die erste nicht, denn
+    für TK2 stand ja schon eine Zahl da. Dieselbe Zahl blieb auch beim
+    nächsten Angebot stehen (Florian, 04.11.2026).
+
+    Jetzt ist die Vorbelegung abgeleitet statt gespeichert: Solange
+    niemand eine Stückzahl eingetippt hat, sitzen alle Gäste in Kat. 2,
+    und das folgt der Teilnehmerzahl von allein. Sobald jemand selbst
+    aufteilt, gilt seine Aufteilung und wird nicht mehr überschrieben.
+  */
+  const [ticketsBeruehrt, setTicketsBeruehrt] = useState(false);
+  const ticketmengen = ticketsBeruehrt ? mengen : { TK2: personen };
+  const setzeTicketmengen = (m: Record<string, number>) => {
+    setTicketsBeruehrt(true);
+    setMengen(m);
+  };
   const [rabatt, setRabatt] = useState(0);
   /*
     Einheitspreis je Sitzplatz, als Text, damit das Feld leer bleiben
@@ -380,7 +400,7 @@ export function AngebotBereich({
         art === "einzelplaetze"
           ? TICKETS.map((t) => ({
               nummer: t.nummer,
-              menge: mengen[t.nummer] ?? 0,
+              menge: ticketmengen[t.nummer] ?? 0,
             })).filter((k) => k.menge > 0)
           : [],
       ticketRabatt: rabatt,
@@ -903,8 +923,8 @@ export function AngebotBereich({
                 </span>
               </div>
               <Kategorienwahl
-                mengen={mengen}
-                setzen={setMengen}
+                mengen={ticketmengen}
+                setzen={setzeTicketmengen}
                 personen={personen}
                 preise={abendpreise}
                 preiseSelbst={preiseSelbst}
