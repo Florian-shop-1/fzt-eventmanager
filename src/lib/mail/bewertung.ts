@@ -434,7 +434,7 @@ export function baueSupporterMail(buchung: ShopBuchung, erinnerung = false, heut
       : [
           `${wann[0].toUpperCase() + wann.slice(1)} warst du als Supporter bei uns im Theater. Ich hoffe, es hat dir gefallen!`,
           "Wie besprochen bitten wir dich als Gegenleistung um eine ehrliche Bewertung auf Google oder Tripadvisor. Viele Gäste finden uns über Bewertungen, und deine Worte helfen ihnen bei der Entscheidung.",
-          "Schreib, wie es dir wirklich gefallen hat. Wichtig: Erwähne bitte kurz, dass du das Ticket als Supporter bekommen hast. Das gehört zur Ehrlichkeit und ist für Bewertungen mit Gegenleistung so vorgeschrieben.",
+          "Schreib, wie es dir wirklich gefallen hat.",
         ],
     link: `${SHOP}/bewertung/${buchung.zugangToken}`,
     abmelden: `${SHOP}/abmelden/${buchung.zugangToken}`,
