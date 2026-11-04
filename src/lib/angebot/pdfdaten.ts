@@ -191,7 +191,8 @@ async function probeFingerfood(): Promise<AngebotsPdfDaten> {
     "Empfang auf unserer Eventgalerie mit einem Glas Magicuvée",
     "",
     "17:50 UHR",
-    "Fingerfood by Osman Kavak auf unserer Eventgalerie. Herzhafte und süße Kleinigkeiten " +
+    // Ohne Namen, siehe Artikel FINGERFOOD (Florian, 04.11.2026).
+    "Fingerfood aus unserer Küche auf unserer Eventgalerie. Herzhafte und süße Kleinigkeiten " +
       "auf Etageren zum Teilen, in Ruhe und im Stehen, so wie Sie mögen.",
     "",
     "20:00 UHR",

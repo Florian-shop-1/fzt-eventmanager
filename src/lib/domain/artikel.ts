@@ -95,7 +95,12 @@ export const ARTIKEL: Artikel[] = [
   */
   {
     nummer: "FINGERFOOD",
-    bezeichnung: "Fingerfood by Osman Kavak",
+    /*
+      Ohne Namen: "bei Fingerfood (und nur in diesem zusammenhang) nicht
+      den Osman Kavak erwaehnen" (Florian, 04.11.2026). Beim Magic Menue
+      bleibt der Name stehen, dort ist er das Zugpferd.
+    */
+    bezeichnung: "Fingerfood aus unserer Küche",
     beschreibung:
       "Herzhafte und süße Kleinigkeiten aus unserer Küche, auf Etageren zum Teilen. " +
       "Vegetarisches ist immer dabei, Allergien berücksichtigen wir selbstverständlich.",

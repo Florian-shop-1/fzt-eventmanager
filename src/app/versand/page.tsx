@@ -59,6 +59,39 @@ export const dynamic = "force-dynamic";
  * hat das Programm keinen Schreibzugriff, und die Tabelle soll die Quelle
  * bleiben.
  */
+/**
+ * Suchen, wie man am Telefon sucht.
+ *
+ * "bitte beim Versand eine suchmaske einrichten, dass man nach name,
+ * email etc. suchen kann" (Florian, 04.11.2026).
+ *
+ * Gesucht wird ueber alles, was auf der Karte steht: Name, Mailadresse,
+ * Bestellnummer, Gutscheincode und die ganze Anschrift. Mehrere Woerter
+ * muessen alle vorkommen, aber in beliebiger Reihenfolge: "mueller ulm"
+ * findet den Mueller in Ulm, auch wenn der Ort weit hinter dem Namen
+ * steht.
+ *
+ * Gross- und Kleinschreibung spielen keine Rolle, Umlaute auch nicht:
+ * Wer "muller" tippt, findet "Mueller" und "Müller". Am Telefon
+ * buchstabiert niemand Umlaute mit.
+ */
+function schlicht(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "ss")
+    // Alles, was nach dem Zerlegen an Akzenten uebrig bleibt, faellt weg:
+    // So findet "jerome" auch "Jérôme".
+    .normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function trifft(begriff: string, felder: Array<string | null | undefined>): boolean {
+  const heuhaufen = schlicht(felder.filter(Boolean).join(" "));
+  return schlicht(begriff)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((wort) => heuhaufen.includes(wort));
+}
+
 export default async function VersandSeite({
   searchParams,
 }: {
@@ -70,9 +103,11 @@ export default async function VersandSeite({
     zuletzt?: string;
     aktion?: string;
     meldung?: string;
+    suche?: string;
   }>;
 }) {
-  const { zeige, nur, drucken, sofort, zuletzt, aktion, meldung } = await searchParams;
+  const { zeige, nur, drucken, sofort, zuletzt, aktion, meldung, suche } = await searchParams;
+  const suchbegriff = (suche ?? "").trim().slice(0, 80);
 
   /*
     Am geteilten Foyer-Zugang muss dastehen, wer gerade arbeitet.
@@ -151,19 +186,43 @@ export default async function VersandSeite({
   // Die zuletzt angefasste Sendung, fuer die Rueckmeldung oben.
   const geradeGeaendert = zuletzt ? sendungen.find((s) => s.bestellnummer === zuletzt) : undefined;
 
-  const sichtbar =
-    einzeln ?? (erledigteZeigen ? erledigte : alleZeigen ? sendungen : offen);
+  /*
+    Eine Suche sticht die Reiter.
+
+    Wer einen Namen sucht, weiss nicht, ob die Sendung noch offen oder
+    schon abgehakt ist; genau deshalb sucht er ja. Bei einem Suchbegriff
+    wird also immer der ganze Bestand durchsucht, nicht nur der gerade
+    gewaehlte Reiter.
+  */
+  const gesucht = suchbegriff.length > 0 && !einzeln;
+
+  const sichtbar = einzeln
+    ?? (gesucht
+      ? sendungen.filter((s) =>
+          trifft(suchbegriff, [
+            s.kundenname, s.email, s.empfaenger, s.bestellnummer,
+            s.gutscheincode, s.strasse, s.plz, s.ort,
+          ]),
+        )
+      : erledigteZeigen ? erledigte : alleZeigen ? sendungen : offen);
   /*
     Beim Blick auf eine einzelne Gutscheinsendung stehen die Zauberstaebe
     nicht im Weg: Dort geht es um genau einen Umschlag.
   */
   const staebeSichtbar = einzeln
     ? []
-    : erledigteZeigen
-      ? staebeErledigt
-      : alleZeigen
-        ? staebe
-        : staebeOffen;
+    : gesucht
+      ? staebe.filter((z) =>
+          trifft(suchbegriff, [
+            z.name, z.vorname, z.nachname, z.email,
+            z.strasse, z.plz, z.ort, z.land, z.notiz,
+          ]),
+        )
+      : erledigteZeigen
+        ? staebeErledigt
+        : alleZeigen
+          ? staebe
+          : staebeOffen;
   // Gedruckt wird nur, was auch wirklich in die Post kann: mit Anschrift.
   const staebeZuDrucken = einzeln ? [] : staebeOffen.filter((z) => !z.offen);
   const zuDrucken = (einzeln ?? offen).filter(gehtInDiePost);
@@ -364,7 +423,44 @@ export default async function VersandSeite({
         </div>
       )}
 
-      <nav className={`flex gap-2 text-sm print:hidden ${einzeln ? "hidden" : ""}`}>
+      {/*
+        Die Suchmaske.
+
+        Ein gewoehnliches Formular, das die Seite neu laedt: Die Liste
+        kommt ohnehin vom Server, und so funktioniert die Suche auch mit
+        dem Zurueck-Knopf und laesst sich als Lesezeichen ablegen.
+      */}
+      <form method="get" className={`flex flex-wrap items-center gap-2 print:hidden ${einzeln ? "hidden" : ""}`}>
+        <label className="grow">
+          <span className="mb-1 block text-xs text-leise">
+            Suchen nach Name, Mailadresse, Bestellnummer, Gutscheincode oder Anschrift
+          </span>
+          <input
+            name="suche"
+            type="search"
+            defaultValue={suchbegriff}
+            placeholder="z. B. Müller, mueller@web.de, FZT-261103-805475 oder 89231"
+            className="w-full"
+          />
+        </label>
+        <button className="self-end rounded-md border border-linie px-4 py-2 text-sm font-medium">
+          Suchen
+        </button>
+        {gesucht && (
+          <Link href="/versand" className="self-end px-2 py-2 text-sm underline">
+            Suche aufheben
+          </Link>
+        )}
+      </form>
+
+      {gesucht && (
+        <p className="text-sm print:hidden">
+          <strong>{sichtbar.length + staebeSichtbar.length}</strong> Treffer für „{suchbegriff}“.
+          Gesucht wird im ganzen Bestand, offen wie abgehakt.
+        </p>
+      )}
+
+      <nav className={`flex gap-2 text-sm print:hidden ${einzeln || gesucht ? "hidden" : ""}`}>
         <Link
           href="/versand"
           className={`rounded-md border px-3 py-1.5 ${!alleZeigen ? "border-gold bg-gold-hell" : "border-linie"}`}
@@ -396,13 +492,24 @@ export default async function VersandSeite({
       {sichtbar.length === 0 && staebeSichtbar.length === 0 ? (
         <div className="rounded-lg border border-dashed border-linie px-6 py-12 text-center text-sm print:hidden">
           <div className="font-medium">
-            {alleZeigen ? "Keine Sendungen in der Liste" : "Nichts offen"}
+            {gesucht
+              ? `Nichts gefunden zu „${suchbegriff}“`
+              : alleZeigen
+                ? "Keine Sendungen in der Liste"
+                : "Nichts offen"}
           </div>
           <p className="mt-1 text-leise">
-            {alleZeigen
-              ? "Sobald ein Gutschein bestellt oder ein Zauberstab angefordert wird, erscheint er hier."
-              : "Alles ist raus. Gut gemacht."}
+            {gesucht
+              ? "Such lieber mit einem Teil des Namens oder nur der Postleitzahl, das trifft mehr."
+              : alleZeigen
+                ? "Sobald ein Gutschein bestellt oder ein Zauberstab angefordert wird, erscheint er hier."
+                : "Alles ist raus. Gut gemacht."}
           </p>
+          {gesucht && (
+            <Link href="/versand" className="mt-3 inline-block underline">
+              Suche aufheben
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-3 print:hidden">
