@@ -296,15 +296,21 @@ function baueBitte(o: {
   schluss: string;
   /** Warum der Empfaenger diese Mail bekommt. Steht in der Fusszeile. */
   grund: string;
+  /**
+   * Die Auswahl gleich in der Mail (Florian, 04.11.2026: "sollte nicht gleich in die Mail die Auswahl Google, Tripadvisor,
+   * Facebook"): Statt eines Knopfes zur Bewertungsseite je ein Knopf je Plattform. Ohne Angabe bleibt es beim einen Knopf.
+   */
+  knoepfe?: Array<{ text: string; href: string }>;
 }): Bewertungsmail {
-  const { betreff, ueberschrift, anrede, absaetze, link, abmelden, schluss, grund } = o;
+  const { betreff, ueberschrift, anrede, absaetze, link, abmelden, schluss, grund, knoepfe } = o;
 
   const text = [
     anrede,
     "",
     ...absaetze.flatMap((a) => [a, ""]),
-    "Hier kannst du direkt bewerten (Google oder Tripadvisor zur Wahl):",
-    link,
+    ...(knoepfe
+      ? ["Such dir eine Plattform aus, es dauert keine Minute:", ...knoepfe.map((k) => `${k.text}: ${k.href}`)]
+      : ["Hier kannst du direkt bewerten (Google oder Tripadvisor zur Wahl):", link]),
     "",
     schluss,
     "",
@@ -361,12 +367,25 @@ function baueBitte(o: {
       ${absaetze.map((a) => p(h(a))).join("\n      ")}
     </td></tr>
     <tr><td align="center" class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:6px 40px 10px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+      ${
+        knoepfe
+          ? knoepfe
+              .map(
+                (k, i) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="260" style="width:260px;max-width:100%;margin:0 auto 12px;"><tr>
+        <td align="center" bgcolor="${i === 0 ? GOLD : FLAECHE}" style="background-color:${i === 0 ? GOLD : FLAECHE};border:1px solid ${GOLD};border-radius:8px;">
+          <a href="${h(k.href)}" style="display:block;padding:14px 20px;font-family:${sans};font-size:16px;font-weight:600;color:${i === 0 ? "#10140a" : GOLD_HELL};text-decoration:none;">${h(k.text)}</a>
+        </td>
+      </tr></table>`,
+              )
+              .join("\n      ")
+          : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
         <td align="center" bgcolor="${GOLD}" style="background-color:${GOLD};border-radius:8px;">
           <a href="${h(link)}" style="display:inline-block;padding:15px 34px;font-family:${sans};font-size:16px;font-weight:600;color:#10140a;text-decoration:none;">Jetzt bewerten</a>
         </td>
       </tr></table>
-      <p style="margin:12px 0 0;font-family:${sans};font-size:12.5px;color:${LEISE};">Auf Google oder Tripadvisor, du hast die Wahl.</p>
+      <p style="margin:12px 0 0;font-family:${sans};font-size:12.5px;color:${LEISE};">Auf Google oder Tripadvisor, du hast die Wahl.</p>`
+      }
+      ${knoepfe ? `<p style="margin:6px 0 0;font-family:${sans};font-size:12.5px;color:${LEISE};">Such dir eine Plattform aus, es dauert keine Minute.</p>` : ""}
     </td></tr>
     <tr><td class="polster" bgcolor="${FLAECHE}" style="background-color:${FLAECHE};padding:26px 40px 8px;">
       ${p(h(schluss))}
@@ -480,6 +499,13 @@ export function baueGastMail(gast: {
           "Schreib einfach, wie es dir wirklich gefallen hat.",
         ],
     link,
+    // Die Knoepfe zeigen auf den Shop, nicht auf den Eventmanager: In einer Gaestemail soll die Adresse des Hauses stehen.
+    // Der Shop reicht den Klick an den Eventmanager weiter, der ihn vermerkt und zur Plattform schickt.
+    knoepfe: [
+      { text: "Bei Google bewerten", href: `${SHOP}/bewerten/${gast.token}/zu/google` },
+      { text: "Bei Tripadvisor bewerten", href: `${SHOP}/bewerten/${gast.token}/zu/tripadvisor` },
+      { text: "Bei Facebook bewerten", href: `${SHOP}/bewerten/${gast.token}/zu/facebook` },
+    ],
     abmelden: `${EVENTMANAGER}/bewerten/${gast.token}?abmelden=1`,  // Abmelden bleibt im Eventmanager, dort steht die Liste.
     schluss: "Danke dir, und bis zum nächsten Mal!",
     grund: "Du erhältst diese E-Mail, weil du als unser Gast im Florian Zimmer Theater warst.",

@@ -24,7 +24,7 @@ export const metadata = { title: "Bewertung | Florian Zimmer Theater" };
   Plattform. So wird der Klick auf demselben Weg gezaehlt wie von der
   Shopseite aus, und es gibt nur eine Stelle, die zaehlt.
 */
-const ZU = (token: string, ziel: "google" | "tripadvisor") => `/bewerten/${token}/zu/${ziel}`;
+const ZU = (token: string, ziel: "google" | "tripadvisor" | "facebook") => `/bewerten/${token}/zu/${ziel}`;
 
 export default async function BewertenSeite({
   params,
@@ -85,7 +85,7 @@ export default async function BewertenSeite({
             {gast.eingeladenVon
               ? `${gast.eingeladenVon} hat dich eingeladen, und wir haben dich sehr gerne bei uns begrüßt.`
               : "Wir haben dich sehr gerne bei uns begrüßt."}{" "}
-            Such dir eine Plattform aus, beide dauern keine Minute.
+            Such dir eine Plattform aus, es dauert keine Minute.
           </p>
 
           <div className="space-y-3">
@@ -106,12 +106,17 @@ export default async function BewertenSeite({
             >
               Bei Tripadvisor bewerten
             </a>
+            <a
+              href={ZU(token, "facebook")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-lg border border-linie px-4 py-4 text-center font-medium"
+            >
+              Bei Facebook bewerten
+            </a>
           </div>
 
-          <p className="text-center text-xs text-leise">
-            Schreib bitte kurz dazu, dass du als Gast eingeladen warst. Das gehört zur
-            Ehrlichkeit und ist bei Bewertungen so vorgeschrieben.
-          </p>
+          <p className="text-center text-sm text-leise">Das ganze Team freut sich schon auf deine Bewertung!</p>
         </>
       )}
     </main>

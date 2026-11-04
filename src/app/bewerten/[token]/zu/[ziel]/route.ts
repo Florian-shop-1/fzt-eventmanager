@@ -25,6 +25,8 @@ const ZIELE: Record<string, string> = {
   google: "https://search.google.com/local/writereview?placeid=ChIJM7SUXk3fm0cRLDoip8t0DRQ",
   tripadvisor:
     "https://www.tripadvisor.de/UserReviewEdit-g198468-d24151397-Florian_Zimmer_Theater-Neu_Ulm_Swabia_Bavaria.html",
+  // Facebook (Florian, 04.11.2026): Dort kann man auch bewerten. Die Seite ist dieselbe wie in den Social-Links des Shops.
+  facebook: "https://www.facebook.com/florianzimmer/reviews",
 };
 
 export async function GET(
