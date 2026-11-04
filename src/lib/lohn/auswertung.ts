@@ -501,7 +501,17 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
   for (const b of await bestaetigteZuschauer(z.von, z.bis)) {
     if (!imZeitraum(b.datum)) continue;
     const person = hole(b.benutzerId, b.name, b.email);
-    if (person.protokoll.some((t) => t.datum === b.datum)) continue;
+    /*
+      Nur der Stempel sticht, nicht der eigene zweite Eintrag.
+
+      An Tagen mit zwei Vorstellungen steht er zweimal im Plan, und beide
+      Einsaetze zaehlen. Ein Abgleich auf das blosse Datum verschluckte
+      den zweiten: Der 24.10.2026 kam so auf zwei statt vier Stunden
+      (gefunden am 04.11.2026). Hat er dagegen gestempelt, gilt der
+      Stempel und dieser Eintrag faellt weg.
+    */
+    if (person.protokoll.some((t) => t.datum === b.datum && t.stempel.length > 0)) continue;
+    const schonAmTag = person.protokoll.some((t) => t.datum === b.datum);
     const minuten = (b.haelften === 1 ? 1 : 2) * 60;
     person.protokoll.push({
       datum: b.datum,
@@ -516,7 +526,8 @@ export async function zeitenImZeitraum(z: Zeitraum): Promise<Mitarbeiterzeiten[]
       zuschauer: true,
     });
     person.arbeitMinuten += minuten;
-    person.arbeitstage += 1;
+    // Zwei Vorstellungen an einem Tag bleiben ein Arbeitstag.
+    if (!schonAmTag) person.arbeitstage += 1;
   }
 
   // Urlaub und Krankheit tageweise, nur innerhalb des Zeitraums.
