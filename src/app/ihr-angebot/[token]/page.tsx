@@ -13,6 +13,7 @@ import { DruckKnopf } from "@/components/DruckKnopf";
 import { Restzeit } from "@/components/Restzeit";
 import { aenderungWuenschen, angebotAblehnen, angebotAnnehmen } from "./actions";
 import { angemeldeterBenutzer } from "@/lib/auth/sitzung";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 /**
  * Eine Schrift mit Charakter, nur für diese Seite.
@@ -45,6 +46,31 @@ export const dynamic = "force-dynamic";
  * Aufbau: erst der Abend als Erlebnis, dann die Zahlen. In dieser
  * Reihenfolge, weil niemand eine Preisliste kauft, sondern einen Abend.
  */
+/**
+ * Probesitzen: der Rundgang, von der Ticketzeile aus.
+ *
+ * "da könnte man auch den rundgang linken dann, quasi probesitzen in
+ * Kat1... es soll nicht prominent sein auf der seite, sondern so, dass
+ * man es entdeckt, wenn man wirklich sehr interessiert ist"
+ * (Florian, 04.11.2026).
+ *
+ * Deshalb ein kleiner Textlink an der Zeile und kein Knopf: Wer zwischen
+ * zwei Kategorien schwankt, findet die Antwort genau dort, wo die Frage
+ * entsteht. Wer nur ueberfliegt, sieht ihn nicht.
+ *
+ * Die Technik wird nicht genannt. "3D-Rundgang" beschreibt ein Produkt,
+ * "Probesitzen" beschreibt, was der Gast davon hat.
+ */
+const PROBESITZEN: Record<string, string> = {
+  TGS: "golden",
+  TK1: "kat1",
+  TK2: "kat2",
+  TK3: "kat3",
+  EXKLUSIVLOGE: "loge",
+  DEKOLOGE: "loge",
+  "4GANGLOGE": "loge",
+};
+
 export default async function KundenAngebot({
   params,
   searchParams,
@@ -445,6 +471,16 @@ export default async function KundenAngebot({
                           </div>
                           {p.beschreibung && (
                             <div className="mt-0.5 text-xs text-leise">{p.beschreibung}</div>
+                          )}
+                          {PROBESITZEN[p.artikelNummer] && (
+                            <a
+                              href={`${SHOP_BASIS}/rundgang?ort=${PROBESITZEN[p.artikelNummer]}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-0.5 inline-block text-xs text-leise underline decoration-dotted underline-offset-2"
+                            >
+                              Probesitzen
+                            </a>
                           )}
                         </td>
                         {/*

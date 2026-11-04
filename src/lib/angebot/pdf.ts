@@ -29,6 +29,7 @@ import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
 import type { Position } from "@/lib/domain/vorgang";
 import { angebotssumme, positionsSumme } from "./erstellen";
+import { SHOP_BASIS } from "@/lib/shop/adresse";
 
 /** Absender mit allen Pflichtangaben, wie er auch auf der Rechnung steht. */
 export interface Absender {
@@ -389,6 +390,20 @@ export async function angebotsPdf(d: AngebotsPdfDaten): Promise<Buffer> {
       }
       y = yy - 8;
     }
+
+    /*
+      Probesitzen, als leise Zeile unter dem Ablauf.
+
+      "es soll nicht prominent sein auf der seite, sondern so, dass man
+      es entdeckt, wenn man wirklich sehr interessiert ist"
+      (Florian, 04.11.2026). Im PDF geht kein unauffaelliger Textlink,
+      also eine Zeile in Grau und kleiner Schrift, direkt dort, wo der
+      Leser sich den Abend gerade vorstellt.
+    */
+    platz(20);
+    y -= 2;
+    schreib(`Probesitzen von zu Hause: ${SHOP_BASIS.replace(/^https?:\/\//, "")}/rundgang`, LINKS, y, 8, normal, GRAU);
+    y -= 10;
   }
 
   /* ------------------------------------------------------------------
