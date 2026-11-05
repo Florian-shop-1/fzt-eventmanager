@@ -107,7 +107,7 @@ export async function preiseDerVorstellung(ditixEventId: string): Promise<DitixP
   const amPlan = brauchbar.filter((a) => a.seatingPrice?.seatmapPriceId);
   if (amPlan.length > 0 && termin.seatmapEventId) {
     const roh = await shopPost<{
-      seatingPriceTicketPrices?: Array<{ seatmapPriceId: string; cheapest?: Betrag }>;
+      seatingPriceTicketPrices?: Array<{ seatmapPriceId: string; cheapest?: Betrag; mostExpensive?: Betrag }>;
     }>("seating-prices", {
       seatmapSchemaId: termin.seatmapSchemaId,
       seatmapEventId: termin.seatmapEventId,
@@ -115,7 +115,8 @@ export async function preiseDerVorstellung(ditixEventId: string): Promise<DitixP
 
     const nachPreisId = new Map<string, number>();
     for (const e of roh?.seatingPriceTicketPrices ?? []) {
-      const cent = zuCent(e.cheapest);
+      // Der teurere Preis, bei den Mittagsshows ist "cheapest" der Kinderpreis (Florian, 30.10. und 05.11.2026).
+      const cent = zuCent(e.mostExpensive ?? e.cheapest);
       if (cent !== null) nachPreisId.set(String(e.seatmapPriceId), cent);
     }
 
